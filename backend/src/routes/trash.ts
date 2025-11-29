@@ -22,7 +22,7 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
 
     res.json({
       files: files.map((f: any) => ({ ...f, size: f.size.toString() })),
-      folders,
+      folders: folders.map((f: any) => ({ ...f, size: f.size?.toString() ?? '0' })),
     });
   } catch (error) {
     console.error('List trash error:', error);
@@ -168,25 +168,32 @@ router.delete('/empty', authenticate, async (req: Request, res: Response) => {
   try {
     const userId = req.user!.userId;
     const { deleteFile: deleteStorageFile } = await import('../lib/storage.js');
-
-    // Delete all trashed files
-    const files = await prisma.file.findMany({
-      where: { userId, isTrash: true },
-    });
-
+    const BATCH_SIZE = 100;
     let freedSpace = BigInt(0);
 
-    for (const file of files) {
-      await deleteStorageFile(file.path);
-      if (file.thumbnailPath) {
-        await deleteStorageFile(file.thumbnailPath);
-      }
-      freedSpace += file.size;
-    }
+    // Delete files in batches
+    while (true) {
+      const files = await prisma.file.findMany({
+        where: { userId, isTrash: true },
+        take: BATCH_SIZE,
+      });
 
-    await prisma.file.deleteMany({
-      where: { userId, isTrash: true },
-    });
+      if (files.length === 0) {
+        break;
+      }
+
+      for (const file of files) {
+        await deleteStorageFile(file.path);
+        if (file.thumbnailPath) {
+          await deleteStorageFile(file.thumbnailPath);
+        }
+        freedSpace += file.size;
+      }
+
+      await prisma.file.deleteMany({
+        where: { id: { in: files.map(f => f.id) } },
+      });
+    }
 
     // Delete all trashed folders
     await prisma.folder.deleteMany({
@@ -194,10 +201,12 @@ router.delete('/empty', authenticate, async (req: Request, res: Response) => {
     });
 
     // Update storage used
-    await prisma.user.update({
-      where: { id: userId },
-      data: { storageUsed: { decrement: Number(freedSpace) } },
-    });
+    if (freedSpace > 0) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { storageUsed: { decrement: Number(freedSpace) } },
+      });
+    }
 
     res.json({ message: 'Trash emptied successfully', freedSpace: freedSpace.toString() });
   } catch (error) {

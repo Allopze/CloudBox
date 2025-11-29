@@ -13,13 +13,9 @@ export default function AuthLayout() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#F9FAFB] dark:bg-dark-950 p-4">
       <div className="w-full max-w-md">
-        <motion.div
-          layout
-          className="bg-white dark:bg-dark-800 rounded-2xl shadow-2xl p-8 overflow-hidden"
-          transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        >
+        <div className="bg-white dark:bg-dark-800 rounded-2xl shadow-2xl p-8 overflow-hidden">
           {/* Logo inside card */}
-          <motion.div layout className="flex justify-center mb-8">
+          <div className="flex justify-center mb-8">
             {logo ? (
               <img src={logo} alt="Logo" className="h-20 object-contain" />
             ) : (
@@ -27,7 +23,7 @@ export default function AuthLayout() {
                 <Cloud className="w-12 h-12 text-white" />
               </div>
             )}
-          </motion.div>
+          </div>
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}
@@ -39,7 +35,7 @@ export default function AuthLayout() {
               <Outlet />
             </motion.div>
           </AnimatePresence>
-        </motion.div>
+        </div>
       </div>
     </div>
   );

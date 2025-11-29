@@ -99,7 +99,43 @@ export default function AdminDashboard() {
   const [formPassword, setFormPassword] = useState('');
   const [formRole, setFormRole] = useState<'USER' | 'ADMIN'>('USER');
   const [formStorageQuota, setFormStorageQuota] = useState('10737418240');
+  const [customQuotaValue, setCustomQuotaValue] = useState('');
+  const [customQuotaUnit, setCustomQuotaUnit] = useState<'GB' | 'TB'>('GB');
   const [savingUser, setSavingUser] = useState(false);
+
+  // Predefined quota options in bytes
+  const quotaOptions = [
+    { value: '1073741824', label: '1 GB' },
+    { value: '5368709120', label: '5 GB' },
+    { value: '10737418240', label: '10 GB' },
+    { value: '21474836480', label: '20 GB' },
+    { value: '32212254720', label: '30 GB' },
+    { value: '53687091200', label: '50 GB' },
+    { value: '107374182400', label: '100 GB' },
+    { value: '214748364800', label: '200 GB' },
+    { value: '536870912000', label: '500 GB' },
+    { value: '1099511627776', label: '1 TB' },
+    { value: 'custom', label: 'Personalizado' },
+  ];
+
+  const handleUserQuotaChange = (value: string) => {
+    if (value === 'custom') {
+      setFormStorageQuota('custom');
+    } else {
+      setFormStorageQuota(value);
+      setCustomQuotaValue('');
+    }
+  };
+
+  const getEffectiveQuota = () => {
+    if (formStorageQuota === 'custom' && customQuotaValue) {
+      const numValue = parseFloat(customQuotaValue);
+      if (isNaN(numValue) || numValue <= 0) return '10737418240'; // Default 10GB
+      const multiplier = customQuotaUnit === 'TB' ? 1099511627776 : 1073741824;
+      return String(Math.floor(numValue * multiplier));
+    }
+    return formStorageQuota;
+  };
 
   const [systemSettings, setSystemSettings] = useState<SystemSettings>({
     siteName: 'CloudBox',
@@ -194,11 +230,20 @@ export default function AdminDashboard() {
       if (systemRes.data) setSystemSettings((prev) => ({ ...prev, ...systemRes.data }));
       if (smtpRes.data) setSmtpSettings((prev) => ({ ...prev, ...smtpRes.data }));
       if (brandingRes.data) {
+        // Convert relative URLs to absolute URLs
+        const getFullUrl = (url: string | undefined): string => {
+          if (!url) return '';
+          if (url.startsWith('http')) return url;
+          if (url.startsWith('/api')) return `${API_URL.replace('/api', '')}${url}`;
+          return url;
+        };
+        
         setBrandingSettings((prev) => ({
           ...prev,
           ...brandingRes.data,
-          logoLightUrl: brandingRes.data.logoLightUrl || brandingRes.data.logoUrl || '',
-          logoDarkUrl: brandingRes.data.logoDarkUrl || brandingRes.data.logoUrl || '',
+          logoLightUrl: getFullUrl(brandingRes.data.logoLightUrl || brandingRes.data.logoUrl),
+          logoDarkUrl: getFullUrl(brandingRes.data.logoDarkUrl || brandingRes.data.logoUrl),
+          faviconUrl: getFullUrl(brandingRes.data.faviconUrl),
         }));
       }
     } catch (error) {
@@ -313,6 +358,8 @@ export default function AdminDashboard() {
     setFormPassword('');
     setFormRole('USER');
     setFormStorageQuota('10737418240');
+    setCustomQuotaValue('');
+    setCustomQuotaUnit('GB');
     setShowCreateModal(true);
   };
 
@@ -322,7 +369,26 @@ export default function AdminDashboard() {
     setFormEmail(user.email);
     setFormPassword('');
     setFormRole(user.role);
-    setFormStorageQuota(user.storageQuota);
+    // Check if quota matches a predefined option
+    const matchingOption = quotaOptions.find(opt => opt.value === user.storageQuota);
+    if (matchingOption && matchingOption.value !== 'custom') {
+      setFormStorageQuota(user.storageQuota);
+      setCustomQuotaValue('');
+    } else {
+      // Custom value - convert to GB or TB
+      const quotaBytes = BigInt(user.storageQuota);
+      const tbValue = Number(quotaBytes) / 1099511627776;
+      const gbValue = Number(quotaBytes) / 1073741824;
+      if (tbValue >= 1 && Number.isInteger(tbValue)) {
+        setFormStorageQuota('custom');
+        setCustomQuotaValue(String(tbValue));
+        setCustomQuotaUnit('TB');
+      } else {
+        setFormStorageQuota('custom');
+        setCustomQuotaValue(String(Math.round(gbValue * 100) / 100));
+        setCustomQuotaUnit('GB');
+      }
+    }
     setShowEditModal(true);
   };
 
@@ -338,7 +404,7 @@ export default function AdminDashboard() {
         email: formEmail,
         password: formPassword,
         role: formRole,
-        storageQuota: formStorageQuota,
+        storageQuota: getEffectiveQuota(),
       });
       toast('Usuario creado', 'success');
       setShowCreateModal(false);
@@ -359,7 +425,7 @@ export default function AdminDashboard() {
         email: formEmail,
         password: formPassword || undefined,
         role: formRole,
-        storageQuota: formStorageQuota,
+        storageQuota: getEffectiveQuota(),
       });
       toast('Usuario actualizado', 'success');
       setShowEditModal(false);
@@ -591,12 +657,14 @@ export default function AdminDashboard() {
             label="Usuario"
             value={smtpSettings.user}
             onChange={(e) => setSmtpSettings({ ...smtpSettings, user: e.target.value })}
+            autoComplete="off"
           />
           <Input
             label="Contraseña"
             type="password"
             value={smtpSettings.password}
             onChange={(e) => setSmtpSettings({ ...smtpSettings, password: e.target.value })}
+            autoComplete="off"
           />
         </div>
 
@@ -869,7 +937,7 @@ export default function AdminDashboard() {
         onClose={() => setShowCreateModal(false)}
         title="Crear Usuario"
       >
-        <div className="space-y-4">
+        <form onSubmit={(e) => { e.preventDefault(); createUser(); }} className="space-y-4">
           <Input
             label="Nombre"
             value={formName}
@@ -880,12 +948,14 @@ export default function AdminDashboard() {
             type="email"
             value={formEmail}
             onChange={(e) => setFormEmail(e.target.value)}
+            autoComplete="off"
           />
           <Input
             label="Contraseña"
             type="password"
             value={formPassword}
             onChange={(e) => setFormPassword(e.target.value)}
+            autoComplete="new-password"
           />
           <div>
             <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">
@@ -906,25 +976,45 @@ export default function AdminDashboard() {
             </label>
             <select
               value={formStorageQuota}
-              onChange={(e) => setFormStorageQuota(e.target.value)}
+              onChange={(e) => handleUserQuotaChange(e.target.value)}
               className="input"
             >
-              <option value="1073741824">1 GB</option>
-              <option value="5368709120">5 GB</option>
-              <option value="10737418240">10 GB</option>
-              <option value="53687091200">50 GB</option>
-              <option value="107374182400">100 GB</option>
+              {quotaOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
             </select>
+            {formStorageQuota === 'custom' && (
+              <div className="flex gap-2 mt-2">
+                <input
+                  type="number"
+                  value={customQuotaValue}
+                  onChange={(e) => setCustomQuotaValue(e.target.value)}
+                  placeholder="Cantidad"
+                  min="1"
+                  className="input flex-1"
+                />
+                <select
+                  value={customQuotaUnit}
+                  onChange={(e) => setCustomQuotaUnit(e.target.value as 'GB' | 'TB')}
+                  className="input w-20"
+                >
+                  <option value="GB">GB</option>
+                  <option value="TB">TB</option>
+                </select>
+              </div>
+            )}
           </div>
-        </div>
-        <div className="flex justify-end gap-3 mt-6">
-          <Button variant="ghost" onClick={() => setShowCreateModal(false)}>
-            Cancelar
-          </Button>
-          <Button onClick={createUser} loading={savingUser}>
-            Crear
-          </Button>
-        </div>
+          <div className="flex justify-end gap-3 mt-6">
+            <Button variant="ghost" type="button" onClick={() => setShowCreateModal(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" loading={savingUser}>
+              Crear
+            </Button>
+          </div>
+        </form>
       </Modal>
 
       {/* Edit user modal */}
@@ -933,7 +1023,7 @@ export default function AdminDashboard() {
         onClose={() => setShowEditModal(false)}
         title="Editar Usuario"
       >
-        <div className="space-y-4">
+        <form onSubmit={(e) => { e.preventDefault(); updateUser(); }} className="space-y-4">
           <Input
             label="Nombre"
             value={formName}
@@ -950,6 +1040,7 @@ export default function AdminDashboard() {
             type="password"
             value={formPassword}
             onChange={(e) => setFormPassword(e.target.value)}
+            autoComplete="new-password"
           />
           <div>
             <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">
@@ -970,25 +1061,45 @@ export default function AdminDashboard() {
             </label>
             <select
               value={formStorageQuota}
-              onChange={(e) => setFormStorageQuota(e.target.value)}
+              onChange={(e) => handleUserQuotaChange(e.target.value)}
               className="input"
             >
-              <option value="1073741824">1 GB</option>
-              <option value="5368709120">5 GB</option>
-              <option value="10737418240">10 GB</option>
-              <option value="53687091200">50 GB</option>
-              <option value="107374182400">100 GB</option>
+              {quotaOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
             </select>
+            {formStorageQuota === 'custom' && (
+              <div className="flex gap-2 mt-2">
+                <input
+                  type="number"
+                  value={customQuotaValue}
+                  onChange={(e) => setCustomQuotaValue(e.target.value)}
+                  placeholder="Cantidad"
+                  min="1"
+                  className="input flex-1"
+                />
+                <select
+                  value={customQuotaUnit}
+                  onChange={(e) => setCustomQuotaUnit(e.target.value as 'GB' | 'TB')}
+                  className="input w-20"
+                >
+                  <option value="GB">GB</option>
+                  <option value="TB">TB</option>
+                </select>
+              </div>
+            )}
           </div>
-        </div>
-        <div className="flex justify-end gap-3 mt-6">
-          <Button variant="ghost" onClick={() => setShowEditModal(false)}>
-            Cancelar
-          </Button>
-          <Button onClick={updateUser} loading={savingUser}>
-            Guardar Cambios
-          </Button>
-        </div>
+          <div className="flex justify-end gap-3 mt-6">
+            <Button variant="ghost" type="button" onClick={() => setShowEditModal(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" loading={savingUser}>
+              Guardar Cambios
+            </Button>
+          </div>
+        </form>
       </Modal>
     </div>
   );

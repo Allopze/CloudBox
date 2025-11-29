@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
-import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { toast } from '../../components/ui/Toast';
 
 export default function Login() {
@@ -13,10 +13,14 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [errorCode, setErrorCode] = useState<string | null>(null);
+  const [remainingAttempts, setRemainingAttempts] = useState<number | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setErrorCode(null);
+    setRemainingAttempts(null);
 
     if (!email || !password) {
       setError('Por favor completa todos los campos');
@@ -28,9 +32,23 @@ export default function Login() {
       toast('¡Bienvenido de nuevo!', 'success');
       navigate('/');
     } catch (err: any) {
-      const message = err.response?.data?.message || 'Error al iniciar sesión';
+      const errorData = err.response?.data;
+      const message = errorData?.error || 'Error al iniciar sesión';
+      const code = errorData?.code || null;
+      const attempts = errorData?.remainingAttempts ?? null;
+      
       setError(message);
-      toast(message, 'error');
+      setErrorCode(code);
+      setRemainingAttempts(attempts);
+      
+      // Mostrar toast con mensaje apropiado
+      if (code === 'INVALID_CREDENTIALS') {
+        toast('Email o contraseña incorrectos', 'error');
+      } else if (code === 'OAUTH_ACCOUNT') {
+        toast('Usa Google para iniciar sesión', 'error');
+      } else {
+        toast(message, 'error');
+      }
     }
   };
 
@@ -53,6 +71,7 @@ export default function Login() {
           icon={<Mail className="w-5 h-5" />}
           error={error && !email ? 'El correo es requerido' : undefined}
           className="rounded-2xl"
+          autoComplete="email"
         />
 
         <Input
@@ -73,11 +92,39 @@ export default function Login() {
           }
           error={error && !password ? 'La contraseña es requerida' : undefined}
           className="rounded-2xl"
+          autoComplete="current-password"
         />
 
-        {error && email && password && (
-          <p className="text-sm text-red-600">{error}</p>
-        )}
+        {/* Error messages container - fixed height to prevent layout shift */}
+        <div className="min-h-[60px]">
+          {error && email && password && (
+            <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
+                  
+                  {/* Show remaining attempts warning */}
+                  {remainingAttempts !== null && remainingAttempts > 0 && remainingAttempts <= 3 && (
+                    <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                      Intentos restantes: {remainingAttempts}
+                    </p>
+                  )}
+                  
+                  {/* Show forgot password link for wrong credentials */}
+                  {errorCode === 'INVALID_CREDENTIALS' && (
+                    <Link
+                      to="/forgot-password"
+                      className="inline-block mt-2 text-sm text-primary-600 hover:text-primary-700 font-medium"
+                    >
+                      ¿Olvidaste tu contraseña?
+                    </Link>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
 
         <div className="flex items-center justify-between">
           <label className="flex items-center gap-2">

@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import bcrypt from 'bcryptjs';
 import prisma from '../lib/prisma.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { uploadBranding } from '../middleware/upload.js';
@@ -11,7 +12,6 @@ import os from 'os';
 import fs from 'fs/promises';
 import path from 'path';
 import { config } from '../config/index.js';
-import bcrypt from 'bcryptjs';
 
 const router = Router();
 
@@ -118,7 +118,7 @@ router.get('/users/:id', authenticate, requireAdmin, async (req: Request, res: R
 router.patch('/users/:id', authenticate, requireAdmin, validate(adminUserSchema), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, email, role, storageQuota, maxFileSize } = req.body;
+    const { name, email, password, role, storageQuota, maxFileSize } = req.body;
 
     const user = await prisma.user.findUnique({ where: { id } });
     if (!user) {
@@ -134,11 +134,18 @@ router.patch('/users/:id', authenticate, requireAdmin, validate(adminUserSchema)
       }
     }
 
+    // Hash password if provided
+    let hashedPassword: string | undefined;
+    if (password) {
+      hashedPassword = await bcrypt.hash(password, 12);
+    }
+
     const updated = await prisma.user.update({
       where: { id },
       data: {
         ...(name && { name }),
         ...(email && { email }),
+        ...(hashedPassword && { password: hashedPassword }),
         ...(role && { role }),
         ...(storageQuota && { storageQuota: BigInt(storageQuota) }),
         ...(maxFileSize && { maxFileSize: BigInt(maxFileSize) }),
@@ -201,6 +208,8 @@ router.post('/users', authenticate, requireAdmin, async (req: Request, res: Resp
       email: user.email,
       name: user.name,
       role: user.role,
+      storageQuota: user.storageQuota.toString(),
+      storageUsed: user.storageUsed.toString(),
     });
   } catch (error) {
     console.error('Create user error:', error);
@@ -239,6 +248,149 @@ router.delete('/users/:id', authenticate, requireAdmin, async (req: Request, res
   } catch (error) {
     console.error('Delete user error:', error);
     res.status(500).json({ error: 'Failed to delete user' });
+  }
+});
+
+// ========== Storage Requests Management ==========
+
+// Get all storage requests
+router.get('/storage-requests', authenticate, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { status } = req.query;
+    
+    const where: any = {};
+    if (status) {
+      where.status = status;
+    }
+
+    const requests = await prisma.storageRequest.findMany({
+      where,
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            avatar: true,
+            storageUsed: true,
+            storageQuota: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    res.json(requests.map(r => ({
+      ...r,
+      requestedQuota: r.requestedQuota.toString(),
+      currentQuota: r.currentQuota.toString(),
+      user: {
+        ...r.user,
+        storageUsed: r.user.storageUsed.toString(),
+        storageQuota: r.user.storageQuota.toString(),
+      },
+    })));
+  } catch (error) {
+    console.error('Get storage requests error:', error);
+    res.status(500).json({ error: 'Failed to get storage requests' });
+  }
+});
+
+// Get pending storage requests count
+router.get('/storage-requests/count', authenticate, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const count = await prisma.storageRequest.count({
+      where: { status: 'PENDING' },
+    });
+
+    res.json({ count });
+  } catch (error) {
+    console.error('Get storage requests count error:', error);
+    res.status(500).json({ error: 'Failed to get storage requests count' });
+  }
+});
+
+// Approve storage request
+router.post('/storage-requests/:id/approve', authenticate, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { adminResponse } = req.body;
+
+    const request = await prisma.storageRequest.findUnique({
+      where: { id },
+      include: { user: true },
+    });
+
+    if (!request) {
+      res.status(404).json({ error: 'Request not found' });
+      return;
+    }
+
+    if (request.status !== 'PENDING') {
+      res.status(400).json({ error: 'Request is not pending' });
+      return;
+    }
+
+    // Update user's storage quota
+    await prisma.user.update({
+      where: { id: request.userId },
+      data: { storageQuota: request.requestedQuota },
+    });
+
+    // Update request status
+    const updated = await prisma.storageRequest.update({
+      where: { id },
+      data: {
+        status: 'APPROVED',
+        adminResponse: adminResponse || null,
+      },
+    });
+
+    res.json({
+      ...updated,
+      requestedQuota: updated.requestedQuota.toString(),
+      currentQuota: updated.currentQuota.toString(),
+    });
+  } catch (error) {
+    console.error('Approve storage request error:', error);
+    res.status(500).json({ error: 'Failed to approve storage request' });
+  }
+});
+
+// Reject storage request
+router.post('/storage-requests/:id/reject', authenticate, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { adminResponse } = req.body;
+
+    const request = await prisma.storageRequest.findUnique({ where: { id } });
+
+    if (!request) {
+      res.status(404).json({ error: 'Request not found' });
+      return;
+    }
+
+    if (request.status !== 'PENDING') {
+      res.status(400).json({ error: 'Request is not pending' });
+      return;
+    }
+
+    const updated = await prisma.storageRequest.update({
+      where: { id },
+      data: {
+        status: 'REJECTED',
+        adminResponse: adminResponse || null,
+      },
+    });
+
+    res.json({
+      ...updated,
+      requestedQuota: updated.requestedQuota.toString(),
+      currentQuota: updated.currentQuota.toString(),
+    });
+  } catch (error) {
+    console.error('Reject storage request error:', error);
+    res.status(500).json({ error: 'Failed to reject storage request' });
   }
 });
 
@@ -656,6 +808,24 @@ router.get('/settings/branding', async (req: Request, res: Response) => {
       }
     });
 
+    // Check if branding files exist and set URLs accordingly
+    const timestamp = Date.now();
+    const brandingTypes = ['logo-light', 'logo-dark', 'favicon'] as const;
+    
+    for (const type of brandingTypes) {
+      const filePath = getBrandingPath(type);
+      const pngPath = type === 'favicon' ? filePath.replace('.ico', '.png') : filePath;
+      const svgPath = filePath.replace(/\.(png|ico)$/, '.svg');
+      
+      const exists = await fileExists(svgPath) || await fileExists(pngPath);
+      if (exists) {
+        const url = `/api/admin/branding/${type}?t=${timestamp}`;
+        if (type === 'logo-light') result.logoLightUrl = url;
+        else if (type === 'logo-dark') result.logoDarkUrl = url;
+        else if (type === 'favicon') result.faviconUrl = url;
+      }
+    }
+
     res.json(result);
   } catch (error) {
     console.error('Get branding settings error:', error);
@@ -862,66 +1032,6 @@ router.post('/settings/smtp/test', authenticate, requireAdmin, async (req: Reque
   } catch (error) {
     console.error('Test SMTP error:', error);
     res.status(500).json({ error: 'Failed to send test email' });
-  }
-});
-
-// Get branding settings
-router.get('/settings/branding', authenticate, requireAdmin, async (req: Request, res: Response) => {
-  try {
-    const settings = await prisma.settings.findMany({
-      where: {
-        key: { in: ['primary_color', 'logo_url', 'favicon_url'] },
-      },
-    });
-
-    const result: Record<string, string> = {
-      primaryColor: '#dc2626',
-      logoUrl: '',
-      faviconUrl: '',
-    };
-
-    settings.forEach((s: { key: string; value: string }) => {
-      const keyMap: Record<string, string> = {
-        'primary_color': 'primaryColor',
-        'logo_url': 'logoUrl',
-        'favicon_url': 'faviconUrl',
-      };
-      const mappedKey = keyMap[s.key];
-      if (mappedKey) {
-        result[mappedKey] = s.value;
-      }
-    });
-
-    res.json(result);
-  } catch (error) {
-    console.error('Get branding settings error:', error);
-    res.status(500).json({ error: 'Failed to get branding settings' });
-  }
-});
-
-// Save branding settings
-router.put('/settings/branding', authenticate, requireAdmin, async (req: Request, res: Response) => {
-  try {
-    const { primaryColor, logoUrl, faviconUrl } = req.body;
-
-    const settings = [
-      { key: 'primary_color', value: primaryColor || '#dc2626' },
-      { key: 'logo_url', value: logoUrl || '' },
-      { key: 'favicon_url', value: faviconUrl || '' },
-    ];
-
-    for (const setting of settings) {
-      await prisma.settings.upsert({
-        where: { key: setting.key },
-        update: { value: setting.value },
-        create: setting,
-      });
-    }
-
-    res.json({ message: 'Branding settings saved successfully' });
-  } catch (error) {
-    console.error('Save branding settings error:', error);
-    res.status(500).json({ error: 'Failed to save branding settings' });
   }
 });
 

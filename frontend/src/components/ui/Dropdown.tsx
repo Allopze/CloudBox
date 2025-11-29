@@ -12,6 +12,7 @@ interface DropdownProps {
 export default function Dropdown({ trigger, children, align = 'left' }: DropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
+  const [openUpward, setOpenUpward] = useState(false);
   const triggerRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -33,12 +34,34 @@ export default function Dropdown({ trigger, children, align = 'left' }: Dropdown
   useEffect(() => {
     if (isOpen && triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
+      const menuHeight = 200; // Approximate menu height
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      
+      // Check if there's enough space below, otherwise open upward
+      const shouldOpenUpward = spaceBelow < menuHeight && spaceAbove > spaceBelow;
+      setOpenUpward(shouldOpenUpward);
+      
       setPosition({
-        top: rect.bottom + window.scrollY + 8,
+        top: shouldOpenUpward 
+          ? rect.top + window.scrollY - 8 // Position above trigger
+          : rect.bottom + window.scrollY + 8, // Position below trigger
         left: align === 'right' ? rect.right + window.scrollX - 200 : rect.left + window.scrollX,
       });
     }
   }, [isOpen, align]);
+
+  // Update position after menu renders to get actual height
+  useEffect(() => {
+    if (isOpen && menuRef.current && triggerRef.current && openUpward) {
+      const menuRect = menuRef.current.getBoundingClientRect();
+      const triggerRect = triggerRef.current.getBoundingClientRect();
+      setPosition(prev => ({
+        ...prev,
+        top: triggerRect.top + window.scrollY - menuRect.height - 8,
+      }));
+    }
+  }, [isOpen, openUpward]);
 
   return (
     <div className="relative" ref={triggerRef}>
@@ -48,13 +71,12 @@ export default function Dropdown({ trigger, children, align = 'left' }: Dropdown
           {isOpen && (
             <motion.div
               ref={menuRef}
-              initial={{ opacity: 0, y: -10, scale: 0.95 }}
+              initial={{ opacity: 0, y: openUpward ? 10 : -10, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -10, scale: 0.95 }}
+              exit={{ opacity: 0, y: openUpward ? 10 : -10, scale: 0.95 }}
               transition={{ duration: 0.15, ease: 'easeOut' }}
               style={{ top: position.top, left: position.left }}
-              className="fixed py-2 bg-white dark:bg-dark-800 rounded-lg shadow-xl border border-dark-200 dark:border-dark-700 min-w-[200px] z-[9999]"
-              onClick={() => setIsOpen(false)}
+              className="fixed py-2 bg-white dark:bg-dark-800 rounded-xl shadow-xl border border-dark-200 dark:border-dark-700 min-w-[200px] z-[9999]"
             >
               {children}
             </motion.div>
@@ -76,7 +98,10 @@ interface DropdownItemProps {
 export function DropdownItem({ children, onClick, danger, disabled }: DropdownItemProps) {
   return (
     <button
-      onClick={onClick}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick?.();
+      }}
       disabled={disabled}
       className={cn(
         'w-full flex items-center gap-3 px-4 py-2 text-sm text-left transition-colors',

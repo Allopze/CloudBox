@@ -79,6 +79,7 @@ export interface ShareCollaborator {
 export interface Album {
   id: string;
   name: string;
+  color: string | null;
   userId: string;
   coverPath: string | null;
   coverUrl: string | null;

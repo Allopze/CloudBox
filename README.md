@@ -25,6 +25,19 @@ A modern cloud storage platform inspired by Cloudreve and Google Drive, built wi
 - Sharp (image processing)
 - Archiver (compression)
 
+Note: For generating document/video thumbnails and conversions, additional system packages are recommended:
+
+- LibreOffice (soffice) - used to convert Office documents (Word/Excel/PowerPoint) to PDF for thumbnail generation
+- poppler-utils (pdftoppm) - used to render first page of PDFs to images
+- ImageMagick (convert/magick) - fallback for PDF/Document conversion
+- ffmpeg - used for video frame extraction and some audio cover fallbacks
+
+These are OS-level dependencies and are not installed via npm. On Debian/Ubuntu you can install them with:
+
+```bash
+sudo apt-get install -y libreoffice poppler-utils imagemagick ffmpeg
+```
+
 ### Frontend
 - React 18 + Vite
 - TypeScript

@@ -18,6 +18,7 @@ model User {
   googleId          String?   @unique
   storageQuota      BigInt    @default(5368709120)
   storageUsed       BigInt    @default(0)
+  tempStorage       BigInt    @default(0)
   maxFileSize       BigInt    @default(104857600)
   resetToken        String?
   resetTokenExpiry  DateTime?
@@ -33,6 +34,7 @@ model User {
   albums            Album[]
   activities        Activity[]
   refreshTokens     RefreshToken[]
+  storageRequests   StorageRequest[]
 
   @@map("users")
 }
@@ -66,6 +68,7 @@ model Folder {
 
   files       File[]
   shares      Share[]
+  size        BigInt    @default(0)
 
   @@unique([name, parentId, userId])
   @@map("folders")
@@ -90,11 +93,27 @@ model File {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
+  transcodedPath String?
+  transcodingJob TranscodingJob?
+
   shares        Share[]
   albumFiles    AlbumFile[]
   chunks        FileChunk[]
 
   @@map("files")
+}
+
+model TranscodingJob {
+  id          String   @id @default(uuid())
+  fileId      String   @unique
+  file        File     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  status      String   @default("PENDING")
+  progress    Int      @default(0)
+  error       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("transcoding_jobs")
 }
 
 model FileChunk {
@@ -151,6 +170,7 @@ model ShareCollaborator {
 model Album {
   id        String      @id @default(uuid())
   name      String
+  color     String?
   userId    String
   user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   coverPath String?
@@ -237,4 +257,19 @@ model LoginAttempt {
   @@index([email, createdAt])
   @@index([ipAddress, createdAt])
   @@map("login_attempts")
+}
+
+model StorageRequest {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  requestedQuota  BigInt
+  currentQuota    BigInt
+  reason          String?
+  status          String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  adminResponse   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("storage_requests")
 }

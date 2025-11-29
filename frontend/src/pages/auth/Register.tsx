@@ -66,6 +66,7 @@ export default function Register() {
           onChange={(e) => setName(e.target.value)}
           icon={<User className="w-5 h-5" />}
           className="rounded-2xl"
+          autoComplete="name"
         />
 
         <Input
@@ -76,6 +77,7 @@ export default function Register() {
           onChange={(e) => setEmail(e.target.value)}
           icon={<Mail className="w-5 h-5" />}
           className="rounded-2xl"
+          autoComplete="email"
         />
 
         <Input
@@ -95,6 +97,7 @@ export default function Register() {
             </button>
           }
           className="rounded-2xl"
+          autoComplete="new-password"
         />
 
         <PasswordStrength password={password} />
@@ -107,6 +110,7 @@ export default function Register() {
           onChange={(e) => setConfirmPassword(e.target.value)}
           icon={<Lock className="w-5 h-5" />}
           className="rounded-2xl"
+          autoComplete="new-password"
         />
 
         {error && (

@@ -21,6 +21,13 @@ import { toast } from '../components/ui/Toast';
 import { formatDate } from '../lib/utils';
 import Dropdown, { DropdownItem, DropdownDivider } from '../components/ui/Dropdown';
 
+interface ContextMenuState {
+  x: number;
+  y: number;
+  share: Share;
+  isOwnShare: boolean;
+}
+
 export default function Shared() {
   const [searchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'my-shares';
@@ -28,6 +35,7 @@ export default function Shared() {
   const [myShares, setMyShares] = useState<Share[]>([]);
   const [sharedWithMe, setSharedWithMe] = useState<Share[]>([]);
   const [loading, setLoading] = useState(true);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -49,6 +57,13 @@ export default function Shared() {
 
   useEffect(() => {
     loadData();
+  }, [loadData]);
+
+  // Listen for workzone refresh event
+  useEffect(() => {
+    const handleRefresh = () => loadData();
+    window.addEventListener('workzone-refresh', handleRefresh);
+    return () => window.removeEventListener('workzone-refresh', handleRefresh);
   }, [loadData]);
 
   const buildShareLink = (share: Share) => {
@@ -85,6 +100,24 @@ export default function Shared() {
     }
   };
 
+  // Context menu handlers
+  const handleContextMenu = (e: React.MouseEvent, share: Share, isOwnShare: boolean) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({ x: e.clientX, y: e.clientY, share, isOwnShare });
+  };
+
+  const closeContextMenu = () => setContextMenu(null);
+
+  // Close context menu when clicking outside
+  useEffect(() => {
+    const handleClick = () => closeContextMenu();
+    if (contextMenu) {
+      document.addEventListener('click', handleClick);
+      return () => document.removeEventListener('click', handleClick);
+    }
+  }, [contextMenu]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -104,6 +137,7 @@ export default function Shared() {
             myShares.map((share) => (
               <div
                 key={share.id}
+                onContextMenu={(e) => handleContextMenu(e, share, true)}
                 className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-dark-50 dark:hover:bg-dark-800 transition-colors"
               >
                 <div className="w-10 h-10 rounded-lg bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center flex-shrink-0">

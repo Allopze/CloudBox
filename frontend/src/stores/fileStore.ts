@@ -3,6 +3,7 @@ import type { FileItem, Folder } from '../types';
 
 interface FileState {
   selectedItems: Set<string>;
+  lastSelectedId: string | null;
   viewMode: 'grid' | 'list';
   sortBy: 'name' | 'date' | 'size' | 'type';
   sortOrder: 'asc' | 'desc';
@@ -15,6 +16,10 @@ interface FileState {
   activeTab: 'all' | 'favorites' | 'videos' | 'screenshots' | 'albums';
 
   toggleSelection: (id: string) => void;
+  addToSelection: (id: string) => void;
+  removeFromSelection: (id: string) => void;
+  selectRange: (ids: string[], targetId: string) => void;
+  selectSingle: (id: string) => void;
   selectAll: (ids: string[]) => void;
   clearSelection: () => void;
   setViewMode: (mode: 'grid' | 'list') => void;
@@ -29,6 +34,7 @@ interface FileState {
 
 export const useFileStore = create<FileState>((set) => ({
   selectedItems: new Set(),
+  lastSelectedId: null,
   viewMode: 'grid',
   sortBy: 'name',
   sortOrder: 'asc',
@@ -47,8 +53,53 @@ export const useFileStore = create<FileState>((set) => ({
       } else {
         newSelection.add(id);
       }
+      return { selectedItems: newSelection, lastSelectedId: id };
+    });
+  },
+
+  addToSelection: (id) => {
+    set((state) => {
+      const newSelection = new Set(state.selectedItems);
+      newSelection.add(id);
+      return { selectedItems: newSelection, lastSelectedId: id };
+    });
+  },
+
+  removeFromSelection: (id) => {
+    set((state) => {
+      const newSelection = new Set(state.selectedItems);
+      newSelection.delete(id);
       return { selectedItems: newSelection };
     });
+  },
+
+  selectRange: (ids, targetId) => {
+    set((state) => {
+      const lastId = state.lastSelectedId;
+      if (!lastId) {
+        return { selectedItems: new Set([targetId]), lastSelectedId: targetId };
+      }
+      
+      const lastIndex = ids.indexOf(lastId);
+      const targetIndex = ids.indexOf(targetId);
+      
+      if (lastIndex === -1 || targetIndex === -1) {
+        return { selectedItems: new Set([targetId]), lastSelectedId: targetId };
+      }
+      
+      const start = Math.min(lastIndex, targetIndex);
+      const end = Math.max(lastIndex, targetIndex);
+      const rangeIds = ids.slice(start, end + 1);
+      
+      const newSelection = new Set(state.selectedItems);
+      rangeIds.forEach(id => newSelection.add(id));
+      
+      return { selectedItems: newSelection, lastSelectedId: targetId };
+    });
+  },
+
+  selectSingle: (id) => {
+    set({ selectedItems: new Set([id]), lastSelectedId: id });
   },
 
   selectAll: (ids) => {
@@ -56,7 +107,7 @@ export const useFileStore = create<FileState>((set) => ({
   },
 
   clearSelection: () => {
-    set({ selectedItems: new Set() });
+    set({ selectedItems: new Set(), lastSelectedId: null });
   },
 
   setViewMode: (mode) => {

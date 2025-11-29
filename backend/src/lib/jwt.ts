@@ -1,5 +1,5 @@
 import jwt, { SignOptions } from 'jsonwebtoken';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, randomBytes } from 'node:crypto';
 import { config } from '../config/index.js';
 
 interface TokenPayload {
@@ -26,5 +26,5 @@ export const verifyRefreshToken = (token: string): TokenPayload => {
 };
 
 export const generateRandomToken = (): string => {
-  return Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('hex');
+  return randomBytes(32).toString('hex');
 };

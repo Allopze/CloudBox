@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useLocation } from 'react-router-dom';
 import { FileItem } from '../../types';
 import { useFileStore } from '../../stores/fileStore';
+import { useGlobalProgressStore } from '../../stores/globalProgressStore';
 import {
   File,
   Image,
@@ -30,6 +32,7 @@ interface FileCardProps {
   file: FileItem;
   view?: 'grid' | 'list';
   onRefresh?: () => void;
+  onPreview?: (file: FileItem) => void;
 }
 
 const fileIcons: Record<string, typeof File> = {
@@ -41,14 +44,21 @@ const fileIcons: Record<string, typeof File> = {
   default: File,
 };
 
-export default function FileCard({ file, view = 'grid', onRefresh }: FileCardProps) {
-  const { selectedItems, toggleSelection } = useFileStore();
+export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: FileCardProps) {
+  const location = useLocation();
+  const { selectedItems, addToSelection, removeFromSelection, selectRange, selectSingle, lastSelectedId } = useFileStore();
+  const { addOperation, incrementProgress, completeOperation, failOperation } = useGlobalProgressStore();
   const isSelected = selectedItems.has(file.id);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close context menu when location changes
+  useEffect(() => {
+    setContextMenu(null);
+  }, [location.pathname, location.search]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -57,13 +67,16 @@ export default function FileCard({ file, view = 'grid', onRefresh }: FileCardPro
       }
     };
     const handleScroll = () => setContextMenu(null);
+    const handleContextMenuGlobal = () => setContextMenu(null);
     
     if (contextMenu) {
       document.addEventListener('mousedown', handleClickOutside);
       document.addEventListener('scroll', handleScroll, true);
+      document.addEventListener('contextmenu', handleContextMenuGlobal, true);
       return () => {
         document.removeEventListener('mousedown', handleClickOutside);
         document.removeEventListener('scroll', handleScroll, true);
+        document.removeEventListener('contextmenu', handleContextMenuGlobal, true);
       };
     }
   }, [contextMenu]);
@@ -71,6 +84,13 @@ export default function FileCard({ file, view = 'grid', onRefresh }: FileCardPro
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    
+    // If this item is not already selected, select only this item
+    // If it's already selected (possibly as part of multi-select), keep the selection
+    if (!selectedItems.has(file.id)) {
+      selectSingle(file.id);
+    }
+    
     setContextMenu({ x: e.clientX, y: e.clientY });
   };
 
@@ -90,16 +110,48 @@ export default function FileCard({ file, view = 'grid', onRefresh }: FileCardPro
   };
 
   const handleClick = (e: React.MouseEvent) => {
-    if (e.ctrlKey || e.metaKey) {
-      toggleSelection(file.id);
+    // Shift+Click: Range selection
+    if (e.shiftKey && lastSelectedId) {
+      // Get all file items in the DOM to determine range
+      const allItems = Array.from(document.querySelectorAll('[data-file-item], [data-folder-item]'));
+      const ids = allItems.map(el => el.getAttribute('data-file-item') || el.getAttribute('data-folder-item')).filter(Boolean) as string[];
+      selectRange(ids, file.id);
+    }
+    // Ctrl/Meta+Click: Toggle selection
+    else if (e.ctrlKey || e.metaKey) {
+      if (isSelected) {
+        removeFromSelection(file.id);
+      } else {
+        addToSelection(file.id);
+      }
+    }
+    // Simple click: Select only this item or open if already selected
+    else {
+      if (isSelected && selectedItems.size === 1) {
+        // Use onPreview if provided, otherwise open in new tab
+        if (onPreview) {
+          onPreview(file);
+        } else {
+          window.open(getFileUrl(file.id, 'view'), '_blank');
+        }
+      } else {
+        selectSingle(file.id);
+      }
+    }
+  };
+
+  // Handle double click to always preview
+  const handleDoubleClick = () => {
+    if (onPreview) {
+      onPreview(file);
     } else {
-      window.open(getFileUrl(`/files/${file.id}/view`), '_blank');
+      window.open(getFileUrl(file.id, 'view'), '_blank');
     }
   };
 
   const handleDownload = () => {
     setContextMenu(null);
-    window.open(getFileUrl(`/files/${file.id}/download`), '_blank');
+    window.open(getFileUrl(file.id, 'download'), '_blank');
   };
 
   const handleFavorite = async () => {
@@ -115,12 +167,58 @@ export default function FileCard({ file, view = 'grid', onRefresh }: FileCardPro
 
   const handleDelete = async () => {
     setContextMenu(null);
-    try {
-      await api.delete(`/files/${file.id}`);
-      toast('Archivo movido a papelera', 'success');
-      onRefresh?.();
-    } catch {
-      toast('Error al eliminar archivo', 'error');
+    
+    // Get fresh state from store to ensure we have the latest selection
+    const currentSelectedItems = useFileStore.getState().selectedItems;
+    const clearSelectionFn = useFileStore.getState().clearSelection;
+    
+    // If multiple items are selected and this file is one of them, delete all selected
+    if (currentSelectedItems.size > 1 && currentSelectedItems.has(file.id)) {
+      const itemIds = Array.from(currentSelectedItems);
+      const total = itemIds.length;
+      
+      const opId = addOperation({
+        id: `delete-context-${Date.now()}`,
+        type: 'delete',
+        title: `Eliminando ${total} elemento(s)`,
+        totalItems: total,
+      });
+      
+      try {
+        for (const id of itemIds) {
+          const fileEl = document.querySelector(`[data-file-item="${id}"]`);
+          const folderEl = document.querySelector(`[data-folder-item="${id}"]`);
+          const itemName = fileEl?.getAttribute('data-file-name') || folderEl?.getAttribute('data-folder-name') || id;
+          
+          if (fileEl) {
+            await api.delete(`/files/${id}`);
+          } else if (folderEl) {
+            await api.delete(`/folders/${id}`);
+          }
+          incrementProgress(opId, itemName);
+        }
+        
+        completeOperation(opId);
+        clearSelectionFn();
+        toast(`${total} elemento(s) movido(s) a papelera`, 'success');
+        // Trigger refresh event and call onRefresh
+        window.dispatchEvent(new CustomEvent('workzone-refresh'));
+        onRefresh?.();
+      } catch {
+        failOperation(opId, 'Error al eliminar elementos');
+        toast('Error al eliminar elementos', 'error');
+      }
+    } else {
+      // Single item delete
+      try {
+        await api.delete(`/files/${file.id}`);
+        toast('Archivo movido a papelera', 'success');
+        // Trigger refresh event and call onRefresh
+        window.dispatchEvent(new CustomEvent('workzone-refresh'));
+        onRefresh?.();
+      } catch {
+        toast('Error al eliminar archivo', 'error');
+      }
     }
   };
 
@@ -207,13 +305,18 @@ export default function FileCard({ file, view = 'grid', onRefresh }: FileCardPro
   if (view === 'list') {
     return (
       <>
-        <div
+        <motion.div
+          data-file-item={file.id}
+          data-file-name={file.name}
           onClick={handleClick}
+          onDoubleClick={handleDoubleClick}
           onContextMenu={handleContextMenu}
+          animate={isSelected ? { scale: 0.98 } : { scale: 1 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 25 }}
           className={cn(
-            'flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors',
+            'flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer transition-colors',
             isSelected
-              ? 'bg-primary-50 dark:bg-primary-900/20'
+              ? 'bg-primary-50 dark:bg-primary-900/20 ring-2 ring-primary-500/50 ring-offset-1 ring-offset-white dark:ring-offset-dark-900'
               : 'hover:bg-dark-50 dark:hover:bg-dark-800'
           )}
         >
@@ -248,7 +351,7 @@ export default function FileCard({ file, view = 'grid', onRefresh }: FileCardPro
             <DropdownDivider />
             <DropdownItem danger onClick={handleDelete}><Trash2 className="w-4 h-4" /> Mover a papelera</DropdownItem>
           </Dropdown>
-        </div>
+        </motion.div>
         {contextMenuContent}
         {modals}
       </>
@@ -257,38 +360,40 @@ export default function FileCard({ file, view = 'grid', onRefresh }: FileCardPro
 
   return (
     <>
-      <div
+      <motion.div
+        data-file-item={file.id}
+        data-file-name={file.name}
         onClick={handleClick}
+        onDoubleClick={handleDoubleClick}
         onContextMenu={handleContextMenu}
+        animate={isSelected ? { scale: 0.97 } : { scale: 1 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 25 }}
         className={cn(
-          'group relative p-3 rounded-lg cursor-pointer transition-all border',
+          'group relative flex items-center gap-3 px-3 py-2.5 rounded-2xl cursor-pointer transition-all border',
           isSelected
-            ? 'bg-primary-50 dark:bg-primary-900/20 border-primary-200 dark:border-primary-800'
+            ? 'bg-primary-50 dark:bg-primary-900/20 border-primary-300 dark:border-primary-700 ring-2 ring-primary-500/40 ring-offset-1 ring-offset-white dark:ring-offset-dark-900'
             : 'bg-white dark:bg-dark-800 border-dark-100 dark:border-dark-700 hover:border-dark-200 dark:hover:border-dark-600'
         )}
       >
-        <div className="aspect-square rounded overflow-hidden bg-dark-50 dark:bg-dark-700 mb-2">
+        <div className="w-8 h-8 flex-shrink-0 rounded overflow-hidden bg-dark-50 dark:bg-dark-700">
           {thumbnail ? (
             <img src={thumbnail} alt={file.name} className="w-full h-full object-cover" />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
-              <Icon className="w-10 h-10 text-dark-400" />
+              <Icon className="w-5 h-5 text-dark-400" />
             </div>
           )}
         </div>
-        <div>
+        <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-dark-900 dark:text-white truncate">{file.name}</p>
-          <p className="text-xs text-dark-500">{formatBytes(file.size)}</p>
         </div>
         {file.isFavorite && (
-          <div className="absolute top-2 left-2">
-            <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />
-          </div>
+          <Star className="w-4 h-4 text-yellow-500 fill-yellow-500 flex-shrink-0" />
         )}
-        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
           <Dropdown
             trigger={
-              <button onClick={(e) => e.stopPropagation()} className="p-2 bg-white dark:bg-dark-700 text-dark-500 hover:text-dark-900 dark:hover:text-white rounded-lg shadow">
+              <button onClick={(e) => e.stopPropagation()} className="p-1.5 bg-white dark:bg-dark-700 text-dark-500 hover:text-dark-900 dark:hover:text-white rounded-lg shadow">
                 <MoreVertical className="w-4 h-4" />
               </button>
             }
@@ -304,7 +409,7 @@ export default function FileCard({ file, view = 'grid', onRefresh }: FileCardPro
             <DropdownItem danger onClick={handleDelete}><Trash2 className="w-4 h-4" /> Mover a papelera</DropdownItem>
           </Dropdown>
         </div>
-      </div>
+      </motion.div>
       {contextMenuContent}
       {modals}
     </>

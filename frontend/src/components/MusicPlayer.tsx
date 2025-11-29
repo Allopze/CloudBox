@@ -36,7 +36,7 @@ export default function MusicPlayer() {
   useEffect(() => {
     if (!audioRef.current || !currentTrack) return;
 
-    audioRef.current.src = getFileUrl(currentTrack.id);
+    audioRef.current.src = getFileUrl(currentTrack.id, 'stream');
     
     if (isPlaying) {
       audioRef.current.play().catch(console.error);

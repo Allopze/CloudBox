@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useDropzone } from 'react-dropzone';
+import { useDropzone, FileWithPath } from 'react-dropzone';
 import Modal from '../ui/Modal';
 import Button from '../ui/Button';
 import Progress from '../ui/Progress';
@@ -68,7 +68,7 @@ export default function UploadFolderModal({
     }
 
     const children = await loadChildren(parentId);
-    const existing = children.find((folder) => folder.name === name);
+    const existing = children.find((folder: Folder) => folder.name === name);
     if (existing) {
       folderIdCache.current.set(cacheKey, existing.id);
       return existing.id;
@@ -90,7 +90,7 @@ export default function UploadFolderModal({
         error.response.data.error.includes('already exists')
       ) {
         const refreshedChildren = await loadChildren(parentId);
-        const duplicate = refreshedChildren.find((folder) => folder.name === name);
+        const duplicate = refreshedChildren.find((folder: Folder) => folder.name === name);
         if (duplicate) {
           folderIdCache.current.set(cacheKey, duplicate.id);
           return duplicate.id;
@@ -114,14 +114,22 @@ export default function UploadFolderModal({
     return parentId;
   };
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    const newFiles = acceptedFiles.map((file) => ({
-      id: Math.random().toString(36).substring(2),
-      file,
-      progress: 0,
-      status: 'pending' as const,
-      relativePath: (file as any).webkitRelativePath || file.name,
-    }));
+  const onDrop = useCallback((acceptedFiles: FileWithPath[]) => {
+    const newFiles = acceptedFiles.map((file) => {
+      // react-dropzone FileWithPath has 'path' property for drag & drop
+      // webkitRelativePath is for input element selection
+      const relativePath = file.path || (file as any).webkitRelativePath || file.name;
+      // Remove leading slash if present (from drag & drop)
+      const cleanPath = relativePath.startsWith('/') ? relativePath.slice(1) : relativePath;
+      
+      return {
+        id: Math.random().toString(36).substring(2),
+        file,
+        progress: 0,
+        status: 'pending' as const,
+        relativePath: cleanPath,
+      };
+    });
     setFiles((prev) => [...prev, ...newFiles]);
   }, []);
 
@@ -132,6 +140,7 @@ export default function UploadFolderModal({
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     multiple: true,
+    useFsAccessApi: false, // Needed for folder drag & drop to work properly
   });
 
   const uploadFile = async (fileItem: FolderUploadItem, targetFolderId: string | undefined) => {
@@ -227,7 +236,7 @@ export default function UploadFolderModal({
             : 'border-dark-300 dark:border-dark-600 hover:border-primary-500'
         )}
       >
-        <input {...getInputProps({ directory: '', webkitdirectory: '' })} />
+        <input {...getInputProps()} {...{ directory: '', webkitdirectory: '' } as any} />
         <Upload className="w-12 h-12 mx-auto text-dark-400 mb-4" />
         <p className="text-dark-600">
           Arrastra una carpeta o haz clic para seleccionar un directorio completo

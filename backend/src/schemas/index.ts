@@ -125,6 +125,7 @@ export const addCollaboratorSchema = z.object({
 export const createAlbumSchema = z.object({
   body: z.object({
     name: z.string().min(1, 'Album name is required').max(255),
+    color: z.string().optional(),
   }),
 });
 
@@ -133,7 +134,8 @@ export const updateAlbumSchema = z.object({
     id: z.string().uuid(),
   }),
   body: z.object({
-    name: z.string().min(1).max(255),
+    name: z.string().min(1).max(255).optional(),
+    color: z.string().optional().nullable(),
   }),
 });
 
@@ -165,9 +167,10 @@ export const adminUserSchema = z.object({
   body: z.object({
     name: z.string().min(2).optional(),
     email: z.string().email().optional(),
+    password: z.string().min(8).optional(),
     role: z.enum(['ADMIN', 'USER']).optional(),
-    storageQuota: z.number().int().positive().optional(),
-    maxFileSize: z.number().int().positive().optional(),
+    storageQuota: z.union([z.string(), z.number()]).optional(),
+    maxFileSize: z.union([z.string(), z.number()]).optional(),
   }),
 });
 

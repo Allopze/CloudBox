@@ -83,7 +83,8 @@ export function isPreviewable(mimeType: string): boolean {
     mimeType.startsWith('image/') ||
     mimeType.startsWith('video/') ||
     mimeType.startsWith('audio/') ||
-    mimeType === 'application/pdf'
+    mimeType === 'application/pdf' ||
+    isDocument(mimeType)
   );
 }
 
@@ -97,6 +98,32 @@ export function isVideo(mimeType: string): boolean {
 
 export function isAudio(mimeType: string): boolean {
   return mimeType.startsWith('audio/');
+}
+
+export function isDocument(mimeType: string): boolean {
+  const documentTypes = [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.oasis.opendocument.text',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'application/vnd.ms-powerpoint',
+    'text/plain',
+    'text/markdown',
+    'text/csv',
+    'application/rtf',
+  ];
+  return documentTypes.includes(mimeType) || mimeType.startsWith('text/');
+}
+
+export function isSpreadsheet(mimeType: string): boolean {
+  return (
+    mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+    mimeType === 'application/vnd.ms-excel' ||
+    mimeType === 'text/csv'
+  );
 }
 
 export function getExtension(filename: string): string {

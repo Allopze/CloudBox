@@ -4,6 +4,45 @@ import { v4 as uuidv4 } from 'uuid';
 import { config } from '../config/index.js';
 import { getStoragePath } from '../lib/storage.js';
 
+// Helper to decode filename properly from various encodings
+export function decodeFilename(filename: string): string {
+  try {
+    // First, try to decode URI-encoded characters (e.g., %C3%B3 for ó)
+    if (filename.includes('%')) {
+      try {
+        const decoded = decodeURIComponent(filename);
+        // If successfully decoded and contains non-ASCII, return it
+        if (/[^\x00-\x7F]/.test(decoded)) {
+          return decoded;
+        }
+      } catch {
+        // Continue to other methods
+      }
+    }
+    
+    // Check if already valid UTF-8
+    if (/[^\x00-\x7F]/.test(filename)) {
+      // Test if it looks like valid UTF-8 by checking for common patterns
+      const hasValidUtf8 = /[\u00C0-\u00FF]/.test(filename);
+      if (hasValidUtf8) {
+        return filename;
+      }
+    }
+    
+    // Try to convert from Latin-1 interpreted bytes back to UTF-8
+    const decoded = Buffer.from(filename, 'latin1').toString('utf8');
+    
+    // Verify the decoded string doesn't contain replacement characters
+    if (!decoded.includes('\uFFFD') && /[^\x00-\x7F]/.test(decoded)) {
+      return decoded;
+    }
+    
+    return filename;
+  } catch {
+    return filename;
+  }
+}
+
 const fileStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, getStoragePath('temp'));

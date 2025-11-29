@@ -242,4 +242,116 @@ router.delete('/me', authenticate, async (req: Request, res: Response) => {
   }
 });
 
+// ========== Storage Requests ==========
+
+// Create storage request (for regular users)
+router.post('/storage-request', authenticate, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+    const { requestedQuota, reason } = req.body;
+
+    if (!requestedQuota) {
+      res.status(400).json({ error: 'Requested quota is required' });
+      return;
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    // Check if there's already a pending request
+    const existingRequest = await prisma.storageRequest.findFirst({
+      where: { userId, status: 'PENDING' },
+    });
+
+    if (existingRequest) {
+      res.status(400).json({ error: 'Ya tienes una solicitud pendiente' });
+      return;
+    }
+
+    const request = await prisma.storageRequest.create({
+      data: {
+        userId,
+        requestedQuota: BigInt(requestedQuota),
+        currentQuota: user.storageQuota,
+        reason: reason || null,
+      },
+    });
+
+    res.status(201).json({
+      id: request.id,
+      requestedQuota: request.requestedQuota.toString(),
+      currentQuota: request.currentQuota.toString(),
+      reason: request.reason,
+      status: request.status,
+      createdAt: request.createdAt,
+    });
+  } catch (error) {
+    console.error('Create storage request error:', error);
+    res.status(500).json({ error: 'Failed to create storage request' });
+  }
+});
+
+// Get user's storage requests
+router.get('/storage-requests', authenticate, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+
+    const requests = await prisma.storageRequest.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    res.json(requests.map(r => ({
+      ...r,
+      requestedQuota: r.requestedQuota.toString(),
+      currentQuota: r.currentQuota.toString(),
+    })));
+  } catch (error) {
+    console.error('Get storage requests error:', error);
+    res.status(500).json({ error: 'Failed to get storage requests' });
+  }
+});
+
+// Update own storage quota (ADMIN only)
+router.patch('/me/storage-quota', authenticate, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+    const { storageQuota } = req.body;
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    // Only admins can modify their own quota directly
+    if (user.role !== 'ADMIN') {
+      res.status(403).json({ error: 'Only admins can modify storage quota directly' });
+      return;
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: { storageQuota: BigInt(storageQuota) },
+      select: {
+        id: true,
+        storageQuota: true,
+        storageUsed: true,
+      },
+    });
+
+    res.json({
+      ...updated,
+      storageQuota: updated.storageQuota.toString(),
+      storageUsed: updated.storageUsed.toString(),
+    });
+  } catch (error) {
+    console.error('Update storage quota error:', error);
+    res.status(500).json({ error: 'Failed to update storage quota' });
+  }
+});
+
 export default router;

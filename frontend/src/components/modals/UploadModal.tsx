@@ -61,7 +61,7 @@ export default function UploadModal({
 
   const uploadFile = async (fileUpload: FileUpload) => {
     const formData = new FormData();
-    formData.append('file', fileUpload.file);
+    formData.append('files', fileUpload.file);
     const folderId = getCurrentFolderId();
     if (folderId) {
       formData.append('folderId', folderId);

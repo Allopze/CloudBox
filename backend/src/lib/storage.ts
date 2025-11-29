@@ -18,7 +18,7 @@ const getAbsoluteStoragePath = (): string => {
 
 export const initStorage = async (): Promise<void> => {
   const baseDir = getAbsoluteStoragePath();
-  
+
   for (const dir of Object.values(STORAGE_DIRS)) {
     const fullPath = path.join(baseDir, dir);
     await fs.mkdir(fullPath, { recursive: true });
@@ -92,4 +92,66 @@ export const moveFile = async (source: string, destination: string): Promise<voi
 export const copyFile = async (source: string, destination: string): Promise<void> => {
   await fs.mkdir(path.dirname(destination), { recursive: true });
   await fs.copyFile(source, destination);
+};
+
+export const streamFile = async (
+  req: import('express').Request,
+  res: import('express').Response,
+  file: { path: string; mimeType: string; name: string },
+  stat: import('fs').Stats
+) => {
+  const range = req.headers.range;
+
+  if (range) {
+    const parts = range.replace(/bytes=/, '').split('-');
+    const start = parseInt(parts[0], 10);
+    const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
+    const chunkSize = end - start + 1;
+
+    res.status(206);
+    res.setHeader('Content-Range', `bytes ${start}-${end}/${stat.size}`);
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Content-Length', chunkSize);
+    res.setHeader('Content-Type', file.mimeType);
+
+    const { createReadStream } = await import('fs');
+    const stream = createReadStream(file.path, { start, end });
+    stream.pipe(res);
+  } else {
+    res.setHeader('Content-Type', file.mimeType);
+    res.setHeader('Content-Length', stat.size);
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.sendFile(file.path);
+  }
+};
+
+export const updateParentFolderSizes = async (
+  folderId: string | null,
+  sizeChange: bigint,
+  prismaClient: any,
+  operation: 'increment' | 'decrement'
+) => {
+  if (!folderId) return;
+
+  let currentFolderId = folderId;
+
+  while (currentFolderId) {
+    const folder = await prismaClient.folder.findUnique({
+      where: { id: currentFolderId },
+      select: { id: true, parentId: true },
+    });
+
+    if (!folder) break;
+
+    await prismaClient.folder.update({
+      where: { id: currentFolderId },
+      data: {
+        size: {
+          [operation]: sizeChange,
+        },
+      },
+    });
+
+    currentFolderId = folder.parentId;
+  }
 };

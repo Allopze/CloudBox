@@ -2,6 +2,9 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useThemeStore } from '../stores/themeStore';
 import { useAuthStore } from '../stores/authStore';
+import { useUploadStore } from '../stores/uploadStore';
+import { useFileStore } from '../stores/fileStore';
+import { useGlobalProgressStore } from '../stores/globalProgressStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search,
@@ -15,17 +18,26 @@ import {
   FolderOpen,
   FolderPlus,
   FilePlus,
+  X,
+  Trash2,
+  Download,
 } from 'lucide-react';
 import Dropdown, { DropdownItem, DropdownDivider } from './ui/Dropdown';
 import UploadModal from './modals/UploadModal';
 import UploadFolderModal from './modals/UploadFolderModal';
 import CreateFolderModal from './modals/CreateFolderModal';
 import CreateFileModal from './modals/CreateFileModal';
+import { formatBytes } from '../lib/utils';
+import { api, getFileUrl } from '../lib/api';
+import { toast } from './ui/Toast';
 
 export default function Header() {
   const navigate = useNavigate();
   const { isDark, toggleTheme } = useThemeStore();
   const { user, logout } = useAuthStore();
+  const { isUploading, uploadedBytes, totalBytes, speed } = useUploadStore();
+  const { selectedItems, clearSelection } = useFileStore();
+  const { addOperation, incrementProgress, completeOperation, failOperation } = useGlobalProgressStore();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchParams] = useSearchParams();
@@ -35,6 +47,57 @@ export default function Header() {
   const [isUploadFolderModalOpen, setUploadFolderModalOpen] = useState(false);
   const [isCreateFolderModalOpen, setCreateFolderModalOpen] = useState(false);
   const [isCreateFileModalOpen, setCreateFileModalOpen] = useState(false);
+
+  const selectedCount = selectedItems.size;
+
+  // Calculate upload progress percentage
+  const uploadProgress = totalBytes > 0 ? Math.round((uploadedBytes / totalBytes) * 100) : 0;
+
+  // Selection action handlers
+  const handleDeleteSelected = async () => {
+    const itemIds = Array.from(selectedItems);
+    const total = itemIds.length;
+    
+    const opId = addOperation({
+      id: `delete-header-${Date.now()}`,
+      type: 'delete',
+      title: `Eliminando ${total} elemento(s)`,
+      totalItems: total,
+    });
+    
+    try {
+      for (const id of itemIds) {
+        const fileEl = document.querySelector(`[data-file-item="${id}"]`);
+        const folderEl = document.querySelector(`[data-folder-item="${id}"]`);
+        const itemName = fileEl?.getAttribute('data-file-name') || folderEl?.getAttribute('data-folder-name') || id;
+        
+        if (fileEl) {
+          await api.delete(`/files/${id}`);
+        } else if (folderEl) {
+          await api.delete(`/folders/${id}`);
+        }
+        incrementProgress(opId, itemName);
+      }
+      
+      completeOperation(opId);
+      clearSelection();
+      toast(`${total} elemento${total > 1 ? 's' : ''} movido${total > 1 ? 's' : ''} a papelera`, 'success');
+      window.dispatchEvent(new CustomEvent('workzone-refresh'));
+    } catch {
+      failOperation(opId, 'Error al eliminar elementos');
+      toast('Error al eliminar elementos', 'error');
+    }
+  };
+
+  const handleDownloadSelected = () => {
+    const itemIds = Array.from(selectedItems);
+    itemIds.forEach((id) => {
+      const fileEl = document.querySelector(`[data-file-item="${id}"]`);
+      if (fileEl) {
+        window.open(getFileUrl(`/files/${id}/download`), '_blank');
+      }
+    });
+  };
 
   // Close menus when clicking outside
   useEffect(() => {
@@ -60,7 +123,7 @@ export default function Header() {
   };
 
   return (
-    <header className="h-14 bg-dark-100 dark:bg-[#222222] flex items-center px-4 gap-4 text-dark-900 dark:text-white border-b border-dark-200 dark:border-transparent">
+    <header className="h-14 bg-dark-100 dark:bg-[#222222] flex items-center px-4 gap-4 text-dark-900 dark:text-white">
       {/* Search + Nuevo */}
       <form onSubmit={handleSearch} className="flex-1 max-w-xl" role="search">
         <div className="flex items-center gap-2">
@@ -108,6 +171,62 @@ export default function Header() {
           </Dropdown>
         </div>
       </form>
+
+      {/* Selection Toolbar */}
+      <AnimatePresence>
+        {selectedCount > 0 && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9, x: -20 }}
+            animate={{ opacity: 1, scale: 1, x: 0 }}
+            exit={{ opacity: 0, scale: 0.9, x: -20 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            className="flex items-center gap-1 px-2 py-1 bg-primary-50 dark:bg-primary-900/30 rounded-full border border-primary-200 dark:border-primary-800"
+          >
+            <button
+              onClick={clearSelection}
+              className="p-1.5 text-primary-600 hover:text-primary-700 hover:bg-primary-100 dark:hover:bg-primary-800/50 rounded-full transition-colors"
+              title="Limpiar selección"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <span className="text-sm font-medium text-primary-700 dark:text-primary-300 px-2">
+              {selectedCount} seleccionado{selectedCount > 1 ? 's' : ''}
+            </span>
+            <div className="w-px h-5 bg-primary-200 dark:bg-primary-700" />
+            <button
+              onClick={handleDownloadSelected}
+              className="p-1.5 text-primary-600 hover:text-primary-700 hover:bg-primary-100 dark:hover:bg-primary-800/50 rounded-full transition-colors"
+              title="Descargar seleccionados"
+            >
+              <Download className="w-4 h-4" />
+            </button>
+            <button
+              onClick={handleDeleteSelected}
+              className="p-1.5 text-red-500 hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900/50 rounded-full transition-colors"
+              title="Eliminar seleccionados"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Upload Progress Indicator - Fixed width to prevent layout shift */}
+      <div className="w-56 flex-shrink-0">
+        {isUploading && totalBytes > 0 && (
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-2 bg-dark-200 dark:bg-dark-700 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-primary-500 transition-all duration-300"
+                style={{ width: `${uploadProgress}%` }}
+              />
+            </div>
+            <span className="text-sm font-medium text-dark-600 dark:text-dark-300 tabular-nums whitespace-nowrap">
+              {uploadProgress}% · {formatBytes(speed)}/s
+            </span>
+          </div>
+        )}
+      </div>
 
       {/* Spacer */}
       <div className="flex-1" />
@@ -204,21 +323,25 @@ export default function Header() {
         isOpen={isUploadModalOpen}
         onClose={() => setUploadModalOpen(false)}
         folderId={currentFolderId}
+        onSuccess={() => window.dispatchEvent(new CustomEvent('workzone-refresh'))}
       />
       <UploadFolderModal
         isOpen={isUploadFolderModalOpen}
         onClose={() => setUploadFolderModalOpen(false)}
         folderId={currentFolderId}
+        onSuccess={() => window.dispatchEvent(new CustomEvent('workzone-refresh'))}
       />
       <CreateFolderModal
         isOpen={isCreateFolderModalOpen}
         onClose={() => setCreateFolderModalOpen(false)}
         parentId={currentFolderId}
+        onSuccess={() => window.dispatchEvent(new CustomEvent('workzone-refresh'))}
       />
       <CreateFileModal
         isOpen={isCreateFileModalOpen}
         onClose={() => setCreateFileModalOpen(false)}
         folderId={currentFolderId}
+        onSuccess={() => window.dispatchEvent(new CustomEvent('workzone-refresh'))}
       />
     </header>
   );

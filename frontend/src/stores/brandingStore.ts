@@ -12,7 +12,7 @@ export interface BrandingSettings {
 interface BrandingState {
   branding: BrandingSettings;
   loading: boolean;
-  loadBranding: () => Promise<void>;
+  loadBranding: (signal?: AbortSignal) => Promise<void>;
   setBranding: (branding: BrandingSettings) => void;
 }
 
@@ -26,64 +26,60 @@ const defaultBranding: BrandingSettings = {
 
 const applyFavicon = (faviconUrl?: string) => {
   if (!faviconUrl) return;
+  
+  // Construct full URL if it's a relative path
+  const fullUrl = faviconUrl.startsWith('/') ? `${API_URL.replace('/api', '')}${faviconUrl}` : faviconUrl;
+  
   let link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']");
   if (!link) {
     link = document.createElement('link');
     link.rel = 'icon';
     document.head.appendChild(link);
   }
-  link.href = faviconUrl;
+  link.href = fullUrl;
+};
+
+const getFullUrl = (url: string | undefined): string => {
+  if (!url) return '';
+  if (url.startsWith('http')) return url;
+  if (url.startsWith('/api')) return `${API_URL.replace('/api', '')}${url}`;
+  return url;
 };
 
 export const useBrandingStore = create<BrandingState>((set) => ({
   branding: defaultBranding,
   loading: false,
 
-  loadBranding: async () => {
+  loadBranding: async (signal?: AbortSignal) => {
     set({ loading: true });
     try {
-      // base assets served publicly (no auth)
-      const assetBranding: BrandingSettings = {
-        ...defaultBranding,
-        logoLightUrl: `${API_URL}/admin/branding/logo-light`,
-        logoDarkUrl: `${API_URL}/admin/branding/logo-dark`,
-        faviconUrl: `${API_URL}/admin/branding/favicon`,
-      };
-
       const res = await fetch(`${API_URL}/admin/settings/branding`, {
         credentials: 'include',
+        signal,
       });
+
+      if (signal?.aborted) return;
 
       if (res.ok) {
         const payload = await res.json();
         const branding: BrandingSettings = {
-          ...assetBranding,
-          ...payload,
-          logoLightUrl: payload.logoLightUrl || payload.logoUrl || assetBranding.logoLightUrl,
-          logoDarkUrl: payload.logoDarkUrl || payload.logoUrl || assetBranding.logoDarkUrl,
+          primaryColor: payload.primaryColor || defaultBranding.primaryColor,
+          logoUrl: getFullUrl(payload.logoUrl),
+          logoLightUrl: getFullUrl(payload.logoLightUrl || payload.logoUrl),
+          logoDarkUrl: getFullUrl(payload.logoDarkUrl || payload.logoUrl),
+          faviconUrl: getFullUrl(payload.faviconUrl),
         };
         set({ branding, loading: false });
         if (branding.faviconUrl) {
           applyFavicon(branding.faviconUrl);
         }
       } else {
-        set({ branding: assetBranding, loading: false });
-        if (assetBranding.faviconUrl) {
-          applyFavicon(assetBranding.faviconUrl);
-        }
+        set({ branding: defaultBranding, loading: false });
       }
     } catch (error) {
+      if (signal?.aborted) return;
       console.error('Failed to load branding settings', error);
-      const fallback: BrandingSettings = {
-        ...defaultBranding,
-        logoLightUrl: `${API_URL}/admin/branding/logo-light`,
-        logoDarkUrl: `${API_URL}/admin/branding/logo-dark`,
-        faviconUrl: `${API_URL}/admin/branding/favicon`,
-      };
-      set({ branding: fallback, loading: false });
-      if (fallback.faviconUrl) {
-        applyFavicon(fallback.faviconUrl);
-      }
+      set({ branding: defaultBranding, loading: false });
     }
   },
 

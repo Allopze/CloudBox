@@ -2,12 +2,21 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api, getFileUrl } from '../lib/api';
 import { Album, FileItem } from '../types';
-import { Loader2, Album as AlbumIcon, Plus, ArrowLeft, Trash2, X, FolderPlus } from 'lucide-react';
+import { useFileStore } from '../stores/fileStore';
+import { Loader2, Album as AlbumIcon, Trash2, X, FolderPlus, Check, Download, Share2, Copy, Info, Star, Eye } from 'lucide-react';
 import { toast } from '../components/ui/Toast';
-import { formatDate, cn } from '../lib/utils';
+import { cn, formatDate } from '../lib/utils';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import Input from '../components/ui/Input';
+import { motion, AnimatePresence } from 'framer-motion';
+import ShareModal from '../components/modals/ShareModal';
+
+interface PhotoContextMenuState {
+  x: number;
+  y: number;
+  photo: FileItem;
+}
 
 export default function Albums() {
   const { albumId } = useParams<{ albumId: string }>();
@@ -24,6 +33,14 @@ export default function Albums() {
   
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [photoContextMenu, setPhotoContextMenu] = useState<PhotoContextMenuState | null>(null);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [shareModalFile, setShareModalFile] = useState<FileItem | null>(null);
+  const [infoPhoto, setInfoPhoto] = useState<FileItem | null>(null);
+  const [lightboxPhoto, setLightboxPhoto] = useState<FileItem | null>(null);
+
+  // Selection state from store
+  const { selectedItems, addToSelection, removeFromSelection, selectRange, selectSingle, lastSelectedId, clearSelection } = useFileStore();
 
   const loadAlbums = useCallback(async () => {
     try {
@@ -62,12 +79,40 @@ export default function Albums() {
 
   useEffect(() => {
     setLoading(true);
+    clearSelection();
     if (albumId) {
       loadAlbumDetails(albumId).finally(() => setLoading(false));
     } else {
       loadAlbums().finally(() => setLoading(false));
     }
+  }, [albumId, loadAlbums, loadAlbumDetails, clearSelection]);
+
+  // Listen for workzone refresh event
+  useEffect(() => {
+    const handleRefresh = () => {
+      if (albumId) {
+        loadAlbumDetails(albumId);
+      } else {
+        loadAlbums();
+      }
+    };
+    window.addEventListener('workzone-refresh', handleRefresh);
+    return () => window.removeEventListener('workzone-refresh', handleRefresh);
   }, [albumId, loadAlbums, loadAlbumDetails]);
+
+  // Listen for create-album event from breadcrumb bar
+  useEffect(() => {
+    const handleCreateAlbum = () => setShowCreateModal(true);
+    window.addEventListener('create-album', handleCreateAlbum);
+    return () => window.removeEventListener('create-album', handleCreateAlbum);
+  }, []);
+
+  // Listen for add-photos-to-album event from breadcrumb bar
+  useEffect(() => {
+    const handleAddPhotos = () => openAddPhotosModal();
+    window.addEventListener('add-photos-to-album', handleAddPhotos);
+    return () => window.removeEventListener('add-photos-to-album', handleAddPhotos);
+  }, []);
 
   const createAlbum = async () => {
     if (!newAlbumName.trim()) return;
@@ -136,6 +181,83 @@ export default function Albums() {
     }
   };
 
+  // Photo context menu handlers
+  const handlePhotoContextMenu = (e: React.MouseEvent, photo: FileItem) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setPhotoContextMenu({ x: e.clientX, y: e.clientY, photo });
+  };
+
+  const closePhotoContextMenu = () => setPhotoContextMenu(null);
+
+  // Close context menu when clicking outside
+  useEffect(() => {
+    const handleClick = () => closePhotoContextMenu();
+    if (photoContextMenu) {
+      document.addEventListener('click', handleClick);
+      return () => document.removeEventListener('click', handleClick);
+    }
+  }, [photoContextMenu]);
+
+  const handleViewPhoto = (photo: FileItem) => {
+    setLightboxPhoto(photo);
+    closePhotoContextMenu();
+  };
+
+  const handleDownloadPhoto = (photo: FileItem) => {
+    window.open(getFileUrl(`/files/${photo.id}/download`), '_blank');
+    closePhotoContextMenu();
+  };
+
+  const handleSharePhoto = (photo: FileItem) => {
+    setShareModalFile(photo);
+    setShareModalOpen(true);
+    closePhotoContextMenu();
+  };
+
+  const handleCopyPhotoLink = async (photo: FileItem) => {
+    try {
+      const url = `${window.location.origin}${getFileUrl(`/files/${photo.id}/thumbnail`)}`;
+      await navigator.clipboard.writeText(url);
+      toast('Enlace copiado al portapapeles', 'success');
+    } catch {
+      toast('Error al copiar el enlace', 'error');
+    }
+    closePhotoContextMenu();
+  };
+
+  const handleFavoritePhoto = async (photo: FileItem) => {
+    try {
+      await api.patch(`/files/${photo.id}/favorite`);
+      setAlbumPhotos(prev => prev.map(p => 
+        p.id === photo.id ? { ...p, isFavorite: !p.isFavorite } : p
+      ));
+      toast(photo.isFavorite ? 'Eliminado de favoritos' : 'Añadido a favoritos', 'success');
+    } catch {
+      toast('Error al actualizar favorito', 'error');
+    }
+    closePhotoContextMenu();
+  };
+
+  const handleShowPhotoInfo = (photo: FileItem) => {
+    setInfoPhoto(photo);
+    closePhotoContextMenu();
+  };
+
+  const handleRemovePhotoFromMenu = async (photo: FileItem) => {
+    await removePhotoFromAlbum(photo.id);
+    closePhotoContextMenu();
+  };
+
+  const formatSize = (bytes: number | string) => {
+    const numBytes = typeof bytes === 'string' ? parseInt(bytes, 10) : bytes;
+    if (numBytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(numBytes) / Math.log(k));
+    return parseFloat((numBytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -148,47 +270,72 @@ export default function Albums() {
   if (albumId && currentAlbum) {
     return (
       <div>
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-6">
-          <Link to="/albums">
-            <Button variant="ghost" size="sm" icon={<ArrowLeft className="w-4 h-4" />}>
-              Volver
-            </Button>
-          </Link>
-          <div className="flex-1">
-            <h1 className="text-2xl font-bold text-dark-900 dark:text-white">
-              {currentAlbum.name}
-            </h1>
-            <p className="text-dark-500 dark:text-dark-400 mt-1">
-              {albumPhotos.length} fotos • Creado {formatDate(currentAlbum.createdAt)}
-            </p>
-          </div>
-          <Button onClick={openAddPhotosModal} icon={<Plus className="w-4 h-4" />}>
-            Añadir fotos
-          </Button>
-        </div>
-
         {/* Photos grid */}
-        {albumPhotos.length > 0 && (
+        {albumPhotos.length > 0 ? (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            {albumPhotos.map((photo) => (
-              <div
-                key={photo.id}
-                className="group relative aspect-square rounded-xl overflow-hidden bg-dark-100 dark:bg-dark-700"
-              >
-                <img
-                  src={getFileUrl(`/files/${photo.id}/thumbnail`)}
-                  alt={photo.name}
-                  className="w-full h-full object-cover"
-                />
-                <button
-                  onClick={() => removePhotoFromAlbum(photo.id)}
-                  className="absolute top-2 right-2 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+            {albumPhotos.map((photo) => {
+              const isSelected = selectedItems.has(photo.id);
+              
+              const handlePhotoClick = (e: React.MouseEvent) => {
+                e.stopPropagation();
+                // Shift+Click: Range selection
+                if (e.shiftKey && lastSelectedId) {
+                  const ids = albumPhotos.map(p => p.id);
+                  selectRange(ids, photo.id);
+                }
+                // Ctrl/Meta+Click: Toggle selection
+                else if (e.ctrlKey || e.metaKey) {
+                  if (isSelected) {
+                    removeFromSelection(photo.id);
+                  } else {
+                    addToSelection(photo.id);
+                  }
+                }
+                // Simple click: Select only this item
+                else {
+                  selectSingle(photo.id);
+                }
+              };
+              
+              return (
+                <motion.div
+                  key={photo.id}
+                  data-file-item={photo.id}
+                  onClick={handlePhotoClick}
+                  onContextMenu={(e) => handlePhotoContextMenu(e, photo)}
+                  animate={isSelected ? { scale: 0.95 } : { scale: 1 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                  className={cn(
+                    'group relative aspect-square rounded-xl overflow-hidden bg-dark-100 dark:bg-dark-700 cursor-pointer transition-all',
+                    isSelected && 'ring-3 ring-primary-500 ring-offset-2 ring-offset-white dark:ring-offset-dark-900'
+                  )}
                 >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
+                  <img
+                    src={getFileUrl(`/files/${photo.id}/thumbnail`)}
+                    alt={photo.name}
+                    className="w-full h-full object-cover"
+                  />
+                  {/* Selection indicator */}
+                  {isSelected && (
+                    <div className="absolute top-2 left-2 w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center shadow-lg">
+                      <Check className="w-4 h-4 text-white" />
+                    </div>
+                  )}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); removePhotoFromAlbum(photo.id); }}
+                    className="absolute top-2 right-2 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </motion.div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center h-64 text-dark-500">
+            <AlbumIcon className="w-16 h-16 mb-4 opacity-50" />
+            <p className="text-lg font-medium">No hay fotos en este álbum</p>
+            <p className="text-sm">Haz clic en "Añadir fotos" para agregar imágenes</p>
           </div>
         )}
 
@@ -237,6 +384,184 @@ export default function Albums() {
             </Button>
           </div>
         </Modal>
+
+        {/* Photo Context Menu */}
+        <AnimatePresence>
+          {photoContextMenu && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.1 }}
+              style={{
+                position: 'fixed',
+                left: photoContextMenu.x + 288 > window.innerWidth ? photoContextMenu.x - 288 : photoContextMenu.x,
+                top: (() => {
+                  const menuHeight = 420;
+                  const padding = 20;
+                  if (photoContextMenu.y + menuHeight > window.innerHeight - padding) {
+                    return Math.max(padding, photoContextMenu.y - menuHeight);
+                  }
+                  return photoContextMenu.y;
+                })(),
+              }}
+              className="z-50 min-w-72 bg-white dark:bg-dark-800 rounded-xl shadow-2xl border border-dark-200 dark:border-dark-700 py-2 overflow-hidden"
+            >
+              {/* Ver */}
+              <div className="px-2 py-1">
+                <button
+                  onClick={() => handleViewPhoto(photoContextMenu.photo)}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
+                >
+                  <Eye className="w-5 h-5" />
+                  <span>Ver imagen</span>
+                </button>
+              </div>
+              
+              <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
+              
+              {/* Acciones */}
+              <div className="px-2 py-1">
+                <button
+                  onClick={() => handleDownloadPhoto(photoContextMenu.photo)}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
+                >
+                  <Download className="w-5 h-5" />
+                  <span>Descargar</span>
+                </button>
+                <button
+                  onClick={() => handleSharePhoto(photoContextMenu.photo)}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
+                >
+                  <Share2 className="w-5 h-5" />
+                  <span>Compartir</span>
+                </button>
+                <button
+                  onClick={() => handleCopyPhotoLink(photoContextMenu.photo)}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
+                >
+                  <Copy className="w-5 h-5" />
+                  <span>Copiar enlace</span>
+                </button>
+              </div>
+              
+              <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
+              
+              {/* Organización */}
+              <div className="px-2 py-1">
+                <button
+                  onClick={() => handleFavoritePhoto(photoContextMenu.photo)}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
+                >
+                  <Star className={cn('w-5 h-5', photoContextMenu.photo.isFavorite && 'fill-yellow-500 text-yellow-500')} />
+                  <span>{photoContextMenu.photo.isFavorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}</span>
+                </button>
+                <button
+                  onClick={() => handleShowPhotoInfo(photoContextMenu.photo)}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
+                >
+                  <Info className="w-5 h-5" />
+                  <span>Información</span>
+                </button>
+              </div>
+              
+              <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
+              
+              {/* Quitar del álbum */}
+              <div className="px-2 py-1">
+                <button
+                  onClick={() => handleRemovePhotoFromMenu(photoContextMenu.photo)}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                  <span>Quitar del álbum</span>
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Share Modal */}
+        {shareModalOpen && shareModalFile && (
+          <ShareModal
+            isOpen={shareModalOpen}
+            onClose={() => {
+              setShareModalOpen(false);
+              setShareModalFile(null);
+            }}
+            file={shareModalFile}
+          />
+        )}
+
+        {/* Info Modal */}
+        {infoPhoto && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setInfoPhoto(null)}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white dark:bg-dark-800 rounded-xl shadow-2xl max-w-lg w-full p-8"
+            >
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-dark-100 dark:bg-dark-700">
+                  <img
+                    src={getFileUrl(`/files/${infoPhoto.id}/thumbnail`)}
+                    alt={infoPhoto.name}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-xl font-semibold text-dark-900 dark:text-white truncate">
+                    {infoPhoto.name}
+                  </h3>
+                  <p className="text-sm text-dark-500">{infoPhoto.mimeType}</p>
+                </div>
+              </div>
+              
+              <div className="space-y-3 mb-6">
+                <div className="flex justify-between py-2 border-b border-dark-200 dark:border-dark-700">
+                  <span className="text-dark-500">Tamaño</span>
+                  <span className="text-dark-900 dark:text-white font-medium">{formatSize(infoPhoto.size)}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-dark-200 dark:border-dark-700">
+                  <span className="text-dark-500">Fecha de subida</span>
+                  <span className="text-dark-900 dark:text-white font-medium">{formatDate(infoPhoto.createdAt)}</span>
+                </div>
+                <div className="flex justify-between py-2">
+                  <span className="text-dark-500">Favorito</span>
+                  <span className="text-dark-900 dark:text-white font-medium">{infoPhoto.isFavorite ? 'Sí' : 'No'}</span>
+                </div>
+              </div>
+              
+              <div className="flex justify-end">
+                <Button onClick={() => setInfoPhoto(null)}>
+                  Cerrar
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Lightbox */}
+        {lightboxPhoto && (
+          <div 
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/90"
+            onClick={() => setLightboxPhoto(null)}
+          >
+            <button
+              onClick={() => setLightboxPhoto(null)}
+              className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <img
+              src={getFileUrl(`/files/${lightboxPhoto.id}/stream`)}
+              alt={lightboxPhoto.name}
+              className="max-w-full max-h-full object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        )}
       </div>
     );
   }
@@ -251,17 +576,6 @@ export default function Albums() {
       }}
       onClick={() => setContextMenu(null)}
     >
-      {/* Header with New Album button */}
-      <div className="flex items-center justify-end mb-6">
-        <Button 
-          onClick={() => setShowCreateModal(true)} 
-          icon={<Plus className="w-4 h-4" />}
-          aria-label="Crear nuevo álbum"
-        >
-          Nuevo álbum
-        </Button>
-      </div>
-
       {/* Context Menu */}
       {contextMenu && (
         <div
@@ -292,9 +606,9 @@ export default function Albums() {
               className="group rounded-lg border border-dark-100 dark:border-dark-700 overflow-hidden hover:border-dark-200 dark:hover:border-dark-600 transition-colors"
             >
               <div className="aspect-square bg-dark-50 dark:bg-dark-800 flex items-center justify-center">
-                {album.coverPath ? (
+                {album.coverUrl ? (
                   <img
-                    src={`/api/files/${album.coverPath}/thumbnail`}
+                    src={album.coverUrl}
                     alt={album.name}
                     className="w-full h-full object-cover"
                   />

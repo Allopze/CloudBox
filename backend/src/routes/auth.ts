@@ -12,6 +12,7 @@ import { sendWelcomeEmail, sendResetPasswordEmail } from '../lib/email.js';
 import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { config } from '../config/index.js';
+import { auditLog, getClientIP } from '../lib/audit.js';
 import {
   registerSchema,
   loginSchema,
@@ -104,14 +105,7 @@ async function recordLoginAttempt(
   }).catch(() => {}); // Ignore cleanup errors
 }
 
-// Get client IP address
-function getClientIP(req: Request): string {
-  const forwarded = req.headers['x-forwarded-for'];
-  if (forwarded) {
-    return (typeof forwarded === 'string' ? forwarded : forwarded[0]).split(',')[0].trim();
-  }
-  return req.ip || req.socket.remoteAddress || 'unknown';
-}
+// Get client IP address - using imported function from audit.ts
 
 // Register
 router.post('/register', validate(registerSchema), async (req: Request, res: Response) => {
@@ -173,6 +167,8 @@ router.post('/register', validate(registerSchema), async (req: Request, res: Res
         name: user.name,
         role: user.role,
         emailVerified: user.emailVerified,
+        storageQuota: user.storageQuota.toString(),
+        storageUsed: user.storageUsed.toString(),
       },
       accessToken,
       refreshToken,
@@ -196,6 +192,15 @@ router.post('/login', validate(loginSchema), async (req: Request, res: Response)
       const minutesRemaining = lockoutStatus.lockoutEnd 
         ? Math.ceil((lockoutStatus.lockoutEnd.getTime() - Date.now()) / 60000)
         : 15;
+      
+      await auditLog({
+        action: 'LOGIN_FAILED',
+        ipAddress,
+        userAgent,
+        details: { email, reason: 'lockout', minutesRemaining },
+        success: false,
+      });
+      
       res.status(429).json({ 
         error: `Demasiados intentos fallidos. Intenta de nuevo en ${minutesRemaining} minutos.`,
         lockoutEnd: lockoutStatus.lockoutEnd,
@@ -204,10 +209,32 @@ router.post('/login', validate(loginSchema), async (req: Request, res: Response)
     }
 
     const user = await prisma.user.findUnique({ where: { email } });
-    if (!user || !user.password) {
+    if (!user) {
       await recordLoginAttempt(email, ipAddress, false, userAgent);
+      
+      await auditLog({
+        action: 'LOGIN_FAILED',
+        ipAddress,
+        userAgent,
+        details: { email, reason: 'user_not_found' },
+        success: false,
+      });
+      
       res.status(401).json({ 
-        error: 'Credenciales inválidas',
+        error: 'Email o contraseña incorrectos.',
+        code: 'INVALID_CREDENTIALS',
+        remainingAttempts: lockoutStatus.remainingAttempts - 1,
+      });
+      return;
+    }
+
+    if (!user.password) {
+      // User exists but registered with Google OAuth
+      await recordLoginAttempt(email, ipAddress, false, userAgent);
+      
+      res.status(401).json({ 
+        error: 'Esta cuenta fue creada con Google. Por favor, inicia sesión con Google.',
+        code: 'OAUTH_ACCOUNT',
         remainingAttempts: lockoutStatus.remainingAttempts - 1,
       });
       return;
@@ -217,8 +244,19 @@ router.post('/login', validate(loginSchema), async (req: Request, res: Response)
     if (!validPassword) {
       await recordLoginAttempt(email, ipAddress, false, userAgent);
       const newLockoutStatus = await checkLockout(email, ipAddress);
+      
+      await auditLog({
+        action: 'LOGIN_FAILED',
+        userId: user.id,
+        ipAddress,
+        userAgent,
+        details: { email, reason: 'invalid_password' },
+        success: false,
+      });
+      
       res.status(401).json({ 
-        error: 'Credenciales inválidas',
+        error: 'Email o contraseña incorrectos.',
+        code: 'INVALID_CREDENTIALS',
         remainingAttempts: newLockoutStatus.remainingAttempts,
       });
       return;
@@ -226,6 +264,15 @@ router.post('/login', validate(loginSchema), async (req: Request, res: Response)
 
     // Successful login - record it
     await recordLoginAttempt(email, ipAddress, true, userAgent);
+    
+    await auditLog({
+      action: 'LOGIN_SUCCESS',
+      userId: user.id,
+      ipAddress,
+      userAgent,
+      details: { email },
+      success: true,
+    });
 
     const accessToken = generateAccessToken({
       userId: user.id,

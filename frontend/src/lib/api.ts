@@ -1,26 +1,25 @@
 import axios from 'axios';
 
-export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 export const api = axios.create({
   baseURL: API_URL,
   withCredentials: true,
 });
 
-export const getFileUrl = (path: string) => {
-  // If path is already a full URL, return it
-  if (path.startsWith('http')) return path;
+export const getFileUrl = (pathOrFileId: string, endpoint?: 'view' | 'stream' | 'download' | 'thumbnail', includeToken: boolean = true) => {
+  // Get token for authenticated image/media requests
+  const token = includeToken ? localStorage.getItem('accessToken') : null;
+  const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
 
-  // If it's a file ID (UUID), construct the view URL
-  // We assume that if it doesn't contain slashes, it's an ID
-  if (!path.includes('/') && !path.includes('\\')) {
-    return `${API_URL}/files/${path}/view`;
+  // Check if it's the old format (starts with /files/)
+  if (pathOrFileId.startsWith('/files/')) {
+    return `${API_URL}${pathOrFileId}${tokenParam}`;
   }
-
-  // Fallback for legacy paths (though we should avoid them)
-  // Ensure we don't double slash
-  const cleanPath = path.startsWith('/') ? path : `/${path}`;
-  return `${API_URL}${cleanPath}`;
+  
+  // New format: just fileId and endpoint type
+  const endpointPath = endpoint || 'view';
+  return `${API_URL}/files/${pathOrFileId}/${endpointPath}${tokenParam}`;
 };
 
 // Request interceptor for auth token
@@ -36,13 +35,40 @@ api.interceptors.request.use(
 );
 
 // Response interceptor for token refresh
+let isRefreshing = false;
+let failedQueue: Array<{ resolve: (token: string) => void; reject: (error: any) => void }> = [];
+
+const processQueue = (error: any, token: string | null = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token!);
+    }
+  });
+  failedQueue = [];
+};
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
 
     if (error.response?.status === 401 && !originalRequest._retry) {
+      if (isRefreshing) {
+        // Wait for the refresh to complete
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        })
+          .then((token) => {
+            originalRequest.headers.Authorization = `Bearer ${token}`;
+            return api(originalRequest);
+          })
+          .catch((err) => Promise.reject(err));
+      }
+
       originalRequest._retry = true;
+      isRefreshing = true;
 
       try {
         const refreshToken = localStorage.getItem('refreshToken');
@@ -59,13 +85,18 @@ api.interceptors.response.use(
         localStorage.setItem('accessToken', accessToken);
         localStorage.setItem('refreshToken', newRefreshToken);
 
+        processQueue(null, accessToken);
+
         originalRequest.headers.Authorization = `Bearer ${accessToken}`;
         return api(originalRequest);
       } catch (refreshError) {
+        processQueue(refreshError, null);
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
         window.location.href = '/login';
         return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
       }
     }
 

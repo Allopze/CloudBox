@@ -1,14 +1,24 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+// Validate required secrets in production
+if (process.env.NODE_ENV === 'production') {
+  if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'default-secret') {
+    throw new Error('JWT_SECRET must be set in production');
+  }
+  if (!process.env.JWT_REFRESH_SECRET || process.env.JWT_REFRESH_SECRET === 'default-refresh-secret') {
+    throw new Error('JWT_REFRESH_SECRET must be set in production');
+  }
+}
+
 export const config = {
   port: parseInt(process.env.PORT || '3001'),
   nodeEnv: process.env.NODE_ENV || 'development',
   frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
   
   jwt: {
-    secret: process.env.JWT_SECRET || 'default-secret',
-    refreshSecret: process.env.JWT_REFRESH_SECRET || 'default-refresh-secret',
+    secret: process.env.JWT_SECRET || 'dev-secret-change-in-production',
+    refreshSecret: process.env.JWT_REFRESH_SECRET || 'dev-refresh-secret-change-in-production',
     expiresIn: process.env.JWT_EXPIRES_IN || '15m',
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
   },

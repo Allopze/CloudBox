@@ -138,11 +138,20 @@ export default function AdminSettings() {
       if (systemRes.data) setSystemSettings((prev) => ({ ...prev, ...systemRes.data }));
       if (smtpRes.data) setSmtpSettings((prev) => ({ ...prev, ...smtpRes.data }));
       if (brandingRes.data) {
+        // Convert relative URLs to absolute URLs
+        const getFullUrl = (url: string | undefined): string => {
+          if (!url) return '';
+          if (url.startsWith('http')) return url;
+          if (url.startsWith('/api')) return `${API_URL.replace('/api', '')}${url}`;
+          return url;
+        };
+        
         setBrandingSettings((prev) => ({
           ...prev,
           ...brandingRes.data,
-          logoLightUrl: brandingRes.data.logoLightUrl || brandingRes.data.logoUrl || '',
-          logoDarkUrl: brandingRes.data.logoDarkUrl || brandingRes.data.logoUrl || '',
+          logoLightUrl: getFullUrl(brandingRes.data.logoLightUrl || brandingRes.data.logoUrl),
+          logoDarkUrl: getFullUrl(brandingRes.data.logoDarkUrl || brandingRes.data.logoUrl),
+          faviconUrl: getFullUrl(brandingRes.data.faviconUrl),
         }));
       }
     } catch (error) {

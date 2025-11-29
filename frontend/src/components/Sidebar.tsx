@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { useAuthStore } from '../stores/authStore';
@@ -7,6 +7,9 @@ import { useThemeStore } from '../stores/themeStore';
 import { useBrandingStore } from '../stores/brandingStore';
 import { useSidebarStore, NavItem } from '../stores/sidebarStore';
 import { cn, formatBytes } from '../lib/utils';
+import { api } from '../lib/api';
+import { toast } from './ui/Toast';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
   FolderOpen,
@@ -44,8 +47,40 @@ export default function Sidebar() {
   const [dropPosition, setDropPosition] = useState<'before' | 'after'>('before');
   const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
   const dragImageRef = useRef<HTMLDivElement>(null);
+  
+  // Context menu for Trash
+  const [trashContextMenu, setTrashContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [emptyingTrash, setEmptyingTrash] = useState(false);
+  const trashContextMenuRef = useRef<HTMLDivElement>(null);
 
-  const storageUsedPercent = user
+  // Close trash context menu on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (trashContextMenuRef.current && !trashContextMenuRef.current.contains(e.target as Node)) {
+        setTrashContextMenu(null);
+      }
+    };
+    if (trashContextMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [trashContextMenu]);
+
+  const handleEmptyTrash = async () => {
+    setTrashContextMenu(null);
+    setEmptyingTrash(true);
+    try {
+      await api.delete('/trash/empty');
+      toast('Papelera vaciada correctamente', 'success');
+      window.dispatchEvent(new CustomEvent('workzone-refresh'));
+    } catch {
+      toast('Error al vaciar la papelera', 'error');
+    } finally {
+      setEmptyingTrash(false);
+    }
+  };
+
+  const storageUsedPercent = user && parseInt(user.storageQuota) > 0
     ? Math.round(
         (parseInt(user.storageUsed) / parseInt(user.storageQuota)) * 100
       )
@@ -135,6 +170,14 @@ export default function Sidebar() {
     const isDropTarget = dragOverIndex === index && dropTargetSection === section;
     const showDropBefore = isDropTarget && dropPosition === 'before';
     const showDropAfter = isDropTarget && dropPosition === 'after';
+    const isTrash = item.path === '/trash';
+
+    const handleContextMenu = (e: React.MouseEvent) => {
+      if (isTrash) {
+        e.preventDefault();
+        setTrashContextMenu({ x: e.clientX, y: e.clientY });
+      }
+    };
 
     return (
       <div
@@ -145,6 +188,7 @@ export default function Sidebar() {
         onDragOver={(e) => handleDragOver(e, index, section)}
         onDragEnd={handleDragEnd}
         onDrop={(e) => handleDrop(e, index, section)}
+        onContextMenu={handleContextMenu}
         className={cn(
           'relative group',
           isDragging && 'opacity-30'
@@ -200,9 +244,39 @@ export default function Sidebar() {
     );
   };
 
+  // Trash context menu rendered via portal
+  const renderTrashContextMenu = () => {
+    if (!trashContextMenu) return null;
+    
+    return createPortal(
+      <AnimatePresence>
+        <motion.div
+          ref={trashContextMenuRef}
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          transition={{ duration: 0.1 }}
+          className="fixed z-[9999] min-w-[180px] bg-white dark:bg-dark-800 rounded-xl shadow-lg border border-dark-200 dark:border-dark-700 py-1 overflow-hidden"
+          style={{ top: trashContextMenu.y, left: trashContextMenu.x }}
+        >
+          <button
+            onClick={handleEmptyTrash}
+            disabled={emptyingTrash}
+            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
+          >
+            <Trash2 className="w-4 h-4" />
+            {emptyingTrash ? 'Vaciando...' : 'Vaciar papelera'}
+          </button>
+        </motion.div>
+      </AnimatePresence>,
+      document.body
+    );
+  };
+
   return (
     <>
       {renderDragPreview()}
+      {renderTrashContextMenu()}
       <aside
         className={cn(
           'w-48 bg-dark-100 dark:bg-[#222222] text-dark-900 dark:text-white flex flex-col h-screen overflow-hidden transition-all duration-300',

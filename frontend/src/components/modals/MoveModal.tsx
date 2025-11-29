@@ -26,30 +26,45 @@ export default function MoveModal({ isOpen, onClose, items, onSuccess }: MoveMod
   // Get IDs of items being moved (to exclude them from destination options)
   const itemIds = items.map((item) => item.id);
 
-  const loadFolders = useCallback(async (parentId: string | null) => {
+  const loadFolders = useCallback(async (parentId: string | null, signal?: AbortSignal) => {
     setLoading(true);
     try {
       const response = await api.get('/folders', {
         params: { parentId: parentId || undefined },
+        signal,
       });
+      
+      // Don't update state if aborted
+      if (signal?.aborted) return;
+      
       // Filter out the items being moved
       const filtered = (response.data || []).filter(
         (folder: Folder) => !itemIds.includes(folder.id)
       );
       setFolders(filtered);
-    } catch (error) {
+    } catch (error: any) {
+      // Ignore aborted requests
+      if (error.name === 'CanceledError' || signal?.aborted) return;
       console.error('Failed to load folders:', error);
       toast('Error al cargar carpetas', 'error');
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) {
+        setLoading(false);
+      }
     }
   }, [itemIds]);
 
   useEffect(() => {
     if (isOpen) {
+      const abortController = new AbortController();
+      
       setCurrentPath([]);
       setSelectedFolder(null);
-      loadFolders(null);
+      loadFolders(null, abortController.signal);
+      
+      return () => {
+        abortController.abort();
+      };
     }
   }, [isOpen, loadFolders]);
 

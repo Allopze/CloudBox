@@ -40,6 +40,7 @@ import PublicShare from './pages/public/PublicShare';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
 import MusicPlayer from './components/MusicPlayer';
+import GlobalProgressIndicator from './components/ui/GlobalProgressIndicator';
 
 function App() {
   const { checkAuth, isAuthenticated } = useAuthStore();
@@ -47,8 +48,13 @@ function App() {
   const { loadBranding } = useBrandingStore();
 
   useEffect(() => {
-    checkAuth();
-    loadBranding();
+    const abortController = new AbortController();
+    checkAuth(abortController.signal);
+    loadBranding(abortController.signal);
+    
+    return () => {
+      abortController.abort();
+    };
   }, [checkAuth, loadBranding]);
 
   useEffect(() => {
@@ -102,6 +108,9 @@ function App() {
 
       {/* Global music player */}
       <MusicPlayer />
+      
+      {/* Global progress indicator for mass operations */}
+      <GlobalProgressIndicator />
     </>
   );
 }

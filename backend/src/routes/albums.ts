@@ -9,7 +9,7 @@ const router = Router();
 // Create album
 router.post('/', authenticate, validate(createAlbumSchema), async (req: Request, res: Response) => {
   try {
-    const { name } = req.body;
+    const { name, color } = req.body;
     const userId = req.user!.userId;
 
     const existing = await prisma.album.findFirst({
@@ -22,7 +22,7 @@ router.post('/', authenticate, validate(createAlbumSchema), async (req: Request,
     }
 
     const album = await prisma.album.create({
-      data: { name, userId },
+      data: { name, color, userId },
     });
 
     res.status(201).json(album);
@@ -93,7 +93,7 @@ router.get('/:id', authenticate, async (req: Request, res: Response) => {
 router.patch('/:id', authenticate, validate(updateAlbumSchema), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { name } = req.body;
+    const { name, color } = req.body;
     const userId = req.user!.userId;
 
     const album = await prisma.album.findFirst({
@@ -105,18 +105,24 @@ router.patch('/:id', authenticate, validate(updateAlbumSchema), async (req: Requ
       return;
     }
 
-    const existing = await prisma.album.findFirst({
-      where: { name, userId, NOT: { id } },
-    });
+    if (name) {
+      const existing = await prisma.album.findFirst({
+        where: { name, userId, NOT: { id } },
+      });
 
-    if (existing) {
-      res.status(400).json({ error: 'Album with this name already exists' });
-      return;
+      if (existing) {
+        res.status(400).json({ error: 'Album with this name already exists' });
+        return;
+      }
     }
+
+    const updateData: any = {};
+    if (name) updateData.name = name;
+    if (color !== undefined) updateData.color = color;
 
     const updated = await prisma.album.update({
       where: { id },
-      data: { name },
+      data: updateData,
     });
 
     res.json(updated);

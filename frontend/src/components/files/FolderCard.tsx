@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Folder } from '../../types';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useLocation } from 'react-router-dom';
 import { useFileStore } from '../../stores/fileStore';
+import { useGlobalProgressStore } from '../../stores/globalProgressStore';
 import {
   FolderIcon,
   MoreVertical,
@@ -29,13 +30,20 @@ interface FolderCardProps {
 
 export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderCardProps) {
   const [, setSearchParams] = useSearchParams();
-  const { selectedItems, toggleSelection } = useFileStore();
+  const location = useLocation();
+  const { selectedItems, addToSelection, removeFromSelection, selectRange, selectSingle, lastSelectedId } = useFileStore();
+  const { addOperation, incrementProgress, completeOperation, failOperation } = useGlobalProgressStore();
   const isSelected = selectedItems.has(folder.id);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close context menu when location changes
+  useEffect(() => {
+    setContextMenu(null);
+  }, [location.pathname, location.search]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -44,13 +52,16 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
       }
     };
     const handleScroll = () => setContextMenu(null);
+    const handleContextMenuGlobal = () => setContextMenu(null);
     
     if (contextMenu) {
       document.addEventListener('mousedown', handleClickOutside);
       document.addEventListener('scroll', handleScroll, true);
+      document.addEventListener('contextmenu', handleContextMenuGlobal, true);
       return () => {
         document.removeEventListener('mousedown', handleClickOutside);
         document.removeEventListener('scroll', handleScroll, true);
+        document.removeEventListener('contextmenu', handleContextMenuGlobal, true);
       };
     }
   }, [contextMenu]);
@@ -58,15 +69,41 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    
+    // If this item is not already selected, select only this item
+    // If it's already selected (possibly as part of multi-select), keep the selection
+    if (!selectedItems.has(folder.id)) {
+      selectSingle(folder.id);
+    }
+    
     setContextMenu({ x: e.clientX, y: e.clientY });
   };
 
   const handleClick = (e: React.MouseEvent) => {
-    if (e.ctrlKey || e.metaKey) {
-      toggleSelection(folder.id);
-    } else {
-      setSearchParams({ folder: folder.id });
+    // Shift+Click: Range selection
+    if (e.shiftKey && lastSelectedId) {
+      // Get all file items in the DOM to determine range
+      const allItems = Array.from(document.querySelectorAll('[data-file-item], [data-folder-item]'));
+      const ids = allItems.map(el => el.getAttribute('data-file-item') || el.getAttribute('data-folder-item')).filter(Boolean) as string[];
+      selectRange(ids, folder.id);
     }
+    // Ctrl/Meta+Click: Toggle selection
+    else if (e.ctrlKey || e.metaKey) {
+      if (isSelected) {
+        removeFromSelection(folder.id);
+      } else {
+        addToSelection(folder.id);
+      }
+    }
+    // Simple click: Select only this item
+    else {
+      selectSingle(folder.id);
+    }
+  };
+
+  // Double click to navigate into folder
+  const handleDoubleClick = () => {
+    setSearchParams({ folder: folder.id });
   };
 
   const handleFavorite = async () => {
@@ -82,12 +119,58 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
 
   const handleDelete = async () => {
     setContextMenu(null);
-    try {
-      await api.delete(`/folders/${folder.id}`);
-      toast('Carpeta movida a papelera', 'success');
-      onRefresh?.();
-    } catch {
-      toast('Error al eliminar carpeta', 'error');
+    
+    // Get fresh state from store to ensure we have the latest selection
+    const currentSelectedItems = useFileStore.getState().selectedItems;
+    const clearSelectionFn = useFileStore.getState().clearSelection;
+    
+    // If multiple items are selected and this folder is one of them, delete all selected
+    if (currentSelectedItems.size > 1 && currentSelectedItems.has(folder.id)) {
+      const itemIds = Array.from(currentSelectedItems);
+      const total = itemIds.length;
+      
+      const opId = addOperation({
+        id: `delete-context-${Date.now()}`,
+        type: 'delete',
+        title: `Eliminando ${total} elemento(s)`,
+        totalItems: total,
+      });
+      
+      try {
+        for (const id of itemIds) {
+          const fileEl = document.querySelector(`[data-file-item="${id}"]`);
+          const folderEl = document.querySelector(`[data-folder-item="${id}"]`);
+          const itemName = fileEl?.getAttribute('data-file-name') || folderEl?.getAttribute('data-folder-name') || id;
+          
+          if (fileEl) {
+            await api.delete(`/files/${id}`);
+          } else if (folderEl) {
+            await api.delete(`/folders/${id}`);
+          }
+          incrementProgress(opId, itemName);
+        }
+        
+        completeOperation(opId);
+        clearSelectionFn();
+        toast(`${total} elemento(s) movido(s) a papelera`, 'success');
+        // Trigger refresh event and call onRefresh
+        window.dispatchEvent(new CustomEvent('workzone-refresh'));
+        onRefresh?.();
+      } catch {
+        failOperation(opId, 'Error al eliminar elementos');
+        toast('Error al eliminar elementos', 'error');
+      }
+    } else {
+      // Single item delete
+      try {
+        await api.delete(`/folders/${folder.id}`);
+        toast('Carpeta movida a papelera', 'success');
+        // Trigger refresh event and call onRefresh
+        window.dispatchEvent(new CustomEvent('workzone-refresh'));
+        onRefresh?.();
+      } catch {
+        toast('Error al eliminar carpeta', 'error');
+      }
     }
   };
 
@@ -166,13 +249,18 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
   if (view === 'list') {
     return (
       <>
-        <div
+        <motion.div
+          data-folder-item={folder.id}
+          data-folder-name={folder.name}
           onClick={handleClick}
+          onDoubleClick={handleDoubleClick}
           onContextMenu={handleContextMenu}
+          animate={isSelected ? { scale: 0.98 } : { scale: 1 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 25 }}
           className={cn(
-            'flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors',
+            'flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer transition-colors',
             isSelected
-              ? 'bg-primary-50 dark:bg-primary-900/20'
+              ? 'bg-primary-50 dark:bg-primary-900/20 ring-2 ring-primary-500/50 ring-offset-1 ring-offset-white dark:ring-offset-dark-900'
               : 'hover:bg-dark-50 dark:hover:bg-dark-800'
           )}
         >
@@ -200,7 +288,7 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
             <DropdownDivider />
             <DropdownItem danger onClick={handleDelete}><Trash2 className="w-4 h-4" /> Mover a papelera</DropdownItem>
           </Dropdown>
-        </div>
+        </motion.div>
         {contextMenuContent}
         {modals}
       </>
@@ -209,32 +297,32 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
 
   return (
     <>
-      <div
+      <motion.div
+        data-folder-item={folder.id}
+        data-folder-name={folder.name}
         onClick={handleClick}
+        onDoubleClick={handleDoubleClick}
         onContextMenu={handleContextMenu}
+        animate={isSelected ? { scale: 0.97 } : { scale: 1 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 25 }}
         className={cn(
-          'group relative p-3 rounded-lg cursor-pointer transition-all border',
+          'group relative flex items-center gap-3 px-3 py-2.5 rounded-2xl cursor-pointer transition-all border',
           isSelected
-            ? 'bg-primary-50 dark:bg-primary-900/20 border-primary-200 dark:border-primary-800'
+            ? 'bg-primary-50 dark:bg-primary-900/20 border-primary-300 dark:border-primary-700 ring-2 ring-primary-500/40 ring-offset-1 ring-offset-white dark:ring-offset-dark-900'
             : 'bg-white dark:bg-dark-800 border-dark-100 dark:border-dark-700 hover:border-dark-200 dark:hover:border-dark-600'
         )}
       >
-        <div className="flex items-center justify-center py-6">
-          <FolderIcon className="w-12 h-12 text-primary-500" />
-        </div>
-        <div>
+        <FolderIcon className="w-6 h-6 text-primary-500 flex-shrink-0" />
+        <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-dark-900 dark:text-white truncate">{folder.name}</p>
-          <p className="text-xs text-dark-500">{folder._count?.files ?? 0} elementos</p>
         </div>
         {folder.isFavorite && (
-          <div className="absolute top-2 left-2">
-            <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />
-          </div>
+          <Star className="w-4 h-4 text-yellow-500 fill-yellow-500 flex-shrink-0" />
         )}
-        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
           <Dropdown
             trigger={
-              <button onClick={(e) => e.stopPropagation()} className="p-2 bg-white dark:bg-dark-700 text-dark-500 hover:text-dark-900 dark:hover:text-white rounded-lg shadow">
+              <button onClick={(e) => e.stopPropagation()} className="p-1.5 bg-white dark:bg-dark-700 text-dark-500 hover:text-dark-900 dark:hover:text-white rounded-lg shadow">
                 <MoreVertical className="w-4 h-4" />
               </button>
             }
@@ -249,7 +337,7 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
             <DropdownItem danger onClick={handleDelete}><Trash2 className="w-4 h-4" /> Mover a papelera</DropdownItem>
           </Dropdown>
         </div>
-      </div>
+      </motion.div>
       {contextMenuContent}
       {modals}
     </>

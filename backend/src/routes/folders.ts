@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import prisma from '../lib/prisma.js';
+import prisma, { updateParentFolderSizes } from '../lib/prisma.js';
 import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { createFolderSchema, updateFolderSchema, moveFolderSchema } from '../schemas/index.js';
@@ -9,6 +9,12 @@ import { fileExists, getStoragePath, deleteFile as deleteStorageFile } from '../
 import { v4 as uuidv4 } from 'uuid';
 
 const router = Router();
+
+// Helper function to serialize folder BigInt fields
+const serializeFolder = (folder: any) => ({
+  ...folder,
+  size: folder.size?.toString() ?? '0',
+});
 
 // Create folder
 router.post('/', authenticate, validate(createFolderSchema), async (req: Request, res: Response) => {
@@ -28,9 +34,9 @@ router.post('/', authenticate, validate(createFolderSchema), async (req: Request
       }
     }
 
-    // Check for duplicate name
+    // Check for duplicate name (only among non-trashed folders)
     const existing = await prisma.folder.findFirst({
-      where: { name, parentId: parentId || null, userId },
+      where: { name, parentId: parentId || null, userId, isTrash: false },
     });
 
     if (existing) {
@@ -57,7 +63,7 @@ router.post('/', authenticate, validate(createFolderSchema), async (req: Request
       },
     });
 
-    res.status(201).json(folder);
+    res.status(201).json(serializeFolder(folder));
   } catch (error) {
     console.error('Create folder error:', error);
     res.status(500).json({ error: 'Failed to create folder' });
@@ -93,7 +99,13 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
       },
     });
 
-    res.json(folders);
+    // Convert BigInt to string for JSON serialization
+    const serializedFolders = folders.map(folder => ({
+      ...folder,
+      size: folder.size?.toString() ?? '0',
+    }));
+
+    res.json(serializedFolders);
   } catch (error) {
     console.error('List folders error:', error);
     res.status(500).json({ error: 'Failed to list folders' });
@@ -131,7 +143,7 @@ router.get('/:id', authenticate, async (req: Request, res: Response) => {
       }
     }
 
-    res.json({ folder, breadcrumb });
+    res.json({ folder: serializeFolder(folder), breadcrumb });
   } catch (error) {
     console.error('Get folder error:', error);
     res.status(500).json({ error: 'Failed to get folder' });
@@ -175,7 +187,7 @@ router.patch('/:id', authenticate, validate(updateFolderSchema), async (req: Req
       },
     });
 
-    res.json(updated);
+    res.json(serializeFolder(updated));
   } catch (error) {
     console.error('Update folder error:', error);
     res.status(500).json({ error: 'Failed to update folder' });
@@ -245,9 +257,30 @@ router.patch('/:id/move', authenticate, validate(moveFolderSchema), async (req: 
       return;
     }
 
-    const updated = await prisma.folder.update({
-      where: { id },
-      data: { parentId },
+    const updated = await prisma.$transaction(async (tx) => {
+      const folderToMove = await tx.folder.update({
+        where: { id },
+        data: { parentId },
+      });
+
+      // Get folder with size using raw query to get the size field
+      const folderWithSize = await tx.$queryRaw<Array<{size: bigint}>>`
+        SELECT size FROM folders WHERE id = ${id}
+      `;
+
+      const folderSize = folderWithSize[0]?.size ?? BigInt(0);
+
+      // Update old parent folder size
+      if (folder.parentId) {
+        await updateParentFolderSizes(folder.parentId, folderSize, tx, 'decrement');
+      }
+
+      // Update new parent folder size
+      if (parentId) {
+        await updateParentFolderSizes(parentId, folderSize, tx, 'increment');
+      }
+
+      return folderToMove;
     });
 
     await prisma.activity.create({
@@ -259,7 +292,7 @@ router.patch('/:id/move', authenticate, validate(moveFolderSchema), async (req: 
       },
     });
 
-    res.json(updated);
+    res.json(serializeFolder(updated));
   } catch (error) {
     console.error('Move folder error:', error);
     res.status(500).json({ error: 'Failed to move folder' });
@@ -283,6 +316,9 @@ router.delete('/:id', authenticate, async (req: Request, res: Response) => {
     }
 
     const deleteRecursively = async (folderId: string, isPermanent: boolean) => {
+      const folderToDelete = await prisma.folder.findUnique({ where: { id: folderId } });
+      if (!folderToDelete) return;
+
       // Get all files in folder
       const files = await prisma.file.findMany({
         where: { folderId },
@@ -320,6 +356,11 @@ router.delete('/:id', authenticate, async (req: Request, res: Response) => {
 
       if (isPermanent) {
         await prisma.folder.delete({ where: { id: folderId } });
+        // After deleting the folder, update the parent's size
+        if (folderToDelete.parentId) {
+          const deletedFolderSize = (folderToDelete as any).size ?? BigInt(0);
+          await updateParentFolderSizes(folderToDelete.parentId, deletedFolderSize, prisma, 'decrement');
+        }
       } else {
         await prisma.folder.update({
           where: { id: folderId },
@@ -352,32 +393,12 @@ router.get('/:id/size', authenticate, async (req: Request, res: Response) => {
       return;
     }
 
-    const calculateSize = async (folderId: string): Promise<bigint> => {
-      let size = BigInt(0);
-
-      const files = await prisma.file.findMany({
-        where: { folderId, isTrash: false },
-        select: { size: true },
-      });
-
-      for (const file of files) {
-        size += file.size;
-      }
-
-      const subfolders = await prisma.folder.findMany({
-        where: { parentId: folderId, isTrash: false },
-      });
-
-      for (const subfolder of subfolders) {
-        size += await calculateSize(subfolder.id);
-      }
-
-      return size;
-    };
-
-    const size = await calculateSize(id);
-
-    res.json({ size: size.toString() });
+    // Get size using raw query since Prisma client might not be regenerated
+    const sizeResult = await prisma.$queryRaw<Array<{size: bigint}>>`
+      SELECT size FROM folders WHERE id = ${id}
+    `;
+    
+    res.json({ size: (sizeResult[0]?.size ?? BigInt(0)).toString() });
   } catch (error) {
     console.error('Get folder size error:', error);
     res.status(500).json({ error: 'Failed to get folder size' });
@@ -404,7 +425,7 @@ router.patch('/:id/favorite', authenticate, async (req: Request, res: Response) 
       data: { isFavorite: !folder.isFavorite },
     });
 
-    res.json(updated);
+    res.json(serializeFolder(updated));
   } catch (error) {
     console.error('Toggle folder favorite error:', error);
     res.status(500).json({ error: 'Failed to toggle favorite' });

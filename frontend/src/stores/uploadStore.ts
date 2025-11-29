@@ -4,16 +4,24 @@ import type { UploadProgress } from '../types';
 interface UploadState {
   uploads: Map<string, UploadProgress>;
   isUploading: boolean;
+  totalBytes: number;
+  uploadedBytes: number;
+  speed: number; // bytes per second
   
   addUpload: (upload: UploadProgress) => void;
   updateUpload: (id: string, data: Partial<UploadProgress>) => void;
   removeUpload: (id: string) => void;
   clearCompleted: () => void;
+  setGlobalProgress: (uploaded: number, total: number, speed: number) => void;
+  resetGlobalProgress: () => void;
 }
 
 export const useUploadStore = create<UploadState>((set) => ({
   uploads: new Map(),
   isUploading: false,
+  totalBytes: 0,
+  uploadedBytes: 0,
+  speed: 0,
 
   addUpload: (upload) => {
     set((state) => {
@@ -62,5 +70,13 @@ export const useUploadStore = create<UploadState>((set) => ({
       }
       return { uploads: newUploads };
     });
+  },
+
+  setGlobalProgress: (uploaded, total, speed) => {
+    set({ uploadedBytes: uploaded, totalBytes: total, speed, isUploading: true });
+  },
+
+  resetGlobalProgress: () => {
+    set({ uploadedBytes: 0, totalBytes: 0, speed: 0, isUploading: false });
   },
 }));

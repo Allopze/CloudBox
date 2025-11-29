@@ -44,14 +44,14 @@ export default function CreateFolderModal({
     try {
       await api.post('/folders', {
         name: name.trim(),
-        parentId: getCurrentFolderId(),
+        parentId: getCurrentFolderId() || null,
       });
       toast('Carpeta creada correctamente', 'success');
       setName('');
-      onClose();
       onSuccess?.();
+      onClose();
     } catch (err: any) {
-      const message = err.response?.data?.message || 'Error al crear la carpeta';
+      const message = err.response?.data?.error || err.response?.data?.message || 'Error al crear la carpeta';
       setError(message);
       toast(message, 'error');
     } finally {

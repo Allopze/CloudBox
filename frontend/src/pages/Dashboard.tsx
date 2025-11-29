@@ -111,7 +111,7 @@ export default function Dashboard() {
     loadStats();
   }, [loadStats]);
 
-  const storageUsedPercent = user
+  const storageUsedPercent = user && parseInt(user.storageQuota) > 0
     ? Math.round((parseInt(user.storageUsed) / parseInt(user.storageQuota)) * 100)
     : 0;
 
