@@ -1,0 +1,255 @@
+import { useState, useRef } from 'react';
+import { NavLink } from 'react-router-dom';
+import { createPortal } from 'react-dom';
+import { useAuthStore } from '../stores/authStore';
+import { useUIStore } from '../stores/uiStore';
+import { useThemeStore } from '../stores/themeStore';
+import { useBrandingStore } from '../stores/brandingStore';
+import { useSidebarStore, NavItem } from '../stores/sidebarStore';
+import { cn, formatBytes } from '../lib/utils';
+import {
+  LayoutDashboard,
+  FolderOpen,
+  FileText,
+  Image,
+  Music,
+  Users,
+  Trash2,
+  Settings,
+} from 'lucide-react';
+
+// Icon mapping
+const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+  LayoutDashboard,
+  FolderOpen,
+  FileText,
+  Image,
+  Music,
+  Users,
+  Trash2,
+  Settings,
+};
+
+export default function Sidebar() {
+  const { user } = useAuthStore();
+  const { sidebarOpen } = useUIStore();
+  const { isDark } = useThemeStore();
+  const { branding } = useBrandingStore();
+  const { navItems, bottomNavItems, setNavItems, setBottomNavItems } = useSidebarStore();
+
+  const [draggedItem, setDraggedItem] = useState<NavItem | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [dragSection, setDragSection] = useState<'main' | 'bottom' | null>(null);
+  const [dropTargetSection, setDropTargetSection] = useState<'main' | 'bottom' | null>(null);
+  const [dropPosition, setDropPosition] = useState<'before' | 'after'>('before');
+  const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
+  const dragImageRef = useRef<HTMLDivElement>(null);
+
+  const storageUsedPercent = user
+    ? Math.round(
+        (parseInt(user.storageUsed) / parseInt(user.storageQuota)) * 100
+      )
+    : 0;
+
+  const handleDragStart = (e: React.DragEvent, item: NavItem, section: 'main' | 'bottom') => {
+    setDraggedItem(item);
+    setDragSection(section);
+    e.dataTransfer.effectAllowed = 'move';
+    // Hide default drag image
+    const emptyImg = document.createElement('img');
+    emptyImg.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+    e.dataTransfer.setDragImage(emptyImg, 0, 0);
+  };
+
+  const handleDrag = (e: React.DragEvent) => {
+    if (e.clientX !== 0 || e.clientY !== 0) {
+      setDragPosition({ x: e.clientX, y: e.clientY });
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number, section: 'main' | 'bottom') => {
+    e.preventDefault();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const midPoint = rect.top + rect.height / 2;
+    const position = e.clientY < midPoint ? 'before' : 'after';
+    
+    setDragOverIndex(index);
+    setDropTargetSection(section);
+    setDropPosition(position);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedItem(null);
+    setDragOverIndex(null);
+    setDragSection(null);
+    setDropTargetSection(null);
+    setDropPosition('before');
+  };
+
+  const handleDrop = (e: React.DragEvent, targetIndex: number, targetSection: 'main' | 'bottom') => {
+    e.preventDefault();
+    if (!draggedItem || !dragSection) return;
+
+    const sourceItems = dragSection === 'main' ? [...navItems] : [...bottomNavItems];
+    const targetItems = targetSection === 'main' ? [...navItems] : [...bottomNavItems];
+    
+    const sourceIndex = sourceItems.findIndex(item => item.id === draggedItem.id);
+    
+    // Calculate actual insert index based on drop position
+    let insertIndex = dropPosition === 'after' ? targetIndex + 1 : targetIndex;
+    
+    if (dragSection === targetSection) {
+      // Reorder within same section
+      sourceItems.splice(sourceIndex, 1);
+      // Adjust index if we removed an item before the insert position
+      if (sourceIndex < insertIndex) {
+        insertIndex--;
+      }
+      sourceItems.splice(insertIndex, 0, draggedItem);
+      
+      if (targetSection === 'main') {
+        setNavItems(sourceItems);
+      } else {
+        setBottomNavItems(sourceItems);
+      }
+    } else {
+      // Move between sections
+      sourceItems.splice(sourceIndex, 1);
+      targetItems.splice(insertIndex, 0, draggedItem);
+      
+      if (dragSection === 'main') {
+        setNavItems(sourceItems);
+        setBottomNavItems(targetItems);
+      } else {
+        setBottomNavItems(sourceItems);
+        setNavItems(targetItems);
+      }
+    }
+
+    handleDragEnd();
+  };
+
+  const renderNavItem = (item: NavItem, index: number, section: 'main' | 'bottom') => {
+    const IconComponent = iconMap[item.icon];
+    const isDragging = draggedItem?.id === item.id;
+    const isDropTarget = dragOverIndex === index && dropTargetSection === section;
+    const showDropBefore = isDropTarget && dropPosition === 'before';
+    const showDropAfter = isDropTarget && dropPosition === 'after';
+
+    return (
+      <div
+        key={item.id}
+        draggable
+        onDragStart={(e) => handleDragStart(e, item, section)}
+        onDrag={handleDrag}
+        onDragOver={(e) => handleDragOver(e, index, section)}
+        onDragEnd={handleDragEnd}
+        onDrop={(e) => handleDrop(e, index, section)}
+        className={cn(
+          'relative group',
+          isDragging && 'opacity-30'
+        )}
+      >
+        {showDropBefore && (
+          <div className="absolute inset-x-2 -top-0.5 h-0.5 bg-primary-500 rounded-full z-10" />
+        )}
+        {showDropAfter && (
+          <div className="absolute inset-x-2 -bottom-0.5 h-0.5 bg-primary-500 rounded-full z-10" />
+        )}
+        <NavLink
+          to={item.path}
+          draggable={false}
+          onClick={(e) => draggedItem && e.preventDefault()}
+          className={({ isActive }) =>
+            cn(
+              'flex items-center gap-3 px-4 py-3 rounded-full text-base font-semibold transition-colors border border-transparent',
+              isActive
+                ? 'bg-primary-500/15 text-primary-600 dark:text-primary-400 border-primary-500/25'
+                : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-white dark:hover:bg-[#121212]'
+            )
+          }
+          end={item.path === '/'}
+        >
+          {IconComponent && <IconComponent className="w-5 h-5 flex-shrink-0" />}
+          <span>{item.label}</span>
+        </NavLink>
+      </div>
+    );
+  };
+
+  // Drag preview card rendered via portal
+  const renderDragPreview = () => {
+    if (!draggedItem) return null;
+    const IconComponent = iconMap[draggedItem.icon];
+    
+    return createPortal(
+      <div
+        ref={dragImageRef}
+        className="fixed pointer-events-none z-[9999] transition-none"
+        style={{
+          left: dragPosition.x - 80,
+          top: dragPosition.y - 20,
+        }}
+      >
+        <div className="flex items-center gap-3 px-4 py-3 rounded-full text-base font-semibold bg-primary-500/15 text-primary-600 dark:text-primary-400 border border-primary-500/25 shadow-lg backdrop-blur-sm">
+          {IconComponent && <IconComponent className="w-5 h-5 flex-shrink-0" />}
+          <span>{draggedItem.label}</span>
+        </div>
+      </div>,
+      document.body
+    );
+  };
+
+  return (
+    <>
+      {renderDragPreview()}
+      <aside
+        className={cn(
+          'w-48 bg-dark-100 dark:bg-[#222222] text-dark-900 dark:text-white flex flex-col h-screen overflow-hidden transition-all duration-300',
+          !sidebarOpen && 'w-0 opacity-0'
+        )}
+      >
+        {/* Logo */}
+        <div className="h-14 px-3 flex items-center justify-center flex-shrink-0">
+          {((isDark ? branding.logoDarkUrl : branding.logoLightUrl) || branding.logoUrl) ? (
+            <img
+              src={(isDark ? branding.logoDarkUrl : branding.logoLightUrl) || branding.logoUrl}
+              alt="Logo"
+              className="h-10 object-contain"
+            />
+          ) : (
+            <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center">
+              <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/>
+              </svg>
+            </div>
+          )}
+        </div>
+
+        {/* Main Navigation */}
+        <nav className="flex-1 px-3 py-2 space-y-1 overflow-y-auto mt-10">
+          {navItems.map((item, index) => renderNavItem(item, index, 'main'))}
+        </nav>
+
+        {/* Bottom Navigation */}
+        <div className="px-3 py-2 space-y-1">
+          {bottomNavItems.map((item, index) => renderNavItem(item, index, 'bottom'))}
+        </div>
+
+        {/* Storage info */}
+        <div className="p-4 border-t border-dark-200 dark:border-[#2a2a2a]">
+          <p className="text-xs text-dark-500 dark:text-white/70 mb-2">Almacenamiento</p>
+          <div className="w-full h-1.5 bg-dark-200 dark:bg-white/10 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-primary-500 rounded-full transition-all"
+              style={{ width: `${Math.min(storageUsedPercent, 100)}%` }}
+            />
+          </div>
+          <p className="mt-2 text-xs text-dark-500 dark:text-white/70">
+            {formatBytes(user?.storageUsed || 0)} / {formatBytes(user?.storageQuota || 0)}
+          </p>
+        </div>
+      </aside>
+    </>
+  );
+}

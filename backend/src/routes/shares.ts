@@ -1,0 +1,466 @@
+import { Router, Request, Response } from 'express';
+import bcrypt from 'bcryptjs';
+import { v4 as uuidv4 } from 'uuid';
+import prisma from '../lib/prisma.js';
+import { authenticate, optionalAuth } from '../middleware/auth.js';
+import { validate } from '../middleware/validate.js';
+import { createShareSchema, addCollaboratorSchema, publicLinkPasswordSchema } from '../schemas/index.js';
+import { fileExists } from '../lib/storage.js';
+import archiver from 'archiver';
+
+const router = Router();
+
+// Create share
+router.post('/', authenticate, validate(createShareSchema), async (req: Request, res: Response) => {
+  try {
+    const { fileId, folderId, type, password, expiresAt, downloadLimit } = req.body;
+    const userId = req.user!.userId;
+
+    if (!fileId && !folderId) {
+      res.status(400).json({ error: 'Either fileId or folderId is required' });
+      return;
+    }
+
+    // Verify ownership
+    if (fileId) {
+      const file = await prisma.file.findFirst({
+        where: { id: fileId, userId },
+      });
+      if (!file) {
+        res.status(404).json({ error: 'File not found' });
+        return;
+      }
+    }
+
+    if (folderId) {
+      const folder = await prisma.folder.findFirst({
+        where: { id: folderId, userId },
+      });
+      if (!folder) {
+        res.status(404).json({ error: 'Folder not found' });
+        return;
+      }
+    }
+
+    const shareData: any = {
+      type,
+      fileId,
+      folderId,
+      ownerId: userId,
+    };
+
+    if (type === 'PUBLIC') {
+      shareData.publicToken = uuidv4();
+      if (password) {
+        shareData.password = await bcrypt.hash(password, 10);
+      }
+      if (expiresAt) {
+        shareData.expiresAt = new Date(expiresAt);
+      }
+      if (downloadLimit) {
+        shareData.downloadLimit = downloadLimit;
+      }
+    }
+
+    const share = await prisma.share.create({
+      data: shareData,
+      include: {
+        file: { select: { id: true, name: true, mimeType: true, size: true } },
+        folder: { select: { id: true, name: true } },
+      },
+    });
+
+    await prisma.activity.create({
+      data: {
+        type: 'SHARE',
+        userId,
+        fileId,
+        folderId,
+        details: JSON.stringify({ type, hasPassword: !!password }),
+      },
+    });
+
+    res.status(201).json({
+      ...share,
+      file: share.file ? { ...share.file, size: share.file.size?.toString() } : null,
+      publicUrl: share.publicToken ? `/share/${share.publicToken}` : null,
+    });
+  } catch (error) {
+    console.error('Create share error:', error);
+    res.status(500).json({ error: 'Failed to create share' });
+  }
+});
+
+// Add collaborator
+router.post('/:id/collaborators', authenticate, validate(addCollaboratorSchema), async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { email, permission } = req.body;
+    const userId = req.user!.userId;
+
+    const share = await prisma.share.findFirst({
+      where: { id, ownerId: userId },
+    });
+
+    if (!share) {
+      res.status(404).json({ error: 'Share not found' });
+      return;
+    }
+
+    const targetUser = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!targetUser) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    if (targetUser.id === userId) {
+      res.status(400).json({ error: 'Cannot share with yourself' });
+      return;
+    }
+
+    const existingCollab = await prisma.shareCollaborator.findFirst({
+      where: { shareId: id, userId: targetUser.id },
+    });
+
+    if (existingCollab) {
+      await prisma.shareCollaborator.update({
+        where: { id: existingCollab.id },
+        data: { permission },
+      });
+    } else {
+      await prisma.shareCollaborator.create({
+        data: {
+          shareId: id,
+          userId: targetUser.id,
+          permission,
+        },
+      });
+    }
+
+    res.json({ message: 'Collaborator added successfully' });
+  } catch (error) {
+    console.error('Add collaborator error:', error);
+    res.status(500).json({ error: 'Failed to add collaborator' });
+  }
+});
+
+// Remove collaborator
+router.delete('/:id/collaborators/:userId', authenticate, async (req: Request, res: Response) => {
+  try {
+    const { id, userId: targetUserId } = req.params;
+    const userId = req.user!.userId;
+
+    const share = await prisma.share.findFirst({
+      where: { id, ownerId: userId },
+    });
+
+    if (!share) {
+      res.status(404).json({ error: 'Share not found' });
+      return;
+    }
+
+    await prisma.shareCollaborator.deleteMany({
+      where: { shareId: id, userId: targetUserId },
+    });
+
+    res.json({ message: 'Collaborator removed successfully' });
+  } catch (error) {
+    console.error('Remove collaborator error:', error);
+    res.status(500).json({ error: 'Failed to remove collaborator' });
+  }
+});
+
+// List shares by me
+router.get('/by-me', authenticate, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+
+    const shares = await prisma.share.findMany({
+      where: { ownerId: userId },
+      include: {
+        file: { select: { id: true, name: true, mimeType: true, size: true } },
+        folder: { select: { id: true, name: true } },
+        collaborators: {
+          include: {
+            user: { select: { id: true, name: true, email: true, avatar: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    res.json(shares.map((s: any) => ({
+      ...s,
+      file: s.file ? { ...s.file, size: s.file.size?.toString() } : null,
+      publicUrl: s.publicToken ? `/share/${s.publicToken}` : null,
+    })));
+  } catch (error) {
+    console.error('List shares by me error:', error);
+    res.status(500).json({ error: 'Failed to list shares' });
+  }
+});
+
+// List shares with me
+router.get('/with-me', authenticate, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+
+    const collaborations = await prisma.shareCollaborator.findMany({
+      where: { userId },
+      include: {
+        share: {
+          include: {
+            file: { select: { id: true, name: true, mimeType: true, size: true } },
+            folder: { select: { id: true, name: true } },
+            owner: { select: { id: true, name: true, email: true, avatar: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    res.json(collaborations.map((c: any) => ({
+      ...c.share,
+      permission: c.permission,
+      file: c.share.file ? { ...c.share.file, size: c.share.file.size?.toString() } : null,
+    })));
+  } catch (error) {
+    console.error('List shares with me error:', error);
+    res.status(500).json({ error: 'Failed to list shares' });
+  }
+});
+
+// Delete share
+router.delete('/:id', authenticate, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user!.userId;
+
+    const share = await prisma.share.findFirst({
+      where: { id, ownerId: userId },
+    });
+
+    if (!share) {
+      res.status(404).json({ error: 'Share not found' });
+      return;
+    }
+
+    await prisma.share.delete({ where: { id } });
+
+    await prisma.activity.create({
+      data: {
+        type: 'UNSHARE',
+        userId,
+        fileId: share.fileId,
+        folderId: share.folderId,
+      },
+    });
+
+    res.json({ message: 'Share deleted successfully' });
+  } catch (error) {
+    console.error('Delete share error:', error);
+    res.status(500).json({ error: 'Failed to delete share' });
+  }
+});
+
+// Bulk delete shares
+router.post('/bulk-delete', authenticate, async (req: Request, res: Response) => {
+  try {
+    const { shareIds } = req.body;
+    const userId = req.user!.userId;
+
+    if (!Array.isArray(shareIds) || shareIds.length === 0) {
+      res.status(400).json({ error: 'shareIds array is required' });
+      return;
+    }
+
+    await prisma.share.deleteMany({
+      where: {
+        id: { in: shareIds },
+        ownerId: userId,
+      },
+    });
+
+    res.json({ message: 'Shares deleted successfully' });
+  } catch (error) {
+    console.error('Bulk delete shares error:', error);
+    res.status(500).json({ error: 'Failed to delete shares' });
+  }
+});
+
+// Get public share info
+router.get('/public/:token', optionalAuth, async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+
+    const share = await prisma.share.findFirst({
+      where: {
+        publicToken: token,
+        type: 'PUBLIC',
+      },
+      include: {
+        file: { select: { id: true, name: true, mimeType: true, size: true } },
+        folder: { select: { id: true, name: true } },
+        owner: { select: { name: true } },
+      },
+    });
+
+    if (!share) {
+      res.status(404).json({ error: 'Share not found' });
+      return;
+    }
+
+    if (share.expiresAt && share.expiresAt < new Date()) {
+      res.status(410).json({ error: 'This share has expired' });
+      return;
+    }
+
+    if (share.downloadLimit && share.downloadCount >= share.downloadLimit) {
+      res.status(410).json({ error: 'Download limit reached' });
+      return;
+    }
+
+    res.json({
+      id: share.id,
+      type: share.file ? 'file' : 'folder',
+      name: share.file?.name || share.folder?.name,
+      mimeType: share.file?.mimeType,
+      size: share.file?.size?.toString(),
+      ownerName: share.owner.name,
+      hasPassword: !!share.password,
+      expiresAt: share.expiresAt,
+      downloadLimit: share.downloadLimit,
+      downloadCount: share.downloadCount,
+    });
+  } catch (error) {
+    console.error('Get public share error:', error);
+    res.status(500).json({ error: 'Failed to get share' });
+  }
+});
+
+// Verify public share password
+router.post('/public/:token/verify', validate(publicLinkPasswordSchema), async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    const share = await prisma.share.findFirst({
+      where: { publicToken: token, type: 'PUBLIC' },
+    });
+
+    if (!share || !share.password) {
+      res.status(404).json({ error: 'Share not found' });
+      return;
+    }
+
+    const valid = await bcrypt.compare(password, share.password);
+    if (!valid) {
+      res.status(401).json({ error: 'Invalid password' });
+      return;
+    }
+
+    res.json({ verified: true });
+  } catch (error) {
+    console.error('Verify password error:', error);
+    res.status(500).json({ error: 'Failed to verify password' });
+  }
+});
+
+// Download public file
+router.get('/public/:token/download', async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+    const { password } = req.query;
+
+    const share = await prisma.share.findFirst({
+      where: { publicToken: token, type: 'PUBLIC' },
+      include: {
+        file: true,
+        folder: true,
+      },
+    });
+
+    if (!share) {
+      res.status(404).json({ error: 'Share not found' });
+      return;
+    }
+
+    if (share.expiresAt && share.expiresAt < new Date()) {
+      res.status(410).json({ error: 'This share has expired' });
+      return;
+    }
+
+    if (share.downloadLimit && share.downloadCount >= share.downloadLimit) {
+      res.status(410).json({ error: 'Download limit reached' });
+      return;
+    }
+
+    if (share.password) {
+      if (!password || typeof password !== 'string') {
+        res.status(401).json({ error: 'Password required' });
+        return;
+      }
+
+      const valid = await bcrypt.compare(password, share.password);
+      if (!valid) {
+        res.status(401).json({ error: 'Invalid password' });
+        return;
+      }
+    }
+
+    // Update download count
+    await prisma.share.update({
+      where: { id: share.id },
+      data: { downloadCount: { increment: 1 } },
+    });
+
+    if (share.file) {
+      if (!await fileExists(share.file.path)) {
+        res.status(404).json({ error: 'File not found' });
+        return;
+      }
+
+      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(share.file.name)}"`);
+      res.setHeader('Content-Type', share.file.mimeType);
+      res.sendFile(share.file.path);
+    } else if (share.folder) {
+      // Download folder as ZIP
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(share.folder.name)}.zip"`);
+
+      const archive = archiver('zip', { zlib: { level: 9 } });
+      archive.pipe(res);
+
+      const addFolderToArchive = async (folderId: string, archivePath: string) => {
+        const files = await prisma.file.findMany({
+          where: { folderId, isTrash: false },
+        });
+
+        for (const file of files) {
+          if (await fileExists(file.path)) {
+            archive.file(file.path, { name: `${archivePath}/${file.name}` });
+          }
+        }
+
+        const subfolders = await prisma.folder.findMany({
+          where: { parentId: folderId, isTrash: false },
+        });
+
+        for (const subfolder of subfolders) {
+          await addFolderToArchive(subfolder.id, `${archivePath}/${subfolder.name}`);
+        }
+      };
+
+      await addFolderToArchive(share.folder.id, share.folder.name);
+      await archive.finalize();
+    }
+  } catch (error) {
+    console.error('Download public file error:', error);
+    res.status(500).json({ error: 'Failed to download' });
+  }
+});
+
+export default router;

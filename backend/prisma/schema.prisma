@@ -1,0 +1,240 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String    @id @default(uuid())
+  email             String    @unique
+  password          String?
+  name              String
+  role              String    @default("USER")
+  avatar            String?
+  emailVerified     Boolean   @default(false)
+  googleId          String?   @unique
+  storageQuota      BigInt    @default(5368709120)
+  storageUsed       BigInt    @default(0)
+  maxFileSize       BigInt    @default(104857600)
+  resetToken        String?
+  resetTokenExpiry  DateTime?
+  verifyToken       String?
+  verifyTokenExpiry DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  files             File[]
+  folders           Folder[]
+  shares            Share[]           @relation("ShareOwner")
+  sharedWithMe      ShareCollaborator[]
+  albums            Album[]
+  activities        Activity[]
+  refreshTokens     RefreshToken[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@map("refresh_tokens")
+}
+
+model Folder {
+  id          String    @id @default(uuid())
+  name        String
+  color       String?
+  category    String?
+  parentId    String?
+  parent      Folder?   @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children    Folder[]  @relation("FolderTree")
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isFavorite  Boolean   @default(false)
+  isTrash     Boolean   @default(false)
+  trashedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  files       File[]
+  shares      Share[]
+
+  @@unique([name, parentId, userId])
+  @@map("folders")
+}
+
+model File {
+  id            String    @id @default(uuid())
+  name          String
+  originalName  String
+  mimeType      String
+  size          BigInt
+  path          String
+  thumbnailPath String?
+  folderId      String?
+  folder        Folder?   @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isFavorite    Boolean   @default(false)
+  isTrash       Boolean   @default(false)
+  trashedAt     DateTime?
+  metadata      String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  shares        Share[]
+  albumFiles    AlbumFile[]
+  chunks        FileChunk[]
+
+  @@map("files")
+}
+
+model FileChunk {
+  id          String   @id @default(uuid())
+  fileId      String?
+  file        File?    @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  uploadId    String
+  chunkIndex  Int
+  totalChunks Int
+  path        String
+  size        BigInt
+  createdAt   DateTime @default(now())
+
+  @@unique([uploadId, chunkIndex])
+  @@map("file_chunks")
+}
+
+model Share {
+  id            String    @id @default(uuid())
+  type          String    @default("PRIVATE")
+  fileId        String?
+  file          File?     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  folderId      String?
+  folder        Folder?   @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  ownerId       String
+  owner         User      @relation("ShareOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  publicToken   String?   @unique
+  password      String?
+  expiresAt     DateTime?
+  downloadLimit Int?
+  downloadCount Int       @default(0)
+  allowDownload Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  collaborators ShareCollaborator[]
+
+  @@map("shares")
+}
+
+model ShareCollaborator {
+  id         String   @id @default(uuid())
+  shareId    String
+  share      Share    @relation(fields: [shareId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission String   @default("VIEWER")
+  createdAt  DateTime @default(now())
+
+  @@unique([shareId, userId])
+  @@map("share_collaborators")
+}
+
+model Album {
+  id        String      @id @default(uuid())
+  name      String
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  coverPath String?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  files     AlbumFile[]
+
+  @@unique([name, userId])
+  @@map("albums")
+}
+
+model AlbumFile {
+  id        String   @id @default(uuid())
+  albumId   String
+  album     Album    @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  fileId    String
+  file      File     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@unique([albumId, fileId])
+  @@map("album_files")
+}
+
+model Activity {
+  id        String   @id @default(uuid())
+  type      String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fileId    String?
+  folderId  String?
+  details   String?
+  createdAt DateTime @default(now())
+
+  @@map("activities")
+}
+
+model CompressionJob {
+  id          String   @id @default(uuid())
+  type        String
+  status      String   @default("PENDING")
+  progress    Int      @default(0)
+  inputPaths  String
+  outputPath  String?
+  format      String
+  userId      String
+  error       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("compression_jobs")
+}
+
+model Settings {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}
+
+model EmailTemplate {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  subject   String
+  body      String
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("email_templates")
+}
+
+model LoginAttempt {
+  id        String   @id @default(uuid())
+  email     String
+  ipAddress String
+  success   Boolean  @default(false)
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([email, createdAt])
+  @@index([ipAddress, createdAt])
+  @@map("login_attempts")
+}
