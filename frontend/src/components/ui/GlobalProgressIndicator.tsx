@@ -88,14 +88,9 @@ function OperationItem({ operation }: { operation: GlobalOperation }) {
           {operation.status === 'in-progress' && (
             <>
               <Progress value={progress} size="sm" className="mt-2" />
-              <div className="flex items-center justify-between mt-1">
-                <p className="text-xs text-dark-500 dark:text-dark-400 truncate">
-                  {operation.currentItem || `${operation.completedItems} de ${operation.totalItems}`}
-                </p>
-                <p className="text-xs text-dark-500 dark:text-dark-400">
-                  {progress}%
-                </p>
-              </div>
+              <p className="text-xs text-dark-500 dark:text-dark-400 mt-1 truncate">
+                {operation.currentItem || `${operation.completedItems} de ${operation.totalItems} elementos`}
+              </p>
             </>
           )}
 
@@ -203,12 +198,12 @@ export default function GlobalProgressIndicator() {
         </div>
       </div>
 
-      {/* Overall progress for active operations */}
-      {activeOperations.length > 0 && (
+      {/* Overall progress for multiple active operations */}
+      {activeOperations.length > 1 && (
         <div className="px-4 py-2 border-b border-dark-200 dark:border-dark-700">
           <Progress value={overallProgress} size="sm" />
           <p className="text-xs text-dark-500 dark:text-dark-400 mt-1 text-center">
-            {completedItems} de {totalItems} elementos ({overallProgress}%)
+            Total: {completedItems} de {totalItems} elementos
           </p>
         </div>
       )}

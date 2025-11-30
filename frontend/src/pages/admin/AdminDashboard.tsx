@@ -93,7 +93,10 @@ export default function AdminDashboard() {
   const [userSearch, setUserSearch] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [deletingUser, setDeletingUser] = useState(false);
   const [formName, setFormName] = useState('');
   const [formEmail, setFormEmail] = useState('');
   const [formPassword, setFormPassword] = useState('');
@@ -437,14 +440,24 @@ export default function AdminDashboard() {
     }
   };
 
-  const deleteUser = async (user: User) => {
-    if (!confirm(`¿Estás seguro de eliminar a ${user.name}?`)) return;
+  const openDeleteModal = (user: User) => {
+    setUserToDelete(user);
+    setShowDeleteModal(true);
+  };
+
+  const deleteUser = async () => {
+    if (!userToDelete) return;
+    setDeletingUser(true);
     try {
-      await api.delete(`/admin/users/${user.id}`);
+      await api.delete(`/admin/users/${userToDelete.id}`);
       toast('Usuario eliminado', 'success');
+      setShowDeleteModal(false);
+      setUserToDelete(null);
       loadUsers();
     } catch (error) {
       toast('Error al eliminar usuario', 'error');
+    } finally {
+      setDeletingUser(false);
     }
   };
 
@@ -918,7 +931,7 @@ export default function AdminDashboard() {
                           )}
                         </DropdownItem>
                         <DropdownDivider />
-                        <DropdownItem danger onClick={() => deleteUser(user)}>
+                        <DropdownItem danger onClick={() => openDeleteModal(user)}>
                           <Trash2 className="w-4 h-4" /> Eliminar
                         </DropdownItem>
                       </Dropdown>
@@ -1100,6 +1113,49 @@ export default function AdminDashboard() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Delete confirmation modal */}
+      <Modal
+        isOpen={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false);
+          setUserToDelete(null);
+        }}
+        title="Eliminar Usuario"
+        size="sm"
+      >
+        <div className="text-center">
+          <div className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mx-auto mb-4">
+            <Trash2 className="w-8 h-8 text-red-600" />
+          </div>
+          <p className="text-dark-900 dark:text-white mb-2">
+            ¿Estás seguro de eliminar a <strong>{userToDelete?.name}</strong>?
+          </p>
+          <p className="text-sm text-dark-500 dark:text-dark-400 mb-6">
+            Esta acción no se puede deshacer. Todos los archivos del usuario serán eliminados permanentemente.
+          </p>
+          <div className="flex justify-center gap-3">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setShowDeleteModal(false);
+                setUserToDelete(null);
+              }}
+              disabled={deletingUser}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="danger"
+              onClick={deleteUser}
+              loading={deletingUser}
+              icon={<Trash2 className="w-4 h-4" />}
+            >
+              Eliminar
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

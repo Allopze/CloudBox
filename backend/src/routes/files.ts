@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import fs from 'fs/promises';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import bcrypt from 'bcryptjs';
 import prisma, { updateParentFolderSizes } from '../lib/prisma.js';
 import { authenticate } from '../middleware/auth.js';
 import { authOptional } from '../middleware/authOptional.js';
@@ -20,6 +21,7 @@ import {
   streamFile,
 } from '../lib/storage.js';
 import { generateThumbnail } from '../lib/thumbnail.js';
+import { thumbnailQueue } from '../lib/thumbnailQueue.js';
 import { config } from '../config/index.js';
 import { sanitizeFilename, validateMimeType, isDangerousExtension, checkUserRateLimit } from '../lib/security.js';
 import { auditLog } from '../lib/audit.js';
@@ -53,6 +55,19 @@ router.post('/upload', authenticate, uploadFile.array('files', 20), async (req: 
       res.status(429).json({ error: 'Too many uploads. Please wait a moment.' });
       return;
     }
+
+    // Validate folderId belongs to user
+    if (folderId) {
+      const folder = await prisma.folder.findFirst({ where: { id: folderId, userId } });
+      if (!folder) {
+        res.status(404).json({ error: 'Folder not found' });
+        return;
+      }
+    }
+
+    // Track files that need thumbnails generated after transaction
+    // Security: Include userId for per-user rate limiting in thumbnail queue
+    const filesToGenerateThumbnails: { fileId: string; filePath: string; mimeType: string; userId: string }[] = [];
 
     const uploadedFiles = await prisma.$transaction(async (tx) => {
       // Check quota inside transaction
@@ -116,13 +131,8 @@ router.post('/upload', authenticate, uploadFile.array('files', 20), async (req: 
 
         await moveFileStorage(file.path, filePath);
 
-        // Generate thumbnail
-        let thumbnailPath: string | null = null;
-        try {
-          thumbnailPath = await generateThumbnail(filePath, fileId, file.mimetype);
-        } catch (e) {
-          console.error('Thumbnail generation failed:', e);
-        }
+        // Queue thumbnail generation for after transaction (with userId for rate limiting)
+        filesToGenerateThumbnails.push({ fileId, filePath, mimeType: file.mimetype, userId });
 
         const dbFile = await tx.file.create({
           data: {
@@ -132,7 +142,7 @@ router.post('/upload', authenticate, uploadFile.array('files', 20), async (req: 
             mimeType: file.mimetype,
             size: BigInt(file.size),
             path: filePath,
-            thumbnailPath,
+            thumbnailPath: null,
             folderId: folderId || null,
             userId,
           },
@@ -165,6 +175,11 @@ router.post('/upload', authenticate, uploadFile.array('files', 20), async (req: 
 
       return resultFiles;
     });
+
+    // Queue thumbnails for async generation (fire and forget)
+    if (filesToGenerateThumbnails.length > 0) {
+      thumbnailQueue.addBatch(filesToGenerateThumbnails);
+    }
 
     // Audit log successful upload
     await auditLog({
@@ -227,8 +242,21 @@ router.post('/upload-with-folders', authenticate, uploadFile.array('files', 100)
       return;
     }
 
+    // Validate baseFolderId belongs to user
+    if (baseFolderId) {
+      const folder = await prisma.folder.findFirst({ where: { id: baseFolderId, userId } });
+      if (!folder) {
+        res.status(404).json({ error: 'Folder not found' });
+        return;
+      }
+    }
+
     // Normalize paths to array
     const relativePaths: string[] = Array.isArray(paths) ? paths : (paths ? [paths] : []);
+
+    // Track files that need thumbnails generated after transaction
+    // Security: Include userId for per-user rate limiting in thumbnail queue
+    const filesToGenerateThumbnails: { fileId: string; filePath: string; mimeType: string; userId: string }[] = [];
 
     const uploadedFiles = await prisma.$transaction(async (tx) => {
       // Check quota inside transaction
@@ -351,13 +379,8 @@ router.post('/upload-with-folders', authenticate, uploadFile.array('files', 100)
 
         await moveFileStorage(file.path, filePath);
 
-        // Generate thumbnail
-        let thumbnailPath: string | null = null;
-        try {
-          thumbnailPath = await generateThumbnail(filePath, fileId, file.mimetype);
-        } catch (e) {
-          console.error('Thumbnail generation failed:', e);
-        }
+        // Queue thumbnail generation for after transaction (with userId for rate limiting)
+        filesToGenerateThumbnails.push({ fileId, filePath, mimeType: file.mimetype, userId });
 
         const dbFile = await tx.file.create({
           data: {
@@ -367,7 +390,7 @@ router.post('/upload-with-folders', authenticate, uploadFile.array('files', 100)
             mimeType: file.mimetype,
             size: BigInt(file.size),
             path: filePath,
-            thumbnailPath,
+            thumbnailPath: null,
             folderId: targetFolderId || null,
             userId,
           },
@@ -391,6 +414,11 @@ router.post('/upload-with-folders', authenticate, uploadFile.array('files', 100)
 
       return resultFiles;
     });
+
+    // Queue thumbnails for async generation (fire and forget)
+    if (filesToGenerateThumbnails.length > 0) {
+      thumbnailQueue.addBatch(filesToGenerateThumbnails);
+    }
 
     // Audit log
     await auditLog({
@@ -427,29 +455,42 @@ router.post('/upload/init', authenticate, async (req: Request, res: Response) =>
     const { filename, totalChunks, totalSize, folderId } = req.body;
     const userId = req.user!.userId;
 
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) {
-      res.status(404).json({ error: 'User not found' });
-      return;
-    }
+    // Use transaction to atomically check and reserve space
+    const uploadId = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.findUnique({ where: { id: userId } });
+      if (!user) {
+        throw new Error('User not found');
+      }
 
-    if (totalSize > Number(user.maxFileSize)) {
-      res.status(400).json({ error: 'File exceeds maximum size limit' });
-      return;
-    }
+      if (totalSize > Number(user.maxFileSize)) {
+        throw new Error('File exceeds maximum size limit');
+      }
 
-    const remainingQuota = Number(user.storageQuota) - Number(user.storageUsed);
-    if (totalSize > remainingQuota) {
-      res.status(400).json({ error: 'Storage quota exceeded' });
-      return;
-    }
+      // Calculate remaining quota including temporary reserved storage
+      const remainingQuota = Number(user.storageQuota) - Number(user.storageUsed) - Number(user.tempStorage || 0);
+      if (totalSize > remainingQuota) {
+        throw new Error('Storage quota exceeded');
+      }
 
-    const uploadId = uuidv4();
+      // Reserve space using tempStorage to prevent race condition
+      await tx.user.update({
+        where: { id: userId },
+        data: { tempStorage: { increment: totalSize } },
+      });
 
-    res.json({ uploadId, totalChunks });
-  } catch (error) {
+      return uuidv4();
+    });
+
+    res.json({ uploadId, totalChunks, reservedSize: totalSize });
+  } catch (error: any) {
     console.error('Init upload error:', error);
-    res.status(500).json({ error: 'Failed to initialize upload' });
+    if (error.message === 'User not found') {
+      res.status(404).json({ error: 'User not found' });
+    } else if (error.message === 'File exceeds maximum size limit' || error.message === 'Storage quota exceeded') {
+      res.status(400).json({ error: error.message });
+    } else {
+      res.status(500).json({ error: 'Failed to initialize upload' });
+    }
   }
 });
 
@@ -487,77 +528,122 @@ router.post('/upload/chunk', authenticate, uploadChunk.single('chunk'), async (r
     });
 
     if (chunks.length === parseInt(totalChunks)) {
-      // Merge chunks
+      // Merge chunks using temporary file for atomicity
       const fileId = uuidv4();
       const ext = path.extname(filename);
       const filePath = getUserFilePath(userId, fileId, ext);
+      const tempFilePath = getStoragePath('temp', `${uploadId}_merged${ext}`);
 
       await ensureUserDir(userId);
 
-      const writeStream = await fs.open(filePath, 'w');
-      for (const chunk of chunks) {
-        const chunkData = await fs.readFile(chunk.path);
-        await writeStream.write(chunkData);
-        await deleteFile(chunk.path);
-      }
-      await writeStream.close();
-
-      // Clean up chunk directory
-      await deleteDirectory(getStoragePath('chunks', uploadId));
-
-      // Delete chunk records
-      await prisma.fileChunk.deleteMany({ where: { uploadId } });
-
-      // Generate thumbnail
-      let thumbnailPath: string | null = null;
       try {
-        thumbnailPath = await generateThumbnail(filePath, fileId, mimeType);
-      } catch (e) {
-        console.error('Thumbnail generation failed:', e);
+        // Write to temporary file first
+        const writeStream = await fs.open(tempFilePath, 'w');
+        try {
+          for (const chunk of chunks) {
+            const chunkData = await fs.readFile(chunk.path);
+            await writeStream.write(chunkData);
+          }
+        } finally {
+          await writeStream.close();
+        }
+
+        // Use transaction for database operations
+        const dbFile = await prisma.$transaction(async (tx) => {
+          // Verify quota again inside transaction (prevent race condition - Issue #2)
+          const user = await tx.user.findUnique({ where: { id: userId } });
+          if (!user) {
+            throw new Error('User not found');
+          }
+          
+          const remainingQuota = Number(user.storageQuota) - Number(user.storageUsed);
+          if (parseInt(totalSize) > remainingQuota) {
+            throw new Error('Storage quota exceeded');
+          }
+
+          // Move temp file to final location (atomic on same filesystem)
+          await moveFileStorage(tempFilePath, filePath);
+
+          // Clean up chunks
+          for (const chunk of chunks) {
+            await deleteFile(chunk.path);
+          }
+
+          // Delete chunk records
+          await tx.fileChunk.deleteMany({ where: { uploadId } });
+
+          // Create file record
+          const file = await tx.file.create({
+            data: {
+              id: fileId,
+              name: filename,
+              originalName: filename,
+              mimeType,
+              size: BigInt(totalSize),
+              path: filePath,
+              thumbnailPath: null,
+              folderId: folderId || null,
+              userId,
+            },
+          });
+
+          // Update folder sizes
+          await updateParentFolderSizes(folderId || null, parseInt(totalSize), tx, 'increment');
+
+          // Update storage used and release tempStorage
+          await tx.user.update({
+            where: { id: userId },
+            data: {
+              storageUsed: { increment: parseInt(totalSize) },
+              tempStorage: { decrement: parseInt(totalSize) }, // Release reserved space
+            },
+          });
+
+          // Log activity
+          await tx.activity.create({
+            data: {
+              type: 'UPLOAD',
+              userId,
+              fileId: file.id,
+              details: JSON.stringify({ name: filename, size: totalSize }),
+            },
+          });
+
+          return file;
+        });
+
+        // Clean up chunk directory (outside transaction, non-critical)
+        await deleteDirectory(getStoragePath('chunks', uploadId)).catch(() => {});
+
+        // Generate thumbnail asynchronously (non-blocking)
+        generateThumbnail(filePath, fileId, mimeType)
+          .then(async (thumbnailPath) => {
+            if (thumbnailPath) {
+              await prisma.file.update({
+                where: { id: fileId },
+                data: { thumbnailPath },
+              }).catch(() => {});
+            }
+          })
+          .catch(() => {});
+
+        res.json({
+          completed: true,
+          file: {
+            ...dbFile,
+            size: dbFile.size.toString(),
+          },
+        });
+      } catch (error) {
+        // Clean up temp file on error
+        await deleteFile(tempFilePath).catch(() => {});
+        // Release reserved tempStorage on error
+        await prisma.user.update({
+          where: { id: userId },
+          data: { tempStorage: { decrement: parseInt(totalSize) } },
+        }).catch(() => {});
+        throw error;
       }
-
-      const dbFile = await prisma.file.create({
-        data: {
-          id: fileId,
-          name: filename,
-          originalName: filename,
-          mimeType,
-          size: BigInt(totalSize),
-          path: filePath,
-          thumbnailPath,
-          folderId: folderId || null,
-          userId,
-        },
-      });
-
-      // Update folder sizes
-      await updateParentFolderSizes(folderId || null, parseInt(totalSize), prisma, 'increment');
-
-      // Update storage used
-      await prisma.user.update({
-        where: { id: userId },
-        data: {
-          storageUsed: { increment: parseInt(totalSize) },
-        },
-      });
-
-      // Log activity
-      await prisma.activity.create({
-        data: {
-          type: 'UPLOAD',
-          userId,
-          fileId: dbFile.id,
-          details: JSON.stringify({ name: filename, size: totalSize }),
-        },
-      });
-
-      res.json({
-        completed: true,
-        file: {
-          ...dbFile,
-          size: dbFile.size.toString(),
-        },
-      });
     } else {
       res.json({
         completed: false,
@@ -936,34 +1022,55 @@ router.get('/:id/download', authOptional, async (req: Request, res: Response) =>
   }
 });
 
-const findFile = async (id: string, userId?: string) => {
-  const file = await prisma.file.findFirst({
-    where: { 
-      id,
-      isTrash: false,
-      ...(userId && { userId }),
+const findFile = async (id: string, userId?: string, sharePassword?: string) => {
+  // First try to find file owned by user
+  if (userId) {
+    const file = await prisma.file.findFirst({
+      where: { 
+        id,
+        isTrash: false,
+        userId,
+      },
+    });
+    if (file) return { file, requiresPassword: false };
+  }
+
+  // Check for public share with valid conditions
+  const share = await prisma.share.findFirst({
+    where: {
+      fileId: id,
+      type: 'PUBLIC',
+      OR: [
+        { expiresAt: null },
+        { expiresAt: { gt: new Date() } },
+      ],
     },
   });
 
-  if (file) {
-    return file;
-  }
-
-  if (!userId) {
-    const share = await prisma.share.findFirst({
-      where: {
-        fileId: id,
-        type: 'PUBLIC',
-      },
-    });
-    if (share) {
-      return prisma.file.findFirst({
-        where: { id, isTrash: false }
-      });
+  if (share) {
+    // Check download limit
+    if (share.downloadLimit && share.downloadCount >= share.downloadLimit) {
+      return { file: null, requiresPassword: false, error: 'download_limit_reached' };
     }
+    
+    // Security: Validate password for password-protected shares
+    if (share.password) {
+      if (!sharePassword) {
+        return { file: null, requiresPassword: true, error: 'password_required' };
+      }
+      const validPassword = await bcrypt.compare(sharePassword, share.password);
+      if (!validPassword) {
+        return { file: null, requiresPassword: true, error: 'invalid_password' };
+      }
+    }
+    
+    const file = await prisma.file.findFirst({
+      where: { id, isTrash: false }
+    });
+    return { file, requiresPassword: false };
   }
 
-  return null;
+  return { file: null, requiresPassword: false };
 };
 
 // Stream/play file
@@ -971,13 +1078,31 @@ router.get('/:id/stream', authOptional, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const userId = req.user?.userId;
+    const sharePassword = req.query.password as string | undefined;
 
-    const file = await findFile(id, userId);
+    const result = await findFile(id, userId, sharePassword);
 
-    if (!file) {
+    if (result.requiresPassword) {
+      res.status(401).json({ error: 'Password required', hasPassword: true });
+      return;
+    }
+
+    if (result.error === 'invalid_password') {
+      res.status(401).json({ error: 'Invalid password', hasPassword: true });
+      return;
+    }
+
+    if (result.error === 'download_limit_reached') {
+      res.status(410).json({ error: 'Download limit reached' });
+      return;
+    }
+
+    if (!result.file) {
       res.status(404).json({ error: 'File not found' });
       return;
     }
+
+    const file = result.file;
 
     if (!await fileExists(file.path)) {
       res.status(404).json({ error: 'File not found on disk' });
@@ -1025,13 +1150,21 @@ router.get('/:id/excel-html', authOptional, async (req: Request, res: Response) 
     const { id } = req.params;
     const sheetIndex = parseInt(req.query.sheet as string) || 0;
     const userId = req.user?.userId;
+    const sharePassword = req.query.password as string | undefined;
 
-    const file = await findFile(id, userId);
+    const result = await findFile(id, userId, sharePassword);
     
-    if (!file) {
+    if (result.requiresPassword) {
+      res.status(401).json({ error: 'Password required', hasPassword: true });
+      return;
+    }
+
+    if (!result.file) {
       res.status(404).json({ error: 'File not found' });
       return;
     }
+
+    const file = result.file;
 
     // Check if it's an Excel file
     const isExcel = file.mimeType.includes('spreadsheet') || 
@@ -1300,13 +1433,21 @@ router.get('/:id/view', authOptional, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const userId = req.user?.userId;
+    const sharePassword = req.query.password as string | undefined;
 
-    const file = await findFile(id, userId);
+    const result = await findFile(id, userId, sharePassword);
     
-    if (!file) {
+    if (result.requiresPassword) {
+      res.status(401).json({ error: 'Password required', hasPassword: true });
+      return;
+    }
+
+    if (!result.file) {
       res.status(404).json({ error: 'File not found' });
       return;
     }
+
+    const file = result.file;
 
     if (!await fileExists(file.path)) {
       res.status(404).json({ error: 'File not found on disk' });
@@ -1326,15 +1467,23 @@ router.get('/:id/thumbnail', authOptional, async (req: Request, res: Response) =
   try {
     const { id } = req.params;
     const userId = req.user?.userId;
+    const sharePassword = req.query.password as string | undefined;
 
-    const file = await findFile(id, userId);
+    const result = await findFile(id, userId, sharePassword);
 
-    if (!file || !file.thumbnailPath) {
+    if (result.requiresPassword) {
+      res.status(401).json({ error: 'Password required', hasPassword: true });
+      return;
+    }
+
+    if (!result.file || !result.file.thumbnailPath) {
       res.status(404).json({ error: 'Thumbnail not found' });
       return;
     }
 
-    if (await fileExists(file.thumbnailPath)) {
+    const file = result.file;
+
+    if (file.thumbnailPath && await fileExists(file.thumbnailPath)) {
       res.sendFile(file.thumbnailPath);
     } else {
       res.status(404).json({ error: 'Thumbnail not found' });
@@ -1346,13 +1495,23 @@ router.get('/:id/thumbnail', authOptional, async (req: Request, res: Response) =
 });
 
 // Create empty file
+// Issue #14: Maximum content size for created files (10MB)
+const MAX_CREATE_CONTENT_SIZE = 10 * 1024 * 1024; // 10MB
+
 router.post('/create-empty', authenticate, async (req: Request, res: Response) => {
   try {
-    const { name, folderId } = req.body;
+    const { name, folderId, content } = req.body;
     const userId = req.user!.userId;
 
     if (!name) {
       res.status(400).json({ error: 'File name is required' });
+      return;
+    }
+
+    // Validate content size if provided
+    const fileContent = content || '';
+    if (fileContent && Buffer.byteLength(fileContent, 'utf8') > MAX_CREATE_CONTENT_SIZE) {
+      res.status(400).json({ error: `Content exceeds maximum size limit of ${MAX_CREATE_CONTENT_SIZE / 1024 / 1024}MB` });
       return;
     }
 
@@ -1362,9 +1521,10 @@ router.post('/create-empty', authenticate, async (req: Request, res: Response) =
     const ext = path.extname(name) || '.txt';
     const filePath = getUserFilePath(userId, fileId, ext);
 
-    await fs.writeFile(filePath, '');
+    await fs.writeFile(filePath, fileContent);
 
     const mimeType = ext === '.txt' ? 'text/plain' : 'application/octet-stream';
+    const fileSize = Buffer.byteLength(fileContent, 'utf8');
 
     const dbFile = await prisma.file.create({
       data: {
@@ -1372,14 +1532,14 @@ router.post('/create-empty', authenticate, async (req: Request, res: Response) =
         name,
         originalName: name,
         mimeType,
-        size: BigInt(0),
+        size: BigInt(fileSize),
         path: filePath,
         folderId: folderId || null,
         userId,
       },
     });
 
-    res.status(201).json({ ...dbFile, size: '0' });
+    res.status(201).json({ ...dbFile, size: String(fileSize) });
   } catch (error) {
     console.error('Create empty file error:', error);
     res.status(500).json({ error: 'Failed to create file' });

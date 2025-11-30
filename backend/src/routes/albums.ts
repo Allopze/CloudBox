@@ -32,20 +32,51 @@ router.post('/', authenticate, validate(createAlbumSchema), async (req: Request,
   }
 });
 
-// List albums
+// List albums with pagination (Issue #28)
 router.get('/', authenticate, async (req: Request, res: Response) => {
   try {
     const userId = req.user!.userId;
+    const { page = '1', limit = '50' } = req.query;
+    const pageNum = parseInt(page as string);
+    const limitNum = Math.min(parseInt(limit as string), 100); // Max 100 per page
 
-    const albums = await prisma.album.findMany({
-      where: { userId },
-      include: {
-        _count: { select: { files: true } },
+    const [albums, total] = await Promise.all([
+      prisma.album.findMany({
+        where: { userId },
+        include: {
+          _count: { select: { files: true } },
+          files: {
+            take: 4,
+            orderBy: { order: 'asc' },
+            include: {
+              file: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (pageNum - 1) * limitNum,
+        take: limitNum,
+      }),
+      prisma.album.count({ where: { userId } }),
+    ]);
+
+    const albumsWithPreviews = albums.map((album: any) => ({
+      ...album,
+      files: album.files.map((af: any) => ({
+        ...af.file,
+        size: af.file.size.toString(),
+      })),
+    }));
+
+    res.json({
+      albums: albumsWithPreviews,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum),
       },
-      orderBy: { createdAt: 'desc' },
     });
-
-    res.json(albums);
   } catch (error) {
     console.error('List albums error:', error);
     res.status(500).json({ error: 'Failed to list albums' });
@@ -216,7 +247,7 @@ router.post('/:id/files', authenticate, validate(albumFilesSchema), async (req: 
     });
 
     if (files.length === 0) {
-      res.status(400).json({ error: 'No valid image files found' });
+      res.status(400).json({ error: 'No valid image files found. Only images can be added to albums.' });
       return;
     }
 
@@ -261,7 +292,7 @@ router.post('/:id/files', authenticate, validate(albumFilesSchema), async (req: 
 });
 
 // Remove files from album
-router.delete('/:id/files', authenticate, async (req: Request, res: Response) => {
+router.delete('/:id/files', authenticate, validate(albumFilesSchema), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { fileIds } = req.body;

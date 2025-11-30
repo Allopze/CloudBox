@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import prisma from '../lib/prisma.js';
+import prisma, { updateParentFolderSizes } from '../lib/prisma.js';
 import { authenticate } from '../middleware/auth.js';
 
 const router = Router();
@@ -49,6 +49,11 @@ router.post('/restore/file/:id', authenticate, async (req: Request, res: Respons
       where: { id },
       data: { isTrash: false, trashedAt: null },
     });
+
+    // Restore folder size when file is restored
+    if (file.folderId) {
+      await updateParentFolderSizes(file.folderId, file.size, prisma, 'increment');
+    }
 
     await prisma.activity.create({
       data: {
@@ -118,10 +123,22 @@ router.post('/restore/batch', authenticate, async (req: Request, res: Response) 
     const userId = req.user!.userId;
 
     if (fileIds && Array.isArray(fileIds)) {
+      // Get files first to update folder sizes
+      const files = await prisma.file.findMany({
+        where: { id: { in: fileIds }, userId, isTrash: true },
+      });
+
       await prisma.file.updateMany({
         where: { id: { in: fileIds }, userId, isTrash: true },
         data: { isTrash: false, trashedAt: null },
       });
+
+      // Update folder sizes for restored files
+      for (const file of files) {
+        if (file.folderId) {
+          await updateParentFolderSizes(file.folderId, file.size, prisma, 'increment');
+        }
+      }
     }
 
     if (folderIds && Array.isArray(folderIds)) {
@@ -186,6 +203,9 @@ router.delete('/empty', authenticate, async (req: Request, res: Response) => {
         await deleteStorageFile(file.path);
         if (file.thumbnailPath) {
           await deleteStorageFile(file.thumbnailPath);
+        }
+        if (file.folderId) {
+          await updateParentFolderSizes(file.folderId, file.size, prisma, 'decrement');
         }
         freedSpace += file.size;
       }

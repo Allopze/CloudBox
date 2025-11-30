@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { api, getFileUrl } from '../../lib/api';
+import { api, getFileUrl, API_URL } from '../../lib/api';
 import { FileItem } from '../../types';
 import { formatBytes, formatDate, cn, getFileIcon } from '../../lib/utils';
 import {
@@ -71,8 +71,8 @@ export default function PublicShare() {
 
   const downloadFile = async (file: FileItem) => {
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
-      window.open(`${baseUrl}/shares/public/${token}/files/${file.id}/download`, '_blank');
+      const url = `${API_URL}/shares/public/${token}/files/${file.id}/download?password=${encodeURIComponent(password)}`;
+      window.open(url, '_blank');
     } catch (error) {
       toast('Error al descargar el archivo', 'error');
     }
@@ -80,8 +80,8 @@ export default function PublicShare() {
 
   const downloadAll = async () => {
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
-      window.open(`${baseUrl}/shares/public/${token}/download`, '_blank');
+      const url = `${API_URL}/shares/public/${token}/download?password=${encodeURIComponent(password)}`;
+      window.open(url, '_blank');
     } catch (error) {
       toast('Error al descargar los archivos', 'error');
     }

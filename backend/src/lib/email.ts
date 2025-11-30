@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer';
 import { config } from '../config/index.js';
 import prisma from './prisma.js';
+import { decryptSecret, isEncrypted } from './encryption.js';
 
 let transporter: nodemailer.Transporter | null = null;
 
@@ -21,13 +22,19 @@ export const getTransporter = async (): Promise<nodemailer.Transporter> => {
     settings[s.key] = s.value;
   });
 
+  // Security: Decrypt SMTP password if it's encrypted
+  let smtpPassword = settings.smtp_pass || config.smtp.pass;
+  if (smtpPassword && isEncrypted(smtpPassword)) {
+    smtpPassword = decryptSecret(smtpPassword);
+  }
+
   transporter = nodemailer.createTransport({
     host: settings.smtp_host || config.smtp.host,
     port: parseInt(settings.smtp_port || String(config.smtp.port)),
     secure: (settings.smtp_secure || String(config.smtp.secure)) === 'true',
     auth: {
       user: settings.smtp_user || config.smtp.user,
-      pass: settings.smtp_pass || config.smtp.pass,
+      pass: smtpPassword,
     },
   });
 

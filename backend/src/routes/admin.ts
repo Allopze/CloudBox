@@ -7,6 +7,7 @@ import { validate } from '../middleware/validate.js';
 import { adminUserSchema, smtpConfigSchema, emailTemplateSchema } from '../schemas/index.js';
 import { resetTransporter, testSmtpConnection, sendEmail } from '../lib/email.js';
 import { getBrandingPath, deleteFile, fileExists } from '../lib/storage.js';
+import { encryptSecret } from '../lib/encryption.js';
 import sharp from 'sharp';
 import os from 'os';
 import fs from 'fs/promises';
@@ -174,12 +175,21 @@ router.patch('/users/:id', authenticate, requireAdmin, validate(adminUserSchema)
 });
 
 // Create user
+// Issue #23: Email validation regex
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 router.post('/users', authenticate, requireAdmin, async (req: Request, res: Response) => {
   try {
     const { email, password, name, role, storageQuota, maxFileSize } = req.body;
 
     if (!email || !password || !name) {
       res.status(400).json({ error: 'Email, password, and name are required' });
+      return;
+    }
+
+    // Validate email format
+    if (!EMAIL_REGEX.test(email)) {
+      res.status(400).json({ error: 'Invalid email format' });
       return;
     }
 
@@ -544,12 +554,15 @@ router.post('/smtp', authenticate, requireAdmin, validate(smtpConfigSchema), asy
   try {
     const { host, port, secure, user, pass, from } = req.body;
 
+    // Security: Encrypt SMTP password before storing in database
+    const encryptedPass = pass ? encryptSecret(pass) : '';
+
     const settings = [
       { key: 'smtp_host', value: host },
       { key: 'smtp_port', value: String(port) },
       { key: 'smtp_secure', value: String(secure) },
       { key: 'smtp_user', value: user },
-      { key: 'smtp_pass', value: pass },
+      { key: 'smtp_pass', value: encryptedPass },
       { key: 'smtp_from', value: from },
     ];
 
@@ -809,7 +822,7 @@ router.get('/settings/branding', async (req: Request, res: Response) => {
     });
 
     // Check if branding files exist and set URLs accordingly
-    const timestamp = Date.now();
+    // Issue #19: Use file modification timestamp instead of Date.now()
     const brandingTypes = ['logo-light', 'logo-dark', 'favicon'] as const;
     
     for (const type of brandingTypes) {
@@ -817,8 +830,17 @@ router.get('/settings/branding', async (req: Request, res: Response) => {
       const pngPath = type === 'favicon' ? filePath.replace('.ico', '.png') : filePath;
       const svgPath = filePath.replace(/\.(png|ico)$/, '.svg');
       
-      const exists = await fileExists(svgPath) || await fileExists(pngPath);
-      if (exists) {
+      let existingPath: string | null = null;
+      if (await fileExists(svgPath)) {
+        existingPath = svgPath;
+      } else if (await fileExists(pngPath)) {
+        existingPath = pngPath;
+      }
+      
+      if (existingPath) {
+        // Get file modification time for cache-busting
+        const stats = await fs.stat(existingPath);
+        const timestamp = stats.mtimeMs;
         const url = `/api/admin/branding/${type}?t=${timestamp}`;
         if (type === 'logo-light') result.logoLightUrl = url;
         else if (type === 'logo-dark') result.logoDarkUrl = url;
@@ -996,7 +1018,8 @@ router.put('/settings/smtp', authenticate, requireAdmin, async (req: Request, re
     ];
 
     if (password) {
-      settings.push({ key: 'smtp_pass', value: password });
+      // Security: Encrypt SMTP password before storing in database
+      settings.push({ key: 'smtp_pass', value: encryptSecret(password) });
     }
 
     for (const setting of settings) {

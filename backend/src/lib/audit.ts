@@ -87,12 +87,24 @@ export async function auditLog(entry: AuditLogEntry): Promise<void> {
 
 /**
  * Determine if action should be persisted to database
+ * Security Fix: Now persists all security-relevant events for compliance and forensics
  */
 function shouldPersist(action: AuditAction): boolean {
   const persistActions: AuditAction[] = [
+    'LOGIN_SUCCESS',
     'LOGIN_FAILED',
+    'LOGOUT',
+    'REGISTER',
     'PASSWORD_CHANGE',
+    'PASSWORD_RESET_REQUEST',
     'PASSWORD_RESET_SUCCESS',
+    'EMAIL_VERIFIED',
+    'FILE_UPLOAD',
+    'FILE_DELETE',
+    'FILE_DOWNLOAD',
+    'FILE_SHARE',
+    'FOLDER_CREATE',
+    'FOLDER_DELETE',
     'ADMIN_USER_UPDATE',
     'ADMIN_USER_DELETE',
     'ADMIN_SETTINGS_CHANGE',

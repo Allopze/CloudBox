@@ -6,9 +6,8 @@ import { authenticate } from '../middleware/auth.js';
 import { uploadAvatar } from '../middleware/upload.js';
 import { validate } from '../middleware/validate.js';
 import { changePasswordSchema, updateProfileSchema } from '../schemas/index.js';
-import { getAvatarPath, deleteFile, fileExists } from '../lib/storage.js';
+import { getAvatarPath, deleteFile, fileExists, deleteDirectory, getStoragePath } from '../lib/storage.js';
 import { processAvatar } from '../lib/thumbnail.js';
-import { deleteDirectory, getStoragePath } from '../lib/storage.js';
 
 const router = Router();
 

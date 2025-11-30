@@ -4,14 +4,14 @@ import prisma from '../lib/prisma.js';
 import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { compressionSchema, decompressSchema } from '../schemas/index.js';
-import { 
-  compressToZip, 
-  extractZip, 
-  compress7z, 
-  extract7z, 
-  cancelJob, 
+import {
+  compressToZip,
+  extractZip,
+  compress7z,
+  extract7z,
+  cancelJob,
   listZipContents,
-  getTempPath 
+  getTempPath
 } from '../lib/compression.js';
 import { getStoragePath, fileExists, ensureUserDir, getUserFilePath } from '../lib/storage.js';
 import path from 'path';
@@ -30,50 +30,52 @@ router.post('/compress', authenticate, validate(compressionSchema), async (req: 
 
     // Resolve file paths from IDs
     const inputPaths: string[] = [];
-    
+    const tempFolders: string[] = [];
+
     for (const p of paths) {
       // Check if it's a file ID
       const file = await prisma.file.findFirst({
         where: { id: p, userId, isTrash: false },
       });
-      
+
       if (file) {
         inputPaths.push(file.path);
         continue;
       }
-      
+
       // Check if it's a folder ID
       const folder = await prisma.folder.findFirst({
         where: { id: p, userId, isTrash: false },
       });
-      
+
       if (folder) {
         // Create temp folder with contents
         const tempFolderPath = getTempPath(`folder_${folder.id}`);
+        tempFolders.push(tempFolderPath);
         await fs.mkdir(tempFolderPath, { recursive: true });
-        
+
         const copyFolderContents = async (folderId: string, targetPath: string) => {
           const files = await prisma.file.findMany({
             where: { folderId, isTrash: false },
           });
-          
+
           for (const f of files) {
             if (await fileExists(f.path)) {
               await fs.copyFile(f.path, path.join(targetPath, f.name));
             }
           }
-          
+
           const subfolders = await prisma.folder.findMany({
             where: { parentId: folderId, isTrash: false },
           });
-          
+
           for (const sf of subfolders) {
             const sfPath = path.join(targetPath, sf.name);
             await fs.mkdir(sfPath, { recursive: true });
             await copyFolderContents(sf.id, sfPath);
           }
         };
-        
+
         await copyFolderContents(folder.id, tempFolderPath);
         inputPaths.push(tempFolderPath);
       }
@@ -177,6 +179,15 @@ router.post('/compress', authenticate, validate(compressionSchema), async (req: 
           client.end();
           sseClients.delete(jobId);
         }
+      } finally {
+        // Cleanup temp folders
+        for (const folder of tempFolders) {
+          try {
+            await fs.rm(folder, { recursive: true, force: true });
+          } catch (e) {
+            console.error(`Failed to cleanup temp folder ${folder}:`, e);
+          }
+        }
       }
     })();
 
@@ -206,6 +217,25 @@ router.post('/decompress', authenticate, validate(decompressSchema), async (req:
     if (!['.zip', '.7z', '.tar', '.rar'].includes(ext)) {
       res.status(400).json({ error: 'Unsupported archive format' });
       return;
+    }
+
+    // Check quota for ZIP files
+    if (ext === '.zip') {
+      try {
+        const contents = await listZipContents(file.path);
+        const totalSize = contents.reduce((acc, item) => acc + BigInt(item.size), BigInt(0));
+
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        if (user && (user.storageUsed + totalSize > user.storageQuota)) {
+          res.status(400).json({ error: 'Not enough storage space to decompress this archive' });
+          return;
+        }
+      } catch (error) {
+        console.error('Failed to check zip contents:', error);
+        // Continue but warn? Or fail? Safe to fail if we can't verify size.
+        res.status(400).json({ error: 'Failed to verify archive contents' });
+        return;
+      }
     }
 
     const jobId = uuidv4();
@@ -242,10 +272,10 @@ router.post('/decompress', authenticate, validate(decompressSchema), async (req:
         // Create files and folders from extracted content
         const processExtracted = async (dirPath: string, parentFolderId: string | null) => {
           const entries = await fs.readdir(dirPath, { withFileTypes: true });
-          
+
           for (const entry of entries) {
             const entryPath = path.join(dirPath, entry.name);
-            
+
             if (entry.isDirectory()) {
               const folder = await prisma.folder.create({
                 data: {
@@ -254,20 +284,20 @@ router.post('/decompress', authenticate, validate(decompressSchema), async (req:
                   userId,
                 },
               });
-              
+
               await processExtracted(entryPath, folder.id);
             } else {
               const stats = await fs.stat(entryPath);
               const newFileId = uuidv4();
               const ext = path.extname(entry.name);
               const newFilePath = getUserFilePath(userId, newFileId, ext);
-              
+
               await ensureUserDir(userId);
               await fs.rename(entryPath, newFilePath);
-              
+
               // Determine mime type
               const mimeType = getMimeType(ext);
-              
+
               await prisma.file.create({
                 data: {
                   id: newFileId,
@@ -280,7 +310,7 @@ router.post('/decompress', authenticate, validate(decompressSchema), async (req:
                   userId,
                 },
               });
-              
+
               // Update storage
               await prisma.user.update({
                 where: { id: userId },
@@ -475,7 +505,7 @@ function getMimeType(ext: string): string {
     '.tar': 'application/x-tar',
     '.rar': 'application/vnd.rar',
   };
-  
+
   return mimeTypes[ext.toLowerCase()] || 'application/octet-stream';
 }
 

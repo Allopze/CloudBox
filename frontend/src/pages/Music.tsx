@@ -4,7 +4,7 @@ import { api, getFileUrl } from '../lib/api';
 import { FileItem } from '../types';
 import { useMusicStore } from '../stores/musicStore';
 import { useFileStore } from '../stores/fileStore';
-import { 
+import {
   Loader2, Music, Play, Heart, Disc, ChevronLeft, Check,
   Download, Share2, Trash2, ListPlus, Info, Copy, Star
 } from 'lucide-react';
@@ -43,7 +43,7 @@ export default function MusicPage() {
   const [loading, setLoading] = useState(true);
   const [trackDurations, setTrackDurations] = useState<Record<string, number>>({});
   const [selectedAlbum, setSelectedAlbum] = useState<string | null>(null);
-  
+
   // Context menu state
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [shareModalOpen, setShareModalOpen] = useState(false);
@@ -66,24 +66,24 @@ export default function MusicPage() {
     setLoading(true);
     try {
       const params: Record<string, string> = { type: 'audio', sortBy: 'name', sortOrder: 'asc' };
-      
+
       // Filter by favorites if on favorites tab
       if (tab === 'favorites') {
         params.favorite = 'true';
       }
-      
+
       const [filesRes, foldersRes] = await Promise.all([
         api.get('/files', { params, signal }),
         api.get('/folders', { signal })
       ]);
-      
+
       // Don't update state if the request was aborted
       if (signal?.aborted) return;
-      
+
       const audioFiles = filesRes.data.files || [];
       setTracks(audioFiles);
       setQueue(audioFiles);
-      
+
       // Create folder name lookup - folders API returns array directly
       const folderMap: Record<string, string> = {};
       const foldersData = Array.isArray(foldersRes.data) ? foldersRes.data : (foldersRes.data.folders || []);
@@ -91,15 +91,37 @@ export default function MusicPage() {
         folderMap[folder.id] = folder.name;
       });
       setFolders(folderMap);
-      
+
       // Load durations for all tracks
-      audioFiles.forEach((track: FileItem) => {
+      // Load durations sequentially to avoid memory leaks
+      const loadDurations = async () => {
         const audio = new Audio();
-        audio.src = getFileUrl(`/files/${track.id}/stream`);
-        audio.addEventListener('loadedmetadata', () => {
-          setTrackDurations(prev => ({ ...prev, [track.id]: audio.duration }));
-        });
-      });
+        audio.volume = 0;
+
+        for (const track of audioFiles) {
+          if (signal?.aborted) break;
+
+          try {
+            await new Promise<void>((resolve) => {
+              const onLoaded = () => {
+                setTrackDurations(prev => ({ ...prev, [track.id]: audio.duration }));
+                resolve();
+              };
+              const onError = () => resolve();
+
+              audio.addEventListener('loadedmetadata', onLoaded, { once: true });
+              audio.addEventListener('error', onError, { once: true });
+              audio.src = getFileUrl(`/files/${track.id}/stream`);
+            });
+          } catch (e) {
+            console.error(`Failed to load duration for ${track.name}`, e);
+          }
+        }
+
+        audio.src = '';
+      };
+
+      loadDurations();
     } catch (error) {
       // Ignore aborted requests
       if (signal?.aborted) return;
@@ -115,7 +137,7 @@ export default function MusicPage() {
   useEffect(() => {
     const abortController = new AbortController();
     loadData(abortController.signal);
-    
+
     return () => {
       abortController.abort();
     };
@@ -143,7 +165,7 @@ export default function MusicPage() {
     try {
       await api.patch(`/files/${track.id}/favorite`);
       // Update local state
-      setTracks(prev => prev.map(t => 
+      setTracks(prev => prev.map(t =>
         t.id === track.id ? { ...t, isFavorite: !t.isFavorite } : t
       ));
       toast(track.isFavorite ? 'Eliminado de favoritos' : 'Añadido a favoritos', 'success');
@@ -212,7 +234,7 @@ export default function MusicPage() {
   const handleFavoriteFromMenu = async (track: FileItem) => {
     try {
       await api.patch(`/files/${track.id}/favorite`);
-      setTracks(prev => prev.map(t => 
+      setTracks(prev => prev.map(t =>
         t.id === track.id ? { ...t, isFavorite: !t.isFavorite } : t
       ));
       toast(track.isFavorite ? 'Eliminado de favoritos' : 'Añadido a favoritos', 'success');
@@ -223,9 +245,19 @@ export default function MusicPage() {
   };
 
   const handleDelete = async (track: FileItem) => {
+    const { selectedItems, clearSelection } = useFileStore.getState();
+    const isMultiSelect = selectedItems.size > 1 && selectedItems.has(track.id);
+
     try {
-      await api.delete(`/files/${track.id}`);
-      toast('Canción movida a la papelera', 'success');
+      if (isMultiSelect) {
+        const promises = Array.from(selectedItems).map(id => api.delete(`/files/${id}`));
+        await Promise.all(promises);
+        toast(`${selectedItems.size} canciones eliminadas`, 'success');
+        clearSelection();
+      } else {
+        await api.delete(`/files/${track.id}`);
+        toast('Canción movida a la papelera', 'success');
+      }
       loadData();
     } catch {
       toast('Error al eliminar', 'error');
@@ -260,11 +292,11 @@ export default function MusicPage() {
   // Group tracks by folder for albums view. Must stay before early returns so hook order stays stable.
   const albumGroups = useMemo(() => {
     const groups: Record<string, { name: string; tracks: FileItem[]; cover: string | null }> = {};
-    
+
     tracks.forEach(track => {
       const folderId = track.folderId || 'no-folder';
       const folderName = folders[folderId] || 'Sin álbum';
-      
+
       if (!groups[folderId]) {
         groups[folderId] = {
           name: folderName,
@@ -278,7 +310,7 @@ export default function MusicPage() {
         groups[folderId].cover = track.id;
       }
     });
-    
+
     return Object.entries(groups).map(([id, data]) => ({
       id,
       ...data
@@ -294,7 +326,7 @@ export default function MusicPage() {
   }
 
   // Get tracks for selected album
-  const selectedAlbumData = selectedAlbum 
+  const selectedAlbumData = selectedAlbum
     ? albumGroups.find(a => a.id === selectedAlbum)
     : null;
 
@@ -303,7 +335,7 @@ export default function MusicPage() {
     // Show album detail
     if (selectedAlbumData) {
       const albumTracks = selectedAlbumData.tracks;
-      
+
       return (
         <div className="pb-24">
           {/* Back button and album info */}
@@ -339,13 +371,13 @@ export default function MusicPage() {
               </div>
             </div>
           </div>
-          
+
           {/* Track list */}
           <div className="space-y-1">
             {albumTracks.map((track, index) => {
               const isCurrentTrack = currentTrack?.id === track.id;
               const [fromColor, toColor] = getGradientColors(track.name);
-              
+
               return (
                 <div
                   key={track.id}
@@ -417,7 +449,7 @@ export default function MusicPage() {
         </div>
       );
     }
-    
+
     // Show albums grid
     return (
       <div className="pb-24">
@@ -425,7 +457,7 @@ export default function MusicPage() {
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3">
             {albumGroups.map((album) => {
               const [fromColor, toColor] = getGradientColors(album.name);
-              
+
               return (
                 <div
                   key={album.id}
@@ -448,14 +480,14 @@ export default function MusicPage() {
                         <Disc className="w-12 h-12 text-white/80" />
                       </div>
                     )}
-                    
+
                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                       <div className="w-12 h-12 rounded-full bg-primary-500 flex items-center justify-center shadow-lg">
                         <Play className="w-6 h-6 text-white fill-white" />
                       </div>
                     </div>
                   </div>
-                  
+
                   <div className="px-1">
                     <p className="font-medium text-sm truncate text-dark-900 dark:text-white">
                       {album.name}
@@ -488,7 +520,7 @@ export default function MusicPage() {
             const [fromColor, toColor] = getGradientColors(track.name);
             const isCurrentTrack = currentTrack?.id === track.id;
             const isSelected = selectedItems.has(track.id);
-            
+
             const handleTrackClick = (e: React.MouseEvent) => {
               // Shift+Click: Range selection
               if (e.shiftKey && lastSelectedId) {
@@ -512,7 +544,7 @@ export default function MusicPage() {
                 playTrack(track);
               }
             };
-            
+
             return (
               <motion.div
                 key={track.id}
@@ -536,7 +568,7 @@ export default function MusicPage() {
                 )}>
                   {/* Cover image or fallback gradient with icon */}
                   {track.thumbnailPath ? (
-                    <img 
+                    <img
                       src={getFileUrl(`/files/${track.id}/thumbnail`)}
                       alt={track.name}
                       className="w-full h-full object-cover"
@@ -547,14 +579,14 @@ export default function MusicPage() {
                       <Music className="w-12 h-12 text-white/80" />
                     </div>
                   )}
-                  
+
                   {/* Selection indicator */}
                   {isSelected && (
                     <div className="absolute top-2 left-2 w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center shadow-lg z-20">
                       <Check className="w-4 h-4 text-white" />
                     </div>
                   )}
-                  
+
                   {/* Favorite button */}
                   <button
                     onClick={(e) => toggleFavorite(e, track)}
@@ -567,7 +599,7 @@ export default function MusicPage() {
                   >
                     <Heart className={cn('w-4 h-4', track.isFavorite && 'fill-current')} />
                   </button>
-                  
+
                   {/* Playing indicator / Play button overlay */}
                   <div className={cn(
                     'absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity',
@@ -615,7 +647,7 @@ export default function MusicPage() {
           <p className="text-sm">Sube archivos de audio para verlos aquí</p>
         </div>
       )}
-      
+
       {/* Context Menu */}
       <AnimatePresence>
         {contextMenu && (() => {
@@ -623,155 +655,155 @@ export default function MusicPage() {
           const currentSelectedItems = useFileStore.getState().selectedItems;
           const isMultiSelect = currentSelectedItems.size > 1 && currentSelectedItems.has(contextMenu.track.id);
           const selectedCount = isMultiSelect ? currentSelectedItems.size : 1;
-          
+
           const menuWidth = 288;
           const baseHeight = isMultiSelect ? 180 : 420;
           const padding = 20;
-          
+
           let left = contextMenu.x + menuWidth > window.innerWidth ? contextMenu.x - menuWidth : contextMenu.x;
           let top = contextMenu.y;
-          
+
           if (contextMenu.y + baseHeight > window.innerHeight - padding) {
             top = Math.max(padding, contextMenu.y - baseHeight);
           }
-          
+
           return (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            transition={{ duration: 0.1 }}
-            style={{ position: 'fixed', left, top }}
-            className="z-50 min-w-72 bg-white dark:bg-dark-800 rounded-xl shadow-2xl border border-dark-200 dark:border-dark-700 py-2 overflow-hidden"
-          >
-            {/* Header for multi-select */}
-            {isMultiSelect && (
-              <>
-                <div className="px-4 py-2 text-sm font-medium text-dark-500 dark:text-dark-400">
-                  {selectedCount} canciones seleccionadas
-                </div>
-                <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
-              </>
-            )}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.1 }}
+              style={{ position: 'fixed', left, top }}
+              className="z-50 min-w-72 bg-white dark:bg-dark-800 rounded-xl shadow-2xl border border-dark-200 dark:border-dark-700 py-2 overflow-hidden"
+            >
+              {/* Header for multi-select */}
+              {isMultiSelect && (
+                <>
+                  <div className="px-4 py-2 text-sm font-medium text-dark-500 dark:text-dark-400">
+                    {selectedCount} canciones seleccionadas
+                  </div>
+                  <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
+                </>
+              )}
 
-            {/* Single item actions */}
-            {!isMultiSelect && (
-              <>
-                {/* Reproducir */}
-                <div className="px-2 py-1">
-                  <button
-                    onClick={() => handlePlayFromMenu(contextMenu.track)}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
-                  >
-                    <Play className="w-5 h-5" />
-                    <span>Reproducir</span>
-                  </button>
-                  <button
-                    onClick={() => handleAddToQueue(contextMenu.track)}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
-                  >
-                    <ListPlus className="w-5 h-5" />
-                    <span>Añadir a la cola</span>
-                  </button>
-                </div>
-                
-                <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
-                
-                {/* Acciones de archivo */}
-                <div className="px-2 py-1">
-                  <button
-                    onClick={() => handleDownload(contextMenu.track)}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
-                  >
-                    <Download className="w-5 h-5" />
-                    <span>Descargar</span>
-                  </button>
-                  <button
-                    onClick={() => handleShare(contextMenu.track)}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
-                  >
-                    <Share2 className="w-5 h-5" />
-                    <span>Compartir</span>
-                  </button>
-                  <button
-                    onClick={() => handleCopyLink(contextMenu.track)}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
-                  >
-                    <Copy className="w-5 h-5" />
-                    <span>Copiar enlace</span>
-                  </button>
-                </div>
-                
-                <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
-                
-                {/* Organización */}
-                <div className="px-2 py-1">
-                  <button
-                    onClick={() => handleFavoriteFromMenu(contextMenu.track)}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
-                  >
-                    <Star className={cn('w-5 h-5', contextMenu.track.isFavorite && 'fill-yellow-500 text-yellow-500')} />
-                    <span>{contextMenu.track.isFavorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}</span>
-                  </button>
-                  <button
-                    onClick={() => handleShowInfo(contextMenu.track)}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
-                  >
-                    <Info className="w-5 h-5" />
-                    <span>Información</span>
-                  </button>
-                </div>
-                
-                <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
-              </>
-            )}
+              {/* Single item actions */}
+              {!isMultiSelect && (
+                <>
+                  {/* Reproducir */}
+                  <div className="px-2 py-1">
+                    <button
+                      onClick={() => handlePlayFromMenu(contextMenu.track)}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
+                    >
+                      <Play className="w-5 h-5" />
+                      <span>Reproducir</span>
+                    </button>
+                    <button
+                      onClick={() => handleAddToQueue(contextMenu.track)}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
+                    >
+                      <ListPlus className="w-5 h-5" />
+                      <span>Añadir a la cola</span>
+                    </button>
+                  </div>
 
-            {/* Multi-select actions */}
-            {isMultiSelect && (
-              <>
-                <div className="px-2 py-1">
-                  <button
-                    onClick={() => {
-                      const selected = tracks.filter(t => currentSelectedItems.has(t.id));
-                      selected.forEach(t => handleAddToQueue(t));
-                      closeContextMenu();
-                    }}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
-                  >
-                    <ListPlus className="w-5 h-5" />
-                    <span>Añadir {selectedCount} a la cola</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      const selected = tracks.filter(t => currentSelectedItems.has(t.id));
-                      selected.forEach(t => handleDownload(t));
-                    }}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
-                  >
-                    <Download className="w-5 h-5" />
-                    <span>Descargar {selectedCount} canciones</span>
-                  </button>
-                </div>
-                
-                <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
-              </>
-            )}
-            
-            {/* Eliminar - siempre visible */}
-            <div className="px-2 py-1">
-              <button
-                onClick={() => handleDelete(contextMenu.track)}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-              >
-                <Trash2 className="w-5 h-5" />
-                <span>{isMultiSelect ? `Eliminar ${selectedCount} canciones` : 'Eliminar'}</span>
-              </button>
-            </div>
-          </motion.div>
+                  <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
+
+                  {/* Acciones de archivo */}
+                  <div className="px-2 py-1">
+                    <button
+                      onClick={() => handleDownload(contextMenu.track)}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
+                    >
+                      <Download className="w-5 h-5" />
+                      <span>Descargar</span>
+                    </button>
+                    <button
+                      onClick={() => handleShare(contextMenu.track)}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
+                    >
+                      <Share2 className="w-5 h-5" />
+                      <span>Compartir</span>
+                    </button>
+                    <button
+                      onClick={() => handleCopyLink(contextMenu.track)}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
+                    >
+                      <Copy className="w-5 h-5" />
+                      <span>Copiar enlace</span>
+                    </button>
+                  </div>
+
+                  <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
+
+                  {/* Organización */}
+                  <div className="px-2 py-1">
+                    <button
+                      onClick={() => handleFavoriteFromMenu(contextMenu.track)}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
+                    >
+                      <Star className={cn('w-5 h-5', contextMenu.track.isFavorite && 'fill-yellow-500 text-yellow-500')} />
+                      <span>{contextMenu.track.isFavorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}</span>
+                    </button>
+                    <button
+                      onClick={() => handleShowInfo(contextMenu.track)}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
+                    >
+                      <Info className="w-5 h-5" />
+                      <span>Información</span>
+                    </button>
+                  </div>
+
+                  <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
+                </>
+              )}
+
+              {/* Multi-select actions */}
+              {isMultiSelect && (
+                <>
+                  <div className="px-2 py-1">
+                    <button
+                      onClick={() => {
+                        const selected = tracks.filter(t => currentSelectedItems.has(t.id));
+                        selected.forEach(t => handleAddToQueue(t));
+                        closeContextMenu();
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
+                    >
+                      <ListPlus className="w-5 h-5" />
+                      <span>Añadir {selectedCount} a la cola</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        const selected = tracks.filter(t => currentSelectedItems.has(t.id));
+                        selected.forEach(t => handleDownload(t));
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
+                    >
+                      <Download className="w-5 h-5" />
+                      <span>Descargar {selectedCount} canciones</span>
+                    </button>
+                  </div>
+
+                  <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
+                </>
+              )}
+
+              {/* Eliminar - siempre visible */}
+              <div className="px-2 py-1">
+                <button
+                  onClick={() => handleDelete(contextMenu.track)}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                >
+                  <Trash2 className="w-5 h-5" />
+                  <span>{isMultiSelect ? `Eliminar ${selectedCount} canciones` : 'Eliminar'}</span>
+                </button>
+              </div>
+            </motion.div>
           );
         })()}
       </AnimatePresence>
-      
+
       {/* Share Modal */}
       {shareModalOpen && shareModalFile && (
         <ShareModal
@@ -783,7 +815,7 @@ export default function MusicPage() {
           file={shareModalFile}
         />
       )}
-      
+
       {/* Info Modal */}
       {infoTrack && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
@@ -816,7 +848,7 @@ export default function MusicPage() {
                 <p className="text-sm text-dark-500">{infoTrack.mimeType}</p>
               </div>
             </div>
-            
+
             <div className="space-y-3 mb-6">
               <div className="flex justify-between py-2 border-b border-dark-200 dark:border-dark-700">
                 <span className="text-dark-500">Tamaño</span>
@@ -837,7 +869,7 @@ export default function MusicPage() {
                 <span className="text-dark-900 dark:text-white font-medium">{infoTrack.isFavorite ? 'Sí' : 'No'}</span>
               </div>
             </div>
-            
+
             <div className="flex justify-end">
               <Button onClick={() => setInfoTrack(null)}>
                 Cerrar

@@ -6,6 +6,7 @@ import path from 'path';
 import { getThumbnailPath, fileExists, getStoragePath } from './storage.js';
 import * as mm from 'music-metadata';
 import ExcelJS from 'exceljs';
+import ffmpegPath from 'ffmpeg-static';
 
 const execAsync = promisify(exec);
 
@@ -30,14 +31,26 @@ export const generateImageThumbnail = async (inputPath: string, fileId: string):
   }
 };
 
+// Issue #7: FFmpeg execution options with resource limits
+const FFMPEG_OPTIONS = {
+  timeout: 30000, // 30 seconds max
+  maxBuffer: 50 * 1024 * 1024, // 50MB max buffer
+};
+
 export const generateVideoThumbnail = async (inputPath: string, fileId: string): Promise<string | null> => {
+  const outputPath = getThumbnailPath(fileId);
+  const tempPath = outputPath.replace('.webp', '_temp.jpg');
+  
+  if (!ffmpegPath) {
+    console.error('ffmpeg-static binary not found');
+    return null;
+  }
+  
   try {
-    const outputPath = getThumbnailPath(fileId);
-    const tempPath = outputPath.replace('.webp', '_temp.jpg');
-    
-    // Extract frame at 1 second using ffmpeg
+    // Extract frame at 1 second using ffmpeg with timeout and buffer limits
     await execAsync(
-      `ffmpeg -i "${inputPath}" -ss 00:00:01 -vframes 1 -y "${tempPath}"`
+      `"${ffmpegPath}" -i "${inputPath}" -ss 00:00:01 -vframes 1 -y "${tempPath}"`,
+      FFMPEG_OPTIONS
     );
     
     // Convert to webp thumbnail
@@ -54,6 +67,8 @@ export const generateVideoThumbnail = async (inputPath: string, fileId: string):
     return outputPath;
   } catch (error) {
     console.error('Error generating video thumbnail:', error);
+    // Clean up temp file on error
+    await fs.unlink(tempPath).catch(() => {});
     return null;
   }
 };
@@ -82,26 +97,29 @@ export const generateAudioCover = async (inputPath: string, fileId: string): Pro
     
     // Fallback: try with ffmpeg
     const tempPath = outputPath.replace('.webp', '_temp.jpg');
-    try {
-      await execAsync(
-        `ffmpeg -i "${inputPath}" -an -vcodec copy -y "${tempPath}"`
-      );
-      
-      if (await fileExists(tempPath)) {
-        await sharp(tempPath)
-          .resize(THUMBNAIL_SIZE, THUMBNAIL_SIZE, {
-            fit: 'cover',
-            position: 'center',
-          })
-          .webp({ quality: 80 })
-          .toFile(outputPath);
+    if (ffmpegPath) {
+      try {
+        await execAsync(
+          `"${ffmpegPath}" -i "${inputPath}" -an -vcodec copy -y "${tempPath}"`,
+          FFMPEG_OPTIONS
+        );
         
+        if (await fileExists(tempPath)) {
+          await sharp(tempPath)
+            .resize(THUMBNAIL_SIZE, THUMBNAIL_SIZE, {
+              fit: 'cover',
+              position: 'center',
+            })
+            .webp({ quality: 80 })
+            .toFile(outputPath);
+          
+          await fs.unlink(tempPath).catch(() => {});
+          return outputPath;
+        }
+      } catch {
+        // ffmpeg fallback failed, that's ok
         await fs.unlink(tempPath).catch(() => {});
-        return outputPath;
       }
-    } catch {
-      // ffmpeg fallback failed, that's ok
-      await fs.unlink(tempPath).catch(() => {});
     }
     
     return null;

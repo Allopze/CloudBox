@@ -7,6 +7,7 @@ import { validate } from '../middleware/validate.js';
 import { createShareSchema, addCollaboratorSchema, publicLinkPasswordSchema } from '../schemas/index.js';
 import { fileExists } from '../lib/storage.js';
 import archiver from 'archiver';
+import { config } from '../config/index.js';
 
 const router = Router();
 
@@ -233,6 +234,45 @@ router.get('/with-me', authenticate, async (req: Request, res: Response) => {
   }
 });
 
+// Update share
+router.patch('/:id', authenticate, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { password, expiresAt, downloadLimit } = req.body;
+    const userId = req.user!.userId;
+
+    const share = await prisma.share.findFirst({
+      where: { id, ownerId: userId },
+    });
+
+    if (!share) {
+      res.status(404).json({ error: 'Share not found' });
+      return;
+    }
+
+    const updateData: any = {};
+    if (password !== undefined) {
+      updateData.password = password ? await bcrypt.hash(password, 10) : null;
+    }
+    if (expiresAt !== undefined) {
+      updateData.expiresAt = expiresAt ? new Date(expiresAt) : null;
+    }
+    if (downloadLimit !== undefined) {
+      updateData.downloadLimit = downloadLimit ? parseInt(downloadLimit) : null;
+    }
+
+    const updatedShare = await prisma.share.update({
+      where: { id },
+      data: updateData,
+    });
+
+    res.json(updatedShare);
+  } catch (error) {
+    console.error('Update share error:', error);
+    res.status(500).json({ error: 'Failed to update share' });
+  }
+});
+
 // Delete share
 router.delete('/:id', authenticate, async (req: Request, res: Response) => {
   try {
@@ -323,17 +363,50 @@ router.get('/public/:token', optionalAuth, async (req: Request, res: Response) =
       return;
     }
 
+    if (share.password) {
+      const { password } = req.query;
+      if (!password || typeof password !== 'string') {
+        res.status(401).json({ error: 'Password required', hasPassword: true });
+        return;
+      }
+
+      const valid = await bcrypt.compare(password, share.password);
+      if (!valid) {
+        res.status(401).json({ error: 'Invalid password', hasPassword: true });
+        return;
+      }
+    }
+
+    let files: any[] = [];
+    let folders: any[] = [];
+
+    if (share.folderId) {
+      [files, folders] = await Promise.all([
+        prisma.file.findMany({
+          where: { folderId: share.folderId, isTrash: false },
+          select: { id: true, name: true, mimeType: true, size: true, updatedAt: true, thumbnailPath: true },
+        }),
+        prisma.folder.findMany({
+          where: { parentId: share.folderId, isTrash: false },
+          select: { id: true, name: true, updatedAt: true },
+        }),
+      ]);
+    } else if (share.file) {
+      files = [share.file];
+    }
+
     res.json({
-      id: share.id,
-      type: share.file ? 'file' : 'folder',
-      name: share.file?.name || share.folder?.name,
-      mimeType: share.file?.mimeType,
-      size: share.file?.size?.toString(),
-      ownerName: share.owner.name,
-      hasPassword: !!share.password,
-      expiresAt: share.expiresAt,
-      downloadLimit: share.downloadLimit,
-      downloadCount: share.downloadCount,
+      share: {
+        id: share.id,
+        name: share.file?.name || share.folder?.name,
+        hasPassword: !!share.password,
+        expiresAt: share.expiresAt,
+        allowDownload: true, // Assuming true if not specified in schema, or add field
+        downloadLimit: share.downloadLimit,
+        downloadCount: share.downloadCount,
+      },
+      files: files.map(f => ({ ...f, size: f.size?.toString() })),
+      folders,
     });
   } catch (error) {
     console.error('Get public share error:', error);
@@ -460,6 +533,106 @@ router.get('/public/:token/download', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Download public file error:', error);
     res.status(500).json({ error: 'Failed to download' });
+  }
+});
+
+// Download individual file from shared folder
+router.get('/public/:token/files/:fileId/download', async (req: Request, res: Response) => {
+  try {
+    const { token, fileId } = req.params;
+    const { password } = req.query;
+
+    const share = await prisma.share.findFirst({
+      where: { publicToken: token, type: 'PUBLIC' },
+      include: {
+        folder: true,
+      },
+    });
+
+    if (!share || !share.folderId) {
+      res.status(404).json({ error: 'Share not found or not a folder share' });
+      return;
+    }
+
+    if (share.expiresAt && share.expiresAt < new Date()) {
+      res.status(410).json({ error: 'This share has expired' });
+      return;
+    }
+
+    // Issue #3: Validate download limit for individual files too
+    if (share.downloadLimit && share.downloadCount >= share.downloadLimit) {
+      res.status(410).json({ error: 'Download limit reached' });
+      return;
+    }
+
+    if (share.password) {
+      if (!password || typeof password !== 'string') {
+        res.status(401).json({ error: 'Password required' });
+        return;
+      }
+
+      const valid = await bcrypt.compare(password, share.password);
+      if (!valid) {
+        res.status(401).json({ error: 'Invalid password' });
+        return;
+      }
+    }
+
+    // Verify file belongs to shared folder (recursively)
+    // For simplicity, we just check if the file exists and is not in trash, 
+    // and we trust the ID if we want to be fast, BUT we must ensure it's inside the shared folder.
+    // A robust way is to traverse up from file.folderId until we hit share.folderId.
+
+    const file = await prisma.file.findUnique({
+      where: { id: fileId },
+    });
+
+    if (!file || file.isTrash) {
+      res.status(404).json({ error: 'File not found' });
+      return;
+    }
+
+    let isChild = false;
+    let currentFolderId = file.folderId;
+
+    // Safety depth limit (using centralized config)
+    let depth = 0;
+    while (currentFolderId && depth < config.limits.maxShareDepthCheck) {
+      if (currentFolderId === share.folderId) {
+        isChild = true;
+        break;
+      }
+      const folder = await prisma.folder.findUnique({
+        where: { id: currentFolderId },
+        select: { parentId: true },
+      });
+      currentFolderId = folder?.parentId || null;
+      depth++;
+    }
+
+    if (!isChild) {
+      res.status(403).json({ error: 'File does not belong to this share' });
+      return;
+    }
+
+    if (!await fileExists(file.path)) {
+      res.status(404).json({ error: 'File not found on disk' });
+      return;
+    }
+
+    // Increment download count for individual file downloads too
+    await prisma.share.update({
+      where: { id: share.id },
+      data: { downloadCount: { increment: 1 } },
+    });
+
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(file.name)}"`);
+    res.setHeader('Content-Type', file.mimeType);
+    res.sendFile(file.path);
+
+  } catch (error) {
+    console.error('Download shared file error:', error);
+    res.status(500).json({ error: 'Failed to download file' });
   }
 });
 

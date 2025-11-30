@@ -7,6 +7,7 @@ import archiver from 'archiver';
 import fs from 'fs/promises';
 import { fileExists, getStoragePath, deleteFile as deleteStorageFile } from '../lib/storage.js';
 import { v4 as uuidv4 } from 'uuid';
+import { config } from '../config/index.js';
 
 const router = Router();
 
@@ -127,11 +128,12 @@ router.get('/:id', authenticate, async (req: Request, res: Response) => {
       return;
     }
 
-    // Build breadcrumb
+    // Build breadcrumb with depth limit (using centralized config)
     const breadcrumb = [];
     let currentFolder = folder;
+    let depth = 0;
     
-    while (currentFolder) {
+    while (currentFolder && depth < config.limits.maxBreadcrumbDepth) {
       breadcrumb.unshift({ id: currentFolder.id, name: currentFolder.name });
       if (currentFolder.parentId) {
         const parent = await prisma.folder.findUnique({
@@ -141,6 +143,7 @@ router.get('/:id', authenticate, async (req: Request, res: Response) => {
       } else {
         break;
       }
+      depth++;
     }
 
     res.json({ folder: serializeFolder(folder), breadcrumb });
@@ -315,7 +318,13 @@ router.delete('/:id', authenticate, async (req: Request, res: Response) => {
       return;
     }
 
-    const deleteRecursively = async (folderId: string, isPermanent: boolean) => {
+    // Issue #13: Add depth limit to recursive deletion (using centralized config)
+    const deleteRecursively = async (folderId: string, isPermanent: boolean, depth: number = 0) => {
+      if (depth > config.limits.maxFolderDepth) {
+        console.error(`Maximum folder depth (${config.limits.maxFolderDepth}) exceeded during deletion`);
+        return;
+      }
+      
       const folderToDelete = await prisma.folder.findUnique({ where: { id: folderId } });
       if (!folderToDelete) return;
 
@@ -351,7 +360,7 @@ router.delete('/:id', authenticate, async (req: Request, res: Response) => {
       });
 
       for (const subfolder of subfolders) {
-        await deleteRecursively(subfolder.id, isPermanent);
+        await deleteRecursively(subfolder.id, isPermanent, depth + 1);
       }
 
       if (isPermanent) {
@@ -432,7 +441,7 @@ router.patch('/:id/favorite', authenticate, async (req: Request, res: Response) 
   }
 });
 
-// Download folder as ZIP
+// Download folder as ZIP (using centralized config for max size)
 router.get('/:id/download', authenticate, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -444,6 +453,41 @@ router.get('/:id/download', authenticate, async (req: Request, res: Response) =>
 
     if (!folder) {
       res.status(404).json({ error: 'Folder not found' });
+      return;
+    }
+
+    // Calculate total folder size before creating ZIP
+    const calculateFolderSize = async (folderId: string): Promise<bigint> => {
+      let totalSize = BigInt(0);
+      
+      const files = await prisma.file.findMany({
+        where: { folderId, isTrash: false },
+        select: { size: true },
+      });
+      
+      for (const file of files) {
+        totalSize += file.size;
+      }
+      
+      const subfolders = await prisma.folder.findMany({
+        where: { parentId: folderId, isTrash: false },
+        select: { id: true },
+      });
+      
+      for (const subfolder of subfolders) {
+        totalSize += await calculateFolderSize(subfolder.id);
+      }
+      
+      return totalSize;
+    };
+
+    const totalSize = await calculateFolderSize(id);
+    if (totalSize > BigInt(config.limits.maxZipSize)) {
+      res.status(400).json({ 
+        error: 'Folder too large for ZIP download', 
+        maxSize: config.limits.maxZipSize,
+        folderSize: totalSize.toString(),
+      });
       return;
     }
 

@@ -230,11 +230,21 @@ router.post('/login', validate(loginSchema), async (req: Request, res: Response)
 
     if (!user.password) {
       // User exists but registered with Google OAuth
+      // Security: Use generic error message to prevent user enumeration
       await recordLoginAttempt(email, ipAddress, false, userAgent);
       
+      await auditLog({
+        action: 'LOGIN_FAILED',
+        userId: user.id,
+        ipAddress,
+        userAgent,
+        details: { email, reason: 'oauth_account_password_login' },
+        success: false,
+      });
+      
       res.status(401).json({ 
-        error: 'Esta cuenta fue creada con Google. Por favor, inicia sesión con Google.',
-        code: 'OAUTH_ACCOUNT',
+        error: 'Email o contraseña incorrectos.',
+        code: 'INVALID_CREDENTIALS',
         remainingAttempts: lockoutStatus.remainingAttempts - 1,
       });
       return;
@@ -499,33 +509,44 @@ router.post('/reset-password', validate(resetPasswordSchema), async (req: Reques
   try {
     const { token, password } = req.body;
 
-    const user = await prisma.user.findFirst({
-      where: {
-        resetToken: token,
-        resetTokenExpiry: { gt: new Date() },
-      },
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    // Issue #5: Use transaction to atomically verify and invalidate token
+    const result = await prisma.$transaction(async (tx) => {
+      // Find and immediately invalidate the token in one operation
+      const user = await tx.user.findFirst({
+        where: {
+          resetToken: token,
+          resetTokenExpiry: { gt: new Date() },
+        },
+      });
+
+      if (!user) {
+        return null;
+      }
+
+      // Update password and invalidate token atomically
+      await tx.user.update({
+        where: { id: user.id },
+        data: {
+          password: hashedPassword,
+          resetToken: null,
+          resetTokenExpiry: null,
+        },
+      });
+
+      // Invalidate all refresh tokens
+      await tx.refreshToken.deleteMany({
+        where: { userId: user.id },
+      });
+
+      return user;
     });
 
-    if (!user) {
+    if (!result) {
       res.status(400).json({ error: 'Invalid or expired reset token' });
       return;
     }
-
-    const hashedPassword = await bcrypt.hash(password, 12);
-
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        password: hashedPassword,
-        resetToken: null,
-        resetTokenExpiry: null,
-      },
-    });
-
-    // Invalidate all refresh tokens
-    await prisma.refreshToken.deleteMany({
-      where: { userId: user.id },
-    });
 
     res.json({ message: 'Password reset successfully' });
   } catch (error) {
@@ -567,26 +588,8 @@ router.get('/verify-email/:token', validate(verifyEmailSchema), async (req: Requ
   }
 });
 
-// Check email exists
-router.get('/check-email', async (req: Request, res: Response) => {
-  try {
-    const { email } = req.query;
-
-    if (!email || typeof email !== 'string') {
-      res.status(400).json({ error: 'Email is required' });
-      return;
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { email },
-      select: { id: true },
-    });
-
-    res.json({ exists: !!user });
-  } catch (error) {
-    console.error('Check email error:', error);
-    res.status(500).json({ error: 'Failed to check email' });
-  }
-});
+// Check email exists - REMOVED for security (Issue #4: prevents user enumeration)
+// If you need this functionality, implement it with rate limiting and CAPTCHA
+// router.get('/check-email', ...) - DISABLED
 
 export default router;

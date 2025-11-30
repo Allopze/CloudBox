@@ -38,6 +38,7 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [contextMenuSelection, setContextMenuSelection] = useState<Set<string>>(new Set());
   const contextMenuRef = useRef<HTMLDivElement>(null);
 
   // Close context menu when location changes
@@ -70,10 +71,18 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
     e.preventDefault();
     e.stopPropagation();
     
+    // Get fresh state from store to ensure we have the latest selection
+    const currentSelectedItems = useFileStore.getState().selectedItems;
+    
     // If this item is not already selected, select only this item
     // If it's already selected (possibly as part of multi-select), keep the selection
-    if (!selectedItems.has(folder.id)) {
+    if (!currentSelectedItems.has(folder.id)) {
       selectSingle(folder.id);
+      // Save the new selection (just this folder)
+      setContextMenuSelection(new Set([folder.id]));
+    } else {
+      // Save the current multi-selection for use in context menu actions
+      setContextMenuSelection(new Set(currentSelectedItems));
     }
     
     setContextMenu({ x: e.clientX, y: e.clientY });
@@ -120,13 +129,13 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
   const handleDelete = async () => {
     setContextMenu(null);
     
-    // Get fresh state from store to ensure we have the latest selection
-    const currentSelectedItems = useFileStore.getState().selectedItems;
+    // Use the selection that was captured when the context menu was opened
+    const itemsToDelete = contextMenuSelection;
     const clearSelectionFn = useFileStore.getState().clearSelection;
     
     // If multiple items are selected and this folder is one of them, delete all selected
-    if (currentSelectedItems.size > 1 && currentSelectedItems.has(folder.id)) {
-      const itemIds = Array.from(currentSelectedItems);
+    if (itemsToDelete.size > 1 && itemsToDelete.has(folder.id)) {
+      const itemIds = Array.from(itemsToDelete);
       const total = itemIds.length;
       
       const opId = addOperation({

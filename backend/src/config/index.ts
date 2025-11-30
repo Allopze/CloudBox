@@ -46,4 +46,12 @@ export const config = {
   trash: {
     retentionDays: parseInt(process.env.TRASH_RETENTION_DAYS || '30'),
   },
+  
+  // Security: Centralized limits for folder depth operations
+  limits: {
+    maxFolderDepth: parseInt(process.env.MAX_FOLDER_DEPTH || '50'),
+    maxBreadcrumbDepth: parseInt(process.env.MAX_BREADCRUMB_DEPTH || '100'),
+    maxZipSize: parseInt(process.env.MAX_ZIP_SIZE || String(50 * 1024 * 1024 * 1024)), // 50GB
+    maxShareDepthCheck: parseInt(process.env.MAX_SHARE_DEPTH_CHECK || '50'),
+  },
 };

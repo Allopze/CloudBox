@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useThemeStore } from '../stores/themeStore';
 import { useAuthStore } from '../stores/authStore';
@@ -31,6 +31,23 @@ import { formatBytes } from '../lib/utils';
 import { api, getFileUrl } from '../lib/api';
 import { toast } from './ui/Toast';
 
+// Issue #18: Debounce hook for search
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+
 export default function Header() {
   const navigate = useNavigate();
   const { isDark, toggleTheme } = useThemeStore();
@@ -49,6 +66,16 @@ export default function Header() {
   const [isCreateFileModalOpen, setCreateFileModalOpen] = useState(false);
 
   const selectedCount = selectedItems.size;
+
+  // Issue #18: Debounce search query (300ms delay)
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+
+  // Effect to navigate when debounced search changes
+  useEffect(() => {
+    if (debouncedSearchQuery.trim()) {
+      navigate(`/files?search=${encodeURIComponent(debouncedSearchQuery.trim())}`);
+    }
+  }, [debouncedSearchQuery, navigate]);
 
   // Calculate upload progress percentage
   const uploadProgress = totalBytes > 0 ? Math.round((uploadedBytes / totalBytes) * 100) : 0;
@@ -112,6 +139,7 @@ export default function Header() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
+    // Issue #18: Allow immediate search on form submit (Enter key)
     if (searchQuery.trim()) {
       navigate(`/files?search=${encodeURIComponent(searchQuery.trim())}`);
     }

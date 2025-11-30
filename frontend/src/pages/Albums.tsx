@@ -30,7 +30,7 @@ export default function Albums() {
   const [creating, setCreating] = useState(false);
   const [availablePhotos, setAvailablePhotos] = useState<FileItem[]>([]);
   const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
-  
+
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [photoContextMenu, setPhotoContextMenu] = useState<PhotoContextMenuState | null>(null);
@@ -78,13 +78,30 @@ export default function Albums() {
   }, []);
 
   useEffect(() => {
+    const abortController = new AbortController();
+    
     setLoading(true);
     clearSelection();
-    if (albumId) {
-      loadAlbumDetails(albumId).finally(() => setLoading(false));
-    } else {
-      loadAlbums().finally(() => setLoading(false));
-    }
+    
+    const loadData = async () => {
+      try {
+        if (albumId) {
+          await loadAlbumDetails(albumId);
+        } else {
+          await loadAlbums();
+        }
+      } finally {
+        if (!abortController.signal.aborted) {
+          setLoading(false);
+        }
+      }
+    };
+    
+    loadData();
+    
+    return () => {
+      abortController.abort();
+    };
   }, [albumId, loadAlbums, loadAlbumDetails, clearSelection]);
 
   // Listen for workzone refresh event
@@ -229,7 +246,7 @@ export default function Albums() {
   const handleFavoritePhoto = async (photo: FileItem) => {
     try {
       await api.patch(`/files/${photo.id}/favorite`);
-      setAlbumPhotos(prev => prev.map(p => 
+      setAlbumPhotos(prev => prev.map(p =>
         p.id === photo.id ? { ...p, isFavorite: !p.isFavorite } : p
       ));
       toast(photo.isFavorite ? 'Eliminado de favoritos' : 'Añadido a favoritos', 'success');
@@ -275,7 +292,7 @@ export default function Albums() {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             {albumPhotos.map((photo) => {
               const isSelected = selectedItems.has(photo.id);
-              
+
               const handlePhotoClick = (e: React.MouseEvent) => {
                 e.stopPropagation();
                 // Shift+Click: Range selection
@@ -296,7 +313,7 @@ export default function Albums() {
                   selectSingle(photo.id);
                 }
               };
-              
+
               return (
                 <motion.div
                   key={photo.id}
@@ -417,9 +434,9 @@ export default function Albums() {
                   <span>Ver imagen</span>
                 </button>
               </div>
-              
+
               <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
-              
+
               {/* Acciones */}
               <div className="px-2 py-1">
                 <button
@@ -444,9 +461,9 @@ export default function Albums() {
                   <span>Copiar enlace</span>
                 </button>
               </div>
-              
+
               <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
-              
+
               {/* Organización */}
               <div className="px-2 py-1">
                 <button
@@ -464,9 +481,9 @@ export default function Albums() {
                   <span>Información</span>
                 </button>
               </div>
-              
+
               <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
-              
+
               {/* Quitar del álbum */}
               <div className="px-2 py-1">
                 <button
@@ -517,7 +534,7 @@ export default function Albums() {
                   <p className="text-sm text-dark-500">{infoPhoto.mimeType}</p>
                 </div>
               </div>
-              
+
               <div className="space-y-3 mb-6">
                 <div className="flex justify-between py-2 border-b border-dark-200 dark:border-dark-700">
                   <span className="text-dark-500">Tamaño</span>
@@ -532,7 +549,7 @@ export default function Albums() {
                   <span className="text-dark-900 dark:text-white font-medium">{infoPhoto.isFavorite ? 'Sí' : 'No'}</span>
                 </div>
               </div>
-              
+
               <div className="flex justify-end">
                 <Button onClick={() => setInfoPhoto(null)}>
                   Cerrar
@@ -544,7 +561,7 @@ export default function Albums() {
 
         {/* Lightbox */}
         {lightboxPhoto && (
-          <div 
+          <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/90"
             onClick={() => setLightboxPhoto(null)}
           >
@@ -568,7 +585,7 @@ export default function Albums() {
 
   // Albums list view
   return (
-    <div 
+    <div
       className="h-full"
       onContextMenu={(e) => {
         e.preventDefault();
@@ -605,8 +622,19 @@ export default function Albums() {
               to={`/albums/${album.id}`}
               className="group rounded-lg border border-dark-100 dark:border-dark-700 overflow-hidden hover:border-dark-200 dark:hover:border-dark-600 transition-colors"
             >
-              <div className="aspect-square bg-dark-50 dark:bg-dark-800 flex items-center justify-center">
-                {album.coverUrl ? (
+              <div className="aspect-square bg-dark-50 dark:bg-dark-800 flex items-center justify-center overflow-hidden">
+                {album.files && album.files.length >= 4 ? (
+                  <div className="grid grid-cols-2 grid-rows-2 w-full h-full gap-0.5">
+                    {album.files.slice(0, 4).map((file) => (
+                      <img
+                        key={file.id}
+                        src={getFileUrl(`/files/${file.id}/thumbnail`)}
+                        alt={file.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ))}
+                  </div>
+                ) : album.coverUrl ? (
                   <img
                     src={album.coverUrl}
                     alt={album.name}

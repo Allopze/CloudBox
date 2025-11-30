@@ -7,8 +7,8 @@ import compression from 'compression';
 import path from 'path';
 import { config } from './config/index.js';
 import { errorHandler } from './middleware/error.js';
-import { initStorage, updateParentFolderSizes } from './lib/storage.js';
-import prisma from './lib/prisma.js';
+import { initStorage } from './lib/storage.js';
+import prisma, { updateParentFolderSizes } from './lib/prisma.js';
 import { auditContext, suspiciousActivityDetector } from './lib/audit.js';
 
 // Routes
@@ -126,6 +126,26 @@ const authLimiter = rateLimit({
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
 
+// Security Fix: Rate limiting for password reset and email verification endpoints
+const sensitiveAuthLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5, // 5 requests per hour per IP
+  message: { error: 'Too many attempts. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/auth/forgot-password', sensitiveAuthLimiter);
+app.use('/api/auth/reset-password', sensitiveAuthLimiter);
+app.use('/api/auth/verify-email', sensitiveAuthLimiter);
+
+// Issue #22: Rate limiting for admin endpoints
+const adminLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // 100 requests per window for admin operations
+  message: { error: 'Too many admin requests, please try again later' },
+});
+app.use('/api/admin', adminLimiter);
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
@@ -144,13 +164,19 @@ app.get('/api/health', async (req, res) => {
     // Check database connection
     await prisma.$queryRaw`SELECT 1`;
 
-    res.json({
+    // Security: Only expose version in development mode
+    const response: Record<string, any> = {
       status: 'healthy',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       database: 'connected',
-      version: process.env.npm_package_version || '1.0.0',
-    });
+    };
+
+    if (config.nodeEnv === 'development') {
+      response.version = process.env.npm_package_version || '1.0.0';
+    }
+
+    res.json(response);
   } catch (error) {
     res.status(503).json({
       status: 'unhealthy',
@@ -273,6 +299,70 @@ const cleanupTempStorage = async () => {
 
 setInterval(cleanupTempStorage, 6 * 60 * 60 * 1000); // Every 6 hours
 
+// Issue #6: Cleanup expired refresh tokens (run every hour)
+const cleanupExpiredTokens = async () => {
+  try {
+    const { count } = await prisma.refreshToken.deleteMany({
+      where: { expiresAt: { lt: new Date() } },
+    });
+    
+    if (count > 0) {
+      console.log(`Cleaned up ${count} expired refresh tokens`);
+    }
+  } catch (error) {
+    console.error('Refresh token cleanup error:', error);
+  }
+};
+
+setInterval(cleanupExpiredTokens, 60 * 60 * 1000); // Every hour
+
+// Cleanup orphan chunks (run every hour)
+const cleanupOrphanChunks = async () => {
+  const fs = await import('fs/promises');
+  const path = await import('path');
+  
+  try {
+    const chunksDir = path.join(config.storage.path, 'chunks');
+    
+    // Check if chunks directory exists
+    try {
+      await fs.access(chunksDir);
+    } catch {
+      return; // Directory doesn't exist, nothing to clean
+    }
+    
+    const uploadDirs = await fs.readdir(chunksDir);
+    const now = Date.now();
+    const MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
+    let cleanedCount = 0;
+    
+    for (const uploadId of uploadDirs) {
+      const uploadPath = path.join(chunksDir, uploadId);
+      
+      try {
+        const stats = await fs.stat(uploadPath);
+        
+        // If directory is older than 24 hours, remove it
+        if (now - stats.mtimeMs > MAX_AGE_MS) {
+          await fs.rm(uploadPath, { recursive: true, force: true });
+          cleanedCount++;
+        }
+      } catch (error) {
+        // If we can't stat or remove, skip it
+        console.error(`Error cleaning chunk directory ${uploadId}:`, error);
+      }
+    }
+    
+    if (cleanedCount > 0) {
+      console.log(`Cleaned up ${cleanedCount} orphan chunk directories`);
+    }
+  } catch (error) {
+    console.error('Orphan chunk cleanup error:', error);
+  }
+};
+
+setInterval(cleanupOrphanChunks, 60 * 60 * 1000); // Every hour
+
 // Initialize and start server
 const start = async () => {
   try {
@@ -286,6 +376,8 @@ const start = async () => {
     // Run initial cleanups
     await cleanupTrash();
     await cleanupTempStorage();
+    await cleanupOrphanChunks();
+    await cleanupExpiredTokens();
 
     app.listen(config.port, () => {
       console.log(`Server running on port ${config.port}`);

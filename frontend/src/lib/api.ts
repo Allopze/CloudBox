@@ -52,6 +52,15 @@ const processQueue = (error: any, token: string | null = null) => {
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
+    // Issue #26: Better handling of network errors vs server errors
+    if (!error.response) {
+      // Network error (no response from server)
+      const networkError = new Error('Error de conexión. Por favor verifica tu conexión a internet.');
+      (networkError as any).isNetworkError = true;
+      (networkError as any).originalError = error;
+      return Promise.reject(networkError);
+    }
+
     const originalRequest = error.config;
 
     if (error.response?.status === 401 && !originalRequest._retry) {

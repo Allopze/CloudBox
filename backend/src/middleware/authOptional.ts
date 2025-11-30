@@ -5,9 +5,19 @@ import { config } from '../config/index.js';
 // Note: Request.user type is declared in auth.ts
 
 export const authOptional = async (req: Request, res: Response, next: NextFunction) => {
-  const tokenFromQuery = req.query.token as string;
+  // Prefer Authorization header over query string for security
+  // Query string tokens can be logged in server logs and browser history
   const tokenFromHeader = req.headers.authorization?.split(' ')[1];
-  const token = tokenFromQuery || tokenFromHeader;
+  const tokenFromQuery = req.query.token as string;
+  
+  // Use header token first, fall back to query string only for download/stream endpoints
+  // where Authorization header might not be available (e.g., direct browser navigation)
+  const token = tokenFromHeader || tokenFromQuery;
+
+  // Clear token from query to prevent it from being logged
+  if (tokenFromQuery) {
+    delete req.query.token;
+  }
 
   if (!token) {
     return next();

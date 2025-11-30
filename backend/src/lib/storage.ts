@@ -46,7 +46,18 @@ export const getBrandingPath = (type: 'logo-light' | 'logo-dark' | 'favicon'): s
   return getStoragePath('branding', `${type}${ext}`);
 };
 
+// UUID regex for validation
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export const isValidUUID = (id: string): boolean => {
+  return UUID_REGEX.test(id);
+};
+
 export const getChunkPath = (uploadId: string, chunkIndex: number): string => {
+  // Validate uploadId to prevent path traversal
+  if (!isValidUUID(uploadId)) {
+    throw new Error('Invalid upload ID');
+  }
   return getStoragePath('chunks', uploadId, `chunk_${chunkIndex}`);
 };
 
@@ -116,42 +127,26 @@ export const streamFile = async (
 
     const { createReadStream } = await import('fs');
     const stream = createReadStream(file.path, { start, end });
+    
+    // Handle stream errors
+    stream.on('error', (err) => {
+      console.error('Stream error:', err);
+      stream.destroy();
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Stream error' });
+      }
+    });
+    
+    // Cleanup on client disconnect
+    res.on('close', () => {
+      stream.destroy();
+    });
+    
     stream.pipe(res);
   } else {
     res.setHeader('Content-Type', file.mimeType);
     res.setHeader('Content-Length', stat.size);
     res.setHeader('Accept-Ranges', 'bytes');
     res.sendFile(file.path);
-  }
-};
-
-export const updateParentFolderSizes = async (
-  folderId: string | null,
-  sizeChange: bigint,
-  prismaClient: any,
-  operation: 'increment' | 'decrement'
-) => {
-  if (!folderId) return;
-
-  let currentFolderId = folderId;
-
-  while (currentFolderId) {
-    const folder = await prismaClient.folder.findUnique({
-      where: { id: currentFolderId },
-      select: { id: true, parentId: true },
-    });
-
-    if (!folder) break;
-
-    await prismaClient.folder.update({
-      where: { id: currentFolderId },
-      data: {
-        size: {
-          [operation]: sizeChange,
-        },
-      },
-    });
-
-    currentFolderId = folder.parentId;
   }
 };
