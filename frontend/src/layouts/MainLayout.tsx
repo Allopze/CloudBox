@@ -6,11 +6,15 @@ import UploadProgress from '../components/UploadProgress';
 import UploadModal from '../components/modals/UploadModal';
 import CreateFolderModal from '../components/modals/CreateFolderModal';
 import CreateFileModal from '../components/modals/CreateFileModal';
+import DragPreview from '../components/files/DragPreview';
+import Breadcrumbs from '../components/files/Breadcrumbs';
 import { useUIStore } from '../stores/uiStore';
 import { useFileStore } from '../stores/fileStore';
+import { useDragDropStore } from '../stores/dragDropStore';
 import { useUploadStore } from '../stores/uploadStore';
 import { useBrandingStore } from '../stores/brandingStore';
 import { useGlobalProgressStore } from '../stores/globalProgressStore';
+import { useAuthStore } from '../stores/authStore';
 import { cn } from '../lib/utils';
 import { PanelLeftClose, PanelLeft, Grid, List, SortAsc, SortDesc, Check, Link as LinkIcon, Users, Image, Star, Video, Camera, FolderOpen, Settings, ShieldCheck, Home, ChevronRight, Upload, FolderPlus, Trash2, Music, Disc, Plus, ArrowLeft, FilePlus, FolderUp, CheckSquare, RefreshCw } from 'lucide-react';
 import { Album } from '../types';
@@ -34,9 +38,11 @@ const pagesWithBreadcrumbs = ['/files'];
 export default function MainLayout() {
   const { sidebarOpen, toggleSidebar } = useUIStore();
   const { viewMode, setViewMode, sortBy, sortOrder, setSortBy, setSortOrder, breadcrumbs, selectAll, clearSelection, selectedItems } = useFileStore();
+  const { isDragging: isInternalDragging, endDrag } = useDragDropStore();
   const { setGlobalProgress, resetGlobalProgress } = useUploadStore();
   const { branding } = useBrandingStore();
   const { addOperation, incrementProgress, completeOperation, failOperation } = useGlobalProgressStore();
+  const { refreshUser } = useAuthStore();
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -76,17 +82,27 @@ export default function MainLayout() {
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   };
 
-  // Global drag and drop handlers
+  // Global drag and drop handlers (for external file uploads only)
   const handleDragEnter = useCallback((e: DragEvent) => {
+    // Ignore internal drags (file/folder moves within the app)
+    if (isInternalDragging) return;
+    
+    // Check if this is an external file drag (from OS)
+    const hasFiles = e.dataTransfer?.types?.includes('Files');
+    if (!hasFiles) return;
+    
     e.preventDefault();
     e.stopPropagation();
     setDragCounter((prev) => prev + 1);
     if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
       setIsDragging(true);
     }
-  }, []);
+  }, [isInternalDragging]);
 
   const handleDragLeave = useCallback((e: DragEvent) => {
+    // Ignore internal drags
+    if (isInternalDragging) return;
+    
     e.preventDefault();
     e.stopPropagation();
     setDragCounter((prev) => {
@@ -96,12 +112,19 @@ export default function MainLayout() {
       }
       return newCount;
     });
-  }, []);
+  }, [isInternalDragging]);
 
   const handleDragOver = useCallback((e: DragEvent) => {
+    // Ignore internal drags
+    if (isInternalDragging) return;
+    
+    // Check if this is an external file drag
+    const hasFiles = e.dataTransfer?.types?.includes('Files');
+    if (!hasFiles) return;
+    
     e.preventDefault();
     e.stopPropagation();
-  }, []);
+  }, [isInternalDragging]);
 
   // Helper to read all files from a directory entry recursively
   const readDirectoryEntries = async (
@@ -144,6 +167,9 @@ export default function MainLayout() {
   };
 
   const handleDrop = useCallback(async (e: DragEvent) => {
+    // Ignore internal drags (handled by individual components)
+    if (isInternalDragging) return;
+    
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
@@ -151,6 +177,10 @@ export default function MainLayout() {
 
     const items = e.dataTransfer?.items;
     if (!items || items.length === 0) return;
+    
+    // Check if this is an external file drag
+    const hasFiles = e.dataTransfer?.types?.includes('Files');
+    if (!hasFiles) return;
 
     // Get current folder ID from URL
     const urlParams = new URLSearchParams(window.location.search);
@@ -158,14 +188,23 @@ export default function MainLayout() {
 
     const allFiles: { file: File; relativePath: string }[] = [];
 
-    // Process each dropped item
-    for (const item of Array.from(items)) {
+    // IMPORTANT: Collect all entries SYNCHRONOUSLY before any async operations
+    // DataTransferItemList and its items become invalid after the event handler returns
+    // or after any async operation, so we must extract all FileSystemEntry objects first
+    const entries: { entry: FileSystemEntry | null; file: File | null }[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
       if (item.kind !== 'file') continue;
       
       const entry = item.webkitGetAsEntry?.();
+      const file = item.getAsFile();
+      entries.push({ entry, file });
+    }
+
+    // Now process entries asynchronously
+    for (const { entry, file } of entries) {
       if (!entry) {
         // Fallback for browsers without webkitGetAsEntry
-        const file = item.getAsFile();
         if (file) {
           allFiles.push({ file, relativePath: file.name });
         }
@@ -174,10 +213,10 @@ export default function MainLayout() {
 
       if (entry.isFile) {
         const fileEntry = entry as FileSystemFileEntry;
-        const file = await new Promise<File>((resolve, reject) => {
+        const resolvedFile = await new Promise<File>((resolve, reject) => {
           fileEntry.file(resolve, reject);
         });
-        allFiles.push({ file, relativePath: file.name });
+        allFiles.push({ file: resolvedFile, relativePath: resolvedFile.name });
       } else if (entry.isDirectory) {
         const dirFiles = await readDirectoryEntries(
           entry as FileSystemDirectoryEntry,
@@ -228,11 +267,12 @@ export default function MainLayout() {
       resetGlobalProgress();
       toast(`${allFiles.length} archivo(s) subido(s) correctamente`, 'success');
       triggerRefresh();
+      refreshUser(); // Update storage info in sidebar
     } catch {
       resetGlobalProgress();
       toast('Error al subir los archivos', 'error');
     }
-  }, [setGlobalProgress, resetGlobalProgress]);
+  }, [setGlobalProgress, resetGlobalProgress, isInternalDragging, refreshUser]);
 
   // Set up global drag and drop listeners
   useEffect(() => {
@@ -248,6 +288,18 @@ export default function MainLayout() {
       window.removeEventListener('drop', handleDrop);
     };
   }, [handleDragEnter, handleDragLeave, handleDragOver, handleDrop]);
+
+  // Clean up internal drag state if drag ends without dropping on a valid target
+  useEffect(() => {
+    const handleGlobalDragEnd = () => {
+      if (isInternalDragging) {
+        endDrag();
+      }
+    };
+    
+    window.addEventListener('dragend', handleGlobalDragEnd);
+    return () => window.removeEventListener('dragend', handleGlobalDragEnd);
+  }, [isInternalDragging, endDrag]);
 
   // Close context menu on any click outside
   useEffect(() => {
@@ -318,6 +370,7 @@ export default function MainLayout() {
           toast(`${total} elemento${total > 1 ? 's' : ''} movido${total > 1 ? 's' : ''} a papelera`, 'success');
           // Trigger a refresh by dispatching a custom event
           window.dispatchEvent(new CustomEvent('workzone-refresh'));
+          refreshUser(); // Update storage info in sidebar
         } catch {
           failOperation(opId, 'Error al eliminar elementos');
           toast('Error al eliminar elementos', 'error');
@@ -329,7 +382,7 @@ export default function MainLayout() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [selectAll, clearSelection, selectedItems, addOperation, incrementProgress, completeOperation, failOperation]);
+  }, [selectAll, clearSelection, selectedItems, addOperation, incrementProgress, completeOperation, failOperation, refreshUser]);
 
   // Helper function to update selection based on marquee bounds
   const updateMarqueeSelection = useCallback((startX: number, startY: number, endX: number, endY: number) => {
@@ -366,6 +419,9 @@ export default function MainLayout() {
 
   // Marquee selection handlers
   const handleMarqueeMouseDown = useCallback((e: React.MouseEvent) => {
+    // Don't start marquee if internal drag is active
+    if (isInternalDragging) return;
+    
     // Only start marquee on left click and if clicking on the workzone background (not on items)
     if (e.button !== 0) return;
     const target = e.target as HTMLElement;
@@ -382,7 +438,7 @@ export default function MainLayout() {
         clearSelection();
       }
     }
-  }, [clearSelection]);
+  }, [clearSelection, isInternalDragging]);
 
   // Store marquee state in refs for auto-scroll access
   const marqueeStartRef = useRef(marqueeStart);
@@ -467,17 +523,29 @@ export default function MainLayout() {
       const distanceFromTop = mouseY - rect.top;
       const distanceFromBottom = rect.bottom - mouseY;
       
-      // Scroll down when near bottom edge
-      if (distanceFromBottom < edgeThreshold && distanceFromBottom >= 0) {
+      // Calculate scroll limits to prevent infinite scrolling
+      const maxScrollTop = workzoneRef.current.scrollHeight - workzoneRef.current.clientHeight;
+      const currentScrollTop = workzoneRef.current.scrollTop;
+      
+      // Scroll down when near bottom edge (but not beyond content)
+      if (distanceFromBottom < edgeThreshold && distanceFromBottom >= 0 && currentScrollTop < maxScrollTop) {
         const intensity = Math.min((edgeThreshold - distanceFromBottom) / edgeThreshold, 1);
-        scrolledY = Math.ceil(scrollSpeed * intensity);
-        workzoneRef.current.scrollTop += scrolledY;
+        const desiredScroll = Math.ceil(scrollSpeed * intensity);
+        // Clamp to not exceed max scroll
+        scrolledY = Math.min(desiredScroll, maxScrollTop - currentScrollTop);
+        if (scrolledY > 0) {
+          workzoneRef.current.scrollTop += scrolledY;
+        }
       }
       // Scroll up when near top edge
-      else if (distanceFromTop < edgeThreshold && distanceFromTop >= 0 && workzoneRef.current.scrollTop > 0) {
+      else if (distanceFromTop < edgeThreshold && distanceFromTop >= 0 && currentScrollTop > 0) {
         const intensity = Math.min((edgeThreshold - distanceFromTop) / edgeThreshold, 1);
-        scrolledY = -Math.ceil(scrollSpeed * intensity);
-        workzoneRef.current.scrollTop += scrolledY;
+        const desiredScroll = Math.ceil(scrollSpeed * intensity);
+        // Clamp to not go below 0
+        scrolledY = -Math.min(desiredScroll, currentScrollTop);
+        if (scrolledY < 0) {
+          workzoneRef.current.scrollTop += scrolledY;
+        }
       }
       
       // Update marquee end position and selection if scrolled
@@ -594,6 +662,7 @@ export default function MainLayout() {
       });
       toast('Carpeta subida correctamente', 'success');
       triggerRefresh();
+      refreshUser(); // Update storage info in sidebar
     } catch (error: any) {
       toast(error.response?.data?.error || 'Error al subir la carpeta', 'error');
     }
@@ -852,33 +921,11 @@ export default function MainLayout() {
                 )}
                 </>
               ) : showBreadcrumbs ? (
-                <div className="flex items-center gap-1 overflow-x-auto">
-                  <button
-                    onClick={() => navigate('/files')}
-                    className="flex items-center gap-1 px-2 py-1 text-sm font-medium text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5 rounded-lg transition-colors"
-                    aria-label="Ir a la raíz de archivos"
-                  >
-                    <Home className="w-4 h-4" />
-                    <span>Inicio</span>
-                  </button>
-                  {breadcrumbs.map((crumb, index) => (
-                    <Fragment key={`${crumb.id}-${index}`}>
-                      <ChevronRight className="w-4 h-4 text-dark-400 mx-1" />
-                      <button
-                        onClick={() => navigate(`/files?folder=${crumb.id}`)}
-                        className={cn(
-                          'px-2 py-1 text-sm font-medium rounded-lg transition-colors truncate max-w-32',
-                          index === breadcrumbs.length - 1
-                            ? 'text-dark-900 dark:text-white bg-dark-100 dark:bg-white/10'
-                            : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
-                        )}
-                        aria-label={`Ir a carpeta ${crumb.name}`}
-                      >
-                        {crumb.name}
-                      </button>
-                    </Fragment>
-                  ))}
-                </div>
+                <Breadcrumbs 
+                  items={breadcrumbs} 
+                  basePath="/files"
+                  onRefresh={triggerRefresh}
+                />
               ) : (
                 showViewControls ? (
                   <>
@@ -1155,6 +1202,9 @@ export default function MainLayout() {
         folderId={currentFolderId}
         onSuccess={triggerRefresh}
       />
+
+      {/* Drag Preview for file/folder drag and drop */}
+      <DragPreview />
     </div>
   );
 }

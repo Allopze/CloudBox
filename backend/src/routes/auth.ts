@@ -189,9 +189,10 @@ router.post('/login', validate(loginSchema), async (req: Request, res: Response)
     // Check for lockout
     const lockoutStatus = await checkLockout(email, ipAddress);
     if (lockoutStatus.isLocked) {
-      const minutesRemaining = lockoutStatus.lockoutEnd 
-        ? Math.ceil((lockoutStatus.lockoutEnd.getTime() - Date.now()) / 60000)
-        : 15;
+      const retryAfter = lockoutStatus.lockoutEnd 
+        ? Math.max(0, lockoutStatus.lockoutEnd.getTime() - Date.now())
+        : LOCKOUT_DURATION;
+      const minutesRemaining = Math.ceil(retryAfter / 60000);
       
       await auditLog({
         action: 'LOGIN_FAILED',
@@ -203,7 +204,9 @@ router.post('/login', validate(loginSchema), async (req: Request, res: Response)
       
       res.status(429).json({ 
         error: `Demasiados intentos fallidos. Intenta de nuevo en ${minutesRemaining} minutos.`,
+        code: 'TOO_MANY_ATTEMPTS',
         lockoutEnd: lockoutStatus.lockoutEnd,
+        retryAfter,
       });
       return;
     }

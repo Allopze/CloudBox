@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '../../lib/api';
+import { useAuthStore } from '../../stores/authStore';
 import { User } from '../../types';
 import { formatBytes, formatDate, cn } from '../../lib/utils';
 import {
@@ -22,6 +23,7 @@ import { toast } from '../../components/ui/Toast';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
+import ConfirmModal from '../../components/ui/ConfirmModal';
 import Dropdown, { DropdownItem, DropdownDivider } from '../../components/ui/Dropdown';
 
 interface StorageRequest {
@@ -46,10 +48,14 @@ interface StorageRequest {
 export default function AdminUsers() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const { user: currentUser, refreshUser } = useAuthStore();
 
   // Storage requests state
   const [storageRequests, setStorageRequests] = useState<StorageRequest[]>([]);
@@ -107,7 +113,7 @@ export default function AdminUsers() {
   const loadUsers = useCallback(async () => {
     try {
       const response = await api.get('/admin/users', {
-        params: search ? { search } : undefined,
+        params: searchQuery ? { search: searchQuery } : undefined,
       });
       setUsers(response.data.users || response.data || []);
     } catch (error) {
@@ -116,7 +122,7 @@ export default function AdminUsers() {
     } finally {
       setLoading(false);
     }
-  }, [search]);
+  }, [searchQuery]);
 
   const loadStorageRequests = useCallback(async () => {
     try {
@@ -225,6 +231,10 @@ export default function AdminUsers() {
       toast('User updated', 'success');
       setShowEditModal(false);
       loadUsers();
+      // If updating the current user, refresh their data in the auth store
+      if (selectedUser.id === currentUser?.id) {
+        await refreshUser();
+      }
     } catch (error: any) {
       toast(error.response?.data?.message || 'Failed to update user', 'error');
     } finally {
@@ -232,14 +242,24 @@ export default function AdminUsers() {
     }
   };
 
-  const deleteUser = async (user: User) => {
-    if (!confirm(`Are you sure you want to delete ${user.name}?`)) return;
+  const openDeleteConfirm = (user: User) => {
+    setUserToDelete(user);
+    setShowDeleteConfirm(true);
+  };
+
+  const deleteUser = async () => {
+    if (!userToDelete) return;
+    setIsDeleting(true);
     try {
-      await api.delete(`/admin/users/${user.id}`);
-      toast('User deleted', 'success');
+      await api.delete(`/admin/users/${userToDelete.id}`);
+      toast('Usuario eliminado', 'success');
       loadUsers();
     } catch (error) {
-      toast('Failed to delete user', 'error');
+      toast('Error al eliminar usuario', 'error');
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
+      setUserToDelete(null);
     }
   };
 
@@ -486,8 +506,8 @@ export default function AdminUsers() {
       <div className="mb-6">
         <Input
           placeholder="Search users..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
           icon={<Search className="w-5 h-5" />}
         />
       </div>
@@ -589,8 +609,8 @@ export default function AdminUsers() {
                       )}
                     </DropdownItem>
                     <DropdownDivider />
-                    <DropdownItem danger onClick={() => deleteUser(user)}>
-                      <Trash2 className="w-4 h-4" /> Delete
+                    <DropdownItem danger onClick={() => openDeleteConfirm(user)}>
+                      <Trash2 className="w-4 h-4" /> Eliminar
                     </DropdownItem>
                   </Dropdown>
                 </td>
@@ -846,6 +866,30 @@ export default function AdminUsers() {
           </div>
         )}
       </Modal>
+
+      {/* Delete User Confirmation */}
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        onClose={() => {
+          setShowDeleteConfirm(false);
+          setUserToDelete(null);
+        }}
+        onConfirm={deleteUser}
+        title="Eliminar usuario"
+        message={
+          userToDelete ? (
+            <>
+              ¿Estás seguro de que deseas eliminar a <strong>{userToDelete.name}</strong>?
+              <br />
+              <span className="text-sm">Esta acción no se puede deshacer. Todos los archivos del usuario serán eliminados permanentemente.</span>
+            </>
+          ) : ''
+        }
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        variant="danger"
+        loading={isDeleting}
+      />
     </div>
   );
 }

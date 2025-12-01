@@ -9,7 +9,7 @@ import { toast } from '../../components/ui/Toast';
 
 export default function Register() {
   const navigate = useNavigate();
-  const { register, isLoading } = useAuthStore();
+  const { register, isRegistering } = useAuthStore();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -42,7 +42,7 @@ export default function Register() {
       toast('¡Cuenta creada! Por favor verifica tu correo.', 'success');
       navigate('/login');
     } catch (err: any) {
-      const message = err.response?.data?.message || 'Error en el registro';
+      const message = err.response?.data?.error || err.response?.data?.message || 'Error en el registro';
       setError(message);
       toast(message, 'error');
     }
@@ -117,7 +117,7 @@ export default function Register() {
           <p className="text-sm text-red-600">{error}</p>
         )}
 
-        <Button type="submit" loading={isLoading} className="w-full rounded-full">
+        <Button type="submit" loading={isRegistering} className="w-full rounded-full">
           Crear cuenta
         </Button>
       </form>

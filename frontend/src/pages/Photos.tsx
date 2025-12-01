@@ -241,7 +241,7 @@ export default function Photos() {
     setLoadingAlbums(true);
     try {
       const response = await api.get('/albums');
-      setAlbums(response.data || []);
+      setAlbums(response.data.albums || []);
     } catch (error) {
       console.error('Failed to load albums:', error);
       toast('Error al cargar álbumes', 'error');

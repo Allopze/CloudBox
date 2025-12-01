@@ -40,9 +40,10 @@ import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
 import MusicPlayer from './components/MusicPlayer';
 import GlobalProgressIndicator from './components/ui/GlobalProgressIndicator';
+import { ToastContainer } from './components/ui/Toast';
 
 function App() {
-  const { checkAuth, isAuthenticated } = useAuthStore();
+  const { checkAuth, isAuthenticated, isLoading } = useAuthStore();
   const { isDark } = useThemeStore();
   const { loadBranding } = useBrandingStore();
 
@@ -64,6 +65,9 @@ function App() {
     }
   }, [isDark]);
 
+  // Don't redirect while checking auth - wait for it to complete
+  const shouldRedirectFromAuth = !isLoading && isAuthenticated;
+
   return (
     <>
       <Routes>
@@ -72,8 +76,8 @@ function App() {
 
         {/* Auth routes */}
         <Route element={<AuthLayout />}>
-          <Route path="/login" element={isAuthenticated ? <Navigate to="/" replace /> : <Login />} />
-          <Route path="/register" element={isAuthenticated ? <Navigate to="/" replace /> : <Register />} />
+          <Route path="/login" element={shouldRedirectFromAuth ? <Navigate to="/" replace /> : <Login />} />
+          <Route path="/register" element={shouldRedirectFromAuth ? <Navigate to="/" replace /> : <Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password/:token" element={<ResetPassword />} />
           <Route path="/verify-email/:token" element={<VerifyEmail />} />
@@ -109,6 +113,9 @@ function App() {
       
       {/* Global progress indicator for mass operations */}
       <GlobalProgressIndicator />
+      
+      {/* Toast notifications */}
+      <ToastContainer />
     </>
   );
 }

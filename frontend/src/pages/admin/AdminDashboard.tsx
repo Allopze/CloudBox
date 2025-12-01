@@ -34,6 +34,7 @@ import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
 import Dropdown, { DropdownItem, DropdownDivider } from '../../components/ui/Dropdown';
 import { useBrandingStore } from '../../stores/brandingStore';
+import { useAuthStore } from '../../stores/authStore';
 
 // Helper functions for byte conversion
 const bytesToUnit = (bytes: string): { value: string; unit: string } => {
@@ -183,6 +184,7 @@ const DEFAULT_TEMPLATES: Record<string, { subject: string; body: string; variabl
 
 export default function AdminDashboard() {
   const { setBranding } = useBrandingStore();
+  const { user: currentUser, refreshUser } = useAuthStore();
   
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -837,6 +839,10 @@ export default function AdminDashboard() {
       toast('Usuario actualizado', 'success');
       setShowEditModal(false);
       loadUsers();
+      // If updating the current user, refresh their data in the auth store
+      if (selectedUser.id === currentUser?.id) {
+        await refreshUser();
+      }
     } catch (error: any) {
       toast(error.response?.data?.message || 'Error al actualizar usuario', 'error');
     } finally {

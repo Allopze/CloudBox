@@ -1,12 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Folder } from '../../types';
+import { Folder, FileItem } from '../../types';
 import { useSearchParams, useLocation } from 'react-router-dom';
 import { useFileStore } from '../../stores/fileStore';
 import { useGlobalProgressStore } from '../../stores/globalProgressStore';
+import { useDragDropStore, DragItem } from '../../stores/dragDropStore';
+import { useAuthStore } from '../../stores/authStore';
 import {
   FolderIcon,
-  MoreVertical,
   Star,
   Share2,
   Trash2,
@@ -14,7 +15,7 @@ import {
   Move,
 } from 'lucide-react';
 import { formatDate, cn } from '../../lib/utils';
-import Dropdown, { DropdownItem, DropdownDivider } from '../ui/Dropdown';
+
 import { api } from '../../lib/api';
 import { toast } from '../ui/Toast';
 import ShareModal from '../modals/ShareModal';
@@ -33,13 +34,19 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
   const location = useLocation();
   const { selectedItems, addToSelection, removeFromSelection, selectRange, selectSingle, lastSelectedId } = useFileStore();
   const { addOperation, incrementProgress, completeOperation, failOperation } = useGlobalProgressStore();
+  const { isDragging, draggedItems, startDrag, updatePosition, endDrag } = useDragDropStore();
+  const { refreshUser } = useAuthStore();
   const isSelected = selectedItems.has(folder.id);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [contextMenuSelection, setContextMenuSelection] = useState<Set<string>>(new Set());
+  const [isDragOver, setIsDragOver] = useState(false);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+
+  // Check if this folder is being dragged (can't drop on itself)
+  const isSelfDragged = draggedItems.some(item => item.type === 'folder' && item.item.id === folder.id);
 
   // Close context menu when location changes
   useEffect(() => {
@@ -165,6 +172,7 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
         // Trigger refresh event and call onRefresh
         window.dispatchEvent(new CustomEvent('workzone-refresh'));
         onRefresh?.();
+        refreshUser(); // Update storage info in sidebar
       } catch {
         failOperation(opId, 'Error al eliminar elementos');
         toast('Error al eliminar elementos', 'error');
@@ -177,9 +185,123 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
         // Trigger refresh event and call onRefresh
         window.dispatchEvent(new CustomEvent('workzone-refresh'));
         onRefresh?.();
+        refreshUser(); // Update storage info in sidebar
       } catch {
         toast('Error al eliminar carpeta', 'error');
       }
+    }
+  };
+
+  // Drag and Drop handlers
+  const handleDragStart = (e: React.DragEvent) => {
+    e.stopPropagation();
+    
+    const currentSelectedItems = useFileStore.getState().selectedItems;
+    let itemsToDrag: DragItem[] = [];
+    
+    // If this folder is selected and there are multiple selections, drag all selected items
+    if (currentSelectedItems.has(folder.id) && currentSelectedItems.size > 1) {
+      // Get all selected items from the DOM
+      currentSelectedItems.forEach(id => {
+        const folderEl = document.querySelector(`[data-folder-item="${id}"]`);
+        const fileEl = document.querySelector(`[data-file-item="${id}"]`);
+        
+        if (folderEl) {
+          const folderData = folderEl.getAttribute('data-folder-data');
+          if (folderData) {
+            itemsToDrag.push({ type: 'folder', item: JSON.parse(folderData) });
+          }
+        } else if (fileEl) {
+          const fileData = fileEl.getAttribute('data-file-data');
+          if (fileData) {
+            itemsToDrag.push({ type: 'file', item: JSON.parse(fileData) });
+          }
+        }
+      });
+    }
+    
+    // If no items collected or this folder wasn't selected, just drag this folder
+    if (itemsToDrag.length === 0) {
+      itemsToDrag = [{ type: 'folder', item: folder }];
+      selectSingle(folder.id);
+    }
+    
+    startDrag(itemsToDrag);
+    
+    // Set drag data for compatibility
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', JSON.stringify(itemsToDrag.map(i => ({ type: i.type, id: i.item.id }))));
+    
+    // Hide default drag image
+    const emptyImg = document.createElement('img');
+    emptyImg.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+    e.dataTransfer.setDragImage(emptyImg, 0, 0);
+  };
+
+  const handleDrag = (e: React.DragEvent) => {
+    if (e.clientX !== 0 || e.clientY !== 0) {
+      updatePosition(e.clientX, e.clientY);
+    }
+  };
+
+  const handleDragEnd = () => {
+    endDrag();
+    setIsDragOver(false);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Don't allow dropping on itself
+    if (isSelfDragged) return;
+    
+    e.dataTransfer.dropEffect = 'move';
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+    
+    // Don't allow dropping on itself
+    if (isSelfDragged) return;
+    
+    const items = draggedItems;
+    endDrag();
+    
+    if (items.length === 0) return;
+    
+    const clearSelectionFn = useFileStore.getState().clearSelection;
+    
+    try {
+      for (const dragItem of items) {
+        // Skip if trying to move a folder into itself
+        if (dragItem.type === 'folder' && dragItem.item.id === folder.id) continue;
+        // Skip if item is already in this folder
+        if (dragItem.type === 'file' && (dragItem.item as FileItem).folderId === folder.id) continue;
+        if (dragItem.type === 'folder' && (dragItem.item as Folder).parentId === folder.id) continue;
+        
+        if (dragItem.type === 'file') {
+          await api.patch(`/files/${dragItem.item.id}/move`, { folderId: folder.id });
+        } else {
+          await api.patch(`/folders/${dragItem.item.id}/move`, { parentId: folder.id });
+        }
+      }
+      
+      toast(`${items.length} elemento(s) movido(s) a "${folder.name}"`, 'success');
+      clearSelectionFn();
+      window.dispatchEvent(new CustomEvent('workzone-refresh'));
+      onRefresh?.();
+    } catch (error: any) {
+      toast(error.response?.data?.error || 'Error al mover elementos', 'error');
     }
   };
 
@@ -261,6 +383,14 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
         <motion.div
           data-folder-item={folder.id}
           data-folder-name={folder.name}
+          data-folder-data={JSON.stringify(folder)}
+          draggable
+          onDragStart={handleDragStart}
+          onDrag={handleDrag}
+          onDragEnd={handleDragEnd}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
           onClick={handleClick}
           onDoubleClick={handleDoubleClick}
           onContextMenu={handleContextMenu}
@@ -270,7 +400,8 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
             'flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer transition-colors',
             isSelected
               ? 'bg-primary-50 dark:bg-primary-900/20 ring-2 ring-primary-500/50 ring-offset-1 ring-offset-white dark:ring-offset-dark-900'
-              : 'hover:bg-dark-50 dark:hover:bg-dark-800'
+              : 'hover:bg-dark-50 dark:hover:bg-dark-800',
+            isDragOver && !isSelfDragged && 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/30'
           )}
         >
           <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center">
@@ -281,22 +412,6 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
             <p className="text-sm text-dark-500">{folder._count?.files ?? 0} elementos • {formatDate(folder.createdAt)}</p>
           </div>
           {folder.isFavorite && <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />}
-          <Dropdown
-            trigger={
-              <button onClick={(e) => e.stopPropagation()} className="p-2 text-dark-500 hover:text-dark-900 dark:hover:text-white rounded-lg hover:bg-dark-100 dark:hover:bg-dark-600">
-                <MoreVertical className="w-5 h-5" />
-              </button>
-            }
-            align="right"
-          >
-            <DropdownItem onClick={handleFavorite}><Star className="w-4 h-4" /> {folder.isFavorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}</DropdownItem>
-            <DropdownItem onClick={() => setShowShareModal(true)}><Share2 className="w-4 h-4" /> Compartir</DropdownItem>
-            <DropdownDivider />
-            <DropdownItem onClick={() => setShowRenameModal(true)}><Edit className="w-4 h-4" /> Renombrar</DropdownItem>
-            <DropdownItem onClick={() => setShowMoveModal(true)}><Move className="w-4 h-4" /> Mover</DropdownItem>
-            <DropdownDivider />
-            <DropdownItem danger onClick={handleDelete}><Trash2 className="w-4 h-4" /> Mover a papelera</DropdownItem>
-          </Dropdown>
         </motion.div>
         {contextMenuContent}
         {modals}
@@ -309,6 +424,14 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
       <motion.div
         data-folder-item={folder.id}
         data-folder-name={folder.name}
+        data-folder-data={JSON.stringify(folder)}
+        draggable
+        onDragStart={handleDragStart}
+        onDrag={handleDrag}
+        onDragEnd={handleDragEnd}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
         onContextMenu={handleContextMenu}
@@ -318,7 +441,8 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
           'group relative flex items-center gap-3 px-3 py-2.5 rounded-2xl cursor-pointer transition-all border',
           isSelected
             ? 'bg-primary-50 dark:bg-primary-900/20 border-primary-300 dark:border-primary-700 ring-2 ring-primary-500/40 ring-offset-1 ring-offset-white dark:ring-offset-dark-900'
-            : 'bg-white dark:bg-dark-800 border-dark-100 dark:border-dark-700 hover:border-dark-200 dark:hover:border-dark-600'
+            : 'bg-white dark:bg-dark-800 border-dark-100 dark:border-dark-700 hover:border-dark-200 dark:hover:border-dark-600',
+          isDragOver && !isSelfDragged && 'ring-2 ring-primary-500 border-primary-500 bg-primary-50 dark:bg-primary-900/30'
         )}
       >
         <FolderIcon className="w-6 h-6 text-primary-500 flex-shrink-0" />
@@ -328,24 +452,6 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
         {folder.isFavorite && (
           <Star className="w-4 h-4 text-yellow-500 fill-yellow-500 flex-shrink-0" />
         )}
-        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-          <Dropdown
-            trigger={
-              <button onClick={(e) => e.stopPropagation()} className="p-1.5 bg-white dark:bg-dark-700 text-dark-500 hover:text-dark-900 dark:hover:text-white rounded-lg shadow">
-                <MoreVertical className="w-4 h-4" />
-              </button>
-            }
-            align="right"
-          >
-            <DropdownItem onClick={handleFavorite}><Star className="w-4 h-4" /> {folder.isFavorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}</DropdownItem>
-            <DropdownItem onClick={() => setShowShareModal(true)}><Share2 className="w-4 h-4" /> Compartir</DropdownItem>
-            <DropdownDivider />
-            <DropdownItem onClick={() => setShowRenameModal(true)}><Edit className="w-4 h-4" /> Renombrar</DropdownItem>
-            <DropdownItem onClick={() => setShowMoveModal(true)}><Move className="w-4 h-4" /> Mover</DropdownItem>
-            <DropdownDivider />
-            <DropdownItem danger onClick={handleDelete}><Trash2 className="w-4 h-4" /> Mover a papelera</DropdownItem>
-          </Dropdown>
-        </div>
       </motion.div>
       {contextMenuContent}
       {modals}

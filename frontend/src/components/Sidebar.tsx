@@ -1,15 +1,18 @@
 import { useState, useRef, useEffect } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useUIStore } from '../stores/uiStore';
 import { useThemeStore } from '../stores/themeStore';
 import { useBrandingStore } from '../stores/brandingStore';
 import { useSidebarStore, NavItem } from '../stores/sidebarStore';
+import { useDragDropStore, fileMatchesCategory, getCategoryFromPath } from '../stores/dragDropStore';
+import { useFileStore } from '../stores/fileStore';
 import { cn, formatBytes } from '../lib/utils';
 import { api } from '../lib/api';
 import { toast } from './ui/Toast';
 import { motion, AnimatePresence } from 'framer-motion';
+import { FileItem, Folder } from '../types';
 import {
   LayoutDashboard,
   FolderOpen,
@@ -34,11 +37,13 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
 };
 
 export default function Sidebar() {
-  const { user } = useAuthStore();
+  const { user, refreshUser } = useAuthStore();
   const { sidebarOpen } = useUIStore();
   const { isDark } = useThemeStore();
   const { branding } = useBrandingStore();
   const { navItems, bottomNavItems, setNavItems, setBottomNavItems } = useSidebarStore();
+  const { isDragging: isFileDragging, draggedItems: fileDraggedItems, endDrag: endFileDrag } = useDragDropStore();
+  const navigate = useNavigate();
 
   const [draggedItem, setDraggedItem] = useState<NavItem | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
@@ -46,6 +51,7 @@ export default function Sidebar() {
   const [dropTargetSection, setDropTargetSection] = useState<'main' | 'bottom' | null>(null);
   const [dropPosition, setDropPosition] = useState<'before' | 'after'>('before');
   const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
+  const [fileDropTarget, setFileDropTarget] = useState<string | null>(null);
   const dragImageRef = useRef<HTMLDivElement>(null);
   
   // Context menu for Trash
@@ -73,6 +79,7 @@ export default function Sidebar() {
       await api.delete('/trash/empty');
       toast('Papelera vaciada correctamente', 'success');
       window.dispatchEvent(new CustomEvent('workzone-refresh'));
+      refreshUser(); // Update storage info in sidebar
     } catch {
       toast('Error al vaciar la papelera', 'error');
     } finally {
@@ -164,6 +171,89 @@ export default function Sidebar() {
     handleDragEnd();
   };
 
+  // Handle file/folder drops on sidebar categories
+  const handleFileDragOver = (e: React.DragEvent, path: string) => {
+    if (!isFileDragging) return;
+    
+    const category = getCategoryFromPath(path);
+    if (!category) return;
+    
+    // Check if any of the dragged items can be dropped here
+    const canDrop = fileDraggedItems.some(item => {
+      if (item.type === 'folder') return category === 'files'; // Only Files accepts folders
+      return fileMatchesCategory(item.item as FileItem, category);
+    });
+    
+    if (canDrop) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      setFileDropTarget(path);
+    }
+  };
+
+  const handleFileDragLeave = () => {
+    setFileDropTarget(null);
+  };
+
+  const handleFileDrop = async (e: React.DragEvent, path: string) => {
+    e.preventDefault();
+    setFileDropTarget(null);
+    
+    if (!isFileDragging || fileDraggedItems.length === 0) return;
+    
+    const category = getCategoryFromPath(path);
+    if (!category) return;
+    
+    const itemsToMove = fileDraggedItems;
+    endFileDrag();
+    
+    // Filter items that match the category
+    const validItems = itemsToMove.filter(item => {
+      if (item.type === 'folder') return category === 'files';
+      return fileMatchesCategory(item.item as FileItem, category);
+    });
+    
+    if (validItems.length === 0) {
+      toast('Los elementos seleccionados no son compatibles con esta categoría', 'error');
+      return;
+    }
+    
+    const clearSelectionFn = useFileStore.getState().clearSelection;
+    
+    try {
+      // Move items to root folder (null) when dropping on category
+      for (const dragItem of validItems) {
+        if (dragItem.type === 'file') {
+          // Only move if not already in root
+          if ((dragItem.item as FileItem).folderId !== null) {
+            await api.patch(`/files/${dragItem.item.id}/move`, { folderId: null });
+          }
+        } else {
+          // Only move if not already in root
+          if ((dragItem.item as Folder).parentId !== null) {
+            await api.patch(`/folders/${dragItem.item.id}/move`, { parentId: null });
+          }
+        }
+      }
+      
+      const categoryNames: Record<string, string> = {
+        'files': 'Archivos',
+        'photos': 'Fotos',
+        'music': 'Música',
+        'documents': 'Documentos',
+      };
+      
+      toast(`${validItems.length} elemento(s) movido(s) a ${categoryNames[category] || category}`, 'success');
+      clearSelectionFn();
+      window.dispatchEvent(new CustomEvent('workzone-refresh'));
+      
+      // Navigate to the category
+      navigate(path);
+    } catch (error: any) {
+      toast(error.response?.data?.error || 'Error al mover elementos', 'error');
+    }
+  };
+
   const renderNavItem = (item: NavItem, index: number, section: 'main' | 'bottom') => {
     const IconComponent = iconMap[item.icon];
     const isDragging = draggedItem?.id === item.id;
@@ -171,6 +261,14 @@ export default function Sidebar() {
     const showDropBefore = isDropTarget && dropPosition === 'before';
     const showDropAfter = isDropTarget && dropPosition === 'after';
     const isTrash = item.path === '/trash';
+    const isFileDropTarget = fileDropTarget === item.path;
+    
+    // Check if this nav item can accept file drops
+    const category = getCategoryFromPath(item.path);
+    const canAcceptFileDrop = isFileDragging && category && fileDraggedItems.some(dragItem => {
+      if (dragItem.type === 'folder') return category === 'files';
+      return fileMatchesCategory(dragItem.item as FileItem, category);
+    });
 
     const handleContextMenu = (e: React.MouseEvent) => {
       if (isTrash) {
@@ -182,22 +280,39 @@ export default function Sidebar() {
     return (
       <div
         key={item.id}
-        draggable
-        onDragStart={(e) => handleDragStart(e, item, section)}
-        onDrag={handleDrag}
-        onDragOver={(e) => handleDragOver(e, index, section)}
-        onDragEnd={handleDragEnd}
-        onDrop={(e) => handleDrop(e, index, section)}
+        draggable={!isFileDragging}
+        onDragStart={(e) => !isFileDragging && handleDragStart(e, item, section)}
+        onDrag={(e) => !isFileDragging && handleDrag(e)}
+        onDragOver={(e) => {
+          if (isFileDragging) {
+            handleFileDragOver(e, item.path);
+          } else {
+            handleDragOver(e, index, section);
+          }
+        }}
+        onDragLeave={(e) => {
+          if (isFileDragging) {
+            handleFileDragLeave();
+          }
+        }}
+        onDragEnd={() => !isFileDragging && handleDragEnd()}
+        onDrop={(e) => {
+          if (isFileDragging) {
+            handleFileDrop(e, item.path);
+          } else {
+            handleDrop(e, index, section);
+          }
+        }}
         onContextMenu={handleContextMenu}
         className={cn(
           'relative group',
           isDragging && 'opacity-30'
         )}
       >
-        {showDropBefore && (
+        {showDropBefore && !isFileDragging && (
           <div className="absolute inset-x-2 -top-0.5 h-0.5 bg-primary-500 rounded-full z-10" />
         )}
-        {showDropAfter && (
+        {showDropAfter && !isFileDragging && (
           <div className="absolute inset-x-2 -bottom-0.5 h-0.5 bg-primary-500 rounded-full z-10" />
         )}
         <NavLink
@@ -209,7 +324,8 @@ export default function Sidebar() {
               'flex items-center gap-3 px-4 py-3 rounded-full text-base font-semibold transition-colors border border-transparent',
               isActive
                 ? 'bg-primary-500/15 text-primary-600 dark:text-primary-400 border-primary-500/25'
-                : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-white dark:hover:bg-[#121212]'
+                : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-white dark:hover:bg-[#121212]',
+              isFileDropTarget && canAcceptFileDrop && 'bg-primary-500/20 border-primary-500 ring-2 ring-primary-500/50'
             )
           }
           end={item.path === '/'}

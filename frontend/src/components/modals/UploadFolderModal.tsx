@@ -8,6 +8,7 @@ import { Upload, FolderOpen, X, CheckCircle, XCircle } from 'lucide-react';
 import { api } from '../../lib/api';
 import { formatBytes, cn } from '../../lib/utils';
 import { toast } from '../ui/Toast';
+import { useAuthStore } from '../../stores/authStore';
 import type { Folder } from '../../types';
 
 interface UploadFolderModalProps {
@@ -37,6 +38,7 @@ export default function UploadFolderModal({
   const [searchParams] = useSearchParams();
   const childrenCache = useRef<Record<string, Folder[]>>({});
   const folderIdCache = useRef<Map<string, string>>(new Map());
+  const { refreshUser } = useAuthStore();
 
   const getCurrentFolderId = () => {
     if (propFolderId !== undefined) return propFolderId || undefined;
@@ -211,6 +213,7 @@ export default function UploadFolderModal({
     if (!hasErrors) {
       toast('Carpeta subida correctamente', 'success');
       onSuccess?.();
+      refreshUser(); // Update storage info in sidebar
     }
   };
 

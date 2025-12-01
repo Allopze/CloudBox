@@ -5,6 +5,7 @@ import { toast } from '../components/ui/Toast';
 import { formatDate, formatBytes, cn } from '../lib/utils';
 import { useGlobalProgressStore } from '../stores/globalProgressStore';
 import { useFileStore } from '../stores/fileStore';
+import { useAuthStore } from '../stores/authStore';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import { FileItem, Folder as FolderType } from '../types';
@@ -29,6 +30,7 @@ export default function Trash() {
   const [emptyingTrash, setEmptyingTrash] = useState(false);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [contextMenuSelection, setContextMenuSelection] = useState<Set<string>>(new Set());
+  const { refreshUser } = useAuthStore();
   const [infoItem, setInfoItem] = useState<{ type: 'file' | 'folder'; item: FileItem | FolderType } | null>(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState<{ files: FileItem[]; folders: FolderType[] } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -93,6 +95,7 @@ export default function Trash() {
       await api.delete(`/files/${file.id}?permanent=true`);
       toast('Archivo eliminado permanentemente', 'success');
       loadData();
+      refreshUser(); // Update storage info in sidebar
     } catch (error) {
       toast('Error al eliminar el archivo', 'error');
     }
@@ -103,6 +106,7 @@ export default function Trash() {
       await api.delete(`/folders/${folder.id}?permanent=true`);
       toast('Carpeta eliminada permanentemente', 'success');
       loadData();
+      refreshUser(); // Update storage info in sidebar
     } catch (error) {
       toast('Error al eliminar la carpeta', 'error');
     }
@@ -125,6 +129,7 @@ export default function Trash() {
       toast('Papelera vaciada correctamente', 'success');
       setShowEmptyModal(false);
       loadData();
+      refreshUser(); // Update storage info in sidebar
     } catch (error) {
       failOperation(opId, 'Error al vaciar la papelera');
       toast('Error al vaciar la papelera', 'error');
@@ -274,6 +279,7 @@ export default function Trash() {
       toast(`${total} elemento(s) eliminado(s) permanentemente`, 'success');
       clearSelection();
       loadData();
+      refreshUser(); // Update storage info in sidebar
     } catch (error) {
       failOperation(opId, 'Error al eliminar');
       toast('Error al eliminar elementos', 'error');

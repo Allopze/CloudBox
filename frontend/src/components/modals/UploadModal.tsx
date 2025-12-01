@@ -8,6 +8,7 @@ import { Upload, X, File, CheckCircle, XCircle } from 'lucide-react';
 import { api } from '../../lib/api';
 import { formatBytes, cn } from '../../lib/utils';
 import { toast } from '../ui/Toast';
+import { useAuthStore } from '../../stores/authStore';
 
 interface UploadModalProps {
   isOpen: boolean;
@@ -33,6 +34,7 @@ export default function UploadModal({
   const [files, setFiles] = useState<FileUpload[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [searchParams] = useSearchParams();
+  const { refreshUser } = useAuthStore();
 
   const getCurrentFolderId = () => {
     if (propFolderId !== undefined) return propFolderId || undefined;
@@ -119,6 +121,7 @@ export default function UploadModal({
     if (!hasErrors) {
       toast('Todos los archivos se subieron correctamente', 'success');
       onSuccess?.();
+      refreshUser(); // Update storage info in sidebar
     }
   };
 

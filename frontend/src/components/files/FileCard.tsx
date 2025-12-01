@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation } from 'react-router-dom';
-import { FileItem } from '../../types';
+import { FileItem, Folder } from '../../types';
 import { useFileStore } from '../../stores/fileStore';
 import { useGlobalProgressStore } from '../../stores/globalProgressStore';
+import { useDragDropStore, DragItem } from '../../stores/dragDropStore';
+import { useAuthStore } from '../../stores/authStore';
 import {
   File,
   Image,
@@ -11,7 +13,6 @@ import {
   Music,
   FileText,
   Archive,
-  MoreVertical,
   Star,
   Download,
   Share2,
@@ -20,7 +21,6 @@ import {
   Move,
 } from 'lucide-react';
 import { formatBytes, formatDate, cn } from '../../lib/utils';
-import Dropdown, { DropdownItem, DropdownDivider } from '../ui/Dropdown';
 import { api, getFileUrl } from '../../lib/api';
 import { toast } from '../ui/Toast';
 import ShareModal from '../modals/ShareModal';
@@ -48,6 +48,8 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
   const location = useLocation();
   const { selectedItems, addToSelection, removeFromSelection, selectRange, selectSingle, lastSelectedId } = useFileStore();
   const { addOperation, incrementProgress, completeOperation, failOperation } = useGlobalProgressStore();
+  const { startDrag, updatePosition, endDrag } = useDragDropStore();
+  const { refreshUser } = useAuthStore();
   const isSelected = selectedItems.has(file.id);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
@@ -213,6 +215,7 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
         // Trigger refresh event and call onRefresh
         window.dispatchEvent(new CustomEvent('workzone-refresh'));
         onRefresh?.();
+        refreshUser(); // Update storage info in sidebar
       } catch {
         failOperation(opId, 'Error al eliminar elementos');
         toast('Error al eliminar elementos', 'error');
@@ -225,10 +228,67 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
         // Trigger refresh event and call onRefresh
         window.dispatchEvent(new CustomEvent('workzone-refresh'));
         onRefresh?.();
+        refreshUser(); // Update storage info in sidebar
       } catch {
         toast('Error al eliminar archivo', 'error');
       }
     }
+  };
+
+  // Drag handlers
+  const handleDragStart = (e: React.DragEvent) => {
+    e.stopPropagation();
+    
+    const currentSelectedItems = useFileStore.getState().selectedItems;
+    let itemsToDrag: DragItem[] = [];
+    
+    // If this file is selected and there are multiple selections, drag all selected items
+    if (currentSelectedItems.has(file.id) && currentSelectedItems.size > 1) {
+      // Get all selected items from the DOM
+      currentSelectedItems.forEach(id => {
+        const folderEl = document.querySelector(`[data-folder-item="${id}"]`);
+        const fileEl = document.querySelector(`[data-file-item="${id}"]`);
+        
+        if (folderEl) {
+          const folderData = folderEl.getAttribute('data-folder-data');
+          if (folderData) {
+            itemsToDrag.push({ type: 'folder', item: JSON.parse(folderData) });
+          }
+        } else if (fileEl) {
+          const fileData = fileEl.getAttribute('data-file-data');
+          if (fileData) {
+            itemsToDrag.push({ type: 'file', item: JSON.parse(fileData) });
+          }
+        }
+      });
+    }
+    
+    // If no items collected or this file wasn't selected, just drag this file
+    if (itemsToDrag.length === 0) {
+      itemsToDrag = [{ type: 'file', item: file }];
+      selectSingle(file.id);
+    }
+    
+    startDrag(itemsToDrag);
+    
+    // Set drag data for compatibility
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', JSON.stringify(itemsToDrag.map(i => ({ type: i.type, id: i.item.id }))));
+    
+    // Hide default drag image
+    const emptyImg = document.createElement('img');
+    emptyImg.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+    e.dataTransfer.setDragImage(emptyImg, 0, 0);
+  };
+
+  const handleDrag = (e: React.DragEvent) => {
+    if (e.clientX !== 0 || e.clientY !== 0) {
+      updatePosition(e.clientX, e.clientY);
+    }
+  };
+
+  const handleDragEnd = () => {
+    endDrag();
   };
 
   const thumbnail = getThumbnailUrl();
@@ -317,6 +377,11 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
         <motion.div
           data-file-item={file.id}
           data-file-name={file.name}
+          data-file-data={JSON.stringify(file)}
+          draggable
+          onDragStart={handleDragStart}
+          onDrag={handleDrag}
+          onDragEnd={handleDragEnd}
           onClick={handleClick}
           onDoubleClick={handleDoubleClick}
           onContextMenu={handleContextMenu}
@@ -343,23 +408,6 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
             <p className="text-sm text-dark-500">{formatBytes(file.size)} • {formatDate(file.createdAt)}</p>
           </div>
           {file.isFavorite && <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />}
-          <Dropdown
-            trigger={
-              <button onClick={(e) => e.stopPropagation()} className="p-2 text-dark-500 hover:text-dark-900 dark:hover:text-white rounded-lg hover:bg-dark-100 dark:hover:bg-dark-600">
-                <MoreVertical className="w-5 h-5" />
-              </button>
-            }
-            align="right"
-          >
-            <DropdownItem onClick={handleDownload}><Download className="w-4 h-4" /> Descargar</DropdownItem>
-            <DropdownItem onClick={handleFavorite}><Star className="w-4 h-4" /> {file.isFavorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}</DropdownItem>
-            <DropdownItem onClick={() => setShowShareModal(true)}><Share2 className="w-4 h-4" /> Compartir</DropdownItem>
-            <DropdownDivider />
-            <DropdownItem onClick={() => setShowRenameModal(true)}><Edit className="w-4 h-4" /> Renombrar</DropdownItem>
-            <DropdownItem onClick={() => setShowMoveModal(true)}><Move className="w-4 h-4" /> Mover</DropdownItem>
-            <DropdownDivider />
-            <DropdownItem danger onClick={handleDelete}><Trash2 className="w-4 h-4" /> Mover a papelera</DropdownItem>
-          </Dropdown>
         </motion.div>
         {contextMenuContent}
         {modals}
@@ -372,6 +420,11 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
       <motion.div
         data-file-item={file.id}
         data-file-name={file.name}
+        data-file-data={JSON.stringify(file)}
+        draggable
+        onDragStart={handleDragStart}
+        onDrag={handleDrag}
+        onDragEnd={handleDragEnd}
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
         onContextMenu={handleContextMenu}
@@ -399,25 +452,6 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
         {file.isFavorite && (
           <Star className="w-4 h-4 text-yellow-500 fill-yellow-500 flex-shrink-0" />
         )}
-        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-          <Dropdown
-            trigger={
-              <button onClick={(e) => e.stopPropagation()} className="p-1.5 bg-white dark:bg-dark-700 text-dark-500 hover:text-dark-900 dark:hover:text-white rounded-lg shadow">
-                <MoreVertical className="w-4 h-4" />
-              </button>
-            }
-            align="right"
-          >
-            <DropdownItem onClick={handleDownload}><Download className="w-4 h-4" /> Descargar</DropdownItem>
-            <DropdownItem onClick={handleFavorite}><Star className="w-4 h-4" /> {file.isFavorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}</DropdownItem>
-            <DropdownItem onClick={() => setShowShareModal(true)}><Share2 className="w-4 h-4" /> Compartir</DropdownItem>
-            <DropdownDivider />
-            <DropdownItem onClick={() => setShowRenameModal(true)}><Edit className="w-4 h-4" /> Renombrar</DropdownItem>
-            <DropdownItem onClick={() => setShowMoveModal(true)}><Move className="w-4 h-4" /> Mover</DropdownItem>
-            <DropdownDivider />
-            <DropdownItem danger onClick={handleDelete}><Trash2 className="w-4 h-4" /> Mover a papelera</DropdownItem>
-          </Dropdown>
-        </div>
       </motion.div>
       {contextMenuContent}
       {modals}

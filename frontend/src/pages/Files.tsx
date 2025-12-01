@@ -15,6 +15,7 @@ import CreateFolderModal from '../components/modals/CreateFolderModal';
 import CreateFileModal from '../components/modals/CreateFileModal';
 import ShareModal from '../components/modals/ShareModal';
 import RenameModal from '../components/modals/RenameModal';
+import ConfirmModal from '../components/ui/ConfirmModal';
 import ImageGallery from '../components/gallery/ImageGallery';
 import VideoPreview from '../components/gallery/VideoPreview';
 import DocumentViewer from '../components/gallery/DocumentViewer';
@@ -34,6 +35,9 @@ export default function Files() {
   const [isCreateFileModalOpen, setCreateFileModalOpen] = useState(false);
   const [isShareModalOpen, setShareModalOpen] = useState(false);
   const [isRenameModalOpen, setRenameModalOpen] = useState(false);
+  const [isDeleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteConfirmData, setDeleteConfirmData] = useState<{ files: FileItem[]; folders: Folder[] } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [selectedFileForAction, setSelectedFileForAction] = useState<FileItem | null>(null);
   
   // Workzone context menu state
@@ -72,14 +76,25 @@ export default function Files() {
     return { selectedFiles, selectedFolders };
   }, [files, folders, selectedItems]);
 
-  // Delete selected items
-  const handleDeleteSelected = useCallback(async () => {
+  // Delete selected items - show confirmation modal
+  const handleDeleteSelected = useCallback(() => {
     const { selectedFiles, selectedFolders } = getSelectedItems();
     const total = selectedFiles.length + selectedFolders.length;
     
     if (total === 0) return;
     
-    if (!confirm(`¿Eliminar ${total} elemento(s)?`)) return;
+    setDeleteConfirmData({ files: selectedFiles, folders: selectedFolders });
+    setDeleteConfirmOpen(true);
+  }, [getSelectedItems]);
+
+  // Perform the actual deletion after confirmation
+  const performDelete = useCallback(async () => {
+    if (!deleteConfirmData) return;
+    
+    const { files: selectedFiles, folders: selectedFolders } = deleteConfirmData;
+    const total = selectedFiles.length + selectedFolders.length;
+    
+    setIsDeleting(true);
 
     const opId = addOperation({
       id: `delete-${Date.now()}`,
@@ -104,8 +119,12 @@ export default function Files() {
     } catch (error) {
       failOperation(opId, 'Error al eliminar');
       toast('Error al eliminar elementos', 'error');
+    } finally {
+      setIsDeleting(false);
+      setDeleteConfirmOpen(false);
+      setDeleteConfirmData(null);
     }
-  }, [getSelectedItems, addOperation, incrementProgress, completeOperation, failOperation, clearSelection]);
+  }, [deleteConfirmData, addOperation, incrementProgress, completeOperation, failOperation, clearSelection]);
 
   // Download selected
   const handleDownloadSelected = useCallback(() => {
@@ -559,6 +578,30 @@ export default function Files() {
           }}
         />
       )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={isDeleteConfirmOpen}
+        onClose={() => {
+          setDeleteConfirmOpen(false);
+          setDeleteConfirmData(null);
+        }}
+        onConfirm={performDelete}
+        title="Eliminar elementos"
+        message={
+          deleteConfirmData ? (
+            <>
+              ¿Estás seguro de que deseas eliminar <strong>{deleteConfirmData.files.length + deleteConfirmData.folders.length}</strong> elemento(s)?
+              <br />
+              <span className="text-sm">Esta acción moverá los elementos a la papelera.</span>
+            </>
+          ) : ''
+        }
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        variant="danger"
+        loading={isDeleting}
+      />
     </div>
   );
 }

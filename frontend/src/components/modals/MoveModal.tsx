@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Modal from '../ui/Modal';
 import Button from '../ui/Button';
 import { api } from '../../lib/api';
@@ -20,11 +20,12 @@ export default function MoveModal({ isOpen, onClose, items, onSuccess }: MoveMod
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [moving, setMoving] = useState(false);
+  
+  // Use ref to store itemIds to avoid dependency issues
+  const itemIdsRef = useRef<string[]>([]);
+  itemIdsRef.current = items.map((item) => item.id);
 
   const currentFolderId = currentPath.length > 0 ? currentPath[currentPath.length - 1].id : null;
-
-  // Get IDs of items being moved (to exclude them from destination options)
-  const itemIds = items.map((item) => item.id);
 
   const loadFolders = useCallback(async (parentId: string | null, signal?: AbortSignal) => {
     setLoading(true);
@@ -39,7 +40,7 @@ export default function MoveModal({ isOpen, onClose, items, onSuccess }: MoveMod
       
       // Filter out the items being moved
       const filtered = (response.data || []).filter(
-        (folder: Folder) => !itemIds.includes(folder.id)
+        (folder: Folder) => !itemIdsRef.current.includes(folder.id)
       );
       setFolders(filtered);
     } catch (error: any) {
@@ -52,7 +53,7 @@ export default function MoveModal({ isOpen, onClose, items, onSuccess }: MoveMod
         setLoading(false);
       }
     }
-  }, [itemIds]);
+  }, []);
 
   useEffect(() => {
     if (isOpen) {

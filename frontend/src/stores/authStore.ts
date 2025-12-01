@@ -7,12 +7,15 @@ interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isLoggingIn: boolean; // Separate flag for login process
+  isRegistering: boolean; // Separate flag for register process
   login: (email: string, password: string) => Promise<void>;
   loginWithGoogle: (token: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: (signal?: AbortSignal) => Promise<void>;
   updateUser: (user: Partial<User>) => void;
+  refreshUser: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -21,9 +24,11 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       isAuthenticated: false,
       isLoading: true,
+      isLoggingIn: false,
+      isRegistering: false,
 
       login: async (email, password) => {
-        set({ isLoading: true });
+        set({ isLoggingIn: true });
         try {
           const response = await api.post('/auth/login', { email, password });
           const { user, accessToken, refreshToken } = response.data;
@@ -31,31 +36,43 @@ export const useAuthStore = create<AuthState>()(
           localStorage.setItem('accessToken', accessToken);
           localStorage.setItem('refreshToken', refreshToken);
           
-          set({ user, isAuthenticated: true, isLoading: false });
+          set({ user, isAuthenticated: true, isLoading: false, isLoggingIn: false });
         } catch (error) {
-          set({ isLoading: false });
+          set({ isLoggingIn: false });
           throw error;
         }
       },
 
       loginWithGoogle: async (token) => {
-        const response = await api.post('/auth/google', { token });
-        const { user, accessToken, refreshToken } = response.data;
-        
-        localStorage.setItem('accessToken', accessToken);
-        localStorage.setItem('refreshToken', refreshToken);
-        
-        set({ user, isAuthenticated: true });
+        set({ isLoggingIn: true });
+        try {
+          const response = await api.post('/auth/google', { token });
+          const { user, accessToken, refreshToken } = response.data;
+          
+          localStorage.setItem('accessToken', accessToken);
+          localStorage.setItem('refreshToken', refreshToken);
+          
+          set({ user, isAuthenticated: true, isLoggingIn: false });
+        } catch (error) {
+          set({ isLoggingIn: false });
+          throw error;
+        }
       },
 
       register: async (name, email, password) => {
-        const response = await api.post('/auth/register', { email, password, name });
-        const { user, accessToken, refreshToken } = response.data;
-        
-        localStorage.setItem('accessToken', accessToken);
-        localStorage.setItem('refreshToken', refreshToken);
-        
-        set({ user, isAuthenticated: true });
+        set({ isRegistering: true });
+        try {
+          const response = await api.post('/auth/register', { email, password, name });
+          const { user, accessToken, refreshToken } = response.data;
+          
+          localStorage.setItem('accessToken', accessToken);
+          localStorage.setItem('refreshToken', refreshToken);
+          
+          set({ user, isAuthenticated: true, isRegistering: false });
+        } catch (error) {
+          set({ isRegistering: false });
+          throw error;
+        }
       },
 
       logout: async () => {
@@ -76,7 +93,7 @@ export const useAuthStore = create<AuthState>()(
         const token = localStorage.getItem('accessToken');
         
         if (!token) {
-          set({ isLoading: false, isAuthenticated: false });
+          set({ isLoading: false, isAuthenticated: false, user: null });
           return;
         }
 
@@ -98,10 +115,29 @@ export const useAuthStore = create<AuthState>()(
           set({ user: { ...currentUser, ...userData } });
         }
       },
+
+      refreshUser: async () => {
+        try {
+          const response = await api.get('/users/me');
+          set({ user: response.data });
+        } catch {
+          // Silently fail - user data will be stale but app continues working
+        }
+      },
     }),
     {
       name: 'auth-storage',
-      partialize: (state) => ({ user: state.user, isAuthenticated: state.isAuthenticated }),
+      // Only persist user data, NOT authentication state
+      // Authentication is always verified via checkAuth on app load
+      partialize: (state) => ({ user: state.user }),
+      // On rehydrate, don't trust persisted isAuthenticated
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          // Reset auth state - will be verified by checkAuth
+          state.isAuthenticated = false;
+          state.isLoading = true;
+        }
+      },
     }
   )
 );
