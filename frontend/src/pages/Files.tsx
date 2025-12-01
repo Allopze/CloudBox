@@ -7,7 +7,7 @@ import { useFileStore } from '../stores/fileStore';
 import { useGlobalProgressStore } from '../stores/globalProgressStore';
 import FileCard from '../components/files/FileCard';
 import FolderCard from '../components/files/FolderCard';
-import { Loader2, Upload, FolderUp, FolderPlus, FilePlus, RefreshCw } from 'lucide-react';
+import { Loader2, Upload, FolderUp, FolderPlus, FilePlus, RefreshCw, CheckSquare } from 'lucide-react';
 import { toast } from '../components/ui/Toast';
 import { cn, isImage, isVideo, isDocument } from '../lib/utils';
 import UploadModal from '../components/modals/UploadModal';
@@ -47,7 +47,7 @@ export default function Files() {
   const [videoPreviewFile, setVideoPreviewFile] = useState<FileItem | null>(null);
   const [documentPreviewFile, setDocumentPreviewFile] = useState<FileItem | null>(null);
 
-  const { viewMode, sortBy, sortOrder, selectedItems, clearSelection, setBreadcrumbs } = useFileStore();
+  const { viewMode, sortBy, sortOrder, selectedItems, clearSelection, setBreadcrumbs, selectAll } = useFileStore();
   const { addOperation, incrementProgress, completeOperation, failOperation } = useGlobalProgressStore();
 
   // Get all item IDs for keyboard shortcuts
@@ -220,6 +220,17 @@ export default function Files() {
     return () => window.removeEventListener('workzone-refresh', handleRefresh);
   }, [loadData]);
 
+  // Listen for select all event from MainLayout context menu
+  useEffect(() => {
+    const handleSelectAll = () => {
+      if (allItemIds.length > 0) {
+        selectAll(allItemIds);
+      }
+    };
+    window.addEventListener('workzone-select-all', handleSelectAll);
+    return () => window.removeEventListener('workzone-select-all', handleSelectAll);
+  }, [allItemIds, selectAll]);
+
   // Close context menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -376,10 +387,27 @@ export default function Files() {
             transition={{ duration: 0.15, ease: 'easeOut' }}
             className="fixed z-[9999] min-w-[200px] bg-white dark:bg-dark-800 rounded-xl shadow-xl border border-dark-200 dark:border-dark-700 py-2 overflow-hidden"
             style={{ 
-              top: Math.min(workzoneContextMenu.y, window.innerHeight - 250),
+              top: Math.min(workzoneContextMenu.y, window.innerHeight - 300),
               left: Math.min(workzoneContextMenu.x, window.innerWidth - 220)
             }}
           >
+            {/* Seleccionar todo */}
+            {allItemIds.length > 0 && (
+              <>
+                <button
+                  onClick={() => {
+                    setWorkzoneContextMenu(null);
+                    selectAll(allItemIds);
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
+                >
+                  <CheckSquare className="w-4 h-4" />
+                  <span>Seleccionar todo</span>
+                </button>
+                <div className="h-px bg-dark-200 dark:bg-dark-700 my-2" />
+              </>
+            )}
+            
             <button
               onClick={() => {
                 setWorkzoneContextMenu(null);
@@ -388,28 +416,18 @@ export default function Files() {
               className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
             >
               <Upload className="w-4 h-4" />
-              <span>Subir archivos</span>
+              <span>Añadir archivo</span>
             </button>
             <button
               onClick={handleFolderUpload}
               className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
             >
               <FolderUp className="w-4 h-4" />
-              <span>Subir carpeta</span>
+              <span>Añadir carpeta</span>
             </button>
             
             <div className="h-px bg-dark-200 dark:bg-dark-700 my-2" />
             
-            <button
-              onClick={() => {
-                setWorkzoneContextMenu(null);
-                setCreateFolderModalOpen(true);
-              }}
-              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
-            >
-              <FolderPlus className="w-4 h-4" />
-              <span>Nueva carpeta</span>
-            </button>
             <button
               onClick={() => {
                 setWorkzoneContextMenu(null);
@@ -418,7 +436,17 @@ export default function Files() {
               className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
             >
               <FilePlus className="w-4 h-4" />
-              <span>Nuevo archivo</span>
+              <span>Crear archivo</span>
+            </button>
+            <button
+              onClick={() => {
+                setWorkzoneContextMenu(null);
+                setCreateFolderModalOpen(true);
+              }}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
+            >
+              <FolderPlus className="w-4 h-4" />
+              <span>Crear carpeta</span>
             </button>
             
             <div className="h-px bg-dark-200 dark:bg-dark-700 my-2" />

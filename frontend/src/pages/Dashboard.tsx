@@ -87,7 +87,7 @@ export default function Dashboard() {
         api.get('/files?limit=1'),
         api.get('/folders?limit=1'),
         api.get('/files?limit=5&sortBy=createdAt&sortOrder=desc'),
-        api.get('/files?favorites=true&limit=5'),
+        api.get('/files?favorite=true&limit=5'),
         api.get('/activity?limit=10'),
       ]);
 

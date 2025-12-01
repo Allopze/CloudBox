@@ -714,17 +714,41 @@ router.post('/email-templates/:name/test', authenticate, requireAdmin, async (re
 
     const template = await prisma.emailTemplate.findUnique({
       where: { name },
+      include: { variables: true },
     });
 
     let subject = 'Test Email';
     let body = '<p>Test email content</p>';
 
     if (template) {
-      subject = template.subject.replace('{{name}}', 'Test User');
-      body = template.body
-        .replace('{{name}}', 'Test User')
-        .replace('{{verifyUrl}}', '#')
-        .replace('{{resetUrl}}', '#');
+      subject = template.subject;
+      body = template.body;
+
+      // Replace system variables with test values
+      const systemTestValues: Record<string, string> = {
+        name: 'Usuario de Prueba',
+        verifyUrl: '#',
+        resetUrl: '#',
+        email: email,
+        appName: 'CloudBox',
+        appUrl: config.frontendUrl,
+        date: new Date().toLocaleDateString('es-ES'),
+      };
+
+      // Replace custom variables with their default values
+      for (const variable of template.variables) {
+        const regex = new RegExp(`\\{\\{${variable.name}\\}\\}`, 'g');
+        const value = systemTestValues[variable.name] || variable.defaultValue;
+        subject = subject.replace(regex, value);
+        body = body.replace(regex, value);
+      }
+
+      // Replace any remaining system variables
+      for (const [key, value] of Object.entries(systemTestValues)) {
+        const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+        subject = subject.replace(regex, value);
+        body = body.replace(regex, value);
+      }
     }
 
     await sendEmail(email, subject, body);
@@ -733,6 +757,181 @@ router.post('/email-templates/:name/test', authenticate, requireAdmin, async (re
   } catch (error) {
     console.error('Send test template error:', error);
     res.status(500).json({ error: 'Failed to send test email' });
+  }
+});
+
+// ========== Email Template Variables ==========
+
+// Get variables for a template
+router.get('/email-templates/:name/variables', authenticate, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { name } = req.params;
+
+    const template = await prisma.emailTemplate.findUnique({
+      where: { name },
+      include: { variables: true },
+    });
+
+    // System variables that are always available
+    const systemVariables = [
+      { name: 'name', description: 'Nombre del usuario', isSystem: true, defaultValue: '' },
+      { name: 'email', description: 'Email del usuario', isSystem: true, defaultValue: '' },
+      { name: 'appName', description: 'Nombre de la aplicación', isSystem: true, defaultValue: 'CloudBox' },
+      { name: 'appUrl', description: 'URL de la aplicación', isSystem: true, defaultValue: config.frontendUrl },
+      { name: 'date', description: 'Fecha actual', isSystem: true, defaultValue: '' },
+    ];
+
+    // Template-specific system variables
+    if (name === 'welcome') {
+      systemVariables.push({ name: 'verifyUrl', description: 'URL de verificación de email', isSystem: true, defaultValue: '' });
+    } else if (name === 'reset_password') {
+      systemVariables.push({ name: 'resetUrl', description: 'URL de restablecimiento de contraseña', isSystem: true, defaultValue: '' });
+    }
+
+    const customVariables = template?.variables.filter(v => !v.isSystem) || [];
+
+    res.json({
+      system: systemVariables,
+      custom: customVariables,
+    });
+  } catch (error) {
+    console.error('Get template variables error:', error);
+    res.status(500).json({ error: 'Failed to get template variables' });
+  }
+});
+
+// Add custom variable to template
+router.post('/email-templates/:name/variables', authenticate, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { name: templateName } = req.params;
+    const { name, defaultValue, description } = req.body;
+
+    if (!name || !defaultValue) {
+      res.status(400).json({ error: 'Variable name and default value are required' });
+      return;
+    }
+
+    // Validate variable name (alphanumeric and underscore only)
+    if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(name)) {
+      res.status(400).json({ error: 'Variable name must start with a letter and contain only letters, numbers, and underscores' });
+      return;
+    }
+
+    // System variable names that cannot be used
+    const reservedNames = ['name', 'email', 'verifyUrl', 'resetUrl', 'appName', 'appUrl', 'date'];
+    if (reservedNames.includes(name)) {
+      res.status(400).json({ error: 'This variable name is reserved for system use' });
+      return;
+    }
+
+    // Get or create template
+    let template = await prisma.emailTemplate.findUnique({ where: { name: templateName } });
+    
+    if (!template) {
+      // Create template with default values
+      const defaults: Record<string, { subject: string; body: string }> = {
+        welcome: {
+          subject: 'Welcome to CloudBox, {{name}}!',
+          body: '<h1>Welcome, {{name}}!</h1><p>Please verify your email: <a href="{{verifyUrl}}">Verify</a></p>',
+        },
+        reset_password: {
+          subject: 'Reset Your CloudBox Password',
+          body: '<h1>Password Reset</h1><p>Hi {{name}}, reset your password: <a href="{{resetUrl}}">Reset</a></p>',
+        },
+      };
+
+      const defaultTemplate = defaults[templateName];
+      if (!defaultTemplate) {
+        res.status(404).json({ error: 'Template not found' });
+        return;
+      }
+
+      template = await prisma.emailTemplate.create({
+        data: {
+          name: templateName,
+          subject: defaultTemplate.subject,
+          body: defaultTemplate.body,
+        },
+      });
+    }
+
+    const variable = await prisma.emailTemplateVariable.create({
+      data: {
+        templateId: template.id,
+        name,
+        defaultValue,
+        description: description || '',
+        isSystem: false,
+      },
+    });
+
+    res.json(variable);
+  } catch (error: any) {
+    if (error?.code === 'P2002') {
+      res.status(400).json({ error: 'Variable already exists for this template' });
+      return;
+    }
+    console.error('Add template variable error:', error);
+    res.status(500).json({ error: 'Failed to add template variable' });
+  }
+});
+
+// Update custom variable
+router.put('/email-templates/:name/variables/:variableId', authenticate, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { variableId } = req.params;
+    const { defaultValue, description } = req.body;
+
+    const variable = await prisma.emailTemplateVariable.findUnique({ where: { id: variableId } });
+
+    if (!variable) {
+      res.status(404).json({ error: 'Variable not found' });
+      return;
+    }
+
+    if (variable.isSystem) {
+      res.status(400).json({ error: 'Cannot modify system variables' });
+      return;
+    }
+
+    const updated = await prisma.emailTemplateVariable.update({
+      where: { id: variableId },
+      data: {
+        defaultValue: defaultValue !== undefined ? defaultValue : variable.defaultValue,
+        description: description !== undefined ? description : variable.description,
+      },
+    });
+
+    res.json(updated);
+  } catch (error) {
+    console.error('Update template variable error:', error);
+    res.status(500).json({ error: 'Failed to update template variable' });
+  }
+});
+
+// Delete custom variable
+router.delete('/email-templates/:name/variables/:variableId', authenticate, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { variableId } = req.params;
+
+    const variable = await prisma.emailTemplateVariable.findUnique({ where: { id: variableId } });
+
+    if (!variable) {
+      res.status(404).json({ error: 'Variable not found' });
+      return;
+    }
+
+    if (variable.isSystem) {
+      res.status(400).json({ error: 'Cannot delete system variables' });
+      return;
+    }
+
+    await prisma.emailTemplateVariable.delete({ where: { id: variableId } });
+
+    res.json({ message: 'Variable deleted' });
+  } catch (error) {
+    console.error('Delete template variable error:', error);
+    res.status(500).json({ error: 'Failed to delete template variable' });
   }
 });
 

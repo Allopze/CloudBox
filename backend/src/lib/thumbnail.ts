@@ -241,12 +241,12 @@ export const generateSpreadsheetThumbnail = async (inputPath: string, fileId: st
 
     let svgContent = `
       <svg width="${svgWidth}" height="${svgHeight}" viewBox="0 0 ${svgWidth} ${svgHeight}" xmlns="http://www.w3.org/2000/svg">
-        <rect width="${svgWidth}" height="${svgHeight}" fill="#f0fdf4"/>
+        <rect width="${svgWidth}" height="${svgHeight}" fill="#f5f5f4"/>
         <!-- Table background -->
-        <rect x="${startX}" y="${startY}" width="${tableWidth}" height="${tableHeight}" fill="white" stroke="#22c55e" stroke-width="2" rx="4"/>
+        <rect x="${startX}" y="${startY}" width="${tableWidth}" height="${tableHeight}" fill="white" stroke="#78716c" stroke-width="2" rx="4"/>
         <!-- Header row -->
-        <rect x="${startX}" y="${startY}" width="${tableWidth}" height="${headerHeight}" fill="#22c55e" rx="4"/>
-        <rect x="${startX}" y="${startY + headerHeight - 4}" width="${tableWidth}" height="4" fill="#22c55e"/>
+        <rect x="${startX}" y="${startY}" width="${tableWidth}" height="${headerHeight}" fill="#78716c" rx="4"/>
+        <rect x="${startX}" y="${startY + headerHeight - 4}" width="${tableWidth}" height="4" fill="#78716c"/>
     `;
 
     // Draw column headers (A, B, C, D, E)
@@ -312,7 +312,7 @@ export const generateSpreadsheetThumbnail = async (inputPath: string, fileId: st
         
         // Background for first column (row numbers feel)
         if (col === 0 && value) {
-          svgContent += `<rect x="${startX}" y="${y}" width="${cellWidth}" height="${cellHeight}" fill="#f0fdf4"/>`;
+          svgContent += `<rect x="${startX}" y="${y}" width="${cellWidth}" height="${cellHeight}" fill="#fafaf9"/>`;
         }
         
         const fontSize = value.length > 6 ? 9 : 10;
@@ -352,35 +352,35 @@ export const generateExcelThumbnail = async (fileId: string): Promise<string | n
   const outputPath = getThumbnailPath(fileId);
   
   try {
-    // Create Excel-specific thumbnail with green color and table/grid icon
+    // Create Excel-specific thumbnail with muted colors
     const svgIcon = `
       <svg width="${THUMBNAIL_SIZE}" height="${THUMBNAIL_SIZE}" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
-        <rect width="300" height="300" fill="#dcfce7"/>
-        <rect x="50" y="40" width="200" height="220" rx="8" fill="white" stroke="#22c55e" stroke-width="3"/>
+        <rect width="300" height="300" fill="#f5f5f4"/>
+        <rect x="50" y="40" width="200" height="220" rx="8" fill="white" stroke="#78716c" stroke-width="3"/>
         <!-- Table header -->
-        <rect x="50" y="40" width="200" height="35" rx="8" fill="#22c55e"/>
-        <rect x="50" y="67" width="200" height="8" fill="#22c55e"/>
+        <rect x="50" y="40" width="200" height="35" rx="8" fill="#78716c"/>
+        <rect x="50" y="67" width="200" height="8" fill="#78716c"/>
         <!-- Grid lines vertical -->
-        <line x1="116" y1="75" x2="116" y2="260" stroke="#d1d5db" stroke-width="1"/>
-        <line x1="183" y1="75" x2="183" y2="260" stroke="#d1d5db" stroke-width="1"/>
+        <line x1="116" y1="75" x2="116" y2="260" stroke="#d6d3d1" stroke-width="1"/>
+        <line x1="183" y1="75" x2="183" y2="260" stroke="#d6d3d1" stroke-width="1"/>
         <!-- Grid lines horizontal -->
-        <line x1="50" y1="115" x2="250" y2="115" stroke="#d1d5db" stroke-width="1"/>
-        <line x1="50" y1="155" x2="250" y2="155" stroke="#d1d5db" stroke-width="1"/>
-        <line x1="50" y1="195" x2="250" y2="195" stroke="#d1d5db" stroke-width="1"/>
-        <line x1="50" y1="235" x2="250" y2="235" stroke="#d1d5db" stroke-width="1"/>
+        <line x1="50" y1="115" x2="250" y2="115" stroke="#d6d3d1" stroke-width="1"/>
+        <line x1="50" y1="155" x2="250" y2="155" stroke="#d6d3d1" stroke-width="1"/>
+        <line x1="50" y1="195" x2="250" y2="195" stroke="#d6d3d1" stroke-width="1"/>
+        <line x1="50" y1="235" x2="250" y2="235" stroke="#d6d3d1" stroke-width="1"/>
         <!-- Sample data cells -->
-        <rect x="58" y="85" width="50" height="20" rx="2" fill="#bbf7d0"/>
-        <rect x="124" y="85" width="50" height="20" rx="2" fill="#e5e7eb"/>
-        <rect x="191" y="85" width="50" height="20" rx="2" fill="#e5e7eb"/>
-        <rect x="58" y="125" width="50" height="20" rx="2" fill="#bbf7d0"/>
-        <rect x="124" y="125" width="50" height="20" rx="2" fill="#e5e7eb"/>
-        <rect x="191" y="125" width="50" height="20" rx="2" fill="#e5e7eb"/>
-        <rect x="58" y="165" width="50" height="20" rx="2" fill="#bbf7d0"/>
-        <rect x="124" y="165" width="50" height="20" rx="2" fill="#e5e7eb"/>
-        <rect x="191" y="165" width="50" height="20" rx="2" fill="#e5e7eb"/>
-        <rect x="58" y="205" width="50" height="20" rx="2" fill="#bbf7d0"/>
-        <rect x="124" y="205" width="50" height="20" rx="2" fill="#e5e7eb"/>
-        <rect x="191" y="205" width="50" height="20" rx="2" fill="#e5e7eb"/>
+        <rect x="58" y="85" width="50" height="20" rx="2" fill="#e7e5e4"/>
+        <rect x="124" y="85" width="50" height="20" rx="2" fill="#f5f5f4"/>
+        <rect x="191" y="85" width="50" height="20" rx="2" fill="#f5f5f4"/>
+        <rect x="58" y="125" width="50" height="20" rx="2" fill="#e7e5e4"/>
+        <rect x="124" y="125" width="50" height="20" rx="2" fill="#f5f5f4"/>
+        <rect x="191" y="125" width="50" height="20" rx="2" fill="#f5f5f4"/>
+        <rect x="58" y="165" width="50" height="20" rx="2" fill="#e7e5e4"/>
+        <rect x="124" y="165" width="50" height="20" rx="2" fill="#f5f5f4"/>
+        <rect x="191" y="165" width="50" height="20" rx="2" fill="#f5f5f4"/>
+        <rect x="58" y="205" width="50" height="20" rx="2" fill="#e7e5e4"/>
+        <rect x="124" y="205" width="50" height="20" rx="2" fill="#f5f5f4"/>
+        <rect x="191" y="205" width="50" height="20" rx="2" fill="#f5f5f4"/>
       </svg>
     `;
     

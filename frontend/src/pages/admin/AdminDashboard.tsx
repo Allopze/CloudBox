@@ -22,6 +22,11 @@ import {
   Trash2,
   Edit,
   UserPlus,
+  Eye,
+  Code,
+  Send,
+  RotateCcw,
+  Plus,
 } from 'lucide-react';
 import { toast } from '../../components/ui/Toast';
 import Button from '../../components/ui/Button';
@@ -80,6 +85,101 @@ interface BrandingSettings {
   logoDarkUrl: string;
   faviconUrl: string;
 }
+
+interface EmailTemplate {
+  id?: string;
+  name: string;
+  subject: string;
+  body: string;
+  isDefault?: boolean;
+}
+
+interface TemplateVariable {
+  id?: string;
+  name: string;
+  defaultValue: string;
+  description?: string;
+  isSystem: boolean;
+}
+
+interface TemplateVariables {
+  system: TemplateVariable[];
+  custom: TemplateVariable[];
+}
+
+// Default email templates
+const DEFAULT_TEMPLATES: Record<string, { subject: string; body: string; variables: string[] }> = {
+  welcome: {
+    subject: '¡Bienvenido a CloudBox, {{name}}!',
+    body: `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { text-align: center; padding: 20px 0; }
+    .content { background: #f9fafb; border-radius: 12px; padding: 30px; margin: 20px 0; }
+    .button { display: inline-block; padding: 14px 28px; background: #dc2626; color: white !important; text-decoration: none; border-radius: 8px; font-weight: 600; }
+    .footer { text-align: center; color: #6b7280; font-size: 14px; margin-top: 30px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1 style="color: #dc2626; margin: 0;">CloudBox</h1>
+  </div>
+  <div class="content">
+    <h2>¡Hola {{name}}! 👋</h2>
+    <p>Gracias por registrarte en CloudBox. Para completar tu registro, por favor verifica tu email:</p>
+    <p style="text-align: center; margin: 30px 0;">
+      <a href="{{verifyUrl}}" class="button">Verificar Email</a>
+    </p>
+    <p style="color: #6b7280; font-size: 14px;">Si no creaste esta cuenta, puedes ignorar este mensaje.</p>
+  </div>
+  <div class="footer">
+    <p>© CloudBox - Tu nube personal</p>
+  </div>
+</body>
+</html>`,
+    variables: ['{{name}}', '{{verifyUrl}}'],
+  },
+  reset_password: {
+    subject: 'Restablecer contraseña - CloudBox',
+    body: `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { text-align: center; padding: 20px 0; }
+    .content { background: #f9fafb; border-radius: 12px; padding: 30px; margin: 20px 0; }
+    .button { display: inline-block; padding: 14px 28px; background: #dc2626; color: white !important; text-decoration: none; border-radius: 8px; font-weight: 600; }
+    .warning { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 12px; border-radius: 0 8px 8px 0; margin: 20px 0; }
+    .footer { text-align: center; color: #6b7280; font-size: 14px; margin-top: 30px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1 style="color: #dc2626; margin: 0;">CloudBox</h1>
+  </div>
+  <div class="content">
+    <h2>Hola {{name}},</h2>
+    <p>Hemos recibido una solicitud para restablecer tu contraseña:</p>
+    <p style="text-align: center; margin: 30px 0;">
+      <a href="{{resetUrl}}" class="button">Restablecer Contraseña</a>
+    </p>
+    <div class="warning">
+      <strong>⚠️ Este enlace expirará en 1 hora.</strong>
+    </div>
+    <p style="color: #6b7280; font-size: 14px;">Si no solicitaste este cambio, puedes ignorar este mensaje.</p>
+  </div>
+  <div class="footer">
+    <p>© CloudBox - Tu nube personal</p>
+  </div>
+</body>
+</html>`,
+    variables: ['{{name}}', '{{resetUrl}}'],
+  },
+};
 
 export default function AdminDashboard() {
   const { setBranding } = useBrandingStore();
@@ -172,7 +272,26 @@ export default function AdminDashboard() {
   const [savingBranding, setSavingBranding] = useState(false);
   const [uploading, setUploading] = useState<Record<string, boolean>>({});
 
-  // Derived state for quota inputs
+  // Email templates state
+  const [templates, setTemplates] = useState<EmailTemplate[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+  const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null);
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [sendingTestEmail, setSendingTestEmail] = useState(false);
+  const [testEmailAddress, setTestEmailAddress] = useState('');
+  const [showPreview, setShowPreview] = useState(false);
+  const [showNewTemplateModal, setShowNewTemplateModal] = useState(false);
+  const [newTemplateName, setNewTemplateName] = useState('');
+  
+  // Template variables state
+  const [templateVariables, setTemplateVariables] = useState<TemplateVariables>({ system: [], custom: [] });
+  const [showVariablesPanel, setShowVariablesPanel] = useState(false);
+  const [showAddVariableModal, setShowAddVariableModal] = useState(false);
+  const [newVariableName, setNewVariableName] = useState('');
+  const [newVariableValue, setNewVariableValue] = useState('');
+  const [newVariableDescription, setNewVariableDescription] = useState('');
+  const [editingVariable, setEditingVariable] = useState<TemplateVariable | null>(null);
+  const [savingVariable, setSavingVariable] = useState(false);
   const quotaParsed = bytesToUnit(systemSettings.defaultStorageQuota);
   const [quotaValue, setQuotaValue] = useState(quotaParsed.value);
   const [quotaUnit, setQuotaUnit] = useState(quotaParsed.unit);
@@ -215,11 +334,12 @@ export default function AdminDashboard() {
 
   const loadData = async () => {
     try {
-      const [statsRes, systemRes, smtpRes, brandingRes] = await Promise.all([
+      const [statsRes, systemRes, smtpRes, brandingRes, templatesRes] = await Promise.all([
         api.get('/admin/server-info').catch(() => ({ data: {} })),
         api.get('/admin/settings/system').catch(() => ({ data: {} })),
         api.get('/admin/settings/smtp').catch(() => ({ data: {} })),
         api.get('/admin/settings/branding').catch(() => ({ data: {} })),
+        api.get('/admin/email-templates').catch(() => ({ data: [] })),
       ]);
 
       if (statsRes.data) {
@@ -248,6 +368,9 @@ export default function AdminDashboard() {
           logoDarkUrl: getFullUrl(brandingRes.data.logoDarkUrl || brandingRes.data.logoUrl),
           faviconUrl: getFullUrl(brandingRes.data.faviconUrl),
         }));
+      }
+      if (templatesRes.data) {
+        setTemplates(templatesRes.data);
       }
     } catch (error) {
       console.error('Failed to load admin data:', error);
@@ -331,6 +454,287 @@ export default function AdminDashboard() {
     } catch (error) {
       toast('Error al enviar email', 'error');
     }
+  };
+
+  // Email template functions
+  const loadTemplate = async (name: string) => {
+    try {
+      const [templateRes, variablesRes] = await Promise.all([
+        api.get(`/admin/email-templates/${name}`),
+        api.get(`/admin/email-templates/${name}/variables`),
+      ]);
+      setEditingTemplate(templateRes.data);
+      setTemplateVariables(variablesRes.data);
+      setSelectedTemplate(name);
+      setShowPreview(false);
+    } catch {
+      const defaultTemplate = DEFAULT_TEMPLATES[name];
+      if (defaultTemplate) {
+        setEditingTemplate({
+          name,
+          subject: defaultTemplate.subject,
+          body: defaultTemplate.body,
+          isDefault: true,
+        });
+        // Load variables for default template
+        try {
+          const variablesRes = await api.get(`/admin/email-templates/${name}/variables`);
+          setTemplateVariables(variablesRes.data);
+        } catch {
+          setTemplateVariables({ system: [], custom: [] });
+        }
+        setSelectedTemplate(name);
+        setShowPreview(false);
+      }
+    }
+  };
+
+  const saveTemplate = async () => {
+    if (!editingTemplate) return;
+    setSavingTemplate(true);
+    try {
+      const response = await api.put(`/admin/email-templates/${editingTemplate.name}`, {
+        subject: editingTemplate.subject,
+        body: editingTemplate.body,
+      });
+      setTemplates(prev => {
+        const exists = prev.find(t => t.name === editingTemplate.name);
+        if (exists) {
+          return prev.map(t => t.name === editingTemplate.name ? response.data : t);
+        }
+        return [...prev, response.data];
+      });
+      setEditingTemplate({ ...editingTemplate, isDefault: false });
+      toast('Plantilla guardada', 'success');
+    } catch {
+      toast('Error al guardar plantilla', 'error');
+    } finally {
+      setSavingTemplate(false);
+    }
+  };
+
+  const resetTemplate = async () => {
+    if (!editingTemplate) return;
+    try {
+      await api.delete(`/admin/email-templates/${editingTemplate.name}`);
+      setTemplates(prev => prev.filter(t => t.name !== editingTemplate.name));
+      const defaultTemplate = DEFAULT_TEMPLATES[editingTemplate.name];
+      if (defaultTemplate) {
+        setEditingTemplate({
+          name: editingTemplate.name,
+          subject: defaultTemplate.subject,
+          body: defaultTemplate.body,
+          isDefault: true,
+        });
+      }
+      toast('Plantilla restablecida', 'success');
+    } catch {
+      toast('Error al restablecer plantilla', 'error');
+    }
+  };
+
+  const sendTestTemplateEmail = async () => {
+    if (!editingTemplate || !testEmailAddress) {
+      toast('Ingresa un email de prueba', 'error');
+      return;
+    }
+    setSendingTestEmail(true);
+    try {
+      await api.post(`/admin/email-templates/${editingTemplate.name}/test`, {
+        email: testEmailAddress,
+      });
+      toast('Email de prueba enviado', 'success');
+    } catch {
+      toast('Error al enviar email de prueba', 'error');
+    } finally {
+      setSendingTestEmail(false);
+    }
+  };
+
+  const createNewTemplate = async () => {
+    if (!newTemplateName.trim()) {
+      toast('Ingresa un nombre para la plantilla', 'error');
+      return;
+    }
+    const templateKey = newTemplateName.toLowerCase().replace(/\s+/g, '_');
+    if (templates.find(t => t.name === templateKey) || DEFAULT_TEMPLATES[templateKey]) {
+      toast('Ya existe una plantilla con ese nombre', 'error');
+      return;
+    }
+    setEditingTemplate({
+      name: templateKey,
+      subject: `Asunto de ${newTemplateName}`,
+      body: `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { text-align: center; padding: 20px 0; }
+    .content { background: #f9fafb; border-radius: 12px; padding: 30px; margin: 20px 0; }
+    .button { display: inline-block; padding: 14px 28px; background: #dc2626; color: white !important; text-decoration: none; border-radius: 8px; font-weight: 600; }
+    .footer { text-align: center; color: #6b7280; font-size: 14px; margin-top: 30px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1 style="color: #dc2626; margin: 0;">CloudBox</h1>
+  </div>
+  <div class="content">
+    <h2>Hola {{name}},</h2>
+    <p>Contenido de tu email aquí...</p>
+  </div>
+  <div class="footer">
+    <p>© CloudBox - Tu nube personal</p>
+  </div>
+</body>
+</html>`,
+      isDefault: true,
+    });
+    setSelectedTemplate(templateKey);
+    setShowNewTemplateModal(false);
+    setNewTemplateName('');
+  };
+
+  const deleteTemplate = async (name: string) => {
+    if (DEFAULT_TEMPLATES[name]) {
+      toast('No se pueden eliminar las plantillas del sistema', 'error');
+      return;
+    }
+    try {
+      await api.delete(`/admin/email-templates/${name}`);
+      setTemplates(prev => prev.filter(t => t.name !== name));
+      if (selectedTemplate === name) {
+        setSelectedTemplate(null);
+        setEditingTemplate(null);
+      }
+      toast('Plantilla eliminada', 'success');
+    } catch {
+      toast('Error al eliminar plantilla', 'error');
+    }
+  };
+
+  const getPreviewHtml = () => {
+    if (!editingTemplate) return '';
+    let html = editingTemplate.body;
+    
+    // Replace system variables with test values
+    const systemTestValues: Record<string, string> = {
+      name: 'Usuario de Prueba',
+      email: 'test@ejemplo.com',
+      verifyUrl: '#',
+      resetUrl: '#',
+      appName: 'CloudBox',
+      appUrl: window.location.origin,
+      date: new Date().toLocaleDateString('es-ES'),
+    };
+    
+    // Replace custom variables with their default values
+    for (const variable of templateVariables.custom) {
+      const regex = new RegExp(`\\{\\{${variable.name}\\}\\}`, 'g');
+      html = html.replace(regex, variable.defaultValue);
+    }
+    
+    // Replace system variables
+    for (const [key, value] of Object.entries(systemTestValues)) {
+      const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+      html = html.replace(regex, value);
+    }
+    
+    return html;
+  };
+
+  // Variable management functions
+  const addVariable = async () => {
+    if (!editingTemplate || !newVariableName.trim() || !newVariableValue.trim()) {
+      toast('Nombre y valor son requeridos', 'error');
+      return;
+    }
+    
+    setSavingVariable(true);
+    try {
+      const response = await api.post(`/admin/email-templates/${editingTemplate.name}/variables`, {
+        name: newVariableName.trim(),
+        defaultValue: newVariableValue.trim(),
+        description: newVariableDescription.trim(),
+      });
+      
+      setTemplateVariables(prev => ({
+        ...prev,
+        custom: [...prev.custom, response.data],
+      }));
+      
+      setShowAddVariableModal(false);
+      setNewVariableName('');
+      setNewVariableValue('');
+      setNewVariableDescription('');
+      toast('Variable añadida', 'success');
+    } catch (error: any) {
+      toast(error.response?.data?.error || 'Error al añadir variable', 'error');
+    } finally {
+      setSavingVariable(false);
+    }
+  };
+
+  const updateVariable = async () => {
+    if (!editingTemplate || !editingVariable) return;
+    
+    setSavingVariable(true);
+    try {
+      const response = await api.put(
+        `/admin/email-templates/${editingTemplate.name}/variables/${editingVariable.id}`,
+        {
+          defaultValue: editingVariable.defaultValue,
+          description: editingVariable.description,
+        }
+      );
+      
+      setTemplateVariables(prev => ({
+        ...prev,
+        custom: prev.custom.map(v => v.id === editingVariable.id ? response.data : v),
+      }));
+      
+      setEditingVariable(null);
+      toast('Variable actualizada', 'success');
+    } catch (error: any) {
+      toast(error.response?.data?.error || 'Error al actualizar variable', 'error');
+    } finally {
+      setSavingVariable(false);
+    }
+  };
+
+  const deleteVariable = async (variableId: string) => {
+    if (!editingTemplate) return;
+    
+    try {
+      await api.delete(`/admin/email-templates/${editingTemplate.name}/variables/${variableId}`);
+      
+      setTemplateVariables(prev => ({
+        ...prev,
+        custom: prev.custom.filter(v => v.id !== variableId),
+      }));
+      
+      toast('Variable eliminada', 'success');
+    } catch (error: any) {
+      toast(error.response?.data?.error || 'Error al eliminar variable', 'error');
+    }
+  };
+
+  const insertVariable = (varName: string) => {
+    if (!editingTemplate) return;
+    const variable = `{{${varName}}}`;
+    setEditingTemplate({
+      ...editingTemplate,
+      body: editingTemplate.body + variable,
+    });
+  };
+
+  const getTemplateDisplayName = (name: string): string => {
+    const names: Record<string, string> = {
+      welcome: 'Bienvenida',
+      reset_password: 'Restablecer Contraseña',
+    };
+    return names[name] || name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
   // Users functions
@@ -702,6 +1106,434 @@ export default function AdminDashboard() {
           </Button>
         </div>
       </section>
+
+      {/* Email Templates Section */}
+      <section className="bg-white dark:bg-dark-800 rounded-2xl border border-dark-100 dark:border-dark-700 p-6 mb-6">
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-2">
+            <FileText className="w-4 h-4 text-[#FF3B3B]" />
+            <h2 className="text-lg font-semibold text-dark-900 dark:text-white">Plantillas de Email</h2>
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={<Plus className="w-4 h-4" />}
+            onClick={() => setShowNewTemplateModal(true)}
+          >
+            Nueva
+          </Button>
+        </div>
+        <p className="text-sm text-dark-500 dark:text-dark-400 mb-6">Personaliza los emails que envía el sistema</p>
+
+        <div className="grid grid-cols-12 gap-6">
+          {/* Templates List */}
+          <div className="col-span-4 space-y-2">
+            <p className="text-xs font-medium text-dark-500 uppercase mb-3">Plantillas del Sistema</p>
+            {Object.keys(DEFAULT_TEMPLATES).map((name) => {
+              const customized = templates.find(t => t.name === name);
+              return (
+                <button
+                  key={name}
+                  onClick={() => loadTemplate(name)}
+                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-left transition-all ${
+                    selectedTemplate === name
+                      ? 'bg-[#FF3B3B] text-white'
+                      : 'bg-dark-50 dark:bg-dark-900 text-dark-700 dark:text-dark-300 hover:bg-dark-100 dark:hover:bg-dark-700'
+                  }`}
+                >
+                  <span className="font-medium">{getTemplateDisplayName(name)}</span>
+                  {customized && (
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${
+                      selectedTemplate === name ? 'bg-white/20' : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                    }`}>
+                      Personalizada
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+            
+            {/* Custom templates */}
+            {templates.filter(t => !DEFAULT_TEMPLATES[t.name]).length > 0 && (
+              <>
+                <p className="text-xs font-medium text-dark-500 uppercase mt-6 mb-3">Personalizadas</p>
+                {templates.filter(t => !DEFAULT_TEMPLATES[t.name]).map((template) => (
+                  <div
+                    key={template.name}
+                    className={`flex items-center justify-between px-4 py-3 rounded-xl transition-all ${
+                      selectedTemplate === template.name
+                        ? 'bg-[#FF3B3B] text-white'
+                        : 'bg-dark-50 dark:bg-dark-900 text-dark-700 dark:text-dark-300 hover:bg-dark-100 dark:hover:bg-dark-700'
+                    }`}
+                  >
+                    <button
+                      onClick={() => loadTemplate(template.name)}
+                      className="flex-1 text-left font-medium"
+                    >
+                      {getTemplateDisplayName(template.name)}
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteTemplate(template.name);
+                      }}
+                      className={`p-1 rounded-lg transition-colors ${
+                        selectedTemplate === template.name
+                          ? 'hover:bg-white/20'
+                          : 'hover:bg-dark-200 dark:hover:bg-dark-600'
+                      }`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+
+          {/* Template Editor */}
+          <div className="col-span-8">
+            {editingTemplate ? (
+              <div className="space-y-4">
+                {/* Header with toggle */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold text-dark-900 dark:text-white">
+                      {getTemplateDisplayName(editingTemplate.name)}
+                    </h3>
+                    {editingTemplate.isDefault && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                        Sin personalizar
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center bg-dark-100 dark:bg-dark-900 rounded-lg p-1">
+                    <button
+                      onClick={() => setShowPreview(false)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                        !showPreview
+                          ? 'bg-white dark:bg-dark-700 text-dark-900 dark:text-white shadow-sm'
+                          : 'text-dark-500 hover:text-dark-700 dark:hover:text-dark-300'
+                      }`}
+                    >
+                      <Code className="w-4 h-4" />
+                      Editor
+                    </button>
+                    <button
+                      onClick={() => setShowPreview(true)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                        showPreview
+                          ? 'bg-white dark:bg-dark-700 text-dark-900 dark:text-white shadow-sm'
+                          : 'text-dark-500 hover:text-dark-700 dark:hover:text-dark-300'
+                      }`}
+                    >
+                      <Eye className="w-4 h-4" />
+                      Vista Previa
+                    </button>
+                  </div>
+                </div>
+
+                {/* Variables Section */}
+                <div className="border border-dark-200 dark:border-dark-700 rounded-xl overflow-hidden">
+                  <button
+                    onClick={() => setShowVariablesPanel(!showVariablesPanel)}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-dark-50 dark:bg-dark-900 hover:bg-dark-100 dark:hover:bg-dark-800 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Code className="w-4 h-4 text-[#FF3B3B]" />
+                      <span className="text-sm font-medium text-dark-700 dark:text-dark-300">
+                        Variables Disponibles
+                      </span>
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-dark-200 dark:bg-dark-700 text-dark-600 dark:text-dark-400">
+                        {templateVariables.system.length + templateVariables.custom.length}
+                      </span>
+                    </div>
+                    <svg
+                      className={`w-4 h-4 text-dark-500 transition-transform ${showVariablesPanel ? 'rotate-180' : ''}`}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  
+                  {showVariablesPanel && (
+                    <div className="p-4 space-y-4">
+                      {/* System Variables */}
+                      <div>
+                        <p className="text-xs font-medium text-dark-500 uppercase mb-2">Variables del Sistema</p>
+                        <div className="flex flex-wrap gap-2">
+                          {templateVariables.system.map(v => (
+                            <button
+                              key={v.name}
+                              onClick={() => insertVariable(v.name)}
+                              className="group flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded-lg transition-colors"
+                              title={v.description || `Insertar {{${v.name}}}`}
+                            >
+                              <code className="text-xs text-blue-700 dark:text-blue-300">{`{{${v.name}}}`}</code>
+                              <Plus className="w-3 h-3 text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      
+                      {/* Custom Variables */}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-xs font-medium text-dark-500 uppercase">Variables Personalizadas</p>
+                          <button
+                            onClick={() => setShowAddVariableModal(true)}
+                            className="flex items-center gap-1 text-xs text-[#FF3B3B] hover:text-red-700 dark:hover:text-red-400 font-medium"
+                          >
+                            <Plus className="w-3 h-3" />
+                            Añadir
+                          </button>
+                        </div>
+                        
+                        {templateVariables.custom.length > 0 ? (
+                          <div className="space-y-2">
+                            {templateVariables.custom.map(v => (
+                              <div
+                                key={v.id}
+                                className="flex items-center justify-between px-3 py-2 bg-green-50 dark:bg-green-900/20 rounded-lg"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <button
+                                    onClick={() => insertVariable(v.name)}
+                                    className="flex items-center gap-1.5 hover:opacity-75 transition-opacity"
+                                    title={`Insertar {{${v.name}}}`}
+                                  >
+                                    <code className="text-xs text-green-700 dark:text-green-300">{`{{${v.name}}}`}</code>
+                                  </button>
+                                  <span className="text-xs text-dark-500">= {v.defaultValue}</span>
+                                  {v.description && (
+                                    <span className="text-xs text-dark-400 italic">({v.description})</span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={() => setEditingVariable(v)}
+                                    className="p-1 hover:bg-green-200 dark:hover:bg-green-900/40 rounded transition-colors"
+                                  >
+                                    <Edit className="w-3 h-3 text-green-700 dark:text-green-400" />
+                                  </button>
+                                  <button
+                                    onClick={() => deleteVariable(v.id!)}
+                                    className="p-1 hover:bg-red-200 dark:hover:bg-red-900/40 rounded transition-colors"
+                                  >
+                                    <Trash2 className="w-3 h-3 text-red-600 dark:text-red-400" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-dark-400 italic py-2">
+                            No hay variables personalizadas. Añade una para usarla en esta plantilla.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {!showPreview ? (
+                  <>
+                    <Input
+                      label="Asunto"
+                      value={editingTemplate.subject}
+                      onChange={(e) => setEditingTemplate({ ...editingTemplate, subject: e.target.value })}
+                    />
+                    <div>
+                      <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">
+                        Contenido HTML
+                      </label>
+                      <textarea
+                        value={editingTemplate.body}
+                        onChange={(e) => setEditingTemplate({ ...editingTemplate, body: e.target.value })}
+                        rows={12}
+                        className="w-full px-4 py-3 bg-dark-50 dark:bg-dark-900 border border-dark-200 dark:border-dark-700 rounded-xl text-sm font-mono text-dark-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#FF3B3B] focus:border-transparent resize-none"
+                        spellCheck={false}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div className="border border-dark-200 dark:border-dark-700 rounded-xl overflow-hidden">
+                    <div className="bg-dark-100 dark:bg-dark-900 px-4 py-2 border-b border-dark-200 dark:border-dark-700">
+                      <p className="text-sm">
+                        <span className="text-dark-500">Asunto:</span>{' '}
+                        <span className="text-dark-900 dark:text-white font-medium">
+                          {editingTemplate.subject.replace(/\{\{name\}\}/g, 'Usuario de Prueba')}
+                        </span>
+                      </p>
+                    </div>
+                    <iframe
+                      srcDoc={getPreviewHtml()}
+                      className="w-full h-[300px] bg-white"
+                      title="Email Preview"
+                      sandbox="allow-same-origin"
+                    />
+                  </div>
+                )}
+
+                {/* Test Email */}
+                <div className="flex items-center gap-3 p-4 bg-dark-50 dark:bg-dark-900 rounded-xl">
+                  <Input
+                    placeholder="email@ejemplo.com"
+                    value={testEmailAddress}
+                    onChange={(e) => setTestEmailAddress(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Button
+                    variant="secondary"
+                    onClick={sendTestTemplateEmail}
+                    loading={sendingTestEmail}
+                    icon={<Send className="w-4 h-4" />}
+                  >
+                    Probar
+                  </Button>
+                </div>
+
+                {/* Actions */}
+                <div className="flex justify-between pt-4 border-t border-dark-100 dark:border-dark-700">
+                  <Button
+                    variant="secondary"
+                    onClick={resetTemplate}
+                    icon={<RotateCcw className="w-4 h-4" />}
+                    disabled={editingTemplate.isDefault}
+                  >
+                    Restablecer
+                  </Button>
+                  <Button
+                    onClick={saveTemplate}
+                    loading={savingTemplate}
+                    icon={<Save className="w-4 h-4" />}
+                  >
+                    Guardar
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-64 text-dark-400">
+                <FileText className="w-12 h-12 mb-4 opacity-50" />
+                <p>Selecciona una plantilla para editarla</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* New Template Modal */}
+      {showNewTemplateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setShowNewTemplateModal(false)}>
+          <div
+            className="bg-white dark:bg-dark-800 rounded-xl shadow-2xl max-w-md w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-dark-900 dark:text-white mb-4">Nueva Plantilla</h3>
+            <Input
+              label="Nombre de la plantilla"
+              value={newTemplateName}
+              onChange={(e) => setNewTemplateName(e.target.value)}
+              placeholder="Ej: Notificación de pago"
+            />
+            <p className="text-xs text-dark-500 mt-2 mb-4">
+              Se convertirá en identificador único (ej: notificacion_de_pago)
+            </p>
+            <div className="flex justify-end gap-3">
+              <Button variant="secondary" onClick={() => setShowNewTemplateModal(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={createNewTemplate}>
+                Crear
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Variable Modal */}
+      {showAddVariableModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setShowAddVariableModal(false)}>
+          <div
+            className="bg-white dark:bg-dark-800 rounded-xl shadow-2xl max-w-md w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-dark-900 dark:text-white mb-4">Nueva Variable</h3>
+            <div className="space-y-4">
+              <Input
+                label="Nombre de la variable"
+                value={newVariableName}
+                onChange={(e) => setNewVariableName(e.target.value.replace(/[^a-zA-Z0-9_]/g, ''))}
+                placeholder="miVariable"
+              />
+              <p className="text-xs text-dark-500 -mt-2">
+                Solo letras, números y guiones bajos. Se usará como {`{{${newVariableName || 'miVariable'}}}`}
+              </p>
+              <Input
+                label="Valor por defecto"
+                value={newVariableValue}
+                onChange={(e) => setNewVariableValue(e.target.value)}
+                placeholder="Valor que se usará en el email"
+              />
+              <Input
+                label="Descripción (opcional)"
+                value={newVariableDescription}
+                onChange={(e) => setNewVariableDescription(e.target.value)}
+                placeholder="Para qué sirve esta variable"
+              />
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <Button variant="secondary" onClick={() => {
+                setShowAddVariableModal(false);
+                setNewVariableName('');
+                setNewVariableValue('');
+                setNewVariableDescription('');
+              }}>
+                Cancelar
+              </Button>
+              <Button onClick={addVariable} loading={savingVariable}>
+                Añadir
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Variable Modal */}
+      {editingVariable && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setEditingVariable(null)}>
+          <div
+            className="bg-white dark:bg-dark-800 rounded-xl shadow-2xl max-w-md w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-dark-900 dark:text-white mb-4">
+              Editar Variable: <code className="text-[#FF3B3B]">{`{{${editingVariable.name}}}`}</code>
+            </h3>
+            <div className="space-y-4">
+              <Input
+                label="Valor por defecto"
+                value={editingVariable.defaultValue}
+                onChange={(e) => setEditingVariable({ ...editingVariable, defaultValue: e.target.value })}
+              />
+              <Input
+                label="Descripción (opcional)"
+                value={editingVariable.description || ''}
+                onChange={(e) => setEditingVariable({ ...editingVariable, description: e.target.value })}
+              />
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <Button variant="secondary" onClick={() => setEditingVariable(null)}>
+                Cancelar
+              </Button>
+              <Button onClick={updateVariable} loading={savingVariable}>
+                Guardar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Branding Section */}
       <section className="bg-white dark:bg-dark-800 rounded-2xl border border-dark-100 dark:border-dark-700 p-6">

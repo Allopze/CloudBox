@@ -83,7 +83,7 @@
   }
 
   .file-card {
-    @apply card p-3 cursor-pointer hover:shadow-md hover:border-primary-300 dark:hover:border-primary-700 transition-all group;
+    @apply card p-3 cursor-pointer hover:shadow-md hover:border-primary-300 dark:hover:border-primary-700 transition-all;
   }
 
   .file-card.selected {

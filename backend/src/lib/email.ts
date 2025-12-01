@@ -59,8 +59,34 @@ export const sendEmail = async (to: string, subject: string, html: string): Prom
   });
 };
 
+// Helper function to replace all variables in a template
+const replaceTemplateVariables = (
+  text: string,
+  systemValues: Record<string, string>,
+  customVariables: Array<{ name: string; defaultValue: string }>
+): string => {
+  let result = text;
+
+  // Replace custom variables first (they might override system defaults)
+  for (const variable of customVariables) {
+    const regex = new RegExp(`\\{\\{${variable.name}\\}\\}`, 'g');
+    result = result.replace(regex, systemValues[variable.name] || variable.defaultValue);
+  }
+
+  // Replace system variables
+  for (const [key, value] of Object.entries(systemValues)) {
+    const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+    result = result.replace(regex, value);
+  }
+
+  return result;
+};
+
 export const sendWelcomeEmail = async (to: string, name: string, verifyUrl: string): Promise<void> => {
-  const template = await prisma.emailTemplate.findUnique({ where: { name: 'welcome' } });
+  const template = await prisma.emailTemplate.findUnique({
+    where: { name: 'welcome' },
+    include: { variables: true },
+  });
   
   let subject = 'Welcome to CloudBox!';
   let body = `
@@ -71,15 +97,27 @@ export const sendWelcomeEmail = async (to: string, name: string, verifyUrl: stri
   `;
 
   if (template) {
-    subject = template.subject.replace('{{name}}', name);
-    body = template.body.replace('{{name}}', name).replace('{{verifyUrl}}', verifyUrl);
+    const systemValues: Record<string, string> = {
+      name,
+      email: to,
+      verifyUrl,
+      appName: 'CloudBox',
+      appUrl: config.frontendUrl,
+      date: new Date().toLocaleDateString('es-ES'),
+    };
+
+    subject = replaceTemplateVariables(template.subject, systemValues, template.variables);
+    body = replaceTemplateVariables(template.body, systemValues, template.variables);
   }
 
   await sendEmail(to, subject, body);
 };
 
 export const sendResetPasswordEmail = async (to: string, name: string, resetUrl: string): Promise<void> => {
-  const template = await prisma.emailTemplate.findUnique({ where: { name: 'reset_password' } });
+  const template = await prisma.emailTemplate.findUnique({
+    where: { name: 'reset_password' },
+    include: { variables: true },
+  });
   
   let subject = 'Reset Your CloudBox Password';
   let body = `
@@ -92,8 +130,17 @@ export const sendResetPasswordEmail = async (to: string, name: string, resetUrl:
   `;
 
   if (template) {
-    subject = template.subject.replace('{{name}}', name);
-    body = template.body.replace('{{name}}', name).replace('{{resetUrl}}', resetUrl);
+    const systemValues: Record<string, string> = {
+      name,
+      email: to,
+      resetUrl,
+      appName: 'CloudBox',
+      appUrl: config.frontendUrl,
+      date: new Date().toLocaleDateString('es-ES'),
+    };
+
+    subject = replaceTemplateVariables(template.subject, systemValues, template.variables);
+    body = replaceTemplateVariables(template.body, systemValues, template.variables);
   }
 
   await sendEmail(to, subject, body);

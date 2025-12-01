@@ -5,13 +5,14 @@ import Header from '../components/Header';
 import UploadProgress from '../components/UploadProgress';
 import UploadModal from '../components/modals/UploadModal';
 import CreateFolderModal from '../components/modals/CreateFolderModal';
+import CreateFileModal from '../components/modals/CreateFileModal';
 import { useUIStore } from '../stores/uiStore';
 import { useFileStore } from '../stores/fileStore';
 import { useUploadStore } from '../stores/uploadStore';
 import { useBrandingStore } from '../stores/brandingStore';
 import { useGlobalProgressStore } from '../stores/globalProgressStore';
 import { cn } from '../lib/utils';
-import { PanelLeftClose, PanelLeft, Grid, List, SortAsc, SortDesc, Check, Link as LinkIcon, Users, Image, Star, Video, Camera, FolderOpen, Settings, ShieldCheck, Home, ChevronRight, Upload, FolderPlus, Trash2, Music, Disc, Plus, ArrowLeft } from 'lucide-react';
+import { PanelLeftClose, PanelLeft, Grid, List, SortAsc, SortDesc, Check, Link as LinkIcon, Users, Image, Star, Video, Camera, FolderOpen, Settings, ShieldCheck, Home, ChevronRight, Upload, FolderPlus, Trash2, Music, Disc, Plus, ArrowLeft, FilePlus, FolderUp, CheckSquare, RefreshCw } from 'lucide-react';
 import { Album } from '../types';
 import Dropdown, { DropdownItem, DropdownDivider } from '../components/ui/Dropdown';
 import { api } from '../lib/api';
@@ -49,6 +50,8 @@ export default function MainLayout() {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [isUploadModalOpen, setUploadModalOpen] = useState(false);
   const [isCreateFolderModalOpen, setCreateFolderModalOpen] = useState(false);
+  const [isCreateFileModalOpen, setCreateFileModalOpen] = useState(false);
+  const folderInputRef = useRef<HTMLInputElement>(null);
   
   // Drag and drop state
   const [isDragging, setIsDragging] = useState(false);
@@ -556,6 +559,48 @@ export default function MainLayout() {
     setContextMenu(null);
   };
 
+  // Handle folder upload from context menu
+  const handleFolderUpload = useCallback(() => {
+    closeContextMenu();
+    folderInputRef.current?.click();
+  }, []);
+
+  const handleFolderInputChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
+
+    const filesWithPaths: { file: File; path: string }[] = [];
+    
+    for (let i = 0; i < fileList.length; i++) {
+      const file = fileList[i];
+      const path = (file as any).webkitRelativePath || file.name;
+      filesWithPaths.push({ file, path });
+    }
+
+    const formData = new FormData();
+    filesWithPaths.forEach(({ file, path }) => {
+      formData.append('files', file);
+      formData.append('paths', path);
+    });
+    
+    if (currentFolderId) {
+      formData.append('folderId', currentFolderId);
+    }
+
+    try {
+      toast(`Subiendo ${filesWithPaths.length} archivo(s)...`, 'info');
+      await api.post('/files/upload-with-folders', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      toast('Carpeta subida correctamente', 'success');
+      triggerRefresh();
+    } catch (error: any) {
+      toast(error.response?.data?.error || 'Error al subir la carpeta', 'error');
+    }
+
+    e.target.value = '';
+  }, [currentFolderId]);
+
   // Event to trigger refresh in child components
   const triggerRefresh = () => {
     window.dispatchEvent(new CustomEvent('workzone-refresh'));
@@ -949,8 +994,8 @@ export default function MainLayout() {
 
             {/* Context Menu */}
             {contextMenu && (() => {
-              const menuWidth = 200;
-              const menuHeight = 100;
+              const menuWidth = 220;
+              const menuHeight = 280;
               const padding = 16;
               
               let left = contextMenu.x;
@@ -967,33 +1012,97 @@ export default function MainLayout() {
               
               return (
               <div
-                className="fixed z-50 bg-white dark:bg-dark-800 rounded-xl shadow-lg border border-dark-100 dark:border-dark-700 py-1 min-w-48"
+                className="fixed z-50 bg-white dark:bg-dark-800 rounded-xl shadow-lg border border-dark-100 dark:border-dark-700 py-2 min-w-52"
                 style={{ left, top }}
                 onClick={(e) => e.stopPropagation()}
               >
+                {/* Seleccionar todo */}
+                {isFilesPage && (
+                  <>
+                    <button
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        // Dispatch event to select all in Files page
+                        window.dispatchEvent(new CustomEvent('workzone-select-all'));
+                        closeContextMenu();
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
+                    >
+                      <CheckSquare className="w-4 h-4 text-dark-400" />
+                      Seleccionar todo
+                    </button>
+                    <div className="h-px bg-dark-100 dark:bg-dark-700 my-1.5" />
+                  </>
+                )}
+                
+                {/* Añadir archivos/carpetas */}
                 <button
                   onMouseDown={(e) => {
                     e.stopPropagation();
                     setUploadModalOpen(true);
                     closeContextMenu();
                   }}
-                  className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
                 >
                   <Upload className="w-4 h-4 text-dark-400" />
-                  Subir archivos
+                  Añadir archivo
                 </button>
                 {isFilesPage && (
                   <button
                     onMouseDown={(e) => {
                       e.stopPropagation();
-                      setCreateFolderModalOpen(true);
-                      closeContextMenu();
+                      handleFolderUpload();
                     }}
-                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
                   >
-                    <FolderPlus className="w-4 h-4 text-dark-400" />
-                    Crear carpeta
+                    <FolderUp className="w-4 h-4 text-dark-400" />
+                    Añadir carpeta
                   </button>
+                )}
+                
+                {isFilesPage && (
+                  <>
+                    <div className="h-px bg-dark-100 dark:bg-dark-700 my-1.5" />
+                    
+                    {/* Crear archivo/carpeta */}
+                    <button
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        setCreateFileModalOpen(true);
+                        closeContextMenu();
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
+                    >
+                      <FilePlus className="w-4 h-4 text-dark-400" />
+                      Crear archivo
+                    </button>
+                    <button
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        setCreateFolderModalOpen(true);
+                        closeContextMenu();
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
+                    >
+                      <FolderPlus className="w-4 h-4 text-dark-400" />
+                      Crear carpeta
+                    </button>
+                    
+                    <div className="h-px bg-dark-100 dark:bg-dark-700 my-1.5" />
+                    
+                    {/* Actualizar */}
+                    <button
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        triggerRefresh();
+                        closeContextMenu();
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
+                    >
+                      <RefreshCw className="w-4 h-4 text-dark-400" />
+                      Actualizar
+                    </button>
+                  </>
                 )}
               </div>
               );
@@ -1015,6 +1124,18 @@ export default function MainLayout() {
         </div>
       )}
 
+      {/* Hidden folder input for folder upload */}
+      <input
+        ref={folderInputRef}
+        type="file"
+        className="hidden"
+        // @ts-ignore - webkitdirectory is not in types but works in browsers
+        webkitdirectory=""
+        directory=""
+        multiple
+        onChange={handleFolderInputChange}
+      />
+
       {/* Modals */}
       <UploadModal
         isOpen={isUploadModalOpen}
@@ -1026,6 +1147,12 @@ export default function MainLayout() {
         isOpen={isCreateFolderModalOpen}
         onClose={() => setCreateFolderModalOpen(false)}
         parentId={currentFolderId}
+        onSuccess={triggerRefresh}
+      />
+      <CreateFileModal
+        isOpen={isCreateFileModalOpen}
+        onClose={() => setCreateFileModalOpen(false)}
+        folderId={currentFolderId}
         onSuccess={triggerRefresh}
       />
     </div>
