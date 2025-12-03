@@ -16,7 +16,7 @@ import { useBrandingStore } from '../stores/brandingStore';
 import { useGlobalProgressStore } from '../stores/globalProgressStore';
 import { useAuthStore } from '../stores/authStore';
 import { cn } from '../lib/utils';
-import { PanelLeftClose, PanelLeft, Grid, List, SortAsc, SortDesc, Check, Link as LinkIcon, Users, Image, Star, Video, Camera, FolderOpen, Settings, ShieldCheck, Home, ChevronRight, Upload, FolderPlus, Trash2, Music, Disc, Plus, ArrowLeft, FilePlus, FolderUp, CheckSquare, RefreshCw } from 'lucide-react';
+import { PanelLeftClose, PanelLeft, Grid, List, SortAsc, SortDesc, Check, Link as LinkIcon, Users, Image, Star, Video, Camera, FolderOpen, Settings, ShieldCheck, Home, ChevronRight, Upload, FolderPlus, Trash2, Music, Disc, Plus, ArrowLeft, FilePlus, FolderUp, CheckSquare, RefreshCw, FileText, FileSpreadsheet, Presentation, FileCode } from 'lucide-react';
 import { Album } from '../types';
 import Dropdown, { DropdownItem, DropdownDivider } from '../components/ui/Dropdown';
 import { api } from '../lib/api';
@@ -593,7 +593,7 @@ export default function MainLayout() {
   }, [albumId]);
 
   const showViewControls = pagesWithViewControls.includes(location.pathname);
-  const showBreadcrumbs = pagesWithBreadcrumbs.some(p => location.pathname.startsWith(p)) && breadcrumbs.length > 0;
+  const showBreadcrumbs = pagesWithBreadcrumbs.some(p => location.pathname.startsWith(p));
   const currentSort = sortOptions.find((s) => s.value === sortBy);
   const isSharedPage = location.pathname === '/shared';
   const isAlbumDetailPage = !!albumId && location.pathname.startsWith('/albums/');
@@ -610,6 +610,7 @@ export default function MainLayout() {
   const sharedTab = searchParams.get('tab') || 'my-shares';
   const photosTab = searchParams.get('tab') || 'all';
   const musicTab = searchParams.get('tab') || 'all';
+  const documentsTab = searchParams.get('tab') || 'all';
 
   // Get current folder ID from search params
   const currentFolderId = searchParams.get('folder');
@@ -800,6 +801,7 @@ export default function MainLayout() {
                   </button>
                 </>
               ) : isMusicPage ? (
+                <>
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => navigate('/music?tab=all')}
@@ -839,6 +841,95 @@ export default function MainLayout() {
                   >
                     <Disc className="w-5 h-5" />
                     Álbumes
+                  </button>
+                </div>
+                {(musicTab === 'all' || musicTab === 'albums') && (
+                  <button
+                    onClick={() => window.dispatchEvent(new CustomEvent('create-music-album'))}
+                    className="h-7 px-3 mr-1 flex items-center gap-2 text-sm font-medium text-primary-600 hover:text-primary-700 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-full transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Nuevo álbum
+                  </button>
+                )}
+                </>
+              ) : isDocumentsPage ? (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => navigate('/documents?tab=all')}
+                    className={cn(
+                      'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
+                      documentsTab === 'all'
+                        ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                        : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                    )}
+                    aria-label="Ver todos los documentos"
+                  >
+                    <FileText className="w-5 h-5" />
+                    Todo
+                  </button>
+                  <button
+                    onClick={() => navigate('/documents?tab=pdf')}
+                    className={cn(
+                      'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
+                      documentsTab === 'pdf'
+                        ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                        : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                    )}
+                    aria-label="Ver PDFs"
+                  >
+                    PDFs
+                  </button>
+                  <button
+                    onClick={() => navigate('/documents?tab=text')}
+                    className={cn(
+                      'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
+                      documentsTab === 'text'
+                        ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                        : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                    )}
+                    aria-label="Ver documentos de texto"
+                  >
+                    Texto
+                  </button>
+                  <button
+                    onClick={() => navigate('/documents?tab=spreadsheet')}
+                    className={cn(
+                      'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
+                      documentsTab === 'spreadsheet'
+                        ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                        : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                    )}
+                    aria-label="Ver hojas de cálculo"
+                  >
+                    <FileSpreadsheet className="w-5 h-5" />
+                    Cálculo
+                  </button>
+                  <button
+                    onClick={() => navigate('/documents?tab=presentation')}
+                    className={cn(
+                      'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
+                      documentsTab === 'presentation'
+                        ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                        : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                    )}
+                    aria-label="Ver presentaciones"
+                  >
+                    <Presentation className="w-5 h-5" />
+                    Presentaciones
+                  </button>
+                  <button
+                    onClick={() => navigate('/documents?tab=code')}
+                    className={cn(
+                      'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
+                      documentsTab === 'code'
+                        ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                        : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                    )}
+                    aria-label="Ver archivos de código"
+                  >
+                    <FileCode className="w-5 h-5" />
+                    Código
                   </button>
                 </div>
               ) : isGalleryPage ? (

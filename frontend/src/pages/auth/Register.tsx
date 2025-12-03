@@ -4,8 +4,11 @@ import { useAuthStore } from '../../stores/authStore';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import PasswordStrength, { validatePassword } from '../../components/ui/PasswordStrength';
-import { Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, User, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { toast } from '../../components/ui/Toast';
+
+// Email validation regex
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function Register() {
   const navigate = useNavigate();
@@ -22,18 +25,23 @@ export default function Register() {
     setError('');
 
     if (!name || !email || !password || !confirmPassword) {
-      setError('Por favor completa todos los campos');
+      setError('Por favor completa todos los campos para continuar.');
+      return;
+    }
+
+    if (!EMAIL_REGEX.test(email)) {
+      setError('El formato del correo electrónico no es válido. Ejemplo: usuario@dominio.com');
       return;
     }
 
     if (password !== confirmPassword) {
-      setError('Las contraseñas no coinciden');
+      setError('Las contraseñas ingresadas no coinciden. Por favor, verifica e intenta de nuevo.');
       return;
     }
 
     const { isValid } = validatePassword(password);
     if (!isValid) {
-      setError('La contraseña no cumple con los requisitos de seguridad');
+      setError('La contraseña no cumple con los requisitos mínimos de seguridad. Revisa los indicadores arriba.');
       return;
     }
 
@@ -42,9 +50,34 @@ export default function Register() {
       toast('¡Cuenta creada! Por favor verifica tu correo.', 'success');
       navigate('/login');
     } catch (err: any) {
-      const message = err.response?.data?.error || err.response?.data?.message || 'Error en el registro';
-      setError(message);
-      toast(message, 'error');
+      const errorData = err.response?.data;
+      const code = errorData?.code;
+      
+      let errorMessage = '';
+      switch (code) {
+        case 'EMAIL_EXISTS':
+        case 'EMAIL_ALREADY_EXISTS':
+          errorMessage = 'Ya existe una cuenta con este correo electrónico. ¿Quieres iniciar sesión?';
+          break;
+        case 'INVALID_EMAIL':
+          errorMessage = 'El formato del correo electrónico no es válido.';
+          break;
+        case 'WEAK_PASSWORD':
+          errorMessage = 'La contraseña es demasiado débil. Usa al menos 8 caracteres con mayúsculas, números y símbolos.';
+          break;
+        case 'REGISTRATION_DISABLED':
+          errorMessage = 'El registro de nuevos usuarios está deshabilitado temporalmente.';
+          break;
+        default:
+          errorMessage = errorData?.error || errorData?.message || 'No se pudo crear la cuenta. Por favor, intenta de nuevo.';
+      }
+      
+      setError(errorMessage);
+      
+      // Only show toast for network errors
+      if (!err.response) {
+        toast('Error de conexión. Verifica tu internet e inténtalo de nuevo.', 'error');
+      }
     }
   };
 
@@ -114,7 +147,21 @@ export default function Register() {
         />
 
         {error && (
-          <p className="text-sm text-red-600">{error}</p>
+          <div className="p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800" role="alert">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 dark:bg-red-800/30 flex items-center justify-center">
+                <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" aria-hidden="true" />
+              </div>
+              <div className="flex-1 pt-1">
+                <p className="text-sm font-medium text-red-800 dark:text-red-200">
+                  Error al crear cuenta
+                </p>
+                <p className="text-sm text-red-700 dark:text-red-300 mt-1">
+                  {error}
+                </p>
+              </div>
+            </div>
+          </div>
         )}
 
         <Button type="submit" loading={isRegistering} className="w-full rounded-full">

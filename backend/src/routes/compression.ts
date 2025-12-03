@@ -19,8 +19,24 @@ import fs from 'fs/promises';
 
 const router = Router();
 
-// SSE clients for progress updates
-const sseClients = new Map<string, Response>();
+// SSE clients for progress updates with timeout cleanup
+const sseClients = new Map<string, { res: Response; createdAt: number }>();
+const SSE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes timeout
+
+// Cleanup stale SSE connections periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [jobId, client] of sseClients.entries()) {
+    if (now - client.createdAt > SSE_TIMEOUT_MS) {
+      try {
+        client.res.end();
+      } catch (e) {
+        // Connection may already be closed
+      }
+      sseClients.delete(jobId);
+    }
+  }
+}, 5 * 60 * 1000); // Check every 5 minutes
 
 // Create compression job
 router.post('/compress', authenticate, validate(compressionSchema), async (req: Request, res: Response) => {
@@ -108,7 +124,7 @@ router.post('/compress', authenticate, validate(compressionSchema), async (req: 
         const onProgress = (progress: { jobId: string; progress: number }) => {
           const client = sseClients.get(jobId);
           if (client) {
-            client.write(`data: ${JSON.stringify(progress)}\n\n`);
+            client.res.write(`data: ${JSON.stringify(progress)}\n\n`);
           }
         };
 
@@ -153,8 +169,8 @@ router.post('/compress', authenticate, validate(compressionSchema), async (req: 
 
         const client = sseClients.get(jobId);
         if (client) {
-          client.write(`data: ${JSON.stringify({ jobId, progress: 100, status: 'COMPLETED', fileId })}\n\n`);
-          client.end();
+          client.res.write(`data: ${JSON.stringify({ jobId, progress: 100, status: 'COMPLETED', fileId })}\n\n`);
+          client.res.end();
           sseClients.delete(jobId);
         }
 
@@ -175,8 +191,8 @@ router.post('/compress', authenticate, validate(compressionSchema), async (req: 
 
         const client = sseClients.get(jobId);
         if (client) {
-          client.write(`data: ${JSON.stringify({ jobId, status: 'FAILED', error: String(error) })}\n\n`);
-          client.end();
+          client.res.write(`data: ${JSON.stringify({ jobId, status: 'FAILED', error: String(error) })}\n\n`);
+          client.res.end();
           sseClients.delete(jobId);
         }
       } finally {
@@ -259,7 +275,7 @@ router.post('/decompress', authenticate, validate(decompressSchema), async (req:
         const onProgress = (progress: { jobId: string; progress: number }) => {
           const client = sseClients.get(jobId);
           if (client) {
-            client.write(`data: ${JSON.stringify(progress)}\n\n`);
+            client.res.write(`data: ${JSON.stringify(progress)}\n\n`);
           }
         };
 
@@ -332,8 +348,8 @@ router.post('/decompress', authenticate, validate(decompressSchema), async (req:
 
         const client = sseClients.get(jobId);
         if (client) {
-          client.write(`data: ${JSON.stringify({ jobId, progress: 100, status: 'COMPLETED' })}\n\n`);
-          client.end();
+          client.res.write(`data: ${JSON.stringify({ jobId, progress: 100, status: 'COMPLETED' })}\n\n`);
+          client.res.end();
           sseClients.delete(jobId);
         }
 
@@ -354,8 +370,8 @@ router.post('/decompress', authenticate, validate(decompressSchema), async (req:
 
         const client = sseClients.get(jobId);
         if (client) {
-          client.write(`data: ${JSON.stringify({ jobId, status: 'FAILED', error: String(error) })}\n\n`);
-          client.end();
+          client.res.write(`data: ${JSON.stringify({ jobId, status: 'FAILED', error: String(error) })}\n\n`);
+          client.res.end();
           sseClients.delete(jobId);
         }
       }
@@ -376,7 +392,7 @@ router.get('/progress/:jobId', authenticate, async (req: Request, res: Response)
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
 
-  sseClients.set(jobId, res);
+  sseClients.set(jobId, { res, createdAt: Date.now() });
 
   // Send initial status
   const job = await prisma.compressionJob.findUnique({
@@ -417,8 +433,8 @@ router.post('/cancel/:jobId', authenticate, async (req: Request, res: Response) 
 
       const client = sseClients.get(jobId);
       if (client) {
-        client.write(`data: ${JSON.stringify({ jobId, status: 'CANCELLED' })}\n\n`);
-        client.end();
+        client.res.write(`data: ${JSON.stringify({ jobId, status: 'CANCELLED' })}\\n\\n`);
+        client.res.end();
         sseClients.delete(jobId);
       }
     }

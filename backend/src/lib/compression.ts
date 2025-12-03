@@ -79,10 +79,11 @@ export const compressToZip = async (
         status: 'PROCESSING',
       });
 
+      // Fire and forget but log errors
       prisma.compressionJob.update({
         where: { id: jobId },
         data: { progress: percent },
-      }).catch(() => {});
+      }).catch((err) => console.error('Failed to update compression progress:', err));
     });
 
     archive.pipe(output);
@@ -127,10 +128,11 @@ export const extractZip = async (
       status: 'PROCESSING',
     });
 
+    // Fire and forget but log errors
     prisma.compressionJob.update({
       where: { id: jobId },
       data: { progress: percent },
-    }).catch(() => {});
+    }).catch((err) => console.error('Failed to update extraction progress:', err));
 
     entry.autodrain();
   });
@@ -177,10 +179,11 @@ export const compress7z = async (
             status: 'PROCESSING',
           });
 
+          // Fire and forget but log errors
           prisma.compressionJob.update({
             where: { id: jobId },
             data: { progress },
-          }).catch(() => {});
+          }).catch((err) => console.error('Failed to update 7z compression progress:', err));
         }
       }
     });
@@ -226,10 +229,11 @@ export const extract7z = async (
             status: 'PROCESSING',
           });
 
+          // Fire and forget but log errors
           prisma.compressionJob.update({
             where: { id: jobId },
             data: { progress },
-          }).catch(() => {});
+          }).catch((err) => console.error('Failed to update 7z extraction progress:', err));
         }
       }
     });

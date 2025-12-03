@@ -1257,4 +1257,216 @@ router.post('/settings/smtp/test', authenticate, requireAdmin, async (req: Reque
   }
 });
 
+// ========== Legal Pages ==========
+
+// Default content for legal pages
+const defaultLegalContent: Record<string, { title: string; content: string }> = {
+  privacy: {
+    title: 'Política de Privacidad',
+    content: `
+      <h2>1. Información que Recopilamos</h2>
+      <p>Recopilamos información que nos proporcionas directamente, como tu nombre, dirección de correo electrónico y cualquier archivo que subas a nuestro servicio.</p>
+      
+      <h2>2. Uso de la Información</h2>
+      <p>Utilizamos la información recopilada para:</p>
+      <ul>
+        <li>Proporcionar, mantener y mejorar nuestros servicios</li>
+        <li>Enviarte notificaciones técnicas y actualizaciones</li>
+        <li>Responder a tus comentarios y preguntas</li>
+        <li>Proteger contra actividades fraudulentas o ilegales</li>
+      </ul>
+      
+      <h2>3. Almacenamiento de Datos</h2>
+      <p>Tus archivos se almacenan de forma segura en nuestros servidores. Implementamos medidas de seguridad técnicas y organizativas para proteger tus datos.</p>
+      
+      <h2>4. Compartir Información</h2>
+      <p>No vendemos ni compartimos tu información personal con terceros, excepto cuando sea necesario para proporcionar nuestros servicios o cuando lo exija la ley.</p>
+      
+      <h2>5. Tus Derechos</h2>
+      <p>Tienes derecho a acceder, corregir o eliminar tu información personal. Puedes hacerlo desde la configuración de tu cuenta o contactándonos directamente.</p>
+      
+      <h2>6. Cookies</h2>
+      <p>Utilizamos cookies esenciales para el funcionamiento del servicio. No utilizamos cookies de seguimiento de terceros.</p>
+      
+      <h2>7. Cambios a esta Política</h2>
+      <p>Podemos actualizar esta política ocasionalmente. Te notificaremos sobre cualquier cambio importante.</p>
+      
+      <h2>8. Contacto</h2>
+      <p>Si tienes preguntas sobre esta política de privacidad, contáctanos a través del correo electrónico de soporte.</p>
+    `,
+  },
+  terms: {
+    title: 'Términos de Servicio',
+    content: `
+      <h2>1. Aceptación de los Términos</h2>
+      <p>Al acceder y utilizar este servicio, aceptas estar sujeto a estos términos de servicio. Si no estás de acuerdo con alguna parte de estos términos, no podrás acceder al servicio.</p>
+      
+      <h2>2. Descripción del Servicio</h2>
+      <p>CloudBox es un servicio de almacenamiento en la nube que permite a los usuarios subir, almacenar, organizar y compartir archivos.</p>
+      
+      <h2>3. Cuentas de Usuario</h2>
+      <p>Para utilizar ciertas funciones del servicio, debes crear una cuenta. Eres responsable de:</p>
+      <ul>
+        <li>Mantener la confidencialidad de tu contraseña</li>
+        <li>Todas las actividades que ocurran bajo tu cuenta</li>
+        <li>Notificarnos inmediatamente sobre cualquier uso no autorizado</li>
+      </ul>
+      
+      <h2>4. Uso Aceptable</h2>
+      <p>Te comprometes a no utilizar el servicio para:</p>
+      <ul>
+        <li>Subir contenido ilegal, ofensivo o que infrinja derechos de terceros</li>
+        <li>Distribuir malware o software dañino</li>
+        <li>Intentar acceder a cuentas de otros usuarios</li>
+        <li>Sobrecargar o interferir con el funcionamiento del servicio</li>
+      </ul>
+      
+      <h2>5. Contenido del Usuario</h2>
+      <p>Conservas todos los derechos sobre el contenido que subes. Al subir contenido, nos otorgas una licencia limitada para almacenar y mostrar ese contenido según sea necesario para proporcionar el servicio.</p>
+      
+      <h2>6. Limitación de Responsabilidad</h2>
+      <p>El servicio se proporciona "tal cual" sin garantías de ningún tipo. No seremos responsables por la pérdida de datos o cualquier daño indirecto derivado del uso del servicio.</p>
+      
+      <h2>7. Terminación</h2>
+      <p>Podemos suspender o terminar tu acceso al servicio en cualquier momento por violación de estos términos. Puedes eliminar tu cuenta en cualquier momento desde la configuración.</p>
+      
+      <h2>8. Modificaciones</h2>
+      <p>Nos reservamos el derecho de modificar estos términos en cualquier momento. Los cambios entrarán en vigor inmediatamente después de su publicación.</p>
+      
+      <h2>9. Ley Aplicable</h2>
+      <p>Estos términos se regirán e interpretarán de acuerdo con las leyes aplicables en tu jurisdicción.</p>
+      
+      <h2>10. Contacto</h2>
+      <p>Para cualquier pregunta sobre estos términos, contáctanos a través del correo electrónico de soporte.</p>
+    `,
+  },
+};
+
+// Get legal page (Public)
+router.get('/legal/:slug', async (req: Request, res: Response) => {
+  try {
+    const { slug } = req.params;
+
+    if (!['privacy', 'terms'].includes(slug)) {
+      res.status(400).json({ error: 'Invalid page slug' });
+      return;
+    }
+
+    const page = await prisma.legalPage.findUnique({
+      where: { slug },
+    });
+
+    if (page && page.isActive) {
+      res.json(page);
+    } else {
+      // Return default content
+      const defaultContent = defaultLegalContent[slug];
+      res.json({
+        slug,
+        title: defaultContent.title,
+        content: defaultContent.content,
+        isActive: true,
+        isDefault: true,
+      });
+    }
+  } catch (error) {
+    console.error('Get legal page error:', error);
+    res.status(500).json({ error: 'Failed to get legal page' });
+  }
+});
+
+// Get all legal pages (Admin)
+router.get('/legal', authenticate, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const pages = await prisma.legalPage.findMany({
+      orderBy: { slug: 'asc' },
+    });
+
+    // Merge with defaults
+    const result = ['privacy', 'terms'].map(slug => {
+      const existing = pages.find(p => p.slug === slug);
+      if (existing) {
+        return existing;
+      }
+      return {
+        slug,
+        title: defaultLegalContent[slug].title,
+        content: defaultLegalContent[slug].content,
+        isActive: true,
+        isDefault: true,
+      };
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error('Get legal pages error:', error);
+    res.status(500).json({ error: 'Failed to get legal pages' });
+  }
+});
+
+// Update legal page (Admin)
+router.put('/legal/:slug', authenticate, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { slug } = req.params;
+    const { title, content, isActive } = req.body;
+
+    if (!['privacy', 'terms'].includes(slug)) {
+      res.status(400).json({ error: 'Invalid page slug' });
+      return;
+    }
+
+    if (!title || !content) {
+      res.status(400).json({ error: 'Title and content are required' });
+      return;
+    }
+
+    const page = await prisma.legalPage.upsert({
+      where: { slug },
+      update: {
+        title,
+        content,
+        isActive: isActive ?? true,
+      },
+      create: {
+        slug,
+        title,
+        content,
+        isActive: isActive ?? true,
+      },
+    });
+
+    res.json(page);
+  } catch (error) {
+    console.error('Update legal page error:', error);
+    res.status(500).json({ error: 'Failed to update legal page' });
+  }
+});
+
+// Reset legal page to default (Admin)
+router.delete('/legal/:slug', authenticate, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { slug } = req.params;
+
+    if (!['privacy', 'terms'].includes(slug)) {
+      res.status(400).json({ error: 'Invalid page slug' });
+      return;
+    }
+
+    await prisma.legalPage.delete({
+      where: { slug },
+    }).catch(() => {});
+
+    res.json({ 
+      message: 'Legal page reset to default',
+      ...defaultLegalContent[slug],
+      slug,
+      isActive: true,
+      isDefault: true,
+    });
+  } catch (error) {
+    console.error('Reset legal page error:', error);
+    res.status(500).json({ error: 'Failed to reset legal page' });
+  }
+});
+
 export default router;

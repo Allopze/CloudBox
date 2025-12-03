@@ -1,18 +1,19 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { api, getFileUrl } from '../lib/api';
 import { FileItem } from '../types';
 import { useMusicStore } from '../stores/musicStore';
 import { useFileStore } from '../stores/fileStore';
 import {
   Loader2, Music, Play, Heart, Disc, ChevronLeft, Check,
-  Download, Share2, Trash2, ListPlus, Info, Copy, Star
+  Download, Share2, Trash2, ListPlus, Info, Copy, Star, Plus, FolderPlus
 } from 'lucide-react';
 import { toast } from '../components/ui/Toast';
 import { cn, formatDate } from '../lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import ShareModal from '../components/modals/ShareModal';
 import Button from '../components/ui/Button';
+import Input from '../components/ui/Input';
 
 interface ContextMenuState {
   x: number;
@@ -38,11 +39,17 @@ const getGradientColors = (name: string) => {
 
 export default function MusicPage() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [tracks, setTracks] = useState<FileItem[]>([]);
   const [folders, setFolders] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [trackDurations, setTrackDurations] = useState<Record<string, number>>({});
   const [selectedAlbum, setSelectedAlbum] = useState<string | null>(null);
+
+  // Create album modal state
+  const [createAlbumOpen, setCreateAlbumOpen] = useState(false);
+  const [newAlbumName, setNewAlbumName] = useState('');
+  const [creatingAlbum, setCreatingAlbum] = useState(false);
 
   // Context menu state
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -104,7 +111,9 @@ export default function MusicPage() {
           try {
             await new Promise<void>((resolve) => {
               const onLoaded = () => {
-                setTrackDurations(prev => ({ ...prev, [track.id]: audio.duration }));
+                if (Number.isFinite(audio.duration) && audio.duration > 0) {
+                  setTrackDurations(prev => ({ ...prev, [track.id]: audio.duration }));
+                }
                 resolve();
               };
               const onError = () => resolve();
@@ -159,6 +168,33 @@ export default function MusicPage() {
     window.addEventListener('workzone-refresh', handleRefresh);
     return () => window.removeEventListener('workzone-refresh', handleRefresh);
   }, [loadData]);
+
+  // Listen for create-music-album event from MainLayout breadcrumb
+  useEffect(() => {
+    const handleCreateAlbum = () => setCreateAlbumOpen(true);
+    window.addEventListener('create-music-album', handleCreateAlbum);
+    return () => window.removeEventListener('create-music-album', handleCreateAlbum);
+  }, []);
+
+  // Create album function
+  const handleCreateAlbum = async () => {
+    if (!newAlbumName.trim()) return;
+    
+    setCreatingAlbum(true);
+    try {
+      await api.post('/folders', { name: newAlbumName.trim() });
+      toast('Álbum creado correctamente', 'success');
+      setNewAlbumName('');
+      setCreateAlbumOpen(false);
+      loadData(undefined);
+      // Navigate to albums tab to see the new album
+      navigate('/music?tab=albums');
+    } catch (error) {
+      toast('Error al crear el álbum', 'error');
+    } finally {
+      setCreatingAlbum(false);
+    }
+  };
 
   const toggleFavorite = async (e: React.MouseEvent, track: FileItem) => {
     e.stopPropagation();
@@ -274,6 +310,7 @@ export default function MusicPage() {
   };
 
   const formatTime = (time: number) => {
+    if (!Number.isFinite(time)) return '';
     const minutes = Math.floor(time / 60);
     const seconds = Math.floor(time % 60);
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
@@ -437,7 +474,7 @@ export default function MusicPage() {
                   >
                     <Heart className={cn('w-4 h-4', track.isFavorite && 'fill-current')} />
                   </button>
-                  {trackDurations[track.id] && (
+                  {trackDurations[track.id] && Number.isFinite(trackDurations[track.id]) && (
                     <span className="text-xs text-dark-400 w-10 text-right">
                       {formatTime(trackDurations[track.id])}
                     </span>
@@ -620,7 +657,7 @@ export default function MusicPage() {
                   </div>
 
                   {/* Duration badge */}
-                  {trackDurations[track.id] && (
+                  {trackDurations[track.id] && Number.isFinite(trackDurations[track.id]) && (
                     <div className="absolute bottom-2 right-2 px-2 py-0.5 bg-black/60 rounded text-xs text-white font-medium">
                       {formatTime(trackDurations[track.id])}
                     </div>
@@ -875,6 +912,56 @@ export default function MusicPage() {
                 Cerrar
               </Button>
             </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Create Album Modal */}
+      {createAlbumOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setCreateAlbumOpen(false)}>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white dark:bg-dark-800 rounded-xl shadow-2xl max-w-md w-full p-6"
+          >
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
+                <FolderPlus className="w-6 h-6 text-primary-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-dark-900 dark:text-white">Nuevo álbum</h3>
+                <p className="text-sm text-dark-500">Crea una carpeta para organizar tu música</p>
+              </div>
+            </div>
+            
+            <form onSubmit={(e) => { e.preventDefault(); handleCreateAlbum(); }}>
+              <Input
+                label="Nombre del álbum"
+                value={newAlbumName}
+                onChange={(e) => setNewAlbumName(e.target.value)}
+                placeholder="Mi nuevo álbum"
+                autoFocus
+              />
+              
+              <div className="flex justify-end gap-3 mt-6">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => setCreateAlbumOpen(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button 
+                  type="submit" 
+                  disabled={!newAlbumName.trim() || creatingAlbum}
+                  loading={creatingAlbum}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Crear álbum
+                </Button>
+              </div>
+            </form>
           </motion.div>
         </div>
       )}

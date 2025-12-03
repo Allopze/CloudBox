@@ -81,14 +81,14 @@ export default function Dashboard() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const loadStats = useCallback(async () => {
+  const loadStats = useCallback(async (signal?: AbortSignal) => {
     try {
       const [filesRes, foldersRes, recentRes, favoritesRes, activityRes] = await Promise.all([
-        api.get('/files?limit=1'),
-        api.get('/folders?limit=1'),
-        api.get('/files?limit=5&sortBy=createdAt&sortOrder=desc'),
-        api.get('/files?favorite=true&limit=5'),
-        api.get('/activity?limit=10'),
+        api.get('/files?limit=1', { signal }),
+        api.get('/folders?limit=1', { signal }),
+        api.get('/files?limit=5&sortBy=createdAt&sortOrder=desc', { signal }),
+        api.get('/files?favorite=true&limit=5', { signal }),
+        api.get('/activity?limit=10', { signal }),
       ]);
 
       setStats({
@@ -101,14 +101,20 @@ export default function Dashboard() {
       });
       setActivities(activityRes.data.activities || []);
     } catch (error) {
+      // Ignore aborted requests
+      if (signal?.aborted) return;
       console.error('Failed to load dashboard stats:', error);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) {
+        setLoading(false);
+      }
     }
   }, [user?.storageUsed]);
 
   useEffect(() => {
-    loadStats();
+    const abortController = new AbortController();
+    loadStats(abortController.signal);
+    return () => abortController.abort();
   }, [loadStats]);
 
   const storageUsedPercent = user && parseInt(user.storageQuota) > 0

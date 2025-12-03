@@ -290,3 +290,15 @@ model StorageRequest {
 
   @@map("storage_requests")
 }
+
+model LegalPage {
+  id        String   @id @default(uuid())
+  slug      String   @unique // "privacy" or "terms"
+  title     String
+  content   String   // HTML content
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("legal_pages")
+}

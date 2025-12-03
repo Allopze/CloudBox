@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
-import { Mail, Lock, Eye, EyeOff, AlertCircle, Clock } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, AlertCircle, Clock, Info } from 'lucide-react';
 import { toast } from '../../components/ui/Toast';
 
 // Email validation regex
@@ -22,8 +22,14 @@ export default function Login() {
     return localStorage.getItem('rememberEmail') !== null;
   });
   const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
   const [lockoutTime, setLockoutTime] = useState<number | null>(null);
   const [countdown, setCountdown] = useState<number>(0);
+  const [showRememberTooltip, setShowRememberTooltip] = useState(false);
+  const [hasSubmitted, setHasSubmitted] = useState(false);
+  
+  const emailInputRef = useRef<HTMLInputElement>(null);
+  const passwordInputRef = useRef<HTMLInputElement>(null);
 
   // Load remembered email on mount
   useEffect(() => {
@@ -48,26 +54,59 @@ export default function Login() {
   // Validate email on blur
   const handleEmailBlur = () => {
     if (email && !EMAIL_REGEX.test(email)) {
-      setEmailError('El formato del correo no es válido');
+      setEmailError('Introduce un correo válido');
     } else {
       setEmailError('');
     }
   };
 
+  // Validate password on blur (only if form has been submitted once)
+  const handlePasswordBlur = () => {
+    if (hasSubmitted && !password) {
+      setPasswordError('La contraseña es obligatoria');
+    } else {
+      setPasswordError('');
+    }
+  };
+
+  const validateForm = (): boolean => {
+    let isValid = true;
+    
+    if (!email) {
+      setEmailError('El correo es obligatorio');
+      isValid = false;
+    } else if (!EMAIL_REGEX.test(email)) {
+      setEmailError('Introduce un correo válido');
+      isValid = false;
+    } else {
+      setEmailError('');
+    }
+    
+    if (!password) {
+      setPasswordError('La contraseña es obligatoria');
+      isValid = false;
+    } else {
+      setPasswordError('');
+    }
+    
+    return isValid;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setHasSubmitted(true);
     setError('');
     setErrorCode(null);
     setRemainingAttempts(null);
 
     // Client-side validation
-    if (!email || !password) {
-      setError('Por favor completa todos los campos');
-      return;
-    }
-
-    if (!EMAIL_REGEX.test(email)) {
-      setEmailError('El formato del correo no es válido');
+    if (!validateForm()) {
+      // Focus first invalid field
+      if (!email || !EMAIL_REGEX.test(email)) {
+        emailInputRef.current?.focus();
+      } else if (!password) {
+        passwordInputRef.current?.focus();
+      }
       return;
     }
 
@@ -85,12 +124,36 @@ export default function Login() {
       navigate('/');
     } catch (err: any) {
       const errorData = err.response?.data;
-      const message = errorData?.error || 'Error al iniciar sesión';
       const code = errorData?.code || null;
       const attempts = errorData?.remainingAttempts ?? null;
       const retryAfter = errorData?.retryAfter ?? null;
       
-      setError(message);
+      // Set specific error messages based on error code
+      let errorMessage = '';
+      switch (code) {
+        case 'INVALID_CREDENTIALS':
+          errorMessage = 'El correo electrónico o la contraseña son incorrectos. Por favor, verifica tus datos e intenta nuevamente.';
+          break;
+        case 'OAUTH_ACCOUNT':
+          errorMessage = 'Esta cuenta fue creada con Google. Por favor, inicia sesión usando el botón de Google.';
+          break;
+        case 'TOO_MANY_ATTEMPTS':
+          errorMessage = 'Has excedido el número máximo de intentos.';
+          break;
+        case 'ACCOUNT_LOCKED':
+          errorMessage = 'Tu cuenta ha sido bloqueada temporalmente por seguridad. Inténtalo más tarde.';
+          break;
+        case 'EMAIL_NOT_VERIFIED':
+          errorMessage = 'Tu correo electrónico aún no ha sido verificado. Revisa tu bandeja de entrada.';
+          break;
+        case 'ACCOUNT_DISABLED':
+          errorMessage = 'Tu cuenta ha sido deshabilitada. Contacta al administrador para más información.';
+          break;
+        default:
+          errorMessage = errorData?.error || errorData?.message || 'No se pudo iniciar sesión. Por favor, inténtalo de nuevo.';
+      }
+      
+      setError(errorMessage);
       setErrorCode(code);
       setRemainingAttempts(attempts);
       
@@ -100,15 +163,9 @@ export default function Login() {
         setCountdown(Math.ceil(retryAfter / 1000));
       }
       
-      // Show toast with appropriate message
-      if (code === 'INVALID_CREDENTIALS') {
-        toast('Email o contraseña incorrectos', 'error');
-      } else if (code === 'OAUTH_ACCOUNT') {
-        toast('Usa Google para iniciar sesión', 'error');
-      } else if (code === 'TOO_MANY_ATTEMPTS') {
-        toast('Demasiados intentos. Espera un momento.', 'error');
-      } else {
-        toast(message, 'error');
+      // Only show toast for network errors or unexpected errors
+      if (!err.response) {
+        toast('Error de conexión. Verifica tu internet e inténtalo de nuevo.', 'error');
       }
     }
   };
@@ -130,8 +187,10 @@ export default function Login() {
         ¡Bienvenido de nuevo! Por favor ingresa tus datos.
       </p>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+        {/* Email field */}
         <Input
+          ref={emailInputRef}
           label="Correo electrónico"
           type="email"
           placeholder="Ingresa tu correo"
@@ -139,51 +198,76 @@ export default function Login() {
           onChange={(e) => {
             setEmail(e.target.value);
             if (emailError) setEmailError('');
+            if (error) setError('');
           }}
           onBlur={handleEmailBlur}
-          icon={<Mail className="w-5 h-5" aria-hidden="true" />}
-          error={emailError || (error && !email ? 'El correo es requerido' : undefined)}
+          icon={<Mail className="w-5 h-5" />}
+          error={emailError}
           className="rounded-2xl"
           autoComplete="email"
           disabled={isLoggingIn || isLocked}
-          aria-describedby={emailError ? 'email-error' : undefined}
+          required
+          showRequiredIndicator
+          aria-required="true"
         />
 
-        <Input
-          label="Contraseña"
-          type={showPassword ? 'text' : 'password'}
-          placeholder="Ingresa tu contraseña"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          icon={<Lock className="w-5 h-5" aria-hidden="true" />}
-          rightIcon={
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="hover:text-dark-700 dark:hover:text-dark-300 transition-colors"
-              aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-              tabIndex={-1}
+        {/* Password field with forgot password link below */}
+        <div className="space-y-1">
+          <Input
+            ref={passwordInputRef}
+            label="Contraseña"
+            type={showPassword ? 'text' : 'password'}
+            placeholder="Ingresa tu contraseña"
+            value={password}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              if (passwordError) setPasswordError('');
+              if (error) setError('');
+            }}
+            onBlur={handlePasswordBlur}
+            icon={<Lock className="w-5 h-5" />}
+            rightIcon={
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="hover:text-dark-700 dark:hover:text-dark-300 transition-colors p-1 -m-1"
+                aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                aria-pressed={showPassword}
+              >
+                {showPassword ? (
+                  <EyeOff className="w-5 h-5" aria-hidden="true" />
+                ) : (
+                  <Eye className="w-5 h-5" aria-hidden="true" />
+                )}
+              </button>
+            }
+            error={passwordError}
+            className="rounded-2xl"
+            autoComplete="current-password"
+            disabled={isLoggingIn || isLocked}
+            required
+            showRequiredIndicator
+            aria-required="true"
+          />
+          
+          {/* Forgot password link - positioned right below password field */}
+          <div className="flex justify-end">
+            <Link
+              to="/forgot-password"
+              className="text-sm text-dark-500 dark:text-dark-400 hover:text-primary-600 dark:hover:text-primary-500 transition-colors"
             >
-              {showPassword ? (
-                <EyeOff className="w-5 h-5" aria-hidden="true" />
-              ) : (
-                <Eye className="w-5 h-5" aria-hidden="true" />
-              )}
-            </button>
-          }
-          error={error && !password ? 'La contraseña es requerida' : undefined}
-          className="rounded-2xl"
-          autoComplete="current-password"
-          disabled={isLoggingIn || isLocked}
-        />
+              ¿Olvidaste tu contraseña?
+            </Link>
+          </div>
+        </div>
 
-        {/* Error messages container - fixed height to prevent layout shift */}
-        <div className="min-h-[60px]">
+        {/* Error messages container */}
+        <div aria-live="polite">
           {/* Lockout timer */}
           {isLocked && (
-            <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+            <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800" role="alert">
               <div className="flex items-center gap-2">
-                <Clock className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                <Clock className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" aria-hidden="true" />
                 <div className="flex-1">
                   <p className="text-sm text-amber-700 dark:text-amber-300">
                     Demasiados intentos fallidos
@@ -197,28 +281,25 @@ export default function Login() {
           )}
           
           {/* Regular error messages */}
-          {!isLocked && error && email && password && (
-            <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800" role="alert">
-              <div className="flex items-start gap-2">
-                <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" aria-hidden="true" />
-                <div className="flex-1">
-                  <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
+          {!isLocked && error && (
+            <div className="p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800" role="alert">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 dark:bg-red-800/30 flex items-center justify-center">
+                  <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" aria-hidden="true" />
+                </div>
+                <div className="flex-1 pt-1">
+                  <p className="text-sm font-medium text-red-800 dark:text-red-200">
+                    No se pudo iniciar sesión
+                  </p>
+                  <p className="text-sm text-red-700 dark:text-red-300 mt-1">
+                    {error}
+                  </p>
                   
                   {/* Show remaining attempts warning */}
                   {remainingAttempts !== null && remainingAttempts > 0 && remainingAttempts <= 3 && (
-                    <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-                      Intentos restantes: {remainingAttempts}
+                    <p className="text-xs text-red-600 dark:text-red-400 mt-2 font-medium">
+                      ⚠️ Intentos restantes: {remainingAttempts}
                     </p>
-                  )}
-                  
-                  {/* Show forgot password link for wrong credentials */}
-                  {errorCode === 'INVALID_CREDENTIALS' && (
-                    <Link
-                      to="/forgot-password"
-                      className="inline-block mt-2 text-sm text-primary-600 hover:text-primary-700 font-medium"
-                    >
-                      ¿Olvidaste tu contraseña?
-                    </Link>
                   )}
                 </div>
               </div>
@@ -226,46 +307,90 @@ export default function Login() {
           )}
         </div>
 
-        <div className="flex items-center justify-between">
-          <label className="flex items-center gap-2 cursor-pointer select-none">
+        {/* Remember me checkbox with enlarged clickable area */}
+        <div className="relative">
+          <label 
+            className="flex items-center gap-3 cursor-pointer select-none py-2 px-1 -mx-1 rounded-lg hover:bg-dark-50 dark:hover:bg-dark-800/50 transition-colors"
+          >
             <input
               type="checkbox"
               checked={rememberMe}
               onChange={(e) => setRememberMe(e.target.checked)}
-              className="rounded border-dark-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
+              className="w-4 h-4 rounded border-dark-300 text-primary-600 focus:ring-primary-500 focus:ring-offset-0 cursor-pointer"
               disabled={isLoggingIn || isLocked}
+              id="remember-me"
             />
-            <span className="text-sm text-dark-600 dark:text-dark-400">
-              Recordar mi correo
+            <span className="text-sm text-dark-600 dark:text-dark-400 flex items-center gap-1">
+              Recuérdame en este dispositivo
+              <button
+                type="button"
+                className="text-dark-400 hover:text-dark-600 dark:hover:text-dark-300 transition-colors p-0.5"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowRememberTooltip(!showRememberTooltip);
+                }}
+                onBlur={() => setShowRememberTooltip(false)}
+                aria-label="Más información sobre recordar correo"
+                aria-expanded={showRememberTooltip}
+              >
+                <Info className="w-4 h-4" aria-hidden="true" />
+              </button>
             </span>
           </label>
-          {/* Only show this link when there's no credential error (to avoid duplicate) */}
-          {errorCode !== 'INVALID_CREDENTIALS' && (
-            <Link
-              to="/forgot-password"
-              className="text-sm text-primary-600 hover:text-primary-700 transition-colors"
+          
+          {/* Tooltip */}
+          {showRememberTooltip && (
+            <div 
+              className="absolute left-0 top-full mt-1 p-2 bg-dark-800 dark:bg-dark-700 text-white text-xs rounded-lg shadow-lg z-10 max-w-xs"
+              role="tooltip"
             >
-              ¿Olvidaste tu contraseña?
-            </Link>
+              Tu correo electrónico se guardará en este navegador para facilitar futuros inicios de sesión. Tu contraseña nunca se almacena.
+            </div>
           )}
         </div>
 
+        {/* Primary action button */}
         <Button
           type="submit"
           loading={isLoggingIn}
           disabled={isLocked}
-          className="w-full rounded-full"
+          className="w-full rounded-full bg-red-500 hover:bg-red-600 focus:ring-red-500"
         >
           {isLocked ? `Espera ${formatTime(countdown)}` : 'Iniciar sesión'}
         </Button>
       </form>
 
-      <p className="mt-6 text-center text-dark-600 dark:text-dark-400">
-        ¿No tienes una cuenta?{' '}
-        <Link to="/register" className="text-primary-600 hover:text-primary-700 font-medium transition-colors">
-          Regístrate
-        </Link>
-      </p>
+      {/* Secondary links section */}
+      <div className="mt-6 space-y-4">
+        <p className="text-center text-dark-600 dark:text-dark-400">
+          ¿No tienes una cuenta?{' '}
+          <Link 
+            to="/register" 
+            className="text-dark-700 dark:text-dark-300 hover:text-primary-600 dark:hover:text-primary-500 font-medium transition-colors underline underline-offset-2"
+          >
+            Regístrate
+          </Link>
+        </p>
+        
+        {/* Privacy and terms links */}
+        <p className="text-center text-xs text-dark-400 dark:text-dark-500">
+          Al iniciar sesión, aceptas nuestra{' '}
+          <Link 
+            to="/privacy" 
+            className="hover:text-dark-600 dark:hover:text-dark-400 underline underline-offset-2 transition-colors"
+          >
+            Política de Privacidad
+          </Link>
+          {' '}y{' '}
+          <Link 
+            to="/terms" 
+            className="hover:text-dark-600 dark:hover:text-dark-400 underline underline-offset-2 transition-colors"
+          >
+            Términos de Servicio
+          </Link>
+        </p>
+      </div>
     </div>
   );
 }

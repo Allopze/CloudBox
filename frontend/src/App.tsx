@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { useAuthStore } from './stores/authStore';
 import { useThemeStore } from './stores/themeStore';
 import { useBrandingStore } from './stores/brandingStore';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Layouts
 import MainLayout from './layouts/MainLayout';
@@ -34,6 +35,7 @@ import AdminUsers from './pages/admin/AdminUsers';
 
 // Public pages
 import PublicShare from './pages/public/PublicShare';
+import LegalPage from './pages/public/LegalPage';
 
 // Components
 import ProtectedRoute from './components/ProtectedRoute';
@@ -69,10 +71,12 @@ function App() {
   const shouldRedirectFromAuth = !isLoading && isAuthenticated;
 
   return (
-    <>
+    <ErrorBoundary>
       <Routes>
         {/* Public routes */}
         <Route path="/share/:token" element={<PublicShare />} />
+        <Route path="/privacy" element={<LegalPage />} />
+        <Route path="/terms" element={<LegalPage />} />
 
         {/* Auth routes */}
         <Route element={<AuthLayout />}>
@@ -116,7 +120,7 @@ function App() {
       
       {/* Toast notifications */}
       <ToastContainer />
-    </>
+    </ErrorBoundary>
   );
 }
 

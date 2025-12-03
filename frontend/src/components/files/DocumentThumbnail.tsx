@@ -14,48 +14,55 @@ interface DocumentThumbnailProps {
   className?: string;
 }
 
-// Get icon and gradient based on document type
+// Get icon and solid color based on document type
 const getDocumentStyle = (mimeType: string, fileName: string) => {
   if (mimeType === 'application/pdf' || fileName.endsWith('.pdf')) {
     return { 
       icon: FileText, 
-      gradient: ['from-red-400', 'to-red-600'],
+      bgColor: 'bg-red-500',
+      label: 'PDF',
     };
   }
   if (mimeType.includes('word') || fileName.endsWith('.doc') || fileName.endsWith('.docx')) {
     return { 
       icon: FileText, 
-      gradient: ['from-blue-400', 'to-blue-600'],
+      bgColor: 'bg-blue-600',
+      label: 'DOC',
     };
   }
   if (mimeType.includes('excel') || mimeType.includes('spreadsheet') || 
       fileName.endsWith('.xls') || fileName.endsWith('.xlsx') || fileName.endsWith('.csv')) {
     return { 
       icon: FileSpreadsheet, 
-      gradient: ['from-green-400', 'to-green-600'],
+      bgColor: 'bg-emerald-600',
+      label: 'XLSX',
     };
   }
   if (mimeType.includes('presentation') || fileName.endsWith('.ppt') || fileName.endsWith('.pptx')) {
     return { 
       icon: FileText, 
-      gradient: ['from-orange-400', 'to-orange-600'],
+      bgColor: 'bg-orange-500',
+      label: 'PPT',
     };
   }
   if (mimeType === 'text/plain' || fileName.endsWith('.txt')) {
     return { 
       icon: FileText, 
-      gradient: ['from-gray-400', 'to-gray-600'],
+      bgColor: 'bg-slate-500',
+      label: 'TXT',
     };
   }
   if (mimeType === 'text/markdown' || fileName.endsWith('.md')) {
     return { 
       icon: FileText, 
-      gradient: ['from-purple-400', 'to-purple-600'],
+      bgColor: 'bg-violet-600',
+      label: 'MD',
     };
   }
   return { 
     icon: File, 
-    gradient: ['from-slate-400', 'to-slate-600'],
+    bgColor: 'bg-slate-600',
+    label: '',
   };
 };
 
@@ -75,8 +82,9 @@ const DocumentThumbnail = memo(function DocumentThumbnail({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+  const [pdfLoaded, setPdfLoaded] = useState(false);
 
-  const { icon: DocIcon, gradient } = getDocumentStyle(mimeType, fileName);
+  const { icon: DocIcon, bgColor, label } = getDocumentStyle(mimeType, fileName);
   const ext = getExtension(fileName);
   const isPdf = mimeType === 'application/pdf' || fileName.endsWith('.pdf');
   const isWord = mimeType.includes('word') || fileName.endsWith('.doc') || fileName.endsWith('.docx');
@@ -137,31 +145,34 @@ const DocumentThumbnail = memo(function DocumentThumbnail({
   // PDF preview using react-pdf
   if (isPdf) {
     return (
-      <div className={`relative w-full h-full bg-gradient-to-br ${gradient[0]} ${gradient[1]} ${className}`}>
-        <div className="absolute inset-0 flex items-center justify-center overflow-hidden bg-white">
-          <Document
-            file={fileUrl}
-            loading={
-              <div className="flex items-center justify-center w-full h-full">
-                <Loader2 className="w-8 h-8 text-red-500 animate-spin" />
-              </div>
-            }
-            error={
-              <div className={`flex flex-col items-center justify-center w-full h-full bg-gradient-to-br ${gradient[0]} ${gradient[1]}`}>
-                <DocIcon className="w-12 h-12 text-white/80 mb-2" />
-                <span className="text-white/90 text-xs font-bold tracking-wider">{ext}</span>
-              </div>
-            }
-            className="w-full h-full"
-          >
-            <Page
-              pageNumber={1}
-              width={200}
-              renderTextLayer={false}
-              renderAnnotationLayer={false}
-              className="!w-full !h-full [&>canvas]:!w-full [&>canvas]:!h-full [&>canvas]:object-cover"
-            />
-          </Document>
+      <div className={`relative w-full h-full overflow-hidden ${className}`}>
+        <Document
+          file={fileUrl}
+          onLoadSuccess={() => setPdfLoaded(true)}
+          onLoadError={() => setError(true)}
+          loading={
+            <div className="flex items-center justify-center w-full h-full bg-gray-100 dark:bg-dark-700">
+              <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
+            </div>
+          }
+          error={
+            <div className="flex flex-col items-center justify-center w-full h-full bg-red-500">
+              <DocIcon className="w-12 h-12 text-white/80 mb-2" />
+              <span className="text-white/90 text-xs font-bold tracking-wider">{label}</span>
+            </div>
+          }
+          className="w-full h-full"
+        >
+          <Page
+            pageNumber={1}
+            renderTextLayer={false}
+            renderAnnotationLayer={false}
+            className="[&>canvas]:!w-full [&>canvas]:!h-full [&>canvas]:object-cover"
+          />
+        </Document>
+        {/* Extension badge - always visible */}
+        <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-white/90 text-[10px] font-bold text-red-600 shadow-sm">
+          {label}
         </div>
       </div>
     );
@@ -171,16 +182,16 @@ const DocumentThumbnail = memo(function DocumentThumbnail({
   if ((isText || isWord) && previewContent && !error) {
     return (
       <div className={`relative w-full h-full ${className}`}>
-        <div className="absolute inset-0 bg-white p-2 overflow-hidden">
-          <div className="text-[6px] leading-tight text-dark-600 font-mono whitespace-pre-wrap overflow-hidden h-full">
+        <div className="absolute inset-0 bg-white dark:bg-dark-800 p-3 overflow-hidden">
+          <div className="text-[7px] leading-tight text-dark-600 dark:text-dark-300 font-mono whitespace-pre-wrap overflow-hidden h-full">
             {previewContent}
           </div>
-          {/* Gradient fade at bottom */}
-          <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-white to-transparent" />
+          {/* Fade at bottom */}
+          <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-white dark:from-dark-800 to-transparent" />
         </div>
         {/* Extension badge */}
-        <div className={`absolute bottom-2 left-2 px-1.5 py-0.5 rounded text-[10px] font-bold text-white bg-gradient-to-br ${gradient[0]} ${gradient[1]}`}>
-          {ext}
+        <div className={`absolute bottom-2 left-2 px-2 py-0.5 rounded text-[10px] font-bold text-white ${bgColor} shadow-sm`}>
+          {ext || label}
         </div>
       </div>
     );
@@ -189,7 +200,7 @@ const DocumentThumbnail = memo(function DocumentThumbnail({
   // Loading state
   if (loading) {
     return (
-      <div className={`relative w-full h-full bg-gradient-to-br ${gradient[0]} ${gradient[1]} ${className}`}>
+      <div className={`relative w-full h-full ${bgColor} ${className}`}>
         <div className="absolute inset-0 flex items-center justify-center">
           <Loader2 className="w-8 h-8 text-white/80 animate-spin" />
         </div>
@@ -198,24 +209,21 @@ const DocumentThumbnail = memo(function DocumentThumbnail({
   }
 
   // Default fallback with icon (also used for spreadsheets)
-  // If thumbnailUrl loaded successfully, show it; otherwise show icon
   return (
-    <div className={`relative w-full h-full bg-gradient-to-br ${gradient[0]} ${gradient[1]} ${className}`}>
+    <div className={`relative w-full h-full ${bgColor} ${className}`}>
       {thumbnailUrl ? (
         <img
           src={thumbnailUrl}
           alt={fileName}
-          className="absolute inset-0 w-full h-full object-cover rounded-lg"
+          className="absolute inset-0 w-full h-full object-cover"
           onError={() => setThumbnailUrl(null)}
         />
       ) : (
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <DocIcon className="w-12 h-12 text-white/80 mb-2" />
-          {ext && (
-            <span className="text-white/90 text-xs font-bold tracking-wider">
-              {ext}
-            </span>
-          )}
+          <span className="text-white/90 text-xs font-bold tracking-wider">
+            {label || ext}
+          </span>
         </div>
       )}
     </div>

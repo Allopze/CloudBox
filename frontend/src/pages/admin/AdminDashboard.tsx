@@ -294,6 +294,21 @@ export default function AdminDashboard() {
   const [newVariableDescription, setNewVariableDescription] = useState('');
   const [editingVariable, setEditingVariable] = useState<TemplateVariable | null>(null);
   const [savingVariable, setSavingVariable] = useState(false);
+
+  // Legal pages state
+  interface LegalPage {
+    slug: string;
+    title: string;
+    content: string;
+    isActive: boolean;
+    isDefault?: boolean;
+    updatedAt?: string;
+  }
+  const [legalPages, setLegalPages] = useState<LegalPage[]>([]);
+  const [selectedLegalPage, setSelectedLegalPage] = useState<string | null>(null);
+  const [editingLegalPage, setEditingLegalPage] = useState<LegalPage | null>(null);
+  const [savingLegalPage, setSavingLegalPage] = useState(false);
+
   const quotaParsed = bytesToUnit(systemSettings.defaultStorageQuota);
   const [quotaValue, setQuotaValue] = useState(quotaParsed.value);
   const [quotaUnit, setQuotaUnit] = useState(quotaParsed.unit);
@@ -336,12 +351,13 @@ export default function AdminDashboard() {
 
   const loadData = async () => {
     try {
-      const [statsRes, systemRes, smtpRes, brandingRes, templatesRes] = await Promise.all([
+      const [statsRes, systemRes, smtpRes, brandingRes, templatesRes, legalRes] = await Promise.all([
         api.get('/admin/server-info').catch(() => ({ data: {} })),
         api.get('/admin/settings/system').catch(() => ({ data: {} })),
         api.get('/admin/settings/smtp').catch(() => ({ data: {} })),
         api.get('/admin/settings/branding').catch(() => ({ data: {} })),
         api.get('/admin/email-templates').catch(() => ({ data: [] })),
+        api.get('/admin/legal').catch(() => ({ data: [] })),
       ]);
 
       if (statsRes.data) {
@@ -373,6 +389,9 @@ export default function AdminDashboard() {
       }
       if (templatesRes.data) {
         setTemplates(templatesRes.data);
+      }
+      if (legalRes.data) {
+        setLegalPages(legalRes.data);
       }
     } catch (error) {
       console.error('Failed to load admin data:', error);
@@ -737,6 +756,54 @@ export default function AdminDashboard() {
       reset_password: 'Restablecer Contraseña',
     };
     return names[name] || name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  };
+
+  // Legal pages functions
+  const loadLegalPage = (slug: string) => {
+    const page = legalPages.find(p => p.slug === slug);
+    if (page) {
+      setEditingLegalPage({ ...page });
+      setSelectedLegalPage(slug);
+    }
+  };
+
+  const saveLegalPage = async () => {
+    if (!editingLegalPage) return;
+    setSavingLegalPage(true);
+    try {
+      const response = await api.put(`/admin/legal/${editingLegalPage.slug}`, {
+        title: editingLegalPage.title,
+        content: editingLegalPage.content,
+        isActive: editingLegalPage.isActive,
+      });
+      setLegalPages(prev => prev.map(p => p.slug === editingLegalPage.slug ? response.data : p));
+      setEditingLegalPage(response.data);
+      toast('Página guardada', 'success');
+    } catch {
+      toast('Error al guardar página', 'error');
+    } finally {
+      setSavingLegalPage(false);
+    }
+  };
+
+  const resetLegalPage = async () => {
+    if (!editingLegalPage) return;
+    try {
+      const response = await api.delete(`/admin/legal/${editingLegalPage.slug}`);
+      setLegalPages(prev => prev.map(p => p.slug === editingLegalPage.slug ? response.data : p));
+      setEditingLegalPage(response.data);
+      toast('Página restablecida', 'success');
+    } catch {
+      toast('Error al restablecer página', 'error');
+    }
+  };
+
+  const getLegalPageDisplayName = (slug: string): string => {
+    const names: Record<string, string> = {
+      privacy: 'Política de Privacidad',
+      terms: 'Términos de Servicio',
+    };
+    return names[slug] || slug;
   };
 
   // Users functions
@@ -1641,6 +1708,135 @@ export default function AdminDashboard() {
           <Button onClick={saveBrandingSettings} loading={savingBranding} icon={<Save className="w-4 h-4" />}>
             Guardar Branding
           </Button>
+        </div>
+      </section>
+
+      {/* Legal Pages Section */}
+      <section className="bg-white dark:bg-dark-800 rounded-2xl border border-dark-100 dark:border-dark-700 p-6 mt-6">
+        <div className="flex items-center gap-2 mb-1">
+          <FileText className="w-4 h-4 text-[#FF3B3B]" />
+          <h2 className="text-lg font-semibold text-dark-900 dark:text-white">Páginas Legales</h2>
+        </div>
+        <p className="text-sm text-dark-500 dark:text-dark-400 mb-6">
+          Edita el contenido de las páginas de Política de Privacidad y Términos de Servicio
+        </p>
+
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {/* Pages list */}
+          <div className="lg:col-span-1">
+            <div className="space-y-2">
+              {legalPages.map((page) => (
+                <button
+                  key={page.slug}
+                  onClick={() => loadLegalPage(page.slug)}
+                  className={cn(
+                    'w-full text-left px-4 py-3 rounded-xl transition-all',
+                    selectedLegalPage === page.slug
+                      ? 'bg-[#FF3B3B]/10 border-2 border-[#FF3B3B] text-[#FF3B3B]'
+                      : 'bg-dark-50 dark:bg-dark-700/50 border-2 border-transparent hover:border-dark-200 dark:hover:border-dark-600'
+                  )}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-sm">{getLegalPageDisplayName(page.slug)}</span>
+                    {page.isDefault && (
+                      <span className="text-xs bg-dark-200 dark:bg-dark-600 text-dark-600 dark:text-dark-300 px-2 py-0.5 rounded">
+                        Por defecto
+                      </span>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Page editor */}
+          <div className="lg:col-span-3">
+            {editingLegalPage ? (
+              <div className="space-y-4">
+                {/* Title */}
+                <div>
+                  <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-2">
+                    Título de la página
+                  </label>
+                  <Input
+                    value={editingLegalPage.title}
+                    onChange={(e) => setEditingLegalPage({ ...editingLegalPage, title: e.target.value })}
+                    placeholder="Título..."
+                  />
+                </div>
+
+                {/* Content editor */}
+                <div>
+                  <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-2">
+                    Contenido (HTML)
+                  </label>
+                  <textarea
+                    value={editingLegalPage.content}
+                    onChange={(e) => setEditingLegalPage({ ...editingLegalPage, content: e.target.value })}
+                    rows={15}
+                    className="input w-full font-mono text-sm resize-y"
+                    placeholder="<h2>Sección 1</h2>&#10;<p>Contenido...</p>"
+                  />
+                  <p className="text-xs text-dark-500 dark:text-dark-400 mt-1">
+                    Usa HTML para dar formato al contenido. Etiquetas permitidas: h2, h3, p, ul, ol, li, strong, em, a
+                  </p>
+                </div>
+
+                {/* Preview */}
+                <div>
+                  <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-2">
+                    Vista previa
+                  </label>
+                  <div 
+                    className="p-4 bg-dark-50 dark:bg-dark-700/50 rounded-xl max-h-64 overflow-y-auto prose prose-sm dark:prose-invert max-w-none
+                               prose-headings:text-dark-900 dark:prose-headings:text-white
+                               prose-h2:text-lg prose-h2:font-semibold prose-h2:mt-4 prose-h2:mb-2
+                               prose-p:text-dark-600 dark:prose-p:text-dark-300
+                               prose-ul:text-dark-600 dark:prose-ul:text-dark-300"
+                    dangerouslySetInnerHTML={{ __html: editingLegalPage.content }}
+                  />
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center justify-between pt-4 border-t border-dark-100 dark:border-dark-700">
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={`/${editingLegalPage.slug}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-primary-600 hover:text-primary-700 flex items-center gap-1"
+                    >
+                      <Eye className="w-4 h-4" />
+                      Ver página pública
+                    </a>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {!editingLegalPage.isDefault && (
+                      <Button
+                        variant="ghost"
+                        onClick={resetLegalPage}
+                        icon={<RotateCcw className="w-4 h-4" />}
+                      >
+                        Restablecer
+                      </Button>
+                    )}
+                    <Button
+                      onClick={saveLegalPage}
+                      loading={savingLegalPage}
+                      icon={<Save className="w-4 h-4" />}
+                    >
+                      Guardar
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12 text-dark-500 dark:text-dark-400">
+                <FileText className="w-12 h-12 mb-4 opacity-50" />
+                <p>Selecciona una página para editar</p>
+              </div>
+            )}
+          </div>
         </div>
       </section>
 

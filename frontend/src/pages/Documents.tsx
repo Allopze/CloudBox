@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api, getFileUrl } from '../lib/api';
 import { FileItem } from '../types';
 import { useFileStore } from '../stores/fileStore';
@@ -81,6 +82,7 @@ const getExtension = (fileName: string) => {
 };
 
 export default function Documents() {
+  const [searchParams] = useSearchParams();
   const [documents, setDocuments] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
@@ -91,7 +93,76 @@ export default function Documents() {
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [infoDoc, setInfoDoc] = useState<FileItem | null>(null);
 
+  const tab = searchParams.get('tab') || 'all';
+
   const { viewMode, sortBy, sortOrder, selectedItems, addToSelection, removeFromSelection, selectRange, selectSingle, lastSelectedId, clearSelection } = useFileStore();
+
+  // Filter documents based on category tab
+  const filterByCategory = useCallback((docs: FileItem[]) => {
+    if (tab === 'all') return docs;
+    
+    return docs.filter(doc => {
+      const mimeType = doc.mimeType.toLowerCase();
+      const fileName = doc.name.toLowerCase();
+      
+      switch (tab) {
+        case 'pdf':
+          return mimeType === 'application/pdf' || fileName.endsWith('.pdf');
+        case 'text':
+          return mimeType.includes('word') || 
+                 mimeType === 'text/plain' || 
+                 mimeType === 'text/markdown' ||
+                 fileName.endsWith('.doc') || 
+                 fileName.endsWith('.docx') || 
+                 fileName.endsWith('.txt') || 
+                 fileName.endsWith('.md') ||
+                 fileName.endsWith('.rtf');
+        case 'spreadsheet':
+          return mimeType.includes('excel') || 
+                 mimeType.includes('spreadsheet') || 
+                 fileName.endsWith('.xls') || 
+                 fileName.endsWith('.xlsx') || 
+                 fileName.endsWith('.csv');
+        case 'presentation':
+          return mimeType.includes('presentation') || 
+                 mimeType.includes('powerpoint') ||
+                 fileName.endsWith('.ppt') || 
+                 fileName.endsWith('.pptx');
+        case 'code':
+          return mimeType.includes('javascript') ||
+                 mimeType.includes('typescript') ||
+                 mimeType.includes('json') ||
+                 mimeType.includes('xml') ||
+                 mimeType.includes('html') ||
+                 mimeType.includes('css') ||
+                 fileName.endsWith('.js') ||
+                 fileName.endsWith('.ts') ||
+                 fileName.endsWith('.jsx') ||
+                 fileName.endsWith('.tsx') ||
+                 fileName.endsWith('.json') ||
+                 fileName.endsWith('.xml') ||
+                 fileName.endsWith('.html') ||
+                 fileName.endsWith('.css') ||
+                 fileName.endsWith('.py') ||
+                 fileName.endsWith('.java') ||
+                 fileName.endsWith('.c') ||
+                 fileName.endsWith('.cpp') ||
+                 fileName.endsWith('.h') ||
+                 fileName.endsWith('.go') ||
+                 fileName.endsWith('.rs') ||
+                 fileName.endsWith('.php') ||
+                 fileName.endsWith('.rb') ||
+                 fileName.endsWith('.swift') ||
+                 fileName.endsWith('.kt') ||
+                 fileName.endsWith('.sql') ||
+                 fileName.endsWith('.sh') ||
+                 fileName.endsWith('.yaml') ||
+                 fileName.endsWith('.yml');
+        default:
+          return true;
+      }
+    });
+  }, [tab]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -103,14 +174,15 @@ export default function Documents() {
           sortOrder,
         },
       });
-      setDocuments(response.data.files || []);
+      const allDocs = response.data.files || [];
+      setDocuments(filterByCategory(allDocs));
     } catch (error) {
       console.error('Failed to load documents:', error);
       toast('Error al cargar los documentos', 'error');
     } finally {
       setLoading(false);
     }
-  }, [sortBy, sortOrder]);
+  }, [sortBy, sortOrder, filterByCategory]);
 
   useEffect(() => {
     loadData();

@@ -122,56 +122,59 @@ router.post('/restore/batch', authenticate, async (req: Request, res: Response) 
     const { fileIds, folderIds } = req.body;
     const userId = req.user!.userId;
 
-    if (fileIds && Array.isArray(fileIds)) {
-      // Get files first to update folder sizes
-      const files = await prisma.file.findMany({
-        where: { id: { in: fileIds }, userId, isTrash: true },
-      });
-
-      await prisma.file.updateMany({
-        where: { id: { in: fileIds }, userId, isTrash: true },
-        data: { isTrash: false, trashedAt: null },
-      });
-
-      // Update folder sizes for restored files
-      for (const file of files) {
-        if (file.folderId) {
-          await updateParentFolderSizes(file.folderId, file.size, prisma, 'increment');
-        }
-      }
-    }
-
-    if (folderIds && Array.isArray(folderIds)) {
-      for (const folderId of folderIds) {
-        const folder = await prisma.folder.findFirst({
-          where: { id: folderId, userId, isTrash: true },
+    // Use transaction for batch operations
+    await prisma.$transaction(async (tx) => {
+      if (fileIds && Array.isArray(fileIds)) {
+        // Get files first to update folder sizes
+        const files = await tx.file.findMany({
+          where: { id: { in: fileIds }, userId, isTrash: true },
         });
 
-        if (folder) {
-          const restoreRecursively = async (id: string) => {
-            await prisma.folder.update({
-              where: { id },
-              data: { isTrash: false, trashedAt: null },
-            });
+        await tx.file.updateMany({
+          where: { id: { in: fileIds }, userId, isTrash: true },
+          data: { isTrash: false, trashedAt: null },
+        });
 
-            await prisma.file.updateMany({
-              where: { folderId: id },
-              data: { isTrash: false, trashedAt: null },
-            });
-
-            const subfolders = await prisma.folder.findMany({
-              where: { parentId: id },
-            });
-
-            for (const subfolder of subfolders) {
-              await restoreRecursively(subfolder.id);
-            }
-          };
-
-          await restoreRecursively(folderId);
+        // Update folder sizes for restored files
+        for (const file of files) {
+          if (file.folderId) {
+            await updateParentFolderSizes(file.folderId, file.size, tx, 'increment');
+          }
         }
       }
-    }
+
+      if (folderIds && Array.isArray(folderIds)) {
+        for (const folderId of folderIds) {
+          const folder = await tx.folder.findFirst({
+            where: { id: folderId, userId, isTrash: true },
+          });
+
+          if (folder) {
+            const restoreRecursively = async (id: string) => {
+              await tx.folder.update({
+                where: { id },
+                data: { isTrash: false, trashedAt: null },
+              });
+
+              await tx.file.updateMany({
+                where: { folderId: id },
+                data: { isTrash: false, trashedAt: null },
+              });
+
+              const subfolders = await tx.folder.findMany({
+                where: { parentId: id },
+              });
+
+              for (const subfolder of subfolders) {
+                await restoreRecursively(subfolder.id);
+              }
+            };
+
+            await restoreRecursively(folderId);
+          }
+        }
+      }
+    });
 
     res.json({ message: 'Items restored successfully' });
   } catch (error) {

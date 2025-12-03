@@ -7,9 +7,10 @@ import compression from 'compression';
 import path from 'path';
 import { config } from './config/index.js';
 import { errorHandler } from './middleware/error.js';
-import { initStorage } from './lib/storage.js';
+import { initStorage, getStoragePath } from './lib/storage.js';
 import prisma, { updateParentFolderSizes } from './lib/prisma.js';
 import { auditContext, suspiciousActivityDetector } from './lib/audit.js';
+import logger from './lib/logger.js';
 
 // Routes
 import authRoutes from './routes/auth.js';
@@ -160,31 +161,56 @@ app.use('/api/admin', adminRoutes);
 
 // Health check endpoint
 app.get('/api/health', async (req, res) => {
+  const healthChecks: Record<string, { status: 'healthy' | 'unhealthy'; message?: string }> = {};
+  let overallHealthy = true;
+
+  // Check database connection
   try {
-    // Check database connection
     await prisma.$queryRaw`SELECT 1`;
-
-    // Security: Only expose version in development mode
-    const response: Record<string, any> = {
-      status: 'healthy',
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      database: 'connected',
-    };
-
-    if (config.nodeEnv === 'development') {
-      response.version = process.env.npm_package_version || '1.0.0';
-    }
-
-    res.json(response);
+    healthChecks.database = { status: 'healthy' };
   } catch (error) {
-    res.status(503).json({
-      status: 'unhealthy',
-      timestamp: new Date().toISOString(),
-      database: 'disconnected',
-      error: 'Database connection failed',
-    });
+    healthChecks.database = { status: 'unhealthy', message: 'Database connection failed' };
+    overallHealthy = false;
   }
+
+  // Check storage directory
+  try {
+    const fs = await import('fs/promises');
+    const storagePath = getStoragePath('files');
+    await fs.access(storagePath);
+    healthChecks.storage = { status: 'healthy' };
+  } catch (error) {
+    healthChecks.storage = { status: 'unhealthy', message: 'Storage directory not accessible' };
+    overallHealthy = false;
+  }
+
+  // Check SMTP configuration (optional - don't fail if not configured)
+  try {
+    const smtpSettings = await prisma.settings.findFirst({
+      where: { key: 'smtp_host' },
+    });
+    if (smtpSettings?.value) {
+      healthChecks.smtp = { status: 'healthy', message: 'SMTP configured' };
+    } else {
+      healthChecks.smtp = { status: 'healthy', message: 'SMTP not configured (optional)' };
+    }
+  } catch (error) {
+    healthChecks.smtp = { status: 'healthy', message: 'SMTP check skipped' };
+  }
+
+  // Security: Only expose version in development mode
+  const response: Record<string, any> = {
+    status: overallHealthy ? 'healthy' : 'unhealthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    checks: healthChecks,
+  };
+
+  if (config.nodeEnv === 'development') {
+    response.version = process.env.npm_package_version || '1.0.0';
+  }
+
+  res.status(overallHealthy ? 200 : 503).json(response);
 });
 
 // Serve static files from data directory
@@ -265,15 +291,12 @@ const cleanupTrash = async () => {
     }
 
     if (totalCleaned > 0) {
-      console.log(`Cleaned up ${totalCleaned} expired trash items`);
+      logger.info('Cleaned up expired trash items', { count: totalCleaned });
     }
   } catch (error) {
-    console.error('Trash cleanup error:', error);
+    logger.error('Trash cleanup error', {}, error instanceof Error ? error : new Error(String(error)));
   }
 };
-
-// Schedule cleanup
-setInterval(cleanupTrash, 60 * 60 * 1000); // Every hour
 
 // Cleanup stale temp storage (run every 6 hours)
 const cleanupTempStorage = async () => {
@@ -290,14 +313,12 @@ const cleanupTempStorage = async () => {
     });
 
     if (count > 0) {
-      console.log(`Cleaned up temp storage for ${count} users`);
+      logger.info('Cleaned up temp storage', { usersAffected: count });
     }
   } catch (error) {
-    console.error('Temp storage cleanup error:', error);
+    logger.error('Temp storage cleanup error', {}, error instanceof Error ? error : new Error(String(error)));
   }
 };
-
-setInterval(cleanupTempStorage, 6 * 60 * 60 * 1000); // Every 6 hours
 
 // Issue #6: Cleanup expired refresh tokens (run every hour)
 const cleanupExpiredTokens = async () => {
@@ -307,14 +328,12 @@ const cleanupExpiredTokens = async () => {
     });
     
     if (count > 0) {
-      console.log(`Cleaned up ${count} expired refresh tokens`);
+      logger.info('Cleaned up expired refresh tokens', { count });
     }
   } catch (error) {
-    console.error('Refresh token cleanup error:', error);
+    logger.error('Refresh token cleanup error', {}, error instanceof Error ? error : new Error(String(error)));
   }
 };
-
-setInterval(cleanupExpiredTokens, 60 * 60 * 1000); // Every hour
 
 // Cleanup orphan chunks (run every hour)
 const cleanupOrphanChunks = async () => {
@@ -349,19 +368,20 @@ const cleanupOrphanChunks = async () => {
         }
       } catch (error) {
         // If we can't stat or remove, skip it
-        console.error(`Error cleaning chunk directory ${uploadId}:`, error);
+        logger.warn('Error cleaning chunk directory', { uploadId }, error instanceof Error ? error : undefined);
       }
     }
     
     if (cleanedCount > 0) {
-      console.log(`Cleaned up ${cleanedCount} orphan chunk directories`);
+      logger.info('Cleaned up orphan chunk directories', { count: cleanedCount });
     }
   } catch (error) {
-    console.error('Orphan chunk cleanup error:', error);
+    logger.error('Orphan chunk cleanup error', {}, error instanceof Error ? error : new Error(String(error)));
   }
 };
 
-setInterval(cleanupOrphanChunks, 60 * 60 * 1000); // Every hour
+// Track cleanup intervals for graceful shutdown
+const cleanupIntervals: NodeJS.Timeout[] = [];
 
 // Initialize and start server
 const start = async () => {
@@ -371,7 +391,7 @@ const start = async () => {
 
     // Test database connection
     await prisma.$connect();
-    console.log('Database connected');
+    logger.info('Database connected');
 
     // Run initial cleanups
     await cleanupTrash();
@@ -379,12 +399,54 @@ const start = async () => {
     await cleanupOrphanChunks();
     await cleanupExpiredTokens();
 
-    app.listen(config.port, () => {
-      console.log(`Server running on port ${config.port}`);
-      console.log(`Frontend URL: ${config.frontendUrl}`);
+    const server = app.listen(config.port, () => {
+      logger.info('Server started', { port: config.port, frontendUrl: config.frontendUrl });
     });
+
+    // Schedule cleanup intervals
+    cleanupIntervals.push(
+      setInterval(() => cleanupTrash().catch(e => logger.error('Scheduled trash cleanup failed', {}, e instanceof Error ? e : new Error(String(e)))), 60 * 60 * 1000),
+      setInterval(() => cleanupTempStorage().catch(e => logger.error('Scheduled temp cleanup failed', {}, e instanceof Error ? e : new Error(String(e)))), 6 * 60 * 60 * 1000),
+      setInterval(() => cleanupExpiredTokens().catch(e => logger.error('Scheduled token cleanup failed', {}, e instanceof Error ? e : new Error(String(e)))), 60 * 60 * 1000),
+      setInterval(() => cleanupOrphanChunks().catch(e => logger.error('Scheduled chunk cleanup failed', {}, e instanceof Error ? e : new Error(String(e)))), 60 * 60 * 1000)
+    );
+
+    // Graceful shutdown handler
+    const gracefulShutdown = async (signal: string) => {
+      logger.info('Received shutdown signal, starting graceful shutdown...', { signal });
+      
+      // Clear all cleanup intervals
+      cleanupIntervals.forEach(interval => clearInterval(interval));
+      
+      // Stop accepting new connections
+      server.close(async () => {
+        logger.info('HTTP server closed');
+        
+        try {
+          // Disconnect from database
+          await prisma.$disconnect();
+          logger.info('Database disconnected');
+          
+          logger.info('Graceful shutdown completed');
+          process.exit(0);
+        } catch (error) {
+          logger.error('Error during graceful shutdown', {}, error instanceof Error ? error : new Error(String(error)));
+          process.exit(1);
+        }
+      });
+
+      // Force shutdown after 30 seconds
+      setTimeout(() => {
+        logger.warn('Forced shutdown after timeout');
+        process.exit(1);
+      }, 30000);
+    };
+
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
   } catch (error) {
-    console.error('Failed to start server:', error);
+    logger.error('Failed to start server', {}, error instanceof Error ? error : new Error(String(error)));
     process.exit(1);
   }
 };
