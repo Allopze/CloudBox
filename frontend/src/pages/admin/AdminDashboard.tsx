@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api, API_URL } from '../../lib/api';
 import { formatBytes, formatDate, cn } from '../../lib/utils';
 import { User } from '../../types';
@@ -183,6 +184,7 @@ const DEFAULT_TEMPLATES: Record<string, { subject: string; body: string; variabl
 };
 
 export default function AdminDashboard() {
+  const { t } = useTranslation();
   const { setBranding } = useBrandingStore();
   const { user: currentUser, refreshUser } = useAuthStore();
   
@@ -220,7 +222,7 @@ export default function AdminDashboard() {
     { value: '214748364800', label: '200 GB' },
     { value: '536870912000', label: '500 GB' },
     { value: '1099511627776', label: '1 TB' },
-    { value: 'custom', label: 'Personalizado' },
+    { value: 'custom', label: t('admin.users.custom') },
   ];
 
   const handleUserQuotaChange = (value: string) => {
@@ -395,7 +397,7 @@ export default function AdminDashboard() {
       }
     } catch (error) {
       console.error('Failed to load admin data:', error);
-      toast('Error al cargar datos', 'error');
+      toast(t('admin.loadError'), 'error');
     } finally {
       setLoading(false);
     }
@@ -405,9 +407,9 @@ export default function AdminDashboard() {
     setSavingSystem(true);
     try {
       await api.put('/admin/settings/system', systemSettings);
-      toast('Configuración guardada', 'success');
+      toast(t('admin.configSaved'), 'success');
     } catch (error) {
-      toast('Error al guardar', 'error');
+      toast(t('admin.saveError'), 'error');
     } finally {
       setSavingSystem(false);
     }
@@ -417,9 +419,9 @@ export default function AdminDashboard() {
     setSavingSmtp(true);
     try {
       await api.put('/admin/settings/smtp', smtpSettings);
-      toast('SMTP guardado', 'success');
+      toast(t('admin.smtpSaved'), 'success');
     } catch (error) {
-      toast('Error al guardar SMTP', 'error');
+      toast(t('admin.smtpSaveError'), 'error');
     } finally {
       setSavingSmtp(false);
     }
@@ -433,9 +435,9 @@ export default function AdminDashboard() {
         logoUrl: brandingSettings.logoLightUrl || brandingSettings.logoDarkUrl || brandingSettings.logoUrl,
       });
       setBranding(brandingSettings);
-      toast('Branding guardado', 'success');
+      toast(t('admin.brandingSaved'), 'success');
     } catch (error) {
-      toast('Error al guardar branding', 'error');
+      toast(t('admin.brandingSaveError'), 'error');
     } finally {
       setSavingBranding(false);
     }
@@ -460,9 +462,9 @@ export default function AdminDashboard() {
       };
       setBrandingSettings(updated);
       setBranding(updated);
-      toast('Archivo subido', 'success');
+      toast(t('admin.fileUploaded'), 'success');
     } catch (error) {
-      toast('Error al subir', 'error');
+      toast(t('admin.uploadError'), 'error');
     } finally {
       setUploading((prev) => ({ ...prev, [type]: false }));
     }
@@ -471,9 +473,9 @@ export default function AdminDashboard() {
   const testSmtp = async () => {
     try {
       await api.post('/admin/settings/smtp/test');
-      toast('Email de prueba enviado', 'success');
+      toast(t('admin.testEmailSent'), 'success');
     } catch (error) {
-      toast('Error al enviar email', 'error');
+      toast(t('admin.testEmailError'), 'error');
     }
   };
 
@@ -526,9 +528,9 @@ export default function AdminDashboard() {
         return [...prev, response.data];
       });
       setEditingTemplate({ ...editingTemplate, isDefault: false });
-      toast('Plantilla guardada', 'success');
+      toast(t('admin.templateSaved'), 'success');
     } catch {
-      toast('Error al guardar plantilla', 'error');
+      toast(t('admin.templateSaveError'), 'error');
     } finally {
       setSavingTemplate(false);
     }
@@ -548,15 +550,15 @@ export default function AdminDashboard() {
           isDefault: true,
         });
       }
-      toast('Plantilla restablecida', 'success');
+      toast(t('admin.templateReset'), 'success');
     } catch {
-      toast('Error al restablecer plantilla', 'error');
+      toast(t('admin.templateResetError'), 'error');
     }
   };
 
   const sendTestTemplateEmail = async () => {
     if (!editingTemplate || !testEmailAddress) {
-      toast('Ingresa un email de prueba', 'error');
+      toast(t('admin.enterTestEmail'), 'error');
       return;
     }
     setSendingTestEmail(true);
@@ -564,9 +566,9 @@ export default function AdminDashboard() {
       await api.post(`/admin/email-templates/${editingTemplate.name}/test`, {
         email: testEmailAddress,
       });
-      toast('Email de prueba enviado', 'success');
+      toast(t('admin.templateTestSent'), 'success');
     } catch {
-      toast('Error al enviar email de prueba', 'error');
+      toast(t('admin.templateTestError'), 'error');
     } finally {
       setSendingTestEmail(false);
     }
@@ -574,12 +576,12 @@ export default function AdminDashboard() {
 
   const createNewTemplate = async () => {
     if (!newTemplateName.trim()) {
-      toast('Ingresa un nombre para la plantilla', 'error');
+      toast(t('admin.enterTemplateName'), 'error');
       return;
     }
     const templateKey = newTemplateName.toLowerCase().replace(/\s+/g, '_');
-    if (templates.find(t => t.name === templateKey) || DEFAULT_TEMPLATES[templateKey]) {
-      toast('Ya existe una plantilla con ese nombre', 'error');
+    if (templates.find(tpl => tpl.name === templateKey) || DEFAULT_TEMPLATES[templateKey]) {
+      toast(t('admin.templateNameExists'), 'error');
       return;
     }
     setEditingTemplate({
@@ -619,7 +621,7 @@ export default function AdminDashboard() {
 
   const deleteTemplate = async (name: string) => {
     if (DEFAULT_TEMPLATES[name]) {
-      toast('No se pueden eliminar las plantillas del sistema', 'error');
+      toast(t('admin.cannotDeleteSystem'), 'error');
       return;
     }
     try {
@@ -629,9 +631,9 @@ export default function AdminDashboard() {
         setSelectedTemplate(null);
         setEditingTemplate(null);
       }
-      toast('Plantilla eliminada', 'success');
+      toast(t('admin.templateDeleted'), 'success');
     } catch {
-      toast('Error al eliminar plantilla', 'error');
+      toast(t('admin.templateDeleteError'), 'error');
     }
   };
 
@@ -668,7 +670,7 @@ export default function AdminDashboard() {
   // Variable management functions
   const addVariable = async () => {
     if (!editingTemplate || !newVariableName.trim() || !newVariableValue.trim()) {
-      toast('Nombre y valor son requeridos', 'error');
+      toast(t('admin.variableRequired'), 'error');
       return;
     }
     
@@ -689,9 +691,9 @@ export default function AdminDashboard() {
       setNewVariableName('');
       setNewVariableValue('');
       setNewVariableDescription('');
-      toast('Variable añadida', 'success');
+      toast(t('admin.variableAdded'), 'success');
     } catch (error: any) {
-      toast(error.response?.data?.error || 'Error al añadir variable', 'error');
+      toast(error.response?.data?.error || t('admin.variableAddError'), 'error');
     } finally {
       setSavingVariable(false);
     }
@@ -716,9 +718,9 @@ export default function AdminDashboard() {
       }));
       
       setEditingVariable(null);
-      toast('Variable actualizada', 'success');
+      toast(t('admin.variableUpdated'), 'success');
     } catch (error: any) {
-      toast(error.response?.data?.error || 'Error al actualizar variable', 'error');
+      toast(error.response?.data?.error || t('admin.variableUpdateError'), 'error');
     } finally {
       setSavingVariable(false);
     }
@@ -735,9 +737,9 @@ export default function AdminDashboard() {
         custom: prev.custom.filter(v => v.id !== variableId),
       }));
       
-      toast('Variable eliminada', 'success');
+      toast(t('admin.variableDeleted'), 'success');
     } catch (error: any) {
-      toast(error.response?.data?.error || 'Error al eliminar variable', 'error');
+      toast(error.response?.data?.error || t('admin.variableDeleteError'), 'error');
     }
   };
 
@@ -751,11 +753,11 @@ export default function AdminDashboard() {
   };
 
   const getTemplateDisplayName = (name: string): string => {
-    const names: Record<string, string> = {
-      welcome: 'Bienvenida',
-      reset_password: 'Restablecer Contraseña',
+    const templateNames: Record<string, string> = {
+      welcome: t('admin.templates.welcome'),
+      reset_password: t('admin.templates.resetPassword'),
     };
-    return names[name] || name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    return templateNames[name] || name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
   // Legal pages functions
@@ -778,9 +780,9 @@ export default function AdminDashboard() {
       });
       setLegalPages(prev => prev.map(p => p.slug === editingLegalPage.slug ? response.data : p));
       setEditingLegalPage(response.data);
-      toast('Página guardada', 'success');
+      toast(t('admin.pageSaved'), 'success');
     } catch {
-      toast('Error al guardar página', 'error');
+      toast(t('admin.pageSaveError'), 'error');
     } finally {
       setSavingLegalPage(false);
     }
@@ -792,18 +794,18 @@ export default function AdminDashboard() {
       const response = await api.delete(`/admin/legal/${editingLegalPage.slug}`);
       setLegalPages(prev => prev.map(p => p.slug === editingLegalPage.slug ? response.data : p));
       setEditingLegalPage(response.data);
-      toast('Página restablecida', 'success');
+      toast(t('admin.pageReset'), 'success');
     } catch {
-      toast('Error al restablecer página', 'error');
+      toast(t('admin.pageResetError'), 'error');
     }
   };
 
   const getLegalPageDisplayName = (slug: string): string => {
-    const names: Record<string, string> = {
-      privacy: 'Política de Privacidad',
-      terms: 'Términos de Servicio',
+    const pageNames: Record<string, string> = {
+      privacy: t('admin.legal.privacy'),
+      terms: t('admin.legal.terms'),
     };
-    return names[slug] || slug;
+    return pageNames[slug] || slug;
   };
 
   // Users functions
@@ -818,7 +820,7 @@ export default function AdminDashboard() {
       setUsers(Array.isArray(usersData) ? usersData : usersData?.users || []);
     } catch (error) {
       console.error('Failed to load users:', error);
-      toast('Error al cargar usuarios', 'error');
+      toast(t('admin.usersLoadError'), 'error');
     } finally {
       setUsersLoading(false);
     }
@@ -870,7 +872,7 @@ export default function AdminDashboard() {
 
   const createUser = async () => {
     if (!formName || !formEmail || !formPassword) {
-      toast('Por favor completa todos los campos', 'error');
+      toast(t('admin.fillAllFields'), 'error');
       return;
     }
     setSavingUser(true);
@@ -882,11 +884,11 @@ export default function AdminDashboard() {
         role: formRole,
         storageQuota: getEffectiveQuota(),
       });
-      toast('Usuario creado', 'success');
+      toast(t('admin.users.userCreated'), 'success');
       setShowCreateModal(false);
       loadUsers();
     } catch (error: any) {
-      toast(error.response?.data?.message || 'Error al crear usuario', 'error');
+      toast(error.response?.data?.message || t('admin.userCreateError'), 'error');
     } finally {
       setSavingUser(false);
     }
@@ -903,7 +905,7 @@ export default function AdminDashboard() {
         role: formRole,
         storageQuota: getEffectiveQuota(),
       });
-      toast('Usuario actualizado', 'success');
+      toast(t('admin.users.userUpdated'), 'success');
       setShowEditModal(false);
       loadUsers();
       // If updating the current user, refresh their data in the auth store
@@ -911,7 +913,7 @@ export default function AdminDashboard() {
         await refreshUser();
       }
     } catch (error: any) {
-      toast(error.response?.data?.message || 'Error al actualizar usuario', 'error');
+      toast(error.response?.data?.message || t('admin.userUpdateError'), 'error');
     } finally {
       setSavingUser(false);
     }
@@ -927,12 +929,12 @@ export default function AdminDashboard() {
     setDeletingUser(true);
     try {
       await api.delete(`/admin/users/${userToDelete.id}`);
-      toast('Usuario eliminado', 'success');
+      toast(t('admin.users.userDeleted'), 'success');
       setShowDeleteModal(false);
       setUserToDelete(null);
       loadUsers();
     } catch (error) {
-      toast('Error al eliminar usuario', 'error');
+      toast(t('admin.deleteUserError'), 'error');
     } finally {
       setDeletingUser(false);
     }
@@ -943,10 +945,10 @@ export default function AdminDashboard() {
       await api.patch(`/admin/users/${user.id}`, {
         role: user.role === 'ADMIN' ? 'USER' : 'ADMIN',
       });
-      toast(`Usuario ${user.role === 'ADMIN' ? 'degradado a usuario' : 'promovido a admin'}`, 'success');
+      toast(user.role === 'ADMIN' ? t('admin.demotedToUser') : t('admin.promotedToAdmin'), 'success');
       loadUsers();
     } catch (error) {
-      toast('Error al cambiar rol', 'error');
+      toast(t('admin.roleChangeError'), 'error');
     }
   };
 
@@ -964,9 +966,9 @@ export default function AdminDashboard() {
       <section className="bg-white dark:bg-dark-800 rounded-2xl border border-dark-100 dark:border-dark-700 p-6 mb-6">
         <div className="flex items-center gap-2 mb-1">
           <BarChart3 className="w-4 h-4 text-[#FF3B3B]" />
-          <h2 className="text-lg font-semibold text-dark-900 dark:text-white">Estadísticas Generales</h2>
+          <h2 className="text-lg font-semibold text-dark-900 dark:text-white">{t('admin.stats.title')}</h2>
         </div>
-        <p className="text-sm text-dark-500 dark:text-dark-400 mb-6">Resumen del estado del sistema</p>
+        <p className="text-sm text-dark-500 dark:text-dark-400 mb-6">{t('admin.stats.description')}</p>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="flex items-center gap-3 p-4 bg-dark-50 dark:bg-dark-900 rounded-xl">
@@ -974,7 +976,7 @@ export default function AdminDashboard() {
               <Users className="w-6 h-6 text-blue-600" />
             </div>
             <div>
-              <p className="text-xs text-dark-500 dark:text-dark-400">Usuarios Totales</p>
+              <p className="text-xs text-dark-500 dark:text-dark-400">{t('admin.stats.totalUsers')}</p>
               <p className="text-xl font-bold text-dark-900 dark:text-white">
                 {stats?.totalUsers || 0}
               </p>
@@ -986,7 +988,7 @@ export default function AdminDashboard() {
               <FileText className="w-6 h-6 text-green-600" />
             </div>
             <div>
-              <p className="text-xs text-dark-500 dark:text-dark-400">Archivos Totales</p>
+              <p className="text-xs text-dark-500 dark:text-dark-400">{t('admin.stats.totalFiles')}</p>
               <p className="text-xl font-bold text-dark-900 dark:text-white">
                 {stats?.totalFiles || 0}
               </p>
@@ -998,7 +1000,7 @@ export default function AdminDashboard() {
               <HardDrive className="w-6 h-6 text-purple-600" />
             </div>
             <div>
-              <p className="text-xs text-dark-500 dark:text-dark-400">Almacenamiento</p>
+              <p className="text-xs text-dark-500 dark:text-dark-400">{t('admin.stats.storage')}</p>
               <p className="text-xl font-bold text-dark-900 dark:text-white">
                 {formatBytes(stats?.totalStorage || 0)}
               </p>
@@ -1010,7 +1012,7 @@ export default function AdminDashboard() {
               <TrendingUp className="w-6 h-6 text-orange-600" />
             </div>
             <div>
-              <p className="text-xs text-dark-500 dark:text-dark-400">Usuarios Activos</p>
+              <p className="text-xs text-dark-500 dark:text-dark-400">{t('admin.stats.activeUsers')}</p>
               <p className="text-xl font-bold text-dark-900 dark:text-white">
                 {stats?.activeUsers || 0}
               </p>
@@ -1023,18 +1025,18 @@ export default function AdminDashboard() {
       <section className="bg-white dark:bg-dark-800 rounded-2xl border border-dark-100 dark:border-dark-700 p-6 mb-6">
         <div className="flex items-center gap-2 mb-1">
           <Globe className="w-4 h-4 text-[#FF3B3B]" />
-          <h2 className="text-lg font-semibold text-dark-900 dark:text-white">General</h2>
+          <h2 className="text-lg font-semibold text-dark-900 dark:text-white">{t('admin.general.title')}</h2>
         </div>
-        <p className="text-sm text-dark-500 dark:text-dark-400 mb-6">Información básica del sitio</p>
+        <p className="text-sm text-dark-500 dark:text-dark-400 mb-6">{t('admin.general.description')}</p>
 
         <div className="grid grid-cols-2 gap-4 mb-4">
           <Input
-            label="Nombre del Sitio"
+            label={t('admin.general.siteName')}
             value={systemSettings.siteName}
             onChange={(e) => setSystemSettings({ ...systemSettings, siteName: e.target.value })}
           />
           <Input
-            label="Descripción"
+            label={t('admin.general.siteDescription')}
             value={systemSettings.siteDescription}
             onChange={(e) => setSystemSettings({ ...systemSettings, siteDescription: e.target.value })}
           />
@@ -1045,8 +1047,8 @@ export default function AdminDashboard() {
           <div className="flex items-center gap-3">
             <Users className="w-5 h-5 text-dark-500" />
             <div>
-              <p className="font-medium text-dark-900 dark:text-white">Permitir Registro</p>
-              <p className="text-sm text-dark-500">Nuevos usuarios pueden registrarse</p>
+              <p className="font-medium text-dark-900 dark:text-white">{t('admin.general.allowRegistration')}</p>
+              <p className="text-sm text-dark-500">{t('admin.general.allowRegistrationDesc')}</p>
             </div>
           </div>
           <button
@@ -1063,7 +1065,7 @@ export default function AdminDashboard() {
         <div className="grid grid-cols-3 gap-4 mb-4">
           <div>
             <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">
-              <HardDrive className="w-4 h-4 inline mr-1" /> Cuota por defecto
+              <HardDrive className="w-4 h-4 inline mr-1" /> {t('admin.general.defaultQuota')}
             </label>
             <div className="flex rounded-xl border border-dark-300 dark:border-dark-600 focus-within:ring-2 focus-within:ring-[#FF3B3B] focus-within:border-[#FF3B3B] overflow-hidden">
               <input
@@ -1086,7 +1088,7 @@ export default function AdminDashboard() {
           </div>
           <div>
             <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">
-              <FileType className="w-4 h-4 inline mr-1" /> Tamaño máx. archivo
+              <FileType className="w-4 h-4 inline mr-1" /> {t('admin.general.maxFileSize')}
             </label>
             <div className="flex rounded-xl border border-dark-300 dark:border-dark-600 focus-within:ring-2 focus-within:ring-[#FF3B3B] focus-within:border-[#FF3B3B] overflow-hidden">
               <input
@@ -1108,7 +1110,7 @@ export default function AdminDashboard() {
             </div>
           </div>
           <Input
-            label="Tipos permitidos"
+            label={t('admin.general.allowedTypes')}
             value={systemSettings.allowedFileTypes}
             onChange={(e) => setSystemSettings({ ...systemSettings, allowedFileTypes: e.target.value })}
             placeholder="* para todos"
@@ -1117,7 +1119,7 @@ export default function AdminDashboard() {
 
         <div className="flex justify-end pt-4 border-t border-dark-100 dark:border-dark-700">
           <Button onClick={saveSystemSettings} loading={savingSystem} icon={<Save className="w-4 h-4" />}>
-            Guardar General
+            {t('admin.general.save')}
           </Button>
         </div>
       </section>
@@ -1126,31 +1128,31 @@ export default function AdminDashboard() {
       <section className="bg-white dark:bg-dark-800 rounded-2xl border border-dark-100 dark:border-dark-700 p-6 mb-6">
         <div className="flex items-center gap-2 mb-1">
           <Mail className="w-4 h-4 text-[#FF3B3B]" />
-          <h2 className="text-lg font-semibold text-dark-900 dark:text-white">Email (SMTP)</h2>
+          <h2 className="text-lg font-semibold text-dark-900 dark:text-white">{t('admin.email.title')}</h2>
         </div>
-        <p className="text-sm text-dark-500 dark:text-dark-400 mb-6">Configuración del servidor de correo</p>
+        <p className="text-sm text-dark-500 dark:text-dark-400 mb-6">{t('admin.email.description')}</p>
 
         <div className="grid grid-cols-4 gap-4 mb-4">
           <Input
-            label="Host SMTP"
+            label={t('admin.email.host')}
             value={smtpSettings.host}
             onChange={(e) => setSmtpSettings({ ...smtpSettings, host: e.target.value })}
             placeholder="smtp.example.com"
           />
           <Input
-            label="Puerto"
+            label={t('admin.email.port')}
             type="number"
             value={smtpSettings.port.toString()}
             onChange={(e) => setSmtpSettings({ ...smtpSettings, port: parseInt(e.target.value) || 587 })}
           />
           <Input
-            label="Usuario"
+            label={t('admin.email.user')}
             value={smtpSettings.user}
             onChange={(e) => setSmtpSettings({ ...smtpSettings, user: e.target.value })}
             autoComplete="off"
           />
           <Input
-            label="Contraseña"
+            label={t('admin.email.password')}
             type="password"
             value={smtpSettings.password}
             onChange={(e) => setSmtpSettings({ ...smtpSettings, password: e.target.value })}
@@ -1160,12 +1162,12 @@ export default function AdminDashboard() {
 
         <div className="grid grid-cols-2 gap-4 mb-4">
           <Input
-            label="Nombre remitente"
+            label={t('admin.email.senderName')}
             value={smtpSettings.fromName}
             onChange={(e) => setSmtpSettings({ ...smtpSettings, fromName: e.target.value })}
           />
           <Input
-            label="Email remitente"
+            label={t('admin.email.senderEmail')}
             type="email"
             value={smtpSettings.fromEmail}
             onChange={(e) => setSmtpSettings({ ...smtpSettings, fromEmail: e.target.value })}
@@ -1173,9 +1175,9 @@ export default function AdminDashboard() {
         </div>
 
         <div className="flex justify-end gap-3 pt-4 border-t border-dark-100 dark:border-dark-700">
-          <Button variant="secondary" onClick={testSmtp}>Enviar prueba</Button>
+          <Button variant="secondary" onClick={testSmtp}>{t('admin.email.sendTest')}</Button>
           <Button onClick={saveSmtpSettings} loading={savingSmtp} icon={<Save className="w-4 h-4" />}>
-            Guardar Email
+            {t('admin.email.save')}
           </Button>
         </div>
       </section>
@@ -1185,7 +1187,7 @@ export default function AdminDashboard() {
         <div className="flex items-center justify-between mb-1">
           <div className="flex items-center gap-2">
             <FileText className="w-4 h-4 text-[#FF3B3B]" />
-            <h2 className="text-lg font-semibold text-dark-900 dark:text-white">Plantillas de Email</h2>
+            <h2 className="text-lg font-semibold text-dark-900 dark:text-white">{t('admin.templates.title')}</h2>
           </div>
           <Button
             variant="secondary"
@@ -1193,15 +1195,15 @@ export default function AdminDashboard() {
             icon={<Plus className="w-4 h-4" />}
             onClick={() => setShowNewTemplateModal(true)}
           >
-            Nueva
+            {t('admin.templates.new')}
           </Button>
         </div>
-        <p className="text-sm text-dark-500 dark:text-dark-400 mb-6">Personaliza los emails que envía el sistema</p>
+        <p className="text-sm text-dark-500 dark:text-dark-400 mb-6">{t('admin.templates.description')}</p>
 
         <div className="grid grid-cols-12 gap-6">
           {/* Templates List */}
           <div className="col-span-4 space-y-2">
-            <p className="text-xs font-medium text-dark-500 uppercase mb-3">Plantillas del Sistema</p>
+            <p className="text-xs font-medium text-dark-500 uppercase mb-3">{t('admin.templates.system')}</p>
             {Object.keys(DEFAULT_TEMPLATES).map((name) => {
               const customized = templates.find(t => t.name === name);
               return (
@@ -1219,7 +1221,7 @@ export default function AdminDashboard() {
                     <span className={`text-xs px-2 py-0.5 rounded-full ${
                       selectedTemplate === name ? 'bg-white/20' : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                     }`}>
-                      Personalizada
+                      {t('admin.templates.customized')}
                     </span>
                   )}
                 </button>
@@ -1229,7 +1231,7 @@ export default function AdminDashboard() {
             {/* Custom templates */}
             {templates.filter(t => !DEFAULT_TEMPLATES[t.name]).length > 0 && (
               <>
-                <p className="text-xs font-medium text-dark-500 uppercase mt-6 mb-3">Personalizadas</p>
+                <p className="text-xs font-medium text-dark-500 uppercase mt-6 mb-3">{t('admin.templates.custom')}</p>
                 {templates.filter(t => !DEFAULT_TEMPLATES[t.name]).map((template) => (
                   <div
                     key={template.name}
@@ -1276,7 +1278,7 @@ export default function AdminDashboard() {
                     </h3>
                     {editingTemplate.isDefault && (
                       <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                        Sin personalizar
+                        {t('admin.templates.notCustomized')}
                       </span>
                     )}
                   </div>
@@ -1290,7 +1292,7 @@ export default function AdminDashboard() {
                       }`}
                     >
                       <Code className="w-4 h-4" />
-                      Editor
+                      {t('admin.templates.editor')}
                     </button>
                     <button
                       onClick={() => setShowPreview(true)}
@@ -1301,7 +1303,7 @@ export default function AdminDashboard() {
                       }`}
                     >
                       <Eye className="w-4 h-4" />
-                      Vista Previa
+                      {t('admin.templates.preview')}
                     </button>
                   </div>
                 </div>
@@ -1315,7 +1317,7 @@ export default function AdminDashboard() {
                     <div className="flex items-center gap-2">
                       <Code className="w-4 h-4 text-[#FF3B3B]" />
                       <span className="text-sm font-medium text-dark-700 dark:text-dark-300">
-                        Variables Disponibles
+                        {t('admin.templates.variables.title')}
                       </span>
                       <span className="text-xs px-2 py-0.5 rounded-full bg-dark-200 dark:bg-dark-700 text-dark-600 dark:text-dark-400">
                         {templateVariables.system.length + templateVariables.custom.length}
@@ -1335,7 +1337,7 @@ export default function AdminDashboard() {
                     <div className="p-4 space-y-4">
                       {/* System Variables */}
                       <div>
-                        <p className="text-xs font-medium text-dark-500 uppercase mb-2">Variables del Sistema</p>
+                        <p className="text-xs font-medium text-dark-500 uppercase mb-2">{t('admin.templates.variables.system')}</p>
                         <div className="flex flex-wrap gap-2">
                           {templateVariables.system.map(v => (
                             <button
@@ -1354,13 +1356,13 @@ export default function AdminDashboard() {
                       {/* Custom Variables */}
                       <div>
                         <div className="flex items-center justify-between mb-2">
-                          <p className="text-xs font-medium text-dark-500 uppercase">Variables Personalizadas</p>
+                          <p className="text-xs font-medium text-dark-500 uppercase">{t('admin.templates.variables.custom')}</p>
                           <button
                             onClick={() => setShowAddVariableModal(true)}
                             className="flex items-center gap-1 text-xs text-[#FF3B3B] hover:text-red-700 dark:hover:text-red-400 font-medium"
                           >
                             <Plus className="w-3 h-3" />
-                            Añadir
+                            {t('admin.templates.variables.add')}
                           </button>
                         </div>
                         
@@ -1403,7 +1405,7 @@ export default function AdminDashboard() {
                           </div>
                         ) : (
                           <p className="text-xs text-dark-400 italic py-2">
-                            No hay variables personalizadas. Añade una para usarla en esta plantilla.
+                            {t('admin.templates.variables.noCustom')}
                           </p>
                         )}
                       </div>
@@ -1414,13 +1416,13 @@ export default function AdminDashboard() {
                 {!showPreview ? (
                   <>
                     <Input
-                      label="Asunto"
+                      label={t('admin.templates.subject')}
                       value={editingTemplate.subject}
                       onChange={(e) => setEditingTemplate({ ...editingTemplate, subject: e.target.value })}
                     />
                     <div>
                       <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">
-                        Contenido HTML
+                        {t('admin.templates.htmlContent')}
                       </label>
                       <textarea
                         value={editingTemplate.body}
@@ -1453,7 +1455,7 @@ export default function AdminDashboard() {
                 {/* Test Email */}
                 <div className="flex items-center gap-3 p-4 bg-dark-50 dark:bg-dark-900 rounded-xl">
                   <Input
-                    placeholder="email@ejemplo.com"
+                    placeholder={t('admin.templates.testEmail')}
                     value={testEmailAddress}
                     onChange={(e) => setTestEmailAddress(e.target.value)}
                     className="flex-1"
@@ -1464,7 +1466,7 @@ export default function AdminDashboard() {
                     loading={sendingTestEmail}
                     icon={<Send className="w-4 h-4" />}
                   >
-                    Probar
+                    {t('admin.templates.test')}
                   </Button>
                 </div>
 
@@ -1476,21 +1478,21 @@ export default function AdminDashboard() {
                     icon={<RotateCcw className="w-4 h-4" />}
                     disabled={editingTemplate.isDefault}
                   >
-                    Restablecer
+                    {t('admin.templates.reset')}
                   </Button>
                   <Button
                     onClick={saveTemplate}
                     loading={savingTemplate}
                     icon={<Save className="w-4 h-4" />}
                   >
-                    Guardar
+                    {t('admin.templates.save')}
                   </Button>
                 </div>
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center h-64 text-dark-400">
                 <FileText className="w-12 h-12 mb-4 opacity-50" />
-                <p>Selecciona una plantilla para editarla</p>
+                <p>{t('admin.templates.selectToEdit')}</p>
               </div>
             )}
           </div>
@@ -1504,22 +1506,22 @@ export default function AdminDashboard() {
             className="bg-white dark:bg-dark-800 rounded-xl shadow-2xl max-w-md w-full p-6"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-semibold text-dark-900 dark:text-white mb-4">Nueva Plantilla</h3>
+            <h3 className="text-lg font-semibold text-dark-900 dark:text-white mb-4">{t('admin.templates.newTemplate')}</h3>
             <Input
-              label="Nombre de la plantilla"
+              label={t('admin.templates.templateName')}
               value={newTemplateName}
               onChange={(e) => setNewTemplateName(e.target.value)}
-              placeholder="Ej: Notificación de pago"
+              placeholder={t('admin.templates.templateNamePlaceholder')}
             />
             <p className="text-xs text-dark-500 mt-2 mb-4">
-              Se convertirá en identificador único (ej: notificacion_de_pago)
+              {t('admin.templates.templateNameHint')}
             </p>
             <div className="flex justify-end gap-3">
               <Button variant="secondary" onClick={() => setShowNewTemplateModal(false)}>
-                Cancelar
+                {t('common.cancel')}
               </Button>
               <Button onClick={createNewTemplate}>
-                Crear
+                {t('common.create')}
               </Button>
             </div>
           </div>
@@ -1533,28 +1535,28 @@ export default function AdminDashboard() {
             className="bg-white dark:bg-dark-800 rounded-xl shadow-2xl max-w-md w-full p-6"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-semibold text-dark-900 dark:text-white mb-4">Nueva Variable</h3>
+            <h3 className="text-lg font-semibold text-dark-900 dark:text-white mb-4">{t('admin.templates.newVariable')}</h3>
             <div className="space-y-4">
               <Input
-                label="Nombre de la variable"
+                label={t('admin.templates.variables.name')}
                 value={newVariableName}
                 onChange={(e) => setNewVariableName(e.target.value.replace(/[^a-zA-Z0-9_]/g, ''))}
-                placeholder="miVariable"
+                placeholder={t('admin.templates.variableNamePlaceholder')}
               />
               <p className="text-xs text-dark-500 -mt-2">
-                Solo letras, números y guiones bajos. Se usará como {`{{${newVariableName || 'miVariable'}}}`}
+                {t('admin.templates.variableNameHint', { example: `{{${newVariableName || 'myVariable'}}}` })}
               </p>
               <Input
-                label="Valor por defecto"
+                label={t('admin.templates.variables.value')}
                 value={newVariableValue}
                 onChange={(e) => setNewVariableValue(e.target.value)}
-                placeholder="Valor que se usará en el email"
+                placeholder={t('admin.templates.variableValuePlaceholder')}
               />
               <Input
-                label="Descripción (opcional)"
+                label={t('admin.templates.variables.description')}
                 value={newVariableDescription}
                 onChange={(e) => setNewVariableDescription(e.target.value)}
-                placeholder="Para qué sirve esta variable"
+                placeholder={t('admin.templates.variableDescPlaceholder')}
               />
             </div>
             <div className="flex justify-end gap-3 mt-6">
@@ -1564,10 +1566,10 @@ export default function AdminDashboard() {
                 setNewVariableValue('');
                 setNewVariableDescription('');
               }}>
-                Cancelar
+                {t('common.cancel')}
               </Button>
               <Button onClick={addVariable} loading={savingVariable}>
-                Añadir
+                {t('admin.templates.variables.add')}
               </Button>
             </div>
           </div>
@@ -1582,26 +1584,26 @@ export default function AdminDashboard() {
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-semibold text-dark-900 dark:text-white mb-4">
-              Editar Variable: <code className="text-[#FF3B3B]">{`{{${editingVariable.name}}}`}</code>
+              {t('admin.templates.editVariable')}: <code className="text-[#FF3B3B]">{`{{${editingVariable.name}}}`}</code>
             </h3>
             <div className="space-y-4">
               <Input
-                label="Valor por defecto"
+                label={t('admin.templates.variables.value')}
                 value={editingVariable.defaultValue}
                 onChange={(e) => setEditingVariable({ ...editingVariable, defaultValue: e.target.value })}
               />
               <Input
-                label="Descripción (opcional)"
+                label={t('admin.templates.variables.description')}
                 value={editingVariable.description || ''}
                 onChange={(e) => setEditingVariable({ ...editingVariable, description: e.target.value })}
               />
             </div>
             <div className="flex justify-end gap-3 mt-6">
               <Button variant="secondary" onClick={() => setEditingVariable(null)}>
-                Cancelar
+                {t('common.cancel')}
               </Button>
               <Button onClick={updateVariable} loading={savingVariable}>
-                Guardar
+                {t('common.save')}
               </Button>
             </div>
           </div>
@@ -1612,13 +1614,13 @@ export default function AdminDashboard() {
       <section className="bg-white dark:bg-dark-800 rounded-2xl border border-dark-100 dark:border-dark-700 p-6">
         <div className="flex items-center gap-2 mb-1">
           <Palette className="w-4 h-4 text-[#FF3B3B]" />
-          <h2 className="text-lg font-semibold text-dark-900 dark:text-white">Branding</h2>
+          <h2 className="text-lg font-semibold text-dark-900 dark:text-white">{t('admin.branding.title')}</h2>
         </div>
-        <p className="text-sm text-dark-500 dark:text-dark-400 mb-6">Personaliza la apariencia</p>
+        <p className="text-sm text-dark-500 dark:text-dark-400 mb-6">{t('admin.branding.description')}</p>
 
         {/* Color */}
         <div className="flex items-center gap-4 mb-6">
-          <label className="text-sm font-medium text-dark-700 dark:text-dark-300">Color principal</label>
+          <label className="text-sm font-medium text-dark-700 dark:text-dark-300">{t('admin.branding.primaryColor')}</label>
           <input
             type="color"
             value={brandingSettings.primaryColor}
@@ -1636,7 +1638,7 @@ export default function AdminDashboard() {
         <div className="grid grid-cols-3 gap-4 mb-6">
           {/* Logo Light */}
           <div>
-            <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-2">Logo (claro)</label>
+            <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-2">{t('admin.branding.logoLight')}</label>
             <input
               type="file"
               accept="image/*"
@@ -1659,7 +1661,7 @@ export default function AdminDashboard() {
 
           {/* Logo Dark */}
           <div>
-            <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-2">Logo (oscuro)</label>
+            <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-2">{t('admin.branding.logoDark')}</label>
             <input
               type="file"
               accept="image/*"
@@ -1682,7 +1684,7 @@ export default function AdminDashboard() {
 
           {/* Favicon */}
           <div>
-            <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-2">Favicon</label>
+            <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-2">{t('admin.branding.favicon')}</label>
             <input
               type="file"
               accept="image/*"
@@ -1706,7 +1708,7 @@ export default function AdminDashboard() {
 
         <div className="flex justify-end pt-4 border-t border-dark-100 dark:border-dark-700">
           <Button onClick={saveBrandingSettings} loading={savingBranding} icon={<Save className="w-4 h-4" />}>
-            Guardar Branding
+            {t('admin.branding.save')}
           </Button>
         </div>
       </section>
@@ -1715,10 +1717,10 @@ export default function AdminDashboard() {
       <section className="bg-white dark:bg-dark-800 rounded-2xl border border-dark-100 dark:border-dark-700 p-6 mt-6">
         <div className="flex items-center gap-2 mb-1">
           <FileText className="w-4 h-4 text-[#FF3B3B]" />
-          <h2 className="text-lg font-semibold text-dark-900 dark:text-white">Páginas Legales</h2>
+          <h2 className="text-lg font-semibold text-dark-900 dark:text-white">{t('admin.legal.title')}</h2>
         </div>
         <p className="text-sm text-dark-500 dark:text-dark-400 mb-6">
-          Edita el contenido de las páginas de Política de Privacidad y Términos de Servicio
+          {t('admin.legal.description')}
         </p>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -1740,7 +1742,7 @@ export default function AdminDashboard() {
                     <span className="font-medium text-sm">{getLegalPageDisplayName(page.slug)}</span>
                     {page.isDefault && (
                       <span className="text-xs bg-dark-200 dark:bg-dark-600 text-dark-600 dark:text-dark-300 px-2 py-0.5 rounded">
-                        Por defecto
+                        {t('admin.legal.default')}
                       </span>
                     )}
                   </div>
@@ -1756,7 +1758,7 @@ export default function AdminDashboard() {
                 {/* Title */}
                 <div>
                   <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-2">
-                    Título de la página
+                    {t('admin.legal.pageTitle')}
                   </label>
                   <Input
                     value={editingLegalPage.title}
@@ -1768,7 +1770,7 @@ export default function AdminDashboard() {
                 {/* Content editor */}
                 <div>
                   <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-2">
-                    Contenido (HTML)
+                    {t('admin.legal.content')}
                   </label>
                   <textarea
                     value={editingLegalPage.content}
@@ -1778,14 +1780,14 @@ export default function AdminDashboard() {
                     placeholder="<h2>Sección 1</h2>&#10;<p>Contenido...</p>"
                   />
                   <p className="text-xs text-dark-500 dark:text-dark-400 mt-1">
-                    Usa HTML para dar formato al contenido. Etiquetas permitidas: h2, h3, p, ul, ol, li, strong, em, a
+                    {t('admin.legal.contentHint')}
                   </p>
                 </div>
 
                 {/* Preview */}
                 <div>
                   <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-2">
-                    Vista previa
+                    {t('admin.legal.preview')}
                   </label>
                   <div 
                     className="p-4 bg-dark-50 dark:bg-dark-700/50 rounded-xl max-h-64 overflow-y-auto prose prose-sm dark:prose-invert max-w-none
@@ -1807,7 +1809,7 @@ export default function AdminDashboard() {
                       className="text-sm text-primary-600 hover:text-primary-700 flex items-center gap-1"
                     >
                       <Eye className="w-4 h-4" />
-                      Ver página pública
+                      {t('admin.legal.viewPublic')}
                     </a>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1817,7 +1819,7 @@ export default function AdminDashboard() {
                         onClick={resetLegalPage}
                         icon={<RotateCcw className="w-4 h-4" />}
                       >
-                        Restablecer
+                        {t('admin.legal.reset')}
                       </Button>
                     )}
                     <Button
@@ -1825,7 +1827,7 @@ export default function AdminDashboard() {
                       loading={savingLegalPage}
                       icon={<Save className="w-4 h-4" />}
                     >
-                      Guardar
+                      {t('admin.legal.save')}
                     </Button>
                   </div>
                 </div>
@@ -1833,7 +1835,7 @@ export default function AdminDashboard() {
             ) : (
               <div className="flex flex-col items-center justify-center py-12 text-dark-500 dark:text-dark-400">
                 <FileText className="w-12 h-12 mb-4 opacity-50" />
-                <p>Selecciona una página para editar</p>
+                <p>{t('admin.legal.selectToEdit')}</p>
               </div>
             )}
           </div>
@@ -1845,18 +1847,18 @@ export default function AdminDashboard() {
         <div className="flex items-center justify-between mb-1">
           <div className="flex items-center gap-2">
             <Users className="w-4 h-4 text-[#FF3B3B]" />
-            <h2 className="text-lg font-semibold text-dark-900 dark:text-white">Gestión de Usuarios</h2>
+            <h2 className="text-lg font-semibold text-dark-900 dark:text-white">{t('admin.users.title')}</h2>
           </div>
           <Button onClick={openCreateModal} size="sm" icon={<UserPlus className="w-4 h-4" />}>
-            Nuevo Usuario
+            {t('admin.users.newUser')}
           </Button>
         </div>
-        <p className="text-sm text-dark-500 dark:text-dark-400 mb-6">Administrar cuentas de usuario ({users.length} usuarios)</p>
+        <p className="text-sm text-dark-500 dark:text-dark-400 mb-6">{t('admin.users.description')} ({t('admin.users.usersCount', { count: users.length })})</p>
 
         {/* Search */}
         <div className="mb-4">
           <Input
-            placeholder="Buscar usuarios..."
+            placeholder={t('admin.users.search')}
             value={userSearch}
             onChange={(e) => setUserSearch(e.target.value)}
             icon={<Search className="w-5 h-5" />}
@@ -1874,19 +1876,19 @@ export default function AdminDashboard() {
               <thead className="bg-dark-50 dark:bg-dark-900">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-dark-500 uppercase tracking-wider">
-                    Usuario
+                    {t('admin.users.user')}
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-dark-500 uppercase tracking-wider">
-                    Rol
+                    {t('admin.users.role')}
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-dark-500 uppercase tracking-wider">
-                    Almacenamiento
+                    {t('admin.users.storage')}
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-dark-500 uppercase tracking-wider">
-                    Registro
+                    {t('admin.users.joined')}
                   </th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-dark-500 uppercase tracking-wider">
-                    Acciones
+                    {t('admin.users.actions')}
                   </th>
                 </tr>
               </thead>
@@ -1934,7 +1936,7 @@ export default function AdminDashboard() {
                           {formatBytes(user.storageUsed)}
                         </p>
                         <p className="text-xs text-dark-500">
-                          de {formatBytes(user.storageQuota)}
+                          / {formatBytes(user.storageQuota)}
                         </p>
                       </div>
                     </td>
@@ -1951,22 +1953,22 @@ export default function AdminDashboard() {
                         align="right"
                       >
                         <DropdownItem onClick={() => openEditModal(user)}>
-                          <Edit className="w-4 h-4" /> Editar
+                          <Edit className="w-4 h-4" /> {t('admin.users.edit')}
                         </DropdownItem>
                         <DropdownItem onClick={() => toggleAdmin(user)}>
                           {user.role === 'ADMIN' ? (
                             <>
-                              <ShieldOff className="w-4 h-4" /> Degradar a Usuario
+                              <ShieldOff className="w-4 h-4" /> {t('admin.users.demoteUser')}
                             </>
                           ) : (
                             <>
-                              <Shield className="w-4 h-4" /> Promover a Admin
+                              <Shield className="w-4 h-4" /> {t('admin.users.promoteAdmin')}
                             </>
                           )}
                         </DropdownItem>
                         <DropdownDivider />
                         <DropdownItem danger onClick={() => openDeleteModal(user)}>
-                          <Trash2 className="w-4 h-4" /> Eliminar
+                          <Trash2 className="w-4 h-4" /> {t('admin.users.delete')}
                         </DropdownItem>
                       </Dropdown>
                     </td>
@@ -1982,23 +1984,23 @@ export default function AdminDashboard() {
       <Modal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        title="Crear Usuario"
+        title={t('admin.users.createUser')}
       >
         <form onSubmit={(e) => { e.preventDefault(); createUser(); }} className="space-y-4">
           <Input
-            label="Nombre"
+            label={t('admin.users.name')}
             value={formName}
             onChange={(e) => setFormName(e.target.value)}
           />
           <Input
-            label="Email"
+            label={t('admin.users.email')}
             type="email"
             value={formEmail}
             onChange={(e) => setFormEmail(e.target.value)}
             autoComplete="off"
           />
           <Input
-            label="Contraseña"
+            label={t('admin.users.password')}
             type="password"
             value={formPassword}
             onChange={(e) => setFormPassword(e.target.value)}
@@ -2006,20 +2008,20 @@ export default function AdminDashboard() {
           />
           <div>
             <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">
-              Rol
+              {t('admin.users.role')}
             </label>
             <select
               value={formRole}
               onChange={(e) => setFormRole(e.target.value as 'USER' | 'ADMIN')}
               className="input"
             >
-              <option value="USER">Usuario</option>
-              <option value="ADMIN">Administrador</option>
+              <option value="USER">{t('admin.users.USER')}</option>
+              <option value="ADMIN">{t('admin.users.ADMIN')}</option>
             </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">
-              Cuota de Almacenamiento
+              {t('admin.users.storageQuota')}
             </label>
             <select
               value={formStorageQuota}
@@ -2038,7 +2040,7 @@ export default function AdminDashboard() {
                   type="number"
                   value={customQuotaValue}
                   onChange={(e) => setCustomQuotaValue(e.target.value)}
-                  placeholder="Cantidad"
+                  placeholder={t('admin.users.amount')}
                   min="1"
                   className="input flex-1"
                 />
@@ -2055,10 +2057,10 @@ export default function AdminDashboard() {
           </div>
           <div className="flex justify-end gap-3 mt-6">
             <Button variant="ghost" type="button" onClick={() => setShowCreateModal(false)}>
-              Cancelar
+              {t('admin.users.cancel')}
             </Button>
             <Button type="submit" loading={savingUser}>
-              Crear
+              {t('admin.users.create')}
             </Button>
           </div>
         </form>
@@ -2068,22 +2070,22 @@ export default function AdminDashboard() {
       <Modal
         isOpen={showEditModal}
         onClose={() => setShowEditModal(false)}
-        title="Editar Usuario"
+        title={t('admin.users.editUser')}
       >
         <form onSubmit={(e) => { e.preventDefault(); updateUser(); }} className="space-y-4">
           <Input
-            label="Nombre"
+            label={t('admin.users.name')}
             value={formName}
             onChange={(e) => setFormName(e.target.value)}
           />
           <Input
-            label="Email"
+            label={t('admin.users.email')}
             type="email"
             value={formEmail}
             onChange={(e) => setFormEmail(e.target.value)}
           />
           <Input
-            label="Contraseña (dejar vacío para mantener)"
+            label={t('admin.users.passwordHint')}
             type="password"
             value={formPassword}
             onChange={(e) => setFormPassword(e.target.value)}
@@ -2091,20 +2093,20 @@ export default function AdminDashboard() {
           />
           <div>
             <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">
-              Rol
+              {t('admin.users.role')}
             </label>
             <select
               value={formRole}
               onChange={(e) => setFormRole(e.target.value as 'USER' | 'ADMIN')}
               className="input"
             >
-              <option value="USER">Usuario</option>
-              <option value="ADMIN">Administrador</option>
+              <option value="USER">{t('admin.users.USER')}</option>
+              <option value="ADMIN">{t('admin.users.ADMIN')}</option>
             </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">
-              Cuota de Almacenamiento
+              {t('admin.users.storageQuota')}
             </label>
             <select
               value={formStorageQuota}
@@ -2123,7 +2125,7 @@ export default function AdminDashboard() {
                   type="number"
                   value={customQuotaValue}
                   onChange={(e) => setCustomQuotaValue(e.target.value)}
-                  placeholder="Cantidad"
+                  placeholder={t('admin.users.amount')}
                   min="1"
                   className="input flex-1"
                 />
@@ -2140,10 +2142,10 @@ export default function AdminDashboard() {
           </div>
           <div className="flex justify-end gap-3 mt-6">
             <Button variant="ghost" type="button" onClick={() => setShowEditModal(false)}>
-              Cancelar
+              {t('admin.users.cancel')}
             </Button>
             <Button type="submit" loading={savingUser}>
-              Guardar Cambios
+              {t('admin.users.saveChanges')}
             </Button>
           </div>
         </form>
@@ -2156,7 +2158,7 @@ export default function AdminDashboard() {
           setShowDeleteModal(false);
           setUserToDelete(null);
         }}
-        title="Eliminar Usuario"
+        title={t('admin.users.delete')}
         size="sm"
       >
         <div className="text-center">
@@ -2164,10 +2166,10 @@ export default function AdminDashboard() {
             <Trash2 className="w-8 h-8 text-red-600" />
           </div>
           <p className="text-dark-900 dark:text-white mb-2">
-            ¿Estás seguro de eliminar a <strong>{userToDelete?.name}</strong>?
+            {t('admin.users.deleteConfirm')} <strong>{userToDelete?.name}</strong>?
           </p>
           <p className="text-sm text-dark-500 dark:text-dark-400 mb-6">
-            Esta acción no se puede deshacer. Todos los archivos del usuario serán eliminados permanentemente.
+            {t('admin.users.deleteWarning')}
           </p>
           <div className="flex justify-center gap-3">
             <Button
@@ -2178,7 +2180,7 @@ export default function AdminDashboard() {
               }}
               disabled={deletingUser}
             >
-              Cancelar
+              {t('admin.users.cancel')}
             </Button>
             <Button
               variant="danger"
@@ -2186,7 +2188,7 @@ export default function AdminDashboard() {
               loading={deletingUser}
               icon={<Trash2 className="w-4 h-4" />}
             >
-              Eliminar
+              {t('admin.users.delete')}
             </Button>
           </div>
         </div>

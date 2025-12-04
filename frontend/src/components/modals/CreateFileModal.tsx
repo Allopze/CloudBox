@@ -1,6 +1,7 @@
 ﻿import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import Modal from '../ui/Modal';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
@@ -21,6 +22,7 @@ export default function CreateFileModal({
   onSuccess,
   folderId: propFolderId,
 }: CreateFileModalProps) {
+  const { t } = useTranslation();
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -37,7 +39,7 @@ export default function CreateFileModal({
     setError('');
 
     if (!name.trim()) {
-      setError('El nombre del archivo es obligatorio');
+      setError(t('modals.createFile.nameRequired'));
       return;
     }
 
@@ -47,12 +49,12 @@ export default function CreateFileModal({
         name: name.trim(),
         folderId: getCurrentFolderId(),
       });
-      toast('Archivo creado correctamente', 'success');
+      toast(t('modals.createFile.created'), 'success');
       setName('');
       onSuccess?.();
       onClose();
     } catch (err: any) {
-      const message = err.response?.data?.error || 'No se pudo crear el archivo';
+      const message = err.response?.data?.error || t('modals.createFile.createError');
       setError(message);
       toast(message, 'error');
     } finally {
@@ -61,11 +63,11 @@ export default function CreateFileModal({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Crear archivo" size="sm">
+    <Modal isOpen={isOpen} onClose={onClose} title={t('modals.createFile.title')} size="sm">
       <form onSubmit={handleSubmit} className="space-y-4">
         <Input
-          label="Nombre del archivo"
-          placeholder="nuevo-archivo.txt"
+          label={t('modals.createFile.fileName')}
+          placeholder={t('modals.createFile.placeholder')}
           value={name}
           onChange={(e) => setName(e.target.value)}
           error={error}
@@ -74,10 +76,10 @@ export default function CreateFileModal({
         />
         <div className="flex justify-end gap-3">
           <Button type="button" variant="ghost" onClick={onClose} disabled={loading}>
-            Cancelar
+            {t('common.cancel')}
           </Button>
           <Button type="submit" loading={loading}>
-            Crear
+            {t('common.create')}
           </Button>
         </div>
       </form>

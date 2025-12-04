@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import Modal from '../ui/Modal';
 import Button from '../ui/Button';
 import { api } from '../../lib/api';
@@ -15,6 +16,7 @@ interface MoveModalProps {
 }
 
 export default function MoveModal({ isOpen, onClose, items, onSuccess }: MoveModalProps) {
+  const { t } = useTranslation();
   const [folders, setFolders] = useState<Folder[]>([]);
   const [currentPath, setCurrentPath] = useState<Folder[]>([]);
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
@@ -47,13 +49,13 @@ export default function MoveModal({ isOpen, onClose, items, onSuccess }: MoveMod
       // Ignore aborted requests
       if (error.name === 'CanceledError' || signal?.aborted) return;
       console.error('Failed to load folders:', error);
-      toast('Error al cargar carpetas', 'error');
+      toast(t('modals.move.loadError'), 'error');
     } finally {
       if (!signal?.aborted) {
         setLoading(false);
       }
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (isOpen) {
@@ -109,11 +111,11 @@ export default function MoveModal({ isOpen, onClose, items, onSuccess }: MoveMod
         }
       }
 
-      toast(`${items.length} elemento(s) movido(s)`, 'success');
+      toast(t('modals.move.itemsMoved', { count: items.length }), 'success');
       onSuccess?.();
       onClose();
     } catch (error: any) {
-      toast(error.response?.data?.error || 'Error al mover', 'error');
+      toast(error.response?.data?.error || t('modals.move.moveError'), 'error');
     } finally {
       setMoving(false);
     }
@@ -122,19 +124,19 @@ export default function MoveModal({ isOpen, onClose, items, onSuccess }: MoveMod
   const getDestinationName = () => {
     if (selectedFolder) {
       const folder = folders.find((f) => f.id === selectedFolder);
-      return folder?.name || 'Carpeta seleccionada';
+      return folder?.name || t('modals.move.selectedFolder');
     }
     if (currentPath.length > 0) {
       return currentPath[currentPath.length - 1].name;
     }
-    return 'Raíz';
+    return t('modals.move.root');
   };
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={`Mover ${items.length} elemento(s)`}
+      title={t('modals.move.title', { count: items.length })}
       size="md"
     >
       <div className="space-y-4">
@@ -145,7 +147,7 @@ export default function MoveModal({ isOpen, onClose, items, onSuccess }: MoveMod
             className="flex items-center gap-1 hover:text-dark-900 dark:hover:text-white transition-colors"
           >
             <Home className="w-4 h-4" />
-            <span>Raíz</span>
+            <span>{t('modals.move.root')}</span>
           </button>
           {currentPath.map((folder, index) => (
             <div key={folder.id} className="flex items-center gap-1">
@@ -169,7 +171,7 @@ export default function MoveModal({ isOpen, onClose, items, onSuccess }: MoveMod
           ) : folders.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-dark-500">
               <FolderIcon className="w-10 h-10 mb-2 text-dark-300" />
-              <p>No hay subcarpetas</p>
+              <p>{t('modals.move.noSubfolders')}</p>
             </div>
           ) : (
             <div className="divide-y divide-dark-100 dark:divide-dark-700">
@@ -206,7 +208,7 @@ export default function MoveModal({ isOpen, onClose, items, onSuccess }: MoveMod
 
         {/* Destination indicator */}
         <div className="bg-dark-50 dark:bg-dark-900 rounded-lg p-3 text-sm">
-          <span className="text-dark-500">Mover a: </span>
+          <span className="text-dark-500">{t('modals.move.moveTo')}: </span>
           <span className="font-medium text-dark-900 dark:text-white">
             {getDestinationName()}
           </span>
@@ -215,10 +217,10 @@ export default function MoveModal({ isOpen, onClose, items, onSuccess }: MoveMod
         {/* Actions */}
         <div className="flex justify-end gap-3">
           <Button variant="ghost" onClick={onClose}>
-            Cancelar
+            {t('common.cancel')}
           </Button>
           <Button onClick={handleMove} loading={moving}>
-            Mover aquí
+            {t('modals.move.moveHere')}
           </Button>
         </div>
       </div>

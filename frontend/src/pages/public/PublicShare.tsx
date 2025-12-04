@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import { api, getFileUrl, API_URL } from '../../lib/api';
 import { FileItem } from '../../types';
@@ -29,6 +30,7 @@ interface PublicShareData {
 }
 
 export default function PublicShare() {
+  const { t } = useTranslation();
   const { token } = useParams<{ token: string }>();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<PublicShareData | null>(null);
@@ -49,7 +51,7 @@ export default function PublicShare() {
       if (error.response?.status === 401) {
         setNeedsPassword(true);
       } else {
-        toast(error.response?.data?.message || 'Enlace no encontrado o expirado', 'error');
+        toast(error.response?.data?.message || t('publicShare.notFoundDescription'), 'error');
       }
     } finally {
       setLoading(false);
@@ -74,7 +76,7 @@ export default function PublicShare() {
       const url = `${API_URL}/shares/public/${token}/files/${file.id}/download?password=${encodeURIComponent(password)}`;
       window.open(url, '_blank');
     } catch (error) {
-      toast('Error al descargar el archivo', 'error');
+      toast(t('publicShare.downloadError'), 'error');
     }
   };
 
@@ -83,7 +85,7 @@ export default function PublicShare() {
       const url = `${API_URL}/shares/public/${token}/download?password=${encodeURIComponent(password)}`;
       window.open(url, '_blank');
     } catch (error) {
-      toast('Error al descargar los archivos', 'error');
+      toast(t('publicShare.downloadError'), 'error');
     }
   };
 
@@ -104,10 +106,10 @@ export default function PublicShare() {
               <Lock className="w-8 h-8 text-primary-600" />
             </div>
             <h1 className="text-2xl font-bold text-dark-900 dark:text-white">
-              Protegido con contraseña
+              {t('publicShare.passwordProtected')}
             </h1>
             <p className="text-dark-500 dark:text-dark-400 mt-2">
-              Este enlace está protegido. Introduce la contraseña para continuar.
+              {t('publicShare.passwordDescription')}
             </p>
           </div>
 
@@ -116,11 +118,11 @@ export default function PublicShare() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Introduce la contraseña"
+              placeholder={t('publicShare.enterPassword')}
               autoFocus
             />
             <Button type="submit" className="w-full" loading={verifying}>
-              Acceder
+              {t('publicShare.access')}
             </Button>
           </form>
         </div>
@@ -136,10 +138,10 @@ export default function PublicShare() {
             <FileText className="w-8 h-8 text-red-600" />
           </div>
           <h1 className="text-2xl font-bold text-dark-900 dark:text-white">
-            Enlace no encontrado
+            {t('publicShare.notFound')}
           </h1>
           <p className="text-dark-500 dark:text-dark-400 mt-2">
-            Este enlace no es válido o ha expirado.
+            {t('publicShare.notFoundDescription')}
           </p>
         </div>
       </div>
@@ -157,10 +159,10 @@ export default function PublicShare() {
             </div>
             <div>
               <h1 className="font-bold text-dark-900 dark:text-white">
-                {data.share.name || 'Archivos compartidos'}
+                {data.share.name || t('publicShare.sharedFiles')}
               </h1>
               <p className="text-sm text-dark-500">
-                {data.files.length + data.folders.length} elementos
+                {data.files.length + data.folders.length} {t('publicShare.items')}
               </p>
             </div>
           </div>
@@ -172,7 +174,7 @@ export default function PublicShare() {
                 'p-2 rounded-lg',
                 viewMode === 'grid' ? 'bg-primary-100 text-primary-600' : 'text-dark-500 hover:bg-dark-100'
               )}
-              aria-label="Vista cuadrícula"
+              aria-label={t('publicShare.gridView')}
             >
               <Grid className="w-5 h-5" />
             </button>
@@ -182,13 +184,13 @@ export default function PublicShare() {
                 'p-2 rounded-lg',
                 viewMode === 'list' ? 'bg-primary-100 text-primary-600' : 'text-dark-500 hover:bg-dark-100'
               )}
-              aria-label="Vista lista"
+              aria-label={t('publicShare.listView')}
             >
               <List className="w-5 h-5" />
             </button>
             {data.share.allowDownload && (
               <Button onClick={downloadAll} icon={<Download className="w-4 h-4" />}>
-                Descargar todo
+                {t('publicShare.downloadAll')}
               </Button>
             )}
           </div>
@@ -246,9 +248,9 @@ export default function PublicShare() {
                     <button
                       onClick={() => downloadFile(file)}
                       className="mt-2 text-primary-600 hover:text-primary-700 text-sm font-medium flex items-center gap-1"
-                      aria-label={`Descargar ${file.name}`}
+                      aria-label={`${t('publicShare.download')} ${file.name}`}
                     >
-                      <Download className="w-4 h-4" /> Descargar
+                      <Download className="w-4 h-4" /> {t('publicShare.download')}
                     </button>
                   )}
                 </div>
@@ -261,16 +263,16 @@ export default function PublicShare() {
               <thead className="bg-dark-50 dark:bg-dark-700">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-dark-500 uppercase">
-                    Nombre
+                    {t('publicShare.name')}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-dark-500 uppercase">
-                    Tamaño
+                    {t('publicShare.size')}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-dark-500 uppercase">
-                    Modificado
+                    {t('publicShare.modified')}
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-dark-500 uppercase">
-                    Acciones
+                    {t('publicShare.actions')}
                   </th>
                 </tr>
               </thead>

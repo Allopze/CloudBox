@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import Modal from '../ui/Modal';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
@@ -16,6 +17,7 @@ interface RenameModalProps {
 }
 
 export default function RenameModal({ isOpen, onClose, item, type, onSuccess }: RenameModalProps) {
+  const { t } = useTranslation();
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -44,11 +46,11 @@ export default function RenameModal({ isOpen, onClose, item, type, onSuccess }: 
         await api.patch(endpoint, { name: name.trim() });
       }
 
-      toast(`${type === 'file' ? 'Archivo' : 'Carpeta'} renombrado`, 'success');
+      toast(t('modals.rename.renamed', { type: type === 'file' ? t('common.file') : t('common.folder') }), 'success');
       onSuccess?.();
       onClose();
     } catch (error: any) {
-      toast(error.response?.data?.error || 'Error al renombrar', 'error');
+      toast(error.response?.data?.error || t('modals.rename.error'), 'error');
     } finally {
       setLoading(false);
     }
@@ -64,30 +66,30 @@ export default function RenameModal({ isOpen, onClose, item, type, onSuccess }: 
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={`Renombrar ${type === 'file' ? 'archivo' : 'carpeta'}`}
+      title={t('modals.rename.title', { type: type === 'file' ? t('common.file') : t('common.folder') })}
       size="sm"
     >
       <div className="space-y-4">
         <Input
-          label="Nuevo nombre"
+          label={t('modals.rename.newName')}
           value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={`Nombre del ${type === 'file' ? 'archivo' : 'carpeta'}`}
+          placeholder={t('modals.rename.placeholder', { type: type === 'file' ? t('common.file') : t('common.folder') })}
           autoFocus
           icon={<Edit2 className="w-5 h-5" />}
         />
 
         <div className="flex justify-end gap-3">
           <Button variant="ghost" onClick={onClose}>
-            Cancelar
+            {t('common.cancel')}
           </Button>
           <Button
             onClick={handleRename}
             loading={loading}
             disabled={!name.trim() || name.trim() === item?.name}
           >
-            Renombrar
+            {t('modals.rename.rename')}
           </Button>
         </div>
       </div>

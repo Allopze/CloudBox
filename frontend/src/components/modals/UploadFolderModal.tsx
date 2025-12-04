@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import { useDropzone, FileWithPath } from 'react-dropzone';
 import Modal from '../ui/Modal';
@@ -33,6 +34,7 @@ export default function UploadFolderModal({
   onSuccess,
   folderId: propFolderId,
 }: UploadFolderModalProps) {
+  const { t } = useTranslation();
   const [files, setFiles] = useState<FolderUploadItem[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [searchParams] = useSearchParams();
@@ -179,7 +181,7 @@ export default function UploadFolderModal({
         )
       );
     } catch (err: any) {
-      const message = err.response?.data?.error || 'Error al subir el archivo';
+      const message = err.response?.data?.error || t('modals.uploadFolder.uploadError');
       setFiles((prev) =>
         prev.map((f) =>
           f.id === fileItem.id
@@ -211,7 +213,7 @@ export default function UploadFolderModal({
     setIsUploading(false);
     const hasErrors = files.some((file) => file.status === 'error');
     if (!hasErrors) {
-      toast('Carpeta subida correctamente', 'success');
+      toast(t('modals.uploadFolder.success'), 'success');
       onSuccess?.();
       refreshUser(); // Update storage info in sidebar
     }
@@ -229,7 +231,7 @@ export default function UploadFolderModal({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} title="Subir carpeta" size="lg">
+    <Modal isOpen={isOpen} onClose={handleClose} title={t('modals.uploadFolder.title')} size="lg">
       <div
         {...getRootProps()}
         className={cn(
@@ -242,9 +244,9 @@ export default function UploadFolderModal({
         <input {...getInputProps()} {...{ directory: '', webkitdirectory: '' } as any} />
         <Upload className="w-12 h-12 mx-auto text-dark-400 mb-4" />
         <p className="text-dark-600">
-          Arrastra una carpeta o haz clic para seleccionar un directorio completo
+          {t('modals.uploadFolder.dropHere')}
         </p>
-        <p className="text-sm text-dark-500 mt-2">Se preservará la estructura por carpetas</p>
+        <p className="text-sm text-dark-500 mt-2">{t('modals.uploadFolder.preserveStructure')}</p>
       </div>
 
       {files.length > 0 && (
@@ -288,10 +290,10 @@ export default function UploadFolderModal({
 
       <div className="flex justify-end gap-3 mt-6">
         <Button type="button" variant="ghost" onClick={handleClose} disabled={isUploading}>
-          {completedCount === files.length && files.length > 0 ? 'Hecho' : 'Cancelar'}
+          {completedCount === files.length && files.length > 0 ? t('modals.uploadFolder.done') : t('modals.uploadFolder.cancel')}
         </Button>
         <Button onClick={handleUpload} loading={isUploading} disabled={pendingCount === 0}>
-          Subir carpeta
+          {t('modals.uploadFolder.upload')}
         </Button>
       </div>
     </Modal>

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../stores/authStore';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
@@ -11,12 +12,13 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function Login() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { login, isLoggingIn } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
-  const [errorCode, setErrorCode] = useState<string | null>(null);
+  const [, setErrorCode] = useState<string | null>(null);
   const [remainingAttempts, setRemainingAttempts] = useState<number | null>(null);
   const [rememberMe, setRememberMe] = useState(() => {
     return localStorage.getItem('rememberEmail') !== null;
@@ -54,7 +56,7 @@ export default function Login() {
   // Validate email on blur
   const handleEmailBlur = () => {
     if (email && !EMAIL_REGEX.test(email)) {
-      setEmailError('Introduce un correo válido');
+      setEmailError(t('auth.errors.invalidEmail'));
     } else {
       setEmailError('');
     }
@@ -63,7 +65,7 @@ export default function Login() {
   // Validate password on blur (only if form has been submitted once)
   const handlePasswordBlur = () => {
     if (hasSubmitted && !password) {
-      setPasswordError('La contraseña es obligatoria');
+      setPasswordError(t('auth.errors.passwordRequired'));
     } else {
       setPasswordError('');
     }
@@ -73,17 +75,17 @@ export default function Login() {
     let isValid = true;
     
     if (!email) {
-      setEmailError('El correo es obligatorio');
+      setEmailError(t('auth.errors.emailRequired'));
       isValid = false;
     } else if (!EMAIL_REGEX.test(email)) {
-      setEmailError('Introduce un correo válido');
+      setEmailError(t('auth.errors.invalidEmail'));
       isValid = false;
     } else {
       setEmailError('');
     }
     
     if (!password) {
-      setPasswordError('La contraseña es obligatoria');
+      setPasswordError(t('auth.errors.passwordRequired'));
       isValid = false;
     } else {
       setPasswordError('');
@@ -120,7 +122,7 @@ export default function Login() {
         localStorage.removeItem('rememberEmail');
       }
       
-      toast('¡Bienvenido de nuevo!', 'success');
+      toast(t('auth.welcomeBack'), 'success');
       navigate('/');
     } catch (err: any) {
       const errorData = err.response?.data;
@@ -132,25 +134,25 @@ export default function Login() {
       let errorMessage = '';
       switch (code) {
         case 'INVALID_CREDENTIALS':
-          errorMessage = 'El correo electrónico o la contraseña son incorrectos. Por favor, verifica tus datos e intenta nuevamente.';
+          errorMessage = t('auth.errors.INVALID_CREDENTIALS');
           break;
         case 'OAUTH_ACCOUNT':
-          errorMessage = 'Esta cuenta fue creada con Google. Por favor, inicia sesión usando el botón de Google.';
+          errorMessage = t('auth.errors.OAUTH_ACCOUNT');
           break;
         case 'TOO_MANY_ATTEMPTS':
-          errorMessage = 'Has excedido el número máximo de intentos.';
+          errorMessage = t('auth.errors.TOO_MANY_ATTEMPTS');
           break;
         case 'ACCOUNT_LOCKED':
-          errorMessage = 'Tu cuenta ha sido bloqueada temporalmente por seguridad. Inténtalo más tarde.';
+          errorMessage = t('auth.errors.ACCOUNT_LOCKED');
           break;
         case 'EMAIL_NOT_VERIFIED':
-          errorMessage = 'Tu correo electrónico aún no ha sido verificado. Revisa tu bandeja de entrada.';
+          errorMessage = t('auth.errors.EMAIL_NOT_VERIFIED');
           break;
         case 'ACCOUNT_DISABLED':
-          errorMessage = 'Tu cuenta ha sido deshabilitada. Contacta al administrador para más información.';
+          errorMessage = t('auth.errors.ACCOUNT_DISABLED');
           break;
         default:
-          errorMessage = errorData?.error || errorData?.message || 'No se pudo iniciar sesión. Por favor, inténtalo de nuevo.';
+          errorMessage = errorData?.error || errorData?.message || t('auth.loginFailed');
       }
       
       setError(errorMessage);
@@ -165,7 +167,7 @@ export default function Login() {
       
       // Only show toast for network errors or unexpected errors
       if (!err.response) {
-        toast('Error de conexión. Verifica tu internet e inténtalo de nuevo.', 'error');
+        toast(t('auth.connectionError'), 'error');
       }
     }
   };
@@ -181,19 +183,19 @@ export default function Login() {
   return (
     <div>
       <h2 className="text-2xl font-bold text-dark-900 dark:text-white mb-2">
-        Iniciar sesión
+        {t('auth.loginTitle')}
       </h2>
       <p className="text-dark-500 dark:text-dark-400 mb-6">
-        ¡Bienvenido de nuevo! Por favor ingresa tus datos.
+        {t('auth.loginWelcome')}
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
         {/* Email field */}
         <Input
           ref={emailInputRef}
-          label="Correo electrónico"
+          label={t('auth.email')}
           type="email"
-          placeholder="Ingresa tu correo"
+          placeholder={t('auth.emailPlaceholder')}
           value={email}
           onChange={(e) => {
             setEmail(e.target.value);
@@ -215,9 +217,9 @@ export default function Login() {
         <div className="space-y-1">
           <Input
             ref={passwordInputRef}
-            label="Contraseña"
+            label={t('auth.password')}
             type={showPassword ? 'text' : 'password'}
-            placeholder="Ingresa tu contraseña"
+            placeholder={t('auth.passwordPlaceholder')}
             value={password}
             onChange={(e) => {
               setPassword(e.target.value);
@@ -231,7 +233,7 @@ export default function Login() {
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 className="hover:text-dark-700 dark:hover:text-dark-300 transition-colors p-1 -m-1"
-                aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                aria-label={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
                 aria-pressed={showPassword}
               >
                 {showPassword ? (
@@ -256,7 +258,7 @@ export default function Login() {
               to="/forgot-password"
               className="text-sm text-dark-500 dark:text-dark-400 hover:text-primary-600 dark:hover:text-primary-500 transition-colors"
             >
-              ¿Olvidaste tu contraseña?
+              {t('auth.forgotPassword')}
             </Link>
           </div>
         </div>
@@ -270,10 +272,10 @@ export default function Login() {
                 <Clock className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" aria-hidden="true" />
                 <div className="flex-1">
                   <p className="text-sm text-amber-700 dark:text-amber-300">
-                    Demasiados intentos fallidos
+                    {t('auth.tooManyAttempts')}
                   </p>
                   <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                    Podrás intentar nuevamente en: <strong>{formatTime(countdown)}</strong>
+                    {t('auth.tryAgainIn', { time: formatTime(countdown) })}
                   </p>
                 </div>
               </div>
@@ -289,7 +291,7 @@ export default function Login() {
                 </div>
                 <div className="flex-1 pt-1">
                   <p className="text-sm font-medium text-red-800 dark:text-red-200">
-                    No se pudo iniciar sesión
+                    {t('auth.loginFailed')}
                   </p>
                   <p className="text-sm text-red-700 dark:text-red-300 mt-1">
                     {error}
@@ -298,7 +300,7 @@ export default function Login() {
                   {/* Show remaining attempts warning */}
                   {remainingAttempts !== null && remainingAttempts > 0 && remainingAttempts <= 3 && (
                     <p className="text-xs text-red-600 dark:text-red-400 mt-2 font-medium">
-                      ⚠️ Intentos restantes: {remainingAttempts}
+                      ⚠️ {t('auth.remainingAttempts', { count: remainingAttempts })}
                     </p>
                   )}
                 </div>
@@ -321,7 +323,7 @@ export default function Login() {
               id="remember-me"
             />
             <span className="text-sm text-dark-600 dark:text-dark-400 flex items-center gap-1">
-              Recuérdame en este dispositivo
+              {t('auth.rememberMe')}
               <button
                 type="button"
                 className="text-dark-400 hover:text-dark-600 dark:hover:text-dark-300 transition-colors p-0.5"
@@ -331,7 +333,7 @@ export default function Login() {
                   setShowRememberTooltip(!showRememberTooltip);
                 }}
                 onBlur={() => setShowRememberTooltip(false)}
-                aria-label="Más información sobre recordar correo"
+                aria-label={t('auth.rememberMeTooltip')}
                 aria-expanded={showRememberTooltip}
               >
                 <Info className="w-4 h-4" aria-hidden="true" />
@@ -345,7 +347,7 @@ export default function Login() {
               className="absolute left-0 top-full mt-1 p-2 bg-dark-800 dark:bg-dark-700 text-white text-xs rounded-lg shadow-lg z-10 max-w-xs"
               role="tooltip"
             >
-              Tu correo electrónico se guardará en este navegador para facilitar futuros inicios de sesión. Tu contraseña nunca se almacena.
+              {t('auth.rememberMeTooltip')}
             </div>
           )}
         </div>
@@ -357,37 +359,37 @@ export default function Login() {
           disabled={isLocked}
           className="w-full rounded-full bg-red-500 hover:bg-red-600 focus:ring-red-500"
         >
-          {isLocked ? `Espera ${formatTime(countdown)}` : 'Iniciar sesión'}
+          {isLocked ? t('auth.wait', { time: formatTime(countdown) }) : t('auth.loginButton')}
         </Button>
       </form>
 
       {/* Secondary links section */}
       <div className="mt-6 space-y-4">
         <p className="text-center text-dark-600 dark:text-dark-400">
-          ¿No tienes una cuenta?{' '}
+          {t('auth.noAccount')}{' '}
           <Link 
             to="/register" 
             className="text-dark-700 dark:text-dark-300 hover:text-primary-600 dark:hover:text-primary-500 font-medium transition-colors underline underline-offset-2"
           >
-            Regístrate
+            {t('auth.register')}
           </Link>
         </p>
         
         {/* Privacy and terms links */}
         <p className="text-center text-xs text-dark-400 dark:text-dark-500">
-          Al iniciar sesión, aceptas nuestra{' '}
+          {t('auth.acceptTerms')}{' '}
           <Link 
             to="/privacy" 
             className="hover:text-dark-600 dark:hover:text-dark-400 underline underline-offset-2 transition-colors"
           >
-            Política de Privacidad
+            {t('auth.privacyPolicy')}
           </Link>
-          {' '}y{' '}
+          {' '}{t('auth.and')}{' '}
           <Link 
             to="/terms" 
             className="hover:text-dark-600 dark:hover:text-dark-400 underline underline-offset-2 transition-colors"
           >
-            Términos de Servicio
+            {t('auth.termsOfService')}
           </Link>
         </p>
       </div>

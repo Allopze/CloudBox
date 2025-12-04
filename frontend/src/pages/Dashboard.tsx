@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../stores/authStore';
 import { api } from '../lib/api';
 import { formatBytes } from '../lib/utils';
@@ -36,19 +37,7 @@ const activityIcons: Record<ActivityType, typeof ActivityIcon> = {
   DECOMPRESS: FileArchive,
 };
 
-const activityLabels: Record<ActivityType, string> = {
-  UPLOAD: 'Archivo subido',
-  DOWNLOAD: 'Archivo descargado',
-  DELETE: 'Elemento eliminado',
-  RESTORE: 'Elemento restaurado',
-  SHARE: 'Elemento compartido',
-  UNSHARE: 'Compartido eliminado',
-  MOVE: 'Elemento movido',
-  RENAME: 'Elemento renombrado',
-  CREATE_FOLDER: 'Carpeta creada',
-  COMPRESS: 'Archivo comprimido',
-  DECOMPRESS: 'Archivo descomprimido',
-};
+// Labels are now handled by i18n in the component
 
 const activityColors: Record<ActivityType, string> = {
   UPLOAD: 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400',
@@ -76,6 +65,7 @@ interface DashboardStats {
 }
 
 export default function Dashboard() {
+  const { t } = useTranslation();
   const { user } = useAuthStore();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -141,7 +131,7 @@ export default function Dashboard() {
               </div>
               <div>
                 <p className="text-xs uppercase tracking-wide text-dark-500 dark:text-dark-400">
-                  Total archivos
+                  {t('dashboard.totalFiles')}
                 </p>
                 <p className="text-xl font-semibold text-dark-900 dark:text-white">
                   {stats?.totalFiles || 0}
@@ -159,7 +149,7 @@ export default function Dashboard() {
               </div>
               <div>
                 <p className="text-xs uppercase tracking-wide text-dark-500 dark:text-dark-400">
-                  Total carpetas
+                  {t('dashboard.totalFolders')}
                 </p>
                 <p className="text-xl font-semibold text-dark-900 dark:text-white">
                   {stats?.totalFolders || 0}
@@ -177,7 +167,7 @@ export default function Dashboard() {
               </div>
               <div>
                 <p className="text-xs uppercase tracking-wide text-dark-500 dark:text-dark-400">
-                  Espacio usado
+                  {t('dashboard.spaceUsed')}
                 </p>
                 <p className="text-xl font-semibold text-dark-900 dark:text-white">
                   {formatBytes(stats?.totalSize || 0)}
@@ -195,10 +185,10 @@ export default function Dashboard() {
               </div>
               <div>
                 <p className="text-xs uppercase tracking-wide text-dark-500 dark:text-dark-400">
-                  Cuota usada
+                  {t('dashboard.quotaUsed')}
                 </p>
                 <p className="text-xl font-semibold text-dark-900 dark:text-white">
-                  {storageUsedPercent}% usado
+                  {storageUsedPercent}% {t('dashboard.used')}
                 </p>
               </div>
             </div>
@@ -209,9 +199,9 @@ export default function Dashboard() {
       {/* Storage bar */}
       <div className="bg-white dark:bg-dark-800 rounded-xl p-4 border border-dark-100 dark:border-dark-700">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-base font-semibold text-dark-900 dark:text-white">Almacenamiento</h2>
+          <h2 className="text-base font-semibold text-dark-900 dark:text-white">{t('dashboard.storage')}</h2>
           <span className="text-sm text-dark-500 dark:text-dark-400">
-            {formatBytes(user?.storageUsed || 0)} de {formatBytes(user?.storageQuota || 0)}
+            {formatBytes(user?.storageUsed || 0)} {t('dashboard.of')} {formatBytes(user?.storageQuota || 0)}
           </span>
         </div>
         <div className="w-full h-2.5 bg-dark-100 dark:bg-dark-700 rounded-full overflow-hidden">
@@ -228,10 +218,10 @@ export default function Dashboard() {
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-base font-semibold text-dark-900 dark:text-white flex items-center gap-2">
               <Clock className="w-5 h-5" />
-              Archivos recientes
+              {t('dashboard.recentFiles')}
             </h2>
             <Link to="/files" className="text-sm text-primary-600 hover:text-primary-700">
-              Ver todos
+              {t('dashboard.viewAll')}
             </Link>
           </div>
           {stats?.recentFiles && stats.recentFiles.length > 0 ? (
@@ -253,7 +243,7 @@ export default function Dashboard() {
             </div>
           ) : (
             <p className="text-dark-500 dark:text-dark-400 text-center py-8">
-              Sin archivos recientes
+              {t('dashboard.noRecentFiles')}
             </p>
           )}
         </div>
@@ -262,10 +252,10 @@ export default function Dashboard() {
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-base font-semibold text-dark-900 dark:text-white flex items-center gap-2">
               <Star className="w-5 h-5" />
-              Favoritos
+              {t('dashboard.favorites')}
             </h2>
             <Link to="/favorites" className="text-sm text-primary-600 hover:text-primary-700">
-              Ver todos
+              {t('dashboard.viewAll')}
             </Link>
           </div>
           {stats?.favoriteFiles && stats.favoriteFiles.length > 0 ? (
@@ -288,7 +278,7 @@ export default function Dashboard() {
             </div>
           ) : (
             <p className="text-dark-500 dark:text-dark-400 text-center py-8">
-              Sin archivos favoritos
+              {t('dashboard.noFavorites')}
             </p>
           )}
         </div>
@@ -299,14 +289,14 @@ export default function Dashboard() {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-base font-semibold text-dark-900 dark:text-white flex items-center gap-2">
             <ActivityIcon className="w-5 h-5" />
-            Actividad reciente
+            {t('dashboard.recentActivity')}
           </h2>
         </div>
         {activities.length > 0 ? (
           <div className="space-y-2">
             {activities.map((activity) => {
               const Icon = activityIcons[activity.type] || ActivityIcon;
-              const label = activityLabels[activity.type] || activity.type;
+              const label = t(`dashboard.activity.${activity.type}`);
               const colorClass = activityColors[activity.type] || 'bg-dark-100 text-dark-600';
 
               return (
@@ -342,7 +332,7 @@ export default function Dashboard() {
           </div>
         ) : (
           <p className="text-dark-500 dark:text-dark-400 text-center py-8">
-            Sin actividad reciente
+            {t('dashboard.noActivity')}
           </p>
         )}
       </div>

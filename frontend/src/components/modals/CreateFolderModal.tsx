@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import Modal from '../ui/Modal';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
@@ -20,6 +21,7 @@ export default function CreateFolderModal({
   onSuccess,
   parentId,
 }: CreateFolderModalProps) {
+  const { t } = useTranslation();
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -36,7 +38,7 @@ export default function CreateFolderModal({
     setError('');
 
     if (!name.trim()) {
-      setError('El nombre de la carpeta es obligatorio');
+      setError(t('modals.createFolder.nameRequired'));
       return;
     }
 
@@ -46,12 +48,12 @@ export default function CreateFolderModal({
         name: name.trim(),
         parentId: getCurrentFolderId() || null,
       });
-      toast('Carpeta creada correctamente', 'success');
+      toast(t('modals.createFolder.created'), 'success');
       setName('');
       onSuccess?.();
       onClose();
     } catch (err: any) {
-      const message = err.response?.data?.error || err.response?.data?.message || 'Error al crear la carpeta';
+      const message = err.response?.data?.error || err.response?.data?.message || t('modals.createFolder.createError');
       setError(message);
       toast(message, 'error');
     } finally {
@@ -60,11 +62,11 @@ export default function CreateFolderModal({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Crear nueva carpeta" size="sm">
+    <Modal isOpen={isOpen} onClose={onClose} title={t('modals.createFolder.title')} size="sm">
       <form onSubmit={handleSubmit}>
         <Input
-          label="Nombre de la carpeta"
-          placeholder="Mi carpeta"
+          label={t('modals.createFolder.folderName')}
+          placeholder={t('modals.createFolder.placeholder')}
           value={name}
           onChange={(e) => setName(e.target.value)}
           error={error}
@@ -73,10 +75,10 @@ export default function CreateFolderModal({
         />
         <div className="flex justify-end gap-3 mt-6">
           <Button type="button" variant="ghost" onClick={onClose}>
-            Cancelar
+            {t('common.cancel')}
           </Button>
           <Button type="submit" loading={loading}>
-            Crear
+            {t('common.create')}
           </Button>
         </div>
       </form>

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { api, getFileUrl } from '../lib/api';
 import { Album, FileItem } from '../types';
 import { useFileStore } from '../stores/fileStore';
@@ -19,6 +20,7 @@ interface PhotoContextMenuState {
 }
 
 export default function Albums() {
+  const { t } = useTranslation();
   const { albumId } = useParams<{ albumId: string }>();
   const [albums, setAlbums] = useState<Album[]>([]);
   const [currentAlbum, setCurrentAlbum] = useState<Album | null>(null);
@@ -48,7 +50,7 @@ export default function Albums() {
       setAlbums(response.data || []);
     } catch (error) {
       console.error('Failed to load albums:', error);
-      toast('Error al cargar los álbumes', 'error');
+      toast(t('albums.loadError'), 'error');
     }
   }, []);
 
@@ -62,7 +64,7 @@ export default function Albums() {
       setAlbumPhotos(photosRes.data || []);
     } catch (error) {
       console.error('Failed to load album:', error);
-      toast('Error al cargar el álbum', 'error');
+      toast(t('albums.loadAlbumError'), 'error');
     }
   }, []);
 
@@ -136,12 +138,12 @@ export default function Albums() {
     setCreating(true);
     try {
       await api.post('/albums', { name: newAlbumName.trim() });
-      toast('Álbum creado correctamente', 'success');
+      toast(t('albums.created'), 'success');
       setNewAlbumName('');
       setShowCreateModal(false);
       loadAlbums();
     } catch (error) {
-      toast('Error al crear el álbum', 'error');
+      toast(t('albums.createError'), 'error');
     } finally {
       setCreating(false);
     }
@@ -150,10 +152,10 @@ export default function Albums() {
   const deleteAlbum = async (id: string) => {
     try {
       await api.delete(`/albums/${id}`);
-      toast('Álbum eliminado', 'success');
+      toast(t('albums.deleted'), 'success');
       loadAlbums();
     } catch (error) {
-      toast('Error al eliminar el álbum', 'error');
+      toast(t('albums.deleteError'), 'error');
     }
   };
 
@@ -177,11 +179,11 @@ export default function Albums() {
       await api.post(`/albums/${currentAlbum.id}/files`, {
         fileIds: selectedPhotos,
       });
-      toast('Fotos añadidas al álbum', 'success');
+      toast(t('albums.photosAdded'), 'success');
       setShowAddPhotosModal(false);
       loadAlbumDetails(currentAlbum.id);
     } catch (error) {
-      toast('Error al añadir fotos', 'error');
+      toast(t('albums.addPhotosError'), 'error');
     }
   };
 
@@ -191,10 +193,10 @@ export default function Albums() {
       await api.delete(`/albums/${currentAlbum.id}/files`, {
         data: { fileIds: [fileId] },
       });
-      toast('Foto eliminada del álbum', 'success');
+      toast(t('albums.photoRemoved'), 'success');
       loadAlbumDetails(currentAlbum.id);
     } catch (error) {
-      toast('Error al eliminar la foto', 'error');
+      toast(t('albums.removePhotoError'), 'error');
     }
   };
 
@@ -236,9 +238,9 @@ export default function Albums() {
     try {
       const url = `${window.location.origin}${getFileUrl(`/files/${photo.id}/thumbnail`)}`;
       await navigator.clipboard.writeText(url);
-      toast('Enlace copiado al portapapeles', 'success');
+      toast(t('albums.linkCopied'), 'success');
     } catch {
-      toast('Error al copiar el enlace', 'error');
+      toast(t('albums.linkCopyError'), 'error');
     }
     closePhotoContextMenu();
   };
@@ -249,9 +251,9 @@ export default function Albums() {
       setAlbumPhotos(prev => prev.map(p =>
         p.id === photo.id ? { ...p, isFavorite: !p.isFavorite } : p
       ));
-      toast(photo.isFavorite ? 'Eliminado de favoritos' : 'Añadido a favoritos', 'success');
+      toast(photo.isFavorite ? t('albums.removedFromFavorites') : t('albums.addedToFavorites'), 'success');
     } catch {
-      toast('Error al actualizar favorito', 'error');
+      toast(t('albums.favoriteError'), 'error');
     }
     closePhotoContextMenu();
   };
@@ -351,8 +353,8 @@ export default function Albums() {
         ) : (
           <div className="flex flex-col items-center justify-center h-64 text-dark-500">
             <AlbumIcon className="w-16 h-16 mb-4 opacity-50" />
-            <p className="text-lg font-medium">No hay fotos en este álbum</p>
-            <p className="text-sm">Haz clic en "Añadir fotos" para agregar imágenes</p>
+            <p className="text-lg font-medium">{t('albums.noPhotos')}</p>
+            <p className="text-sm">{t('albums.addPhotosHint')}</p>
           </div>
         )}
 
@@ -360,12 +362,12 @@ export default function Albums() {
         <Modal
           isOpen={showAddPhotosModal}
           onClose={() => setShowAddPhotosModal(false)}
-          title="Añadir fotos al álbum"
+          title={t('albums.addPhotosToAlbum')}
           size="lg"
         >
           <div className="max-h-96 overflow-y-auto">
             {availablePhotos.length === 0 ? (
-              <p className="text-center text-dark-500 py-8">No hay fotos disponibles</p>
+              <p className="text-center text-dark-500 py-8">{t('albums.noAvailablePhotos')}</p>
             ) : (
               <div className="grid grid-cols-4 gap-2">
                 {availablePhotos.map((photo) => (
@@ -391,13 +393,13 @@ export default function Albums() {
           </div>
           <div className="flex justify-end gap-3 mt-6">
             <Button variant="ghost" onClick={() => setShowAddPhotosModal(false)}>
-              Cancelar
+              {t('common.cancel')}
             </Button>
             <Button
               onClick={addPhotosToAlbum}
               disabled={selectedPhotos.length === 0}
             >
-              Añadir {selectedPhotos.length} foto(s)
+              {t('albums.addPhotosCount', { count: selectedPhotos.length })}
             </Button>
           </div>
         </Modal>
@@ -431,7 +433,7 @@ export default function Albums() {
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
                 >
                   <Eye className="w-5 h-5" />
-                  <span>Ver imagen</span>
+                  <span>{t('albums.viewImage')}</span>
                 </button>
               </div>
 
@@ -444,21 +446,21 @@ export default function Albums() {
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
                 >
                   <Download className="w-5 h-5" />
-                  <span>Descargar</span>
+                  <span>{t('common.download')}</span>
                 </button>
                 <button
                   onClick={() => handleSharePhoto(photoContextMenu.photo)}
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
                 >
                   <Share2 className="w-5 h-5" />
-                  <span>Compartir</span>
+                  <span>{t('common.share')}</span>
                 </button>
                 <button
                   onClick={() => handleCopyPhotoLink(photoContextMenu.photo)}
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
                 >
                   <Copy className="w-5 h-5" />
-                  <span>Copiar enlace</span>
+                  <span>{t('common.copyLink')}</span>
                 </button>
               </div>
 
@@ -471,14 +473,14 @@ export default function Albums() {
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
                 >
                   <Star className={cn('w-5 h-5', photoContextMenu.photo.isFavorite && 'fill-yellow-500 text-yellow-500')} />
-                  <span>{photoContextMenu.photo.isFavorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}</span>
+                  <span>{photoContextMenu.photo.isFavorite ? t('common.removeFromFavorites') : t('common.addToFavorites')}</span>
                 </button>
                 <button
                   onClick={() => handleShowPhotoInfo(photoContextMenu.photo)}
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
                 >
                   <Info className="w-5 h-5" />
-                  <span>Información</span>
+                  <span>{t('common.info')}</span>
                 </button>
               </div>
 
@@ -491,7 +493,7 @@ export default function Albums() {
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                 >
                   <X className="w-5 h-5" />
-                  <span>Quitar del álbum</span>
+                  <span>{t('albums.removeFromAlbum')}</span>
                 </button>
               </div>
             </motion.div>
@@ -537,22 +539,22 @@ export default function Albums() {
 
               <div className="space-y-3 mb-6">
                 <div className="flex justify-between py-2 border-b border-dark-200 dark:border-dark-700">
-                  <span className="text-dark-500">Tamaño</span>
+                  <span className="text-dark-500">{t('albums.size')}</span>
                   <span className="text-dark-900 dark:text-white font-medium">{formatSize(infoPhoto.size)}</span>
                 </div>
                 <div className="flex justify-between py-2 border-b border-dark-200 dark:border-dark-700">
-                  <span className="text-dark-500">Fecha de subida</span>
+                  <span className="text-dark-500">{t('albums.uploadDate')}</span>
                   <span className="text-dark-900 dark:text-white font-medium">{formatDate(infoPhoto.createdAt)}</span>
                 </div>
                 <div className="flex justify-between py-2">
-                  <span className="text-dark-500">Favorito</span>
-                  <span className="text-dark-900 dark:text-white font-medium">{infoPhoto.isFavorite ? 'Sí' : 'No'}</span>
+                  <span className="text-dark-500">{t('albums.favorite')}</span>
+                  <span className="text-dark-900 dark:text-white font-medium">{infoPhoto.isFavorite ? t('common.yes') : t('common.no')}</span>
                 </div>
               </div>
 
               <div className="flex justify-end">
                 <Button onClick={() => setInfoPhoto(null)}>
-                  Cerrar
+                  {t('common.close')}
                 </Button>
               </div>
             </motion.div>
@@ -608,7 +610,7 @@ export default function Albums() {
             className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
           >
             <FolderPlus className="w-4 h-4 text-dark-400" />
-            Crear álbum
+            {t('albums.createAlbum')}
           </button>
         </div>
       )}
@@ -660,7 +662,7 @@ export default function Albums() {
                   </button>
                 </div>
                 <p className="text-xs text-dark-500">
-                  {album._count?.files || 0} fotos
+                  {t('albums.photosCount', { count: album._count?.files || 0 })}
                 </p>
               </div>
             </Link>
@@ -672,22 +674,22 @@ export default function Albums() {
       <Modal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        title="Crear álbum"
+        title={t('albums.createAlbum')}
         size="sm"
       >
         <Input
-          label="Nombre del álbum"
-          placeholder="Mi álbum"
+          label={t('albums.albumName')}
+          placeholder={t('albums.myAlbum')}
           value={newAlbumName}
           onChange={(e) => setNewAlbumName(e.target.value)}
           autoFocus
         />
         <div className="flex justify-end gap-3 mt-6">
           <Button variant="ghost" onClick={() => setShowCreateModal(false)}>
-            Cancelar
+            {t('common.cancel')}
           </Button>
           <Button onClick={createAlbum} loading={creating}>
-            Crear
+            {t('common.create')}
           </Button>
         </div>
       </Modal>

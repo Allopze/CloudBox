@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { api, getFileUrl } from '../lib/api';
 import { FileItem, Album } from '../types';
 import { useFileStore } from '../stores/fileStore';
@@ -27,6 +28,7 @@ interface ContextMenuState {
 }
 
 export default function Photos() {
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const activeTab = (searchParams.get('tab') || 'all') as TabType;
   
@@ -95,7 +97,7 @@ export default function Photos() {
       setPhotos(files);
     } catch (error) {
       console.error('Failed to load photos:', error);
-      toast('Error al cargar las fotos', 'error');
+      toast(t('photos.loadError'), 'error');
     } finally {
       setLoading(false);
     }
@@ -145,21 +147,21 @@ export default function Photos() {
   const handleFavorite = async (photo: FileItem) => {
     try {
       await api.patch(`/files/${photo.id}/favorite`);
-      toast(photo.isFavorite ? 'Eliminado de favoritos' : 'Añadido a favoritos', 'success');
+      toast(photo.isFavorite ? t('photos.removedFromFavorites') : t('photos.addedToFavorites'), 'success');
       loadData();
     } catch {
-      toast('Error al actualizar favorito', 'error');
+      toast(t('photos.favoriteError'), 'error');
     }
   };
 
   const handleDelete = async (photo: FileItem) => {
     try {
       await api.delete(`/files/${photo.id}`);
-      toast('Foto movida a la papelera', 'success');
+      toast(t('photos.movedToTrash'), 'success');
       closeLightbox();
       loadData();
     } catch {
-      toast('Error al eliminar la foto', 'error');
+      toast(t('photos.deleteError'), 'error');
     }
   };
 
@@ -244,7 +246,7 @@ export default function Photos() {
       setAlbums(response.data.albums || []);
     } catch (error) {
       console.error('Failed to load albums:', error);
-      toast('Error al cargar álbumes', 'error');
+      toast(t('photos.albumLoadError'), 'error');
     } finally {
       setLoadingAlbums(false);
     }
@@ -257,13 +259,13 @@ export default function Photos() {
         fileIds: albumSelectorPhotos.map(p => p.id)
       });
       const count = albumSelectorPhotos.length;
-      toast(count > 1 ? `${count} fotos añadidas al álbum` : 'Foto añadida al álbum', 'success');
+      toast(count > 1 ? t('photos.photosAddedToAlbum', { count }) : t('photos.photoAddedToAlbum'), 'success');
       setAlbumSelectorOpen(false);
       setAlbumSelectorPhotos([]);
       useFileStore.getState().clearSelection();
     } catch (error) {
       console.error('Failed to add to album:', error);
-      toast('Error al añadir al álbum', 'error');
+      toast(t('photos.addToAlbumError'), 'error');
     }
   };
 
@@ -280,7 +282,7 @@ export default function Photos() {
         fileIds: albumSelectorPhotos.map(p => p.id)
       });
       const count = albumSelectorPhotos.length;
-      toast(`Álbum "${newAlbumName}" creado y ${count > 1 ? `${count} fotos añadidas` : 'foto añadida'}`, 'success');
+      toast(t('photos.albumCreatedAndAdded', { name: newAlbumName, count: count > 1 ? count : 1 }), 'success');
       setAlbumSelectorOpen(false);
       setAlbumSelectorPhotos([]);
       setNewAlbumName('');
@@ -288,7 +290,7 @@ export default function Photos() {
       useFileStore.getState().clearSelection();
     } catch (error) {
       console.error('Failed to create album:', error);
-      toast('Error al crear el álbum', 'error');
+      toast(t('photos.createAlbumError'), 'error');
     } finally {
       setCreatingAlbum(false);
     }
@@ -298,9 +300,9 @@ export default function Photos() {
     try {
       const url = `${window.location.origin}${getFileUrl(`/files/${photo.id}/view`)}`;
       await navigator.clipboard.writeText(url);
-      toast('Enlace copiado al portapapeles', 'success');
+      toast(t('photos.linkCopied'), 'success');
     } catch {
-      toast('Error al copiar el enlace', 'error');
+      toast(t('photos.linkCopyError'), 'error');
     }
     closeContextMenu();
   };
@@ -426,12 +428,12 @@ export default function Photos() {
 
       {/* Lightbox */}
       {selectedPhoto && (
-        <div className="fixed inset-0 z-50 bg-black flex items-center justify-center" role="dialog" aria-label="Visor de imagen">
+        <div className="fixed inset-0 z-50 bg-black flex items-center justify-center" role="dialog" aria-label={t('photos.imageViewer')}>
           {/* Close button */}
           <button
             onClick={closeLightbox}
             className="absolute top-4 right-4 p-2 text-white/70 hover:text-white rounded-full hover:bg-white/10 transition-colors z-10"
-            aria-label="Cerrar visor"
+            aria-label={t('photos.closeViewer')}
           >
             <X className="w-6 h-6" />
           </button>
@@ -440,14 +442,14 @@ export default function Photos() {
           <button
             onClick={() => navigateLightbox('prev')}
             className="absolute left-4 p-2 text-white/70 hover:text-white rounded-full hover:bg-white/10 transition-colors"
-            aria-label="Foto anterior"
+            aria-label={t('photos.previousPhoto')}
           >
             <ChevronLeft className="w-8 h-8" />
           </button>
           <button
             onClick={() => navigateLightbox('next')}
             className="absolute right-4 p-2 text-white/70 hover:text-white rounded-full hover:bg-white/10 transition-colors"
-            aria-label="Foto siguiente"
+            aria-label={t('photos.nextPhoto')}
           >
             <ChevronRight className="w-8 h-8" />
           </button>
@@ -472,7 +474,7 @@ export default function Photos() {
                   size="sm"
                   onClick={() => handleFavorite(selectedPhoto)}
                   className="text-white hover:bg-white/10"
-                  aria-label={selectedPhoto.isFavorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}
+                  aria-label={selectedPhoto.isFavorite ? t('photos.removeFromFavorites') : t('photos.addToFavorites')}
                 >
                   <Star className={cn('w-5 h-5', selectedPhoto.isFavorite && 'fill-yellow-500 text-yellow-500')} />
                 </Button>
@@ -481,7 +483,7 @@ export default function Photos() {
                   size="sm"
                   onClick={() => window.open(getFileUrl(`/files/${selectedPhoto.id}/download`), '_blank')}
                   className="text-white hover:bg-white/10"
-                  aria-label="Descargar"
+                  aria-label={t('common.download')}
                 >
                   <Download className="w-5 h-5" />
                 </Button>
@@ -490,7 +492,7 @@ export default function Photos() {
                   size="sm"
                   onClick={() => handleDelete(selectedPhoto)}
                   className="text-white hover:bg-white/10"
-                  aria-label="Eliminar"
+                  aria-label={t('common.delete')}
                 >
                   <Trash2 className="w-5 h-5" />
                 </Button>
@@ -554,7 +556,7 @@ export default function Photos() {
             {isMultiSelect && (
               <>
                 <div className="px-4 py-2 text-sm font-medium text-dark-500 dark:text-dark-400">
-                  {selectedCount} elementos seleccionados
+                  {t('photos.itemsSelected', { count: selectedCount })}
                 </div>
                 <div className="my-2 border-t border-dark-200 dark:border-dark-700" />
               </>
@@ -574,14 +576,14 @@ export default function Photos() {
                     className="w-full flex items-center gap-3.5 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
                   >
                     <ImagePlus className="w-5 h-5 text-dark-400" />
-                    Abrir en visor
+                    {t('photos.openInViewer')}
                   </button>
                   <button
                     onClick={() => handleOpenInNewTab(contextMenu.photo)}
                     className="w-full flex items-center gap-3.5 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
                   >
                     <ExternalLink className="w-5 h-5 text-dark-400" />
-                    Abrir en nueva pestaña
+                    {t('photos.openInNewTab')}
                   </button>
                 </div>
 
@@ -594,21 +596,21 @@ export default function Photos() {
                     className="w-full flex items-center gap-3.5 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
                   >
                     <Download className="w-5 h-5 text-dark-400" />
-                    Descargar
+                    {t('common.download')}
                   </button>
                   <button
                     onClick={() => handleShare(contextMenu.photo)}
                     className="w-full flex items-center gap-3.5 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
                   >
                     <Share2 className="w-5 h-5 text-dark-400" />
-                    Compartir
+                    {t('common.share')}
                   </button>
                   <button
                     onClick={() => handleCopyLink(contextMenu.photo)}
                     className="w-full flex items-center gap-3.5 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
                   >
                     <Copy className="w-5 h-5 text-dark-400" />
-                    Copiar enlace
+                    {t('photos.copyLink')}
                   </button>
                 </div>
 
@@ -621,21 +623,21 @@ export default function Photos() {
                     className="w-full flex items-center gap-3.5 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
                   >
                     <Star className={cn('w-5 h-5', contextMenu.photo.isFavorite ? 'text-yellow-500 fill-yellow-500' : 'text-dark-400')} />
-                    {contextMenu.photo.isFavorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}
+                    {contextMenu.photo.isFavorite ? t('photos.removeFromFavorites') : t('photos.addToFavorites')}
                   </button>
                   <button
                     onClick={handleAddToAlbum}
                     className="w-full flex items-center gap-3.5 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
                   >
                     <FolderPlus className="w-5 h-5 text-dark-400" />
-                    Añadir a álbum
+                    {t('photos.addToAlbum')}
                   </button>
                   <button
                     onClick={() => handleRename(contextMenu.photo)}
                     className="w-full flex items-center gap-3.5 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
                   >
                     <Edit3 className="w-5 h-5 text-dark-400" />
-                    Renombrar
+                    {t('common.rename')}
                   </button>
                 </div>
 
@@ -648,7 +650,7 @@ export default function Photos() {
                     className="w-full flex items-center gap-3.5 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
                   >
                     <Info className="w-5 h-5 text-dark-400" />
-                    Ver información
+                    {t('photos.viewInfo')}
                   </button>
                 </div>
 
@@ -665,7 +667,7 @@ export default function Photos() {
                     className="w-full flex items-center gap-3.5 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
                   >
                     <FolderPlus className="w-5 h-5 text-dark-400" />
-                    Añadir a álbum
+                    {t('photos.addToAlbum')}
                   </button>
                   <button
                     onClick={() => {
@@ -676,7 +678,7 @@ export default function Photos() {
                     className="w-full flex items-center gap-3.5 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
                   >
                     <Download className="w-5 h-5 text-dark-400" />
-                    Descargar {selectedCount} elementos
+                    {t('photos.downloadItems', { count: selectedCount })}
                   </button>
                 </div>
 
@@ -691,7 +693,7 @@ export default function Photos() {
                 className="w-full flex items-center gap-3.5 px-4 py-2.5 text-base text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"
               >
                 <Trash2 className="w-5 h-5" />
-                {isMultiSelect ? `Eliminar ${selectedCount} elementos` : 'Eliminar'}
+                {isMultiSelect ? t('photos.deleteItems', { count: selectedCount }) : t('common.delete')}
               </button>
             </div>
           </motion.div>
@@ -731,24 +733,24 @@ export default function Photos() {
                 
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-dark-500 dark:text-dark-400">Tipo</span>
+                    <span className="text-dark-500 dark:text-dark-400">{t('photos.type')}</span>
                     <span className="text-dark-700 dark:text-dark-200">{infoPhoto.mimeType}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-dark-500 dark:text-dark-400">Tamaño</span>
+                    <span className="text-dark-500 dark:text-dark-400">{t('photos.size')}</span>
                     <span className="text-dark-700 dark:text-dark-200">{formatSize(Number(infoPhoto.size))}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-dark-500 dark:text-dark-400">Creado</span>
+                    <span className="text-dark-500 dark:text-dark-400">{t('photos.created')}</span>
                     <span className="text-dark-700 dark:text-dark-200">{formatDate(infoPhoto.createdAt)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-dark-500 dark:text-dark-400">Modificado</span>
+                    <span className="text-dark-500 dark:text-dark-400">{t('photos.modified')}</span>
                     <span className="text-dark-700 dark:text-dark-200">{formatDate(infoPhoto.updatedAt)}</span>
                   </div>
                   {infoPhoto.isFavorite && (
                     <div className="flex justify-between">
-                      <span className="text-dark-500 dark:text-dark-400">Favorito</span>
+                      <span className="text-dark-500 dark:text-dark-400">{t('photos.favorite')}</span>
                       <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
                     </div>
                   )}
@@ -760,7 +762,7 @@ export default function Photos() {
                     className="w-full"
                     onClick={() => setInfoPhoto(null)}
                   >
-                    Cerrar
+                    {t('common.close')}
                   </Button>
                 </div>
               </div>
@@ -817,7 +819,7 @@ export default function Photos() {
               {/* Header */}
               <div className="px-6 py-4 border-b border-dark-200 dark:border-dark-700 flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-dark-900 dark:text-white">
-                  Añadir {albumSelectorPhotos.length > 1 ? `${albumSelectorPhotos.length} fotos` : 'foto'} a álbum
+                  {t('photos.addPhotosToAlbum', { count: albumSelectorPhotos.length })}
                 </h3>
                 <button
                   onClick={() => {
@@ -836,7 +838,7 @@ export default function Photos() {
               <div className="p-4 border-b border-dark-200 dark:border-dark-700 space-y-3">
                 <div className="flex gap-2">
                   <Input
-                    placeholder="Nombre del nuevo álbum"
+                    placeholder={t('photos.newAlbumName')}
                     value={newAlbumName}
                     onChange={(e) => setNewAlbumName(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && createAlbumAndAdd()}
@@ -854,7 +856,7 @@ export default function Photos() {
                 {/* Color picker */}
                 {newAlbumName.trim() && (
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-dark-500 dark:text-dark-400">Color:</span>
+                    <span className="text-sm text-dark-500 dark:text-dark-400">{t('photos.color')}:</span>
                     <div className="flex gap-1.5 flex-wrap">
                       {albumColors.map((color) => (
                         <button
@@ -881,8 +883,8 @@ export default function Photos() {
                 ) : albums.length === 0 ? (
                   <div className="text-center py-8 text-dark-500 dark:text-dark-400">
                     <Images className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                    <p>No tienes álbumes</p>
-                    <p className="text-sm">Crea uno arriba</p>
+                    <p>{t('photos.noAlbums')}</p>
+                    <p className="text-sm">{t('photos.createOneAbove')}</p>
                   </div>
                 ) : (
                   <div className="p-2">
@@ -905,7 +907,7 @@ export default function Photos() {
                         <div className="flex-1 text-left">
                           <p className="font-medium text-dark-900 dark:text-white">{album.name}</p>
                           <p className="text-sm text-dark-500 dark:text-dark-400">
-                            {album._count?.files || 0} fotos
+                            {t('photos.photosCount', { count: album._count?.files || 0 })}
                           </p>
                         </div>
                       </button>

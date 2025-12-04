@@ -82,7 +82,7 @@ const DocumentThumbnail = memo(function DocumentThumbnail({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
-  const [pdfLoaded, setPdfLoaded] = useState(false);
+  const [, setPdfLoaded] = useState(false);
 
   const { icon: DocIcon, bgColor, label } = getDocumentStyle(mimeType, fileName);
   const ext = getExtension(fileName);

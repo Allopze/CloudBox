@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import { Folder, FileItem } from '../../types';
 import { useSearchParams, useLocation } from 'react-router-dom';
@@ -30,11 +31,12 @@ interface FolderCardProps {
 }
 
 export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderCardProps) {
+  const { t } = useTranslation();
   const [, setSearchParams] = useSearchParams();
   const location = useLocation();
   const { selectedItems, addToSelection, removeFromSelection, selectRange, selectSingle, lastSelectedId } = useFileStore();
   const { addOperation, incrementProgress, completeOperation, failOperation } = useGlobalProgressStore();
-  const { isDragging, draggedItems, startDrag, updatePosition, endDrag } = useDragDropStore();
+  const { draggedItems, startDrag, updatePosition, endDrag } = useDragDropStore();
   const { refreshUser } = useAuthStore();
   const isSelected = selectedItems.has(folder.id);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -126,10 +128,10 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
     setContextMenu(null);
     try {
       await api.patch(`/folders/${folder.id}/favorite`);
-      toast(folder.isFavorite ? 'Eliminado de favoritos' : 'Añadido a favoritos', 'success');
+      toast(folder.isFavorite ? t('folderCard.removedFromFavorites') : t('folderCard.addedToFavorites'), 'success');
       onRefresh?.();
     } catch {
-      toast('Error al actualizar favorito', 'error');
+      toast(t('folderCard.favoriteError'), 'error');
     }
   };
 
@@ -148,7 +150,7 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
       const opId = addOperation({
         id: `delete-context-${Date.now()}`,
         type: 'delete',
-        title: `Eliminando ${total} elemento(s)`,
+        title: t('folderCard.deletingItems', { count: total }),
         totalItems: total,
       });
       
@@ -168,26 +170,26 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
         
         completeOperation(opId);
         clearSelectionFn();
-        toast(`${total} elemento(s) movido(s) a papelera`, 'success');
+        toast(t('folderCard.itemsMovedToTrash', { count: total }), 'success');
         // Trigger refresh event and call onRefresh
         window.dispatchEvent(new CustomEvent('workzone-refresh'));
         onRefresh?.();
         refreshUser(); // Update storage info in sidebar
       } catch {
-        failOperation(opId, 'Error al eliminar elementos');
-        toast('Error al eliminar elementos', 'error');
+        failOperation(opId, t('folderCard.deleteError'));
+        toast(t('folderCard.deleteError'), 'error');
       }
     } else {
       // Single item delete
       try {
         await api.delete(`/folders/${folder.id}`);
-        toast('Carpeta movida a papelera', 'success');
+        toast(t('folderCard.folderMovedToTrash'), 'success');
         // Trigger refresh event and call onRefresh
         window.dispatchEvent(new CustomEvent('workzone-refresh'));
         onRefresh?.();
         refreshUser(); // Update storage info in sidebar
       } catch {
-        toast('Error al eliminar carpeta', 'error');
+        toast(t('folderCard.deleteFolderError'), 'error');
       }
     }
   };
@@ -296,12 +298,12 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
         }
       }
       
-      toast(`${items.length} elemento(s) movido(s) a "${folder.name}"`, 'success');
+      toast(t('folderCard.itemsMovedTo', { count: items.length, name: folder.name }), 'success');
       clearSelectionFn();
       window.dispatchEvent(new CustomEvent('workzone-refresh'));
       onRefresh?.();
     } catch (error: any) {
-      toast(error.response?.data?.error || 'Error al mover elementos', 'error');
+      toast(error.response?.data?.error || t('folderCard.moveError'), 'error');
     }
   };
 
@@ -320,33 +322,33 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
           onClick={handleFavorite}
           className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700"
         >
-          <Star className="w-4 h-4" /> {folder.isFavorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}
+          <Star className="w-4 h-4" /> {folder.isFavorite ? t('folderCard.removeFromFavorites') : t('folderCard.addToFavorites')}
         </button>
         <button
           onClick={() => { setContextMenu(null); setShowShareModal(true); }}
           className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700"
         >
-          <Share2 className="w-4 h-4" /> Compartir
+          <Share2 className="w-4 h-4" /> {t('folderCard.share')}
         </button>
         <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
         <button
           onClick={() => { setContextMenu(null); setShowRenameModal(true); }}
           className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700"
         >
-          <Edit className="w-4 h-4" /> Renombrar
+          <Edit className="w-4 h-4" /> {t('folderCard.rename')}
         </button>
         <button
           onClick={() => { setContextMenu(null); setShowMoveModal(true); }}
           className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700"
         >
-          <Move className="w-4 h-4" /> Mover
+          <Move className="w-4 h-4" /> {t('folderCard.move')}
         </button>
         <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
         <button
           onClick={handleDelete}
           className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
         >
-          <Trash2 className="w-4 h-4" /> Mover a papelera
+          <Trash2 className="w-4 h-4" /> {t('folderCard.moveToTrash')}
         </button>
       </motion.div>
     </AnimatePresence>,
@@ -385,9 +387,9 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
           data-folder-name={folder.name}
           data-folder-data={JSON.stringify(folder)}
           draggable
-          onDragStart={handleDragStart}
-          onDrag={handleDrag}
-          onDragEnd={handleDragEnd}
+          onDragStart={handleDragStart as any}
+          onDrag={handleDrag as any}
+          onDragEnd={handleDragEnd as any}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
@@ -409,7 +411,7 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
           </div>
           <div className="flex-1 min-w-0">
             <p className="font-medium text-dark-900 dark:text-white truncate">{folder.name}</p>
-            <p className="text-sm text-dark-500">{folder._count?.files ?? 0} elementos • {formatDate(folder.createdAt)}</p>
+            <p className="text-sm text-dark-500">{t('folderCard.itemsCount', { count: folder._count?.files ?? 0 })} • {formatDate(folder.createdAt)}</p>
           </div>
           {folder.isFavorite && <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />}
         </motion.div>
@@ -426,9 +428,9 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
         data-folder-name={folder.name}
         data-folder-data={JSON.stringify(folder)}
         draggable
-        onDragStart={handleDragStart}
-        onDrag={handleDrag}
-        onDragEnd={handleDragEnd}
+        onDragStart={handleDragStart as any}
+        onDrag={handleDrag as any}
+        onDragEnd={handleDragEnd as any}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}

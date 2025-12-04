@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import {
   X,
@@ -106,6 +107,7 @@ export default function DocumentViewer({
   files = [],
   onNavigate,
 }: DocumentViewerProps) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [content, setContent] = useState<string>('');
@@ -128,9 +130,9 @@ export default function DocumentViewer({
   }, []);
 
   const onDocumentLoadError = useCallback(() => {
-    setError('Error al cargar el PDF.');
+    setError(t('gallery.loadError'));
     setLoading(false);
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (!isOpen || !file) return;
@@ -178,18 +180,18 @@ export default function DocumentViewer({
               setSpreadsheetData(response.data);
             } catch (err) {
               console.error('Error loading spreadsheet:', err);
-              setError('Error al cargar la hoja de cálculo.');
+              setError(t('gallery.errorLoadingSpreadsheet'));
             }
             setLoading(false);
             break;
 
           default:
-            setError('Tipo de documento no soportado para previsualización.');
+            setError(t('gallery.unsupportedDocument'));
             setLoading(false);
         }
       } catch (err) {
         console.error('Error loading document:', err);
-        setError('Error al cargar el documento.');
+        setError(t('gallery.errorLoading'));
         setLoading(false);
       }
     };
@@ -295,7 +297,7 @@ export default function DocumentViewer({
               onClick={() => onDownload(file)}
               className="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg transition-colors"
             >
-              Descargar archivo
+              {t('gallery.downloadFile')}
             </button>
           )}
         </div>
@@ -307,7 +309,7 @@ export default function DocumentViewer({
       return (
         <div className="flex flex-col items-center justify-center h-full gap-4">
           <Loader2 className="w-12 h-12 text-primary-500 animate-spin" />
-          <p className="text-white/60">Cargando documento...</p>
+          <p className="text-white/60">{t('gallery.loading')}</p>
         </div>
       );
     }
@@ -326,7 +328,7 @@ export default function DocumentViewer({
               loading={
                 <div className="flex flex-col items-center justify-center h-64 gap-4">
                   <Loader2 className="w-12 h-12 text-primary-500 animate-spin" />
-                  <p className="text-white/60">Cargando PDF...</p>
+                  <p className="text-white/60">{t('gallery.loadingPdf')}</p>
                 </div>
               }
               className="flex flex-col items-center gap-4"
@@ -414,7 +416,7 @@ export default function DocumentViewer({
         return (
           <div className="flex flex-col items-center justify-center h-full gap-4">
             <FileText className="w-16 h-16 text-white/40" />
-            <p className="text-white/60">No se puede previsualizar este tipo de archivo.</p>
+            <p className="text-white/60">{t('gallery.unsupportedType')}</p>
           </div>
         );
     }
@@ -437,7 +439,7 @@ export default function DocumentViewer({
             <h3 className="font-medium truncate">{file.name}</h3>
             <div className="flex items-center gap-2 text-sm text-gray-400">
               {documentType === 'pdf' && numPages > 0 && (
-                <span>Página {currentPage} de {numPages}</span>
+                <span>{t('gallery.pageOf', { current: currentPage, total: numPages })}</span>
               )}
               {files.length > 1 && documentType !== 'pdf' && (
                 <span>{currentIndex + 1} / {files.length}</span>
@@ -452,7 +454,7 @@ export default function DocumentViewer({
                   onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                   disabled={currentPage <= 1}
                   className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50"
-                  title="Página anterior"
+                  title={t('gallery.previousPage')}
                 >
                   <ChevronLeft className="w-5 h-5" />
                 </button>
@@ -463,7 +465,7 @@ export default function DocumentViewer({
                   onClick={() => setCurrentPage(prev => Math.min(numPages, prev + 1))}
                   disabled={currentPage >= numPages}
                   className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50"
-                  title="Página siguiente"
+                  title={t('gallery.nextPage')}
                 >
                   <ChevronRight className="w-5 h-5" />
                 </button>
@@ -476,7 +478,7 @@ export default function DocumentViewer({
               onClick={() => setZoom((prev) => Math.max(prev - 25, 50))}
               disabled={zoom <= 50}
               className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50"
-              title="Alejar"
+              title={t('gallery.zoomOut')}
             >
               <ZoomOut className="w-5 h-5" />
             </button>
@@ -485,7 +487,7 @@ export default function DocumentViewer({
               onClick={() => setZoom((prev) => Math.min(prev + 25, 200))}
               disabled={zoom >= 200}
               className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50"
-              title="Acercar"
+              title={t('gallery.zoomIn')}
             >
               <ZoomIn className="w-5 h-5" />
             </button>
@@ -495,7 +497,7 @@ export default function DocumentViewer({
             <button
               onClick={toggleFullscreen}
               className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-              title={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
+              title={isFullscreen ? t('gallery.exitFullscreen') : t('gallery.fullscreen')}
             >
               {isFullscreen ? (
                 <Minimize2 className="w-5 h-5" />
@@ -508,7 +510,7 @@ export default function DocumentViewer({
               <button
                 onClick={() => onDownload(file)}
                 className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-                title="Descargar"
+                title={t('gallery.download')}
               >
                 <Download className="w-5 h-5" />
               </button>
@@ -517,7 +519,7 @@ export default function DocumentViewer({
               <button
                 onClick={() => onShare(file)}
                 className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-                title="Compartir"
+                title={t('gallery.share')}
               >
                 <Share2 className="w-5 h-5" />
               </button>
@@ -525,7 +527,7 @@ export default function DocumentViewer({
             <button
               onClick={onClose}
               className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-              title="Cerrar (Esc)"
+              title={t('gallery.closeEsc')}
             >
               <X className="w-5 h-5" />
             </button>
@@ -544,7 +546,7 @@ export default function DocumentViewer({
               <button
                 onClick={() => onNavigate(files[currentIndex - 1])}
                 className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-black/50 hover:bg-black/70 text-white rounded-full transition-all"
-                title="Anterior"
+                title={t('gallery.previous')}
               >
                 <ChevronLeft className="w-6 h-6" />
               </button>
@@ -553,7 +555,7 @@ export default function DocumentViewer({
               <button
                 onClick={() => onNavigate(files[currentIndex + 1])}
                 className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-black/50 hover:bg-black/70 text-white rounded-full transition-all"
-                title="Siguiente"
+                title={t('gallery.next')}
               >
                 <ChevronRight className="w-6 h-6" />
               </button>

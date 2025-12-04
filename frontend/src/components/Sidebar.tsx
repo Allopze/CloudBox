@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../stores/authStore';
 import { useUIStore } from '../stores/uiStore';
 import { useThemeStore } from '../stores/themeStore';
@@ -37,6 +38,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
 };
 
 export default function Sidebar() {
+  const { t } = useTranslation();
   const { user, refreshUser } = useAuthStore();
   const { sidebarOpen } = useUIStore();
   const { isDark } = useThemeStore();
@@ -77,11 +79,11 @@ export default function Sidebar() {
     setEmptyingTrash(true);
     try {
       await api.delete('/trash/empty');
-      toast('Papelera vaciada correctamente', 'success');
+      toast(t('sidebar.trashEmptied'), 'success');
       window.dispatchEvent(new CustomEvent('workzone-refresh'));
       refreshUser(); // Update storage info in sidebar
     } catch {
-      toast('Error al vaciar la papelera', 'error');
+      toast(t('sidebar.trashEmptyError'), 'error');
     } finally {
       setEmptyingTrash(false);
     }
@@ -214,7 +216,7 @@ export default function Sidebar() {
     });
     
     if (validItems.length === 0) {
-      toast('Los elementos seleccionados no son compatibles con esta categoría', 'error');
+      toast(t('sidebar.incompatibleItems'), 'error');
       return;
     }
     
@@ -237,13 +239,13 @@ export default function Sidebar() {
       }
       
       const categoryNames: Record<string, string> = {
-        'files': 'Archivos',
-        'photos': 'Fotos',
-        'music': 'Música',
-        'documents': 'Documentos',
+        'files': t('sidebar.categories.files'),
+        'photos': t('sidebar.categories.photos'),
+        'music': t('sidebar.categories.music'),
+        'documents': t('sidebar.categories.documents'),
       };
       
-      toast(`${validItems.length} elemento(s) movido(s) a ${categoryNames[category] || category}`, 'success');
+      toast(t('sidebar.movedTo', { count: validItems.length, category: categoryNames[category] || category }), 'success');
       clearSelectionFn();
       window.dispatchEvent(new CustomEvent('workzone-refresh'));
       
@@ -290,7 +292,7 @@ export default function Sidebar() {
             handleDragOver(e, index, section);
           }
         }}
-        onDragLeave={(e) => {
+        onDragLeave={() => {
           if (isFileDragging) {
             handleFileDragLeave();
           }
@@ -381,7 +383,7 @@ export default function Sidebar() {
             className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
           >
             <Trash2 className="w-4 h-4" />
-            {emptyingTrash ? 'Vaciando...' : 'Vaciar papelera'}
+            {emptyingTrash ? t('sidebar.emptying') : t('sidebar.emptyTrash')}
           </button>
         </motion.div>
       </AnimatePresence>,
@@ -428,7 +430,7 @@ export default function Sidebar() {
 
         {/* Storage info */}
         <div className="p-4 border-t border-dark-200 dark:border-[#2a2a2a]">
-          <p className="text-xs text-dark-500 dark:text-white/70 mb-2">Almacenamiento</p>
+          <p className="text-xs text-dark-500 dark:text-white/70 mb-2">{t('sidebar.storage')}</p>
           <div className="w-full h-1.5 bg-dark-200 dark:bg-white/10 rounded-full overflow-hidden">
             <div
               className="h-full bg-primary-500 rounded-full transition-all"

@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useDropzone } from 'react-dropzone';
 import Modal from '../ui/Modal';
 import Button from '../ui/Button';
@@ -31,6 +32,7 @@ export default function UploadModal({
   onSuccess,
   folderId: propFolderId,
 }: UploadModalProps) {
+  const { t } = useTranslation();
   const [files, setFiles] = useState<FileUpload[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [searchParams] = useSearchParams();
@@ -119,7 +121,7 @@ export default function UploadModal({
     setIsUploading(false);
     const hasErrors = files.some((f) => f.status === 'error');
     if (!hasErrors) {
-      toast('Todos los archivos se subieron correctamente', 'success');
+      toast(t('modals.upload.allFilesUploaded'), 'success');
       onSuccess?.();
       refreshUser(); // Update storage info in sidebar
     }
@@ -139,7 +141,7 @@ export default function UploadModal({
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      title="Subir archivos"
+      title={t('modals.upload.title')}
       size="lg"
     >
       {/* Dropzone */}
@@ -156,10 +158,10 @@ export default function UploadModal({
         <Upload className="w-12 h-12 mx-auto text-dark-400 mb-4" />
         <p className="text-dark-600 dark:text-dark-400">
           {isDragActive
-            ? 'Suelta los archivos aquí...'
-            : 'Arrastra y suelta archivos aquí, o haz clic para seleccionar'}
+            ? t('modals.upload.dropHere')
+            : t('modals.upload.dragOrClick')}
         </p>
-        <p className="text-sm text-dark-500 mt-2">Tamaño máximo: 1GB</p>
+        <p className="text-sm text-dark-500 mt-2">{t('modals.upload.maxSize')}</p>
       </div>
 
       {/* File list */}
@@ -167,11 +169,11 @@ export default function UploadModal({
         <div className="mt-6 max-h-64 overflow-y-auto">
           <div className="flex items-center justify-between mb-3">
             <p className="text-sm font-medium text-dark-700 dark:text-dark-300">
-              {files.length} archivo(s) seleccionado(s)
+              {t('modals.upload.filesSelected', { count: files.length })}
             </p>
             {completedCount > 0 && (
               <p className="text-sm text-green-600">
-                {completedCount} completado(s)
+                {t('modals.upload.completed', { count: completedCount })}
               </p>
             )}
           </div>
@@ -219,11 +221,11 @@ export default function UploadModal({
       {/* Actions */}
       <div className="flex justify-end gap-3 mt-6">
         <Button variant="ghost" onClick={handleClose} disabled={isUploading}>
-          {completedCount === files.length && files.length > 0 ? 'Listo' : 'Cancelar'}
+          {completedCount === files.length && files.length > 0 ? t('modals.upload.done') : t('common.cancel')}
         </Button>
         {pendingCount > 0 && (
           <Button onClick={handleUpload} loading={isUploading}>
-            Subir {pendingCount} archivo(s)
+            {t('modals.upload.uploadFiles', { count: pendingCount })}
           </Button>
         )}
       </div>

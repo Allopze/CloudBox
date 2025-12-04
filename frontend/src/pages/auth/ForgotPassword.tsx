@@ -1,51 +1,53 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Mail, ArrowLeft, AlertCircle } from 'lucide-react';
 import { api } from '../../lib/api';
 import { toast } from '../../components/ui/Toast';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 
-function getErrorMessage(error: any): string {
-  const status = error.response?.status;
-  const message = error.response?.data?.message;
-  
-  if (message) return message;
-  
-  switch (status) {
-    case 404:
-      return 'No existe una cuenta con este correo electrónico';
-    case 429:
-      return 'Demasiados intentos. Por favor espera unos minutos';
-    case 500:
-      return 'Error del servidor. Por favor intenta más tarde';
-    default:
-      if (!navigator.onLine) {
-        return 'Sin conexión a internet. Verifica tu conexión';
-      }
-      return 'Error al enviar el correo. Por favor intenta de nuevo';
-  }
-}
-
 export default function ForgotPassword() {
+  const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState('');
+
+  const getErrorMessage = (error: any): string => {
+    const status = error.response?.status;
+    const message = error.response?.data?.message;
+    
+    if (message) return message;
+    
+    switch (status) {
+      case 404:
+        return t('forgotPassword.errors.notFound');
+      case 429:
+        return t('forgotPassword.errors.tooManyAttempts');
+      case 500:
+        return t('forgotPassword.errors.serverError');
+      default:
+        if (!navigator.onLine) {
+          return t('forgotPassword.errors.noConnection');
+        }
+        return t('forgotPassword.errors.sendError');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
     if (!email) {
-      setError('Por favor ingresa tu correo electrónico');
+      setError(t('forgotPassword.errors.emailRequired'));
       return;
     }
 
     // Validación básica de email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      setError('Por favor ingresa un correo electrónico válido');
+      setError(t('forgotPassword.errors.invalidEmail'));
       return;
     }
 
@@ -54,7 +56,7 @@ export default function ForgotPassword() {
     try {
       await api.post('/auth/forgot-password', { email });
       setSent(true);
-      toast('Correo de recuperación enviado', 'success');
+      toast(t('forgotPassword.recoverySent'), 'success');
     } catch (err: any) {
       setError(getErrorMessage(err));
     } finally {
@@ -69,17 +71,17 @@ export default function ForgotPassword() {
           <Mail className="w-8 h-8 text-green-600" />
         </div>
         <h2 className="text-2xl font-bold text-dark-900 dark:text-white mb-2">
-          Revisa tu correo
+          {t('forgotPassword.checkEmail')}
         </h2>
         <p className="text-dark-600 dark:text-dark-400 mb-6">
-          Hemos enviado un enlace de recuperación a <strong>{email}</strong>
+          {t('forgotPassword.emailSent')} <strong>{email}</strong>
         </p>
         <Link
           to="/login"
           className="text-primary-600 hover:text-primary-700 font-medium flex items-center justify-center gap-2"
         >
           <ArrowLeft className="w-4 h-4" />
-          Volver al inicio de sesión
+          {t('forgotPassword.backToLogin')}
         </Link>
       </div>
     );
@@ -88,10 +90,10 @@ export default function ForgotPassword() {
   return (
     <div>
       <h2 className="text-2xl font-bold text-dark-900 dark:text-white mb-2">
-        ¿Olvidaste tu contraseña?
+        {t('forgotPassword.title')}
       </h2>
       <p className="text-dark-600 dark:text-dark-400 mb-6">
-        No te preocupes, te enviaremos las instrucciones.
+        {t('forgotPassword.subtitle')}
       </p>
 
       {error && (
@@ -103,18 +105,18 @@ export default function ForgotPassword() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <Input
-          label="Correo electrónico"
+          label={t('forgotPassword.emailLabel')}
           type="email"
           value={email}
           onChange={(e) => { setEmail(e.target.value); setError(''); }}
-          placeholder="Ingresa tu correo"
+          placeholder={t('forgotPassword.emailPlaceholder')}
           icon={<Mail className="w-5 h-5" />}
           autoFocus
           className="rounded-2xl"
         />
 
         <Button type="submit" className="w-full rounded-full" loading={loading}>
-          Enviar enlace de recuperación
+          {t('forgotPassword.sendLink')}
         </Button>
       </form>
 
@@ -123,7 +125,7 @@ export default function ForgotPassword() {
         className="mt-6 text-dark-600 dark:text-dark-400 hover:text-primary-600 font-medium flex items-center justify-center gap-2"
       >
         <ArrowLeft className="w-4 h-4" />
-        Volver al inicio de sesión
+        {t('forgotPassword.backToLogin')}
       </Link>
     </div>
   );

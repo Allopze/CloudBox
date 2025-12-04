@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import Modal from '../ui/Modal';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
@@ -31,6 +32,7 @@ interface ShareModalProps {
 }
 
 export default function ShareModal({ isOpen, onClose, file, folder, onSuccess }: ShareModalProps) {
+  const { t } = useTranslation();
   const [existingShare, setExistingShare] = useState<Share | null>(null);
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -114,10 +116,10 @@ export default function ShareModal({ isOpen, onClose, file, folder, onSuccess }:
       const response = await api.post('/shares', data);
       setExistingShare(response.data);
       setShareType(response.data.type);
-      toast('Enlace compartido creado correctamente', 'success');
+      toast(t('modals.share.created'), 'success');
       onSuccess?.();
     } catch (error: any) {
-      toast(error.response?.data?.error || 'Error al crear el enlace compartido', 'error');
+      toast(error.response?.data?.error || t('modals.share.createError'), 'error');
     } finally {
       setCreating(false);
     }
@@ -134,11 +136,11 @@ export default function ShareModal({ isOpen, onClose, file, folder, onSuccess }:
       if (downloadLimit) data.downloadLimit = parseInt(downloadLimit);
 
       await api.patch(`/shares/${existingShare.id}`, data);
-      toast('Enlace actualizado correctamente', 'success');
+      toast(t('modals.share.updated'), 'success');
       loadExistingShare();
       onSuccess?.();
     } catch (error: any) {
-      toast(error.response?.data?.error || 'Error al actualizar el enlace', 'error');
+      toast(error.response?.data?.error || t('modals.share.updateError'), 'error');
     } finally {
       setUpdating(false);
     }
@@ -150,10 +152,10 @@ export default function ShareModal({ isOpen, onClose, file, folder, onSuccess }:
       await api.delete(`/shares/${existingShare.id}`);
       setExistingShare(null);
       resetForm();
-      toast('Enlace eliminado correctamente', 'success');
+      toast(t('modals.share.deleted'), 'success');
       onSuccess?.();
     } catch (error) {
-      toast('Error al eliminar el enlace', 'error');
+      toast(t('modals.share.deleteError'), 'error');
     }
   };
 
@@ -166,11 +168,11 @@ export default function ShareModal({ isOpen, onClose, file, folder, onSuccess }:
         email: collaboratorEmail,
         permission: collaboratorPermission,
       });
-      toast('Colaborador añadido correctamente', 'success');
+      toast(t('modals.share.collaboratorAdded'), 'success');
       setCollaboratorEmail('');
       loadExistingShare();
     } catch (error: any) {
-      toast(error.response?.data?.error || 'Error al añadir colaborador', 'error');
+      toast(error.response?.data?.error || t('modals.share.collaboratorAddError'), 'error');
     } finally {
       setAddingCollaborator(false);
     }
@@ -181,10 +183,10 @@ export default function ShareModal({ isOpen, onClose, file, folder, onSuccess }:
 
     try {
       await api.delete(`/shares/${existingShare.id}/collaborators/${userId}`);
-      toast('Colaborador eliminado correctamente', 'success');
+      toast(t('modals.share.collaboratorRemoved'), 'success');
       loadExistingShare();
     } catch (error) {
-      toast('Error al eliminar colaborador', 'error');
+      toast(t('modals.share.collaboratorRemoveError'), 'error');
     }
   };
 
@@ -192,7 +194,7 @@ export default function ShareModal({ isOpen, onClose, file, folder, onSuccess }:
     if (!existingShare?.publicToken) return;
     const url = `${window.location.origin}/share/${existingShare.publicToken}`;
     navigator.clipboard.writeText(url);
-    toast('Enlace copiado al portapapeles', 'success');
+    toast(t('modals.share.linkCopied'), 'success');
   };
 
   const getShareUrl = () => {
@@ -201,7 +203,7 @@ export default function ShareModal({ isOpen, onClose, file, folder, onSuccess }:
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={`Compartir "${itemName}"`} size="md">
+    <Modal isOpen={isOpen} onClose={onClose} title={t('modals.share.title', { name: itemName })} size="md">
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
@@ -213,7 +215,7 @@ export default function ShareModal({ isOpen, onClose, file, folder, onSuccess }:
             <div className="space-y-4">
               <div className="flex items-center gap-2 text-dark-700 dark:text-dark-300">
                 <Globe className="w-5 h-5 text-green-500" />
-                <span className="font-medium">Enlace público activo</span>
+                <span className="font-medium">{t('modals.share.publicLinkActive')}</span>
               </div>
 
               <div className="flex items-center gap-2">
@@ -221,14 +223,14 @@ export default function ShareModal({ isOpen, onClose, file, folder, onSuccess }:
                   value={getShareUrl()} 
                   readOnly 
                   className="flex-1" 
-                  aria-label="URL del enlace compartido"
+                  aria-label={t('modals.share.shareUrlLabel')}
                 />
                 <Button 
                   onClick={copyShareLink} 
                   icon={<Copy className="w-4 h-4" />}
-                  aria-label="Copiar enlace al portapapeles"
+                  aria-label={t('modals.share.copyToClipboard')}
                 >
-                  Copiar
+                  {t('modals.share.copy')}
                 </Button>
               </div>
 
@@ -237,46 +239,46 @@ export default function ShareModal({ isOpen, onClose, file, folder, onSuccess }:
                 {existingShare.password && (
                   <div className="flex items-center gap-1 px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded-lg">
                     <Lock className="w-4 h-4" />
-                    <span>Protegido con contraseña</span>
+                    <span>{t('modals.share.passwordProtected')}</span>
                   </div>
                 )}
                 {existingShare.expiresAt && (
                   <div className="flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-lg">
                     <Calendar className="w-4 h-4" />
-                    <span>Expira: {formatDate(existingShare.expiresAt)}</span>
+                    <span>{t('modals.share.expires')}: {formatDate(existingShare.expiresAt)}</span>
                   </div>
                 )}
                 {existingShare.downloadLimit && (
                   <div className="flex items-center gap-1 px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded-lg">
                     <Download className="w-4 h-4" />
-                    <span>{existingShare.downloadCount}/{existingShare.downloadLimit} descargas</span>
+                    <span>{existingShare.downloadCount}/{existingShare.downloadLimit} {t('modals.share.downloads')}</span>
                   </div>
                 )}
               </div>
 
               {/* Editar configuración */}
               <div className="border-t border-dark-100 dark:border-dark-700 pt-4 space-y-3">
-                <p className="text-sm font-medium text-dark-700 dark:text-dark-300">Modificar configuración</p>
+                <p className="text-sm font-medium text-dark-700 dark:text-dark-300">{t('modals.share.modifySettings')}</p>
                 
                 <Input
-                  label="Nueva contraseña (opcional)"
+                  label={t('modals.share.newPassword')}
                   type="password"
-                  placeholder="Dejar vacío para mantener la actual"
+                  placeholder={t('modals.share.leaveEmptyPassword')}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
 
                 <Input
-                  label="Fecha de expiración"
+                  label={t('modals.share.expirationDate')}
                   type="date"
                   value={expiresAt}
                   onChange={(e) => setExpiresAt(e.target.value)}
                 />
 
                 <Input
-                  label="Límite de descargas"
+                  label={t('modals.share.downloadLimit')}
                   type="number"
-                  placeholder="Sin límite"
+                  placeholder={t('modals.share.noLimit')}
                   value={downloadLimit}
                   onChange={(e) => setDownloadLimit(e.target.value)}
                 />
@@ -288,7 +290,7 @@ export default function ShareModal({ isOpen, onClose, file, folder, onSuccess }:
                   icon={<RefreshCw className="w-4 h-4" />}
                   className="w-full"
                 >
-                  Actualizar configuración
+                  {t('modals.share.updateSettings')}
                 </Button>
               </div>
             </div>
@@ -298,9 +300,9 @@ export default function ShareModal({ isOpen, onClose, file, folder, onSuccess }:
             <div className="p-4 rounded-lg bg-dark-50 dark:bg-dark-700 text-sm text-dark-600 dark:text-dark-300">
               <div className="flex items-center gap-2 mb-2">
                 <Lock className="w-5 h-5 text-orange-500" />
-                <span className="font-medium">Enlace privado</span>
+                <span className="font-medium">{t('modals.share.privateLink')}</span>
               </div>
-              <p>Solo los colaboradores que añadas podrán acceder a este contenido.</p>
+              <p>{t('modals.share.privateLinkDescription')}</p>
             </div>
           )}
 
@@ -308,31 +310,31 @@ export default function ShareModal({ isOpen, onClose, file, folder, onSuccess }:
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-dark-700 dark:text-dark-300">
               <Users className="w-5 h-5" />
-              <span className="font-medium">Colaboradores</span>
+              <span className="font-medium">{t('modals.share.collaborators')}</span>
             </div>
 
             <div className="flex items-center gap-2">
               <Input
-                placeholder="Email del colaborador"
+                placeholder={t('modals.share.collaboratorEmail')}
                 value={collaboratorEmail}
                 onChange={(e) => setCollaboratorEmail(e.target.value)}
                 className="flex-1"
-                aria-label="Email del colaborador a añadir"
+                aria-label={t('modals.share.collaboratorEmailLabel')}
               />
               <select
                 value={collaboratorPermission}
                 onChange={(e) => setCollaboratorPermission(e.target.value as 'VIEWER' | 'EDITOR')}
                 className="input w-32"
-                aria-label="Permiso del colaborador"
+                aria-label={t('modals.share.collaboratorPermission')}
               >
-                <option value="VIEWER">Solo ver</option>
-                <option value="EDITOR">Editar</option>
+                <option value="VIEWER">{t('modals.share.viewOnly')}</option>
+                <option value="EDITOR">{t('modals.share.edit')}</option>
               </select>
               <Button 
                 onClick={addCollaborator} 
                 loading={addingCollaborator} 
                 icon={<Plus className="w-4 h-4" />}
-                aria-label="Añadir colaborador"
+                aria-label={t('modals.share.addCollaborator')}
               />
             </div>
 
@@ -368,19 +370,19 @@ export default function ShareModal({ isOpen, onClose, file, folder, onSuccess }:
                         {collab.permission === 'EDITOR' ? (
                           <>
                             <Edit3 className="w-3 h-3" />
-                            Editor
+                            {t('modals.share.editor')}
                           </>
                         ) : (
                           <>
                             <Eye className="w-3 h-3" />
-                            Visor
+                            {t('modals.share.viewer')}
                           </>
                         )}
                       </span>
                       <button
                         onClick={() => removeCollaborator(collab.userId)}
                         className="p-1 text-dark-400 hover:text-red-500 transition-colors"
-                        aria-label={`Eliminar colaborador ${collab.user?.name || collab.user?.email}`}
+                        aria-label={t('modals.share.removeCollaborator', { name: collab.user?.name || collab.user?.email })}
                       >
                         <X className="w-4 h-4" />
                       </button>
@@ -390,7 +392,7 @@ export default function ShareModal({ isOpen, onClose, file, folder, onSuccess }:
               </div>
             ) : (
               <p className="text-sm text-dark-500 text-center py-4">
-                No hay colaboradores añadidos
+                {t('modals.share.noCollaborators')}
               </p>
             )}
           </div>
@@ -400,11 +402,11 @@ export default function ShareModal({ isOpen, onClose, file, folder, onSuccess }:
               variant="danger" 
               onClick={deleteShare} 
               icon={<Trash2 className="w-4 h-4" />}
-              aria-label="Eliminar enlace compartido"
+              aria-label={t('modals.share.deleteLink')}
             >
-              Eliminar enlace
+              {t('modals.share.deleteLink')}
             </Button>
-            <Button onClick={onClose}>Cerrar</Button>
+            <Button onClick={onClose}>{t('modals.share.close')}</Button>
           </div>
         </div>
       ) : (
@@ -417,38 +419,38 @@ export default function ShareModal({ isOpen, onClose, file, folder, onSuccess }:
           >
             <TabList>
               <Tab value="public">
-                <Globe className="w-4 h-4 mr-2" /> Enlace público
+                <Globe className="w-4 h-4 mr-2" /> {t('modals.share.publicLinkTab')}
               </Tab>
               <Tab value="private">
-                <Lock className="w-4 h-4 mr-2" /> Privado
+                <Lock className="w-4 h-4 mr-2" /> {t('modals.share.privateTab')}
               </Tab>
             </TabList>
 
             <TabPanel value="public">
               <div className="space-y-4 pt-4">
                 <p className="text-sm text-dark-500 dark:text-dark-400">
-                  Cualquier persona con el enlace podrá acceder a {isFile ? 'este archivo' : 'esta carpeta'}.
+                  {t('modals.share.publicDescription', { item: isFile ? t('modals.share.thisFile') : t('modals.share.thisFolder') })}
                 </p>
 
                 <Input
-                  label="Contraseña (opcional)"
+                  label={t('modals.share.passwordOptional')}
                   type="password"
-                  placeholder="Dejar vacío para acceso sin contraseña"
+                  placeholder={t('modals.share.leaveEmptyNoPassword')}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
 
                 <Input
-                  label="Fecha de expiración (opcional)"
+                  label={t('modals.share.expirationOptional')}
                   type="date"
                   value={expiresAt}
                   onChange={(e) => setExpiresAt(e.target.value)}
                 />
 
                 <Input
-                  label="Límite de descargas (opcional)"
+                  label={t('modals.share.downloadLimitOptional')}
                   type="number"
-                  placeholder="Sin límite"
+                  placeholder={t('modals.share.noLimit')}
                   value={downloadLimit}
                   onChange={(e) => setDownloadLimit(e.target.value)}
                 />
@@ -458,10 +460,10 @@ export default function ShareModal({ isOpen, onClose, file, folder, onSuccess }:
             <TabPanel value="private">
               <div className="space-y-4 pt-4">
                 <p className="text-sm text-dark-500 dark:text-dark-400">
-                  Comparte solo con usuarios específicos de la plataforma.
+                  {t('modals.share.privateDescription')}
                 </p>
                 <p className="text-sm text-dark-400">
-                  Crea el enlace primero y luego añade colaboradores.
+                  {t('modals.share.privateHint')}
                 </p>
               </div>
             </TabPanel>
@@ -469,10 +471,10 @@ export default function ShareModal({ isOpen, onClose, file, folder, onSuccess }:
 
           <div className="flex justify-end gap-3 pt-4 border-t border-dark-100 dark:border-dark-700">
             <Button variant="ghost" onClick={onClose}>
-              Cancelar
+              {t('modals.share.cancel')}
             </Button>
             <Button onClick={createShare} loading={creating}>
-              Crear enlace
+              {t('modals.share.createLink')}
             </Button>
           </div>
         </div>

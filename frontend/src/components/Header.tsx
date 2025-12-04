@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useThemeStore } from '../stores/themeStore';
 import { useAuthStore } from '../stores/authStore';
 import { useUploadStore } from '../stores/uploadStore';
@@ -21,6 +22,7 @@ import {
   X,
   Trash2,
   Download,
+  Globe,
 } from 'lucide-react';
 import Dropdown, { DropdownItem, DropdownDivider } from './ui/Dropdown';
 import UploadModal from './modals/UploadModal';
@@ -50,16 +52,19 @@ function useDebounce<T>(value: T, delay: number): T {
 
 export default function Header() {
   const navigate = useNavigate();
+  const { t, i18n } = useTranslation();
   const { isDark, toggleTheme } = useThemeStore();
   const { user, logout } = useAuthStore();
   const { isUploading, uploadedBytes, totalBytes, speed } = useUploadStore();
   const { selectedItems, clearSelection } = useFileStore();
   const { addOperation, incrementProgress, completeOperation, failOperation } = useGlobalProgressStore();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showLanguageMenu, setShowLanguageMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchParams] = useSearchParams();
   const currentFolderId = searchParams.get('folder');
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const languageMenuRef = useRef<HTMLDivElement>(null);
   const [isUploadModalOpen, setUploadModalOpen] = useState(false);
   const [isUploadFolderModalOpen, setUploadFolderModalOpen] = useState(false);
   const [isCreateFolderModalOpen, setCreateFolderModalOpen] = useState(false);
@@ -88,7 +93,7 @@ export default function Header() {
     const opId = addOperation({
       id: `delete-header-${Date.now()}`,
       type: 'delete',
-      title: `Eliminando ${total} elemento(s)`,
+      title: t('header.deletingItems', { count: total }),
       totalItems: total,
     });
     
@@ -108,11 +113,11 @@ export default function Header() {
       
       completeOperation(opId);
       clearSelection();
-      toast(`${total} elemento${total > 1 ? 's' : ''} movido${total > 1 ? 's' : ''} a papelera`, 'success');
+      toast(t('header.itemsMovedToTrash', { count: total }), 'success');
       window.dispatchEvent(new CustomEvent('workzone-refresh'));
     } catch {
-      failOperation(opId, 'Error al eliminar elementos');
-      toast('Error al eliminar elementos', 'error');
+      failOperation(opId, t('header.deleteError'));
+      toast(t('header.deleteError'), 'error');
     }
   };
 
@@ -131,6 +136,9 @@ export default function Header() {
     const handleClickOutside = (e: MouseEvent) => {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
         setShowUserMenu(false);
+      }
+      if (languageMenuRef.current && !languageMenuRef.current.contains(e.target as Node)) {
+        setShowLanguageMenu(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -159,11 +167,11 @@ export default function Header() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-400" />
             <input
               type="text"
-              placeholder="Buscar..."
+              placeholder={t('header.search')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full h-9 pl-9 pr-4 bg-white border border-dark-200 dark:border-[#2a2a2a] rounded-full text-sm text-dark-900 placeholder-dark-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              aria-label="Buscar archivos y carpetas"
+              aria-label={t('header.searchFilesAndFolders')}
             />
           </div>
           <Dropdown
@@ -171,30 +179,30 @@ export default function Header() {
               <button
                 type="button"
                 className="h-9 px-4 flex items-center gap-2 rounded-full bg-primary-600 text-white font-semibold text-sm transition-colors shadow-sm hover:bg-primary-700"
-                aria-label="Crear nuevo elemento"
+                aria-label={t('header.createNewItem')}
               >
                 <Plus className="w-4 h-4" />
-                Nuevo
+                {t('header.new')}
               </button>
             }
             align="left"
           >
             <DropdownItem onClick={() => setUploadModalOpen(true)}>
               <Upload className="w-4 h-4 text-dark-500" />
-              Subir archivo
+              {t('header.uploadFile')}
             </DropdownItem>
             <DropdownItem onClick={() => setUploadFolderModalOpen(true)}>
               <FolderOpen className="w-4 h-4 text-dark-500" />
-              Subir carpeta
+              {t('header.uploadFolder')}
             </DropdownItem>
             <DropdownDivider />
             <DropdownItem onClick={() => setCreateFileModalOpen(true)}>
               <FilePlus className="w-4 h-4 text-dark-500" />
-              Crear archivo
+              {t('header.createFile')}
             </DropdownItem>
             <DropdownItem onClick={() => setCreateFolderModalOpen(true)}>
               <FolderPlus className="w-4 h-4 text-dark-500" />
-              Crear carpeta
+              {t('header.createFolder')}
             </DropdownItem>
           </Dropdown>
         </div>
@@ -213,25 +221,25 @@ export default function Header() {
             <button
               onClick={clearSelection}
               className="p-1.5 text-primary-600 hover:text-primary-700 hover:bg-primary-100 dark:hover:bg-primary-800/50 rounded-full transition-colors"
-              title="Limpiar selección"
+              title={t('header.clearSelection')}
             >
               <X className="w-4 h-4" />
             </button>
             <span className="text-sm font-medium text-primary-700 dark:text-primary-300 px-2">
-              {selectedCount} seleccionado{selectedCount > 1 ? 's' : ''}
+              {t('header.itemsSelected', { count: selectedCount })}
             </span>
             <div className="w-px h-5 bg-primary-200 dark:bg-primary-700" />
             <button
               onClick={handleDownloadSelected}
               className="p-1.5 text-primary-600 hover:text-primary-700 hover:bg-primary-100 dark:hover:bg-primary-800/50 rounded-full transition-colors"
-              title="Descargar seleccionados"
+              title={t('header.downloadSelected')}
             >
               <Download className="w-4 h-4" />
             </button>
             <button
               onClick={handleDeleteSelected}
               className="p-1.5 text-red-500 hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900/50 rounded-full transition-colors"
-              title="Eliminar seleccionados"
+              title={t('header.deleteSelected')}
             >
               <Trash2 className="w-4 h-4" />
             </button>
@@ -261,12 +269,56 @@ export default function Header() {
 
       {/* Right actions */}
       <div className="flex items-center gap-1">
+        {/* Language selector */}
+        <div className="relative" ref={languageMenuRef}>
+          <button
+            onClick={() => setShowLanguageMenu(!showLanguageMenu)}
+            className="p-2 text-dark-500 dark:text-white/70 hover:text-dark-900 dark:hover:text-white rounded-lg hover:bg-dark-100 dark:hover:bg-white/10 transition-colors"
+            title={t('language.label')}
+            aria-label={t('language.label')}
+            aria-expanded={showLanguageMenu}
+            aria-haspopup="menu"
+          >
+            <Globe className="w-5 h-5" />
+          </button>
+          <AnimatePresence>
+            {showLanguageMenu && (
+              <motion.div
+                initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                transition={{ duration: 0.15, ease: 'easeOut' }}
+                className="absolute right-0 mt-2 w-40 bg-white dark:bg-[#121212] rounded-lg shadow-lg border border-dark-200 dark:border-[#2a2a2a] py-1 z-50 text-dark-900 dark:text-white"
+                role="menu"
+              >
+                {(['en', 'es', 'fr', 'de', 'it', 'pt'] as const).map((lang) => (
+                  <button
+                    key={lang}
+                    onClick={() => {
+                      i18n.changeLanguage(lang);
+                      setShowLanguageMenu(false);
+                    }}
+                    className={`w-full flex items-center gap-2 px-4 py-2 text-sm transition-colors ${
+                      i18n.language === lang || i18n.language.startsWith(lang + '-')
+                        ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 font-medium'
+                        : 'text-dark-700 dark:text-white hover:bg-dark-50 dark:hover:bg-white/10'
+                    }`}
+                    role="menuitem"
+                  >
+                    {t(`language.${lang}`)}
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
         {/* Theme toggle */}
         <button
           onClick={toggleTheme}
           className="p-2 text-dark-500 dark:text-white/70 hover:text-dark-900 dark:hover:text-white rounded-lg hover:bg-dark-100 dark:hover:bg-white/10 transition-colors"
-          title={isDark ? 'Modo claro' : 'Modo oscuro'}
-          aria-label={isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+          title={isDark ? t('header.lightMode') : t('header.darkMode')}
+          aria-label={isDark ? t('header.lightMode') : t('header.darkMode')}
         >
           {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
         </button>
@@ -276,7 +328,7 @@ export default function Header() {
           <button
             onClick={() => setShowUserMenu(!showUserMenu)}
             className="p-1 rounded-full hover:bg-dark-100 dark:hover:bg-white/10 transition-colors"
-            aria-label="Menú de usuario"
+            aria-label={t('header.userMenu')}
             aria-expanded={showUserMenu}
             aria-haspopup="menu"
           >
@@ -319,7 +371,7 @@ export default function Header() {
                   className="w-full flex items-center gap-2 px-4 py-2 text-sm text-dark-700 dark:text-white hover:bg-dark-50 dark:hover:bg-white/10 transition-colors"
                 >
                   <Settings className="w-4 h-4" />
-                  Configuración
+                  {t('header.settings')}
                 </button>
                 {user?.role === 'ADMIN' && (
                   <button
@@ -330,7 +382,7 @@ export default function Header() {
                     className="w-full flex items-center gap-2 px-4 py-2 text-sm text-dark-700 dark:text-white hover:bg-dark-50 dark:hover:bg-white/10 transition-colors"
                   >
                     <ShieldCheck className="w-4 h-4" />
-                    Administración
+                    {t('header.admin')}
                   </button>
                 )}
                 <div className="border-t border-dark-200 dark:border-[#2a2a2a] mt-1 pt-1">
@@ -339,7 +391,7 @@ export default function Header() {
                     className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
                   >
                     <LogOut className="w-4 h-4" />
-                    Cerrar sesión
+                    {t('header.logout')}
                   </button>
                 </div>
               </motion.div>

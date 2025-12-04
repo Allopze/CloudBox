@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useMusicStore } from '../stores/musicStore';
 import { getFileUrl } from '../lib/api';
 import { formatDuration } from '../lib/utils';
@@ -16,6 +17,7 @@ const VinylDisc = ({
   thumbnailUrl?: string | null;
   holeSize?: number;
 }) => {
+  const { t } = useTranslation();
   const holeSizePx = size * holeSize;
   
   // If no thumbnail, show classic vinyl disc
@@ -99,7 +101,7 @@ const VinylDisc = ({
       >
         <img
           src={thumbnailUrl}
-          alt="Album cover"
+          alt={t('player.albumCover')}
           className="w-full h-full object-cover"
         />
       </div>
@@ -138,6 +140,7 @@ const VinylDisc = ({
 };
 
 export default function MusicPlayer() {
+  const { t } = useTranslation();
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [showQueue, setShowQueue] = useState(false);
@@ -156,11 +159,9 @@ export default function MusicPlayer() {
     resume,
     next,
     previous,
-    setVolume,
     setProgress,
     setDuration,
     clearQueue,
-    toggleMute,
     toggleShuffle,
     play,
   } = useMusicStore();
@@ -209,11 +210,6 @@ export default function MusicPlayer() {
     setProgress(time);
   };
 
-  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const vol = parseFloat(e.target.value);
-    setVolume(vol);
-  };
-
   const togglePlayPause = () => {
     if (isPlaying) {
       pause();
@@ -222,7 +218,7 @@ export default function MusicPlayer() {
     }
   };
 
-  const handlePlayFromQueue = (track: typeof currentTrack, index: number) => {
+  const handlePlayFromQueue = (track: typeof currentTrack) => {
     if (track) {
       play(track, queue);
     }
@@ -256,8 +252,8 @@ export default function MusicPlayer() {
           {showQueue && isExpanded && (
             <div className="absolute bottom-full right-0 mb-2 w-72 max-h-64 bg-white dark:bg-dark-800 rounded-xl shadow-xl overflow-hidden">
               <div className="px-4 py-2 bg-primary-500 text-white font-semibold flex items-center justify-between">
-                <span>Cola de reproducción</span>
-                <span className="text-sm opacity-80">{queue.length} canciones</span>
+                <span>{t('player.queueTitle')}</span>
+                <span className="text-sm opacity-80">{queue.length} {t('player.songs')}</span>
               </div>
               <div className="overflow-y-auto max-h-52">
                 {queue.map((track, index) => {
@@ -268,7 +264,7 @@ export default function MusicPlayer() {
                   return (
                     <button
                       key={track.id}
-                      onClick={() => handlePlayFromQueue(track, index)}
+                      onClick={() => handlePlayFromQueue(track)}
                       className={`w-full px-4 py-2 flex items-center gap-3 hover:bg-primary-50 dark:hover:bg-dark-700 transition-colors text-left ${
                         index === currentIndex ? 'bg-primary-50 dark:bg-dark-700' : ''
                       }`}
@@ -335,7 +331,7 @@ export default function MusicPlayer() {
               }`}>
                 <p className="text-xl font-bold text-dark-900 dark:text-white truncate">{trackName}</p>
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                  {currentIndex + 1} de {queue.length}
+                  {t('player.trackOf', { current: currentIndex + 1, total: queue.length })}
                 </p>
               </div>
               {/* Close button */}

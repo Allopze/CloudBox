@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../stores/authStore';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
@@ -12,6 +13,7 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function Register() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { register, isRegistering } = useAuthStore();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -25,29 +27,29 @@ export default function Register() {
     setError('');
 
     if (!name || !email || !password || !confirmPassword) {
-      setError('Por favor completa todos los campos para continuar.');
+      setError(t('auth.registerErrors.fillAllFields'));
       return;
     }
 
     if (!EMAIL_REGEX.test(email)) {
-      setError('El formato del correo electrónico no es válido. Ejemplo: usuario@dominio.com');
+      setError(t('auth.registerErrors.invalidEmailFormat'));
       return;
     }
 
     if (password !== confirmPassword) {
-      setError('Las contraseñas ingresadas no coinciden. Por favor, verifica e intenta de nuevo.');
+      setError(t('auth.registerErrors.passwordMismatch'));
       return;
     }
 
     const { isValid } = validatePassword(password);
     if (!isValid) {
-      setError('La contraseña no cumple con los requisitos mínimos de seguridad. Revisa los indicadores arriba.');
+      setError(t('auth.registerErrors.weakPassword'));
       return;
     }
 
     try {
       await register(name, email, password);
-      toast('¡Cuenta creada! Por favor verifica tu correo.', 'success');
+      toast(t('auth.accountCreated'), 'success');
       navigate('/login');
     } catch (err: any) {
       const errorData = err.response?.data;
@@ -57,26 +59,26 @@ export default function Register() {
       switch (code) {
         case 'EMAIL_EXISTS':
         case 'EMAIL_ALREADY_EXISTS':
-          errorMessage = 'Ya existe una cuenta con este correo electrónico. ¿Quieres iniciar sesión?';
+          errorMessage = t('auth.registerErrors.EMAIL_EXISTS');
           break;
         case 'INVALID_EMAIL':
-          errorMessage = 'El formato del correo electrónico no es válido.';
+          errorMessage = t('auth.registerErrors.INVALID_EMAIL');
           break;
         case 'WEAK_PASSWORD':
-          errorMessage = 'La contraseña es demasiado débil. Usa al menos 8 caracteres con mayúsculas, números y símbolos.';
+          errorMessage = t('auth.registerErrors.WEAK_PASSWORD');
           break;
         case 'REGISTRATION_DISABLED':
-          errorMessage = 'El registro de nuevos usuarios está deshabilitado temporalmente.';
+          errorMessage = t('auth.registerErrors.REGISTRATION_DISABLED');
           break;
         default:
-          errorMessage = errorData?.error || errorData?.message || 'No se pudo crear la cuenta. Por favor, intenta de nuevo.';
+          errorMessage = errorData?.error || errorData?.message || t('auth.registerFailed');
       }
       
       setError(errorMessage);
       
       // Only show toast for network errors
       if (!err.response) {
-        toast('Error de conexión. Verifica tu internet e inténtalo de nuevo.', 'error');
+        toast(t('auth.connectionError'), 'error');
       }
     }
   };
@@ -84,17 +86,17 @@ export default function Register() {
   return (
     <div>
       <h2 className="text-2xl font-bold text-dark-900 dark:text-white mb-2">
-        Crear cuenta
+        {t('auth.registerTitle')}
       </h2>
       <p className="text-dark-500 dark:text-dark-400 mb-6">
-        Empieza con tu cuenta gratuita.
+        {t('auth.registerSubtitle')}
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <Input
-          label="Nombre completo"
+          label={t('auth.fullName')}
           type="text"
-          placeholder="Ingresa tu nombre"
+          placeholder={t('auth.fullNamePlaceholder')}
           value={name}
           onChange={(e) => setName(e.target.value)}
           icon={<User className="w-5 h-5" />}
@@ -103,9 +105,9 @@ export default function Register() {
         />
 
         <Input
-          label="Correo electrónico"
+          label={t('auth.email')}
           type="email"
-          placeholder="Ingresa tu correo"
+          placeholder={t('auth.emailPlaceholder')}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           icon={<Mail className="w-5 h-5" />}
@@ -114,9 +116,9 @@ export default function Register() {
         />
 
         <Input
-          label="Contraseña"
+          label={t('auth.password')}
           type={showPassword ? 'text' : 'password'}
-          placeholder="Crea una contraseña"
+          placeholder={t('auth.createPasswordPlaceholder')}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           icon={<Lock className="w-5 h-5" />}
@@ -136,9 +138,9 @@ export default function Register() {
         <PasswordStrength password={password} />
 
         <Input
-          label="Confirmar contraseña"
+          label={t('auth.confirmPasswordPlaceholder')}
           type={showPassword ? 'text' : 'password'}
-          placeholder="Confirma tu contraseña"
+          placeholder={t('auth.confirmPasswordPlaceholder')}
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
           icon={<Lock className="w-5 h-5" />}
@@ -154,7 +156,7 @@ export default function Register() {
               </div>
               <div className="flex-1 pt-1">
                 <p className="text-sm font-medium text-red-800 dark:text-red-200">
-                  Error al crear cuenta
+                  {t('auth.registerFailed')}
                 </p>
                 <p className="text-sm text-red-700 dark:text-red-300 mt-1">
                   {error}
@@ -165,14 +167,14 @@ export default function Register() {
         )}
 
         <Button type="submit" loading={isRegistering} className="w-full rounded-full">
-          Crear cuenta
+          {t('auth.createAccount')}
         </Button>
       </form>
 
       <p className="mt-6 text-center text-dark-600 dark:text-dark-400">
-        ¿Ya tienes una cuenta?{' '}
+        {t('auth.hasAccount')}{' '}
         <Link to="/login" className="text-primary-600 hover:text-primary-700 font-medium">
-          Iniciar sesión
+          {t('auth.login')}
         </Link>
       </p>
     </div>

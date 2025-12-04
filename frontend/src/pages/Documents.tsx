@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { api, getFileUrl } from '../lib/api';
 import { FileItem } from '../types';
 import { useFileStore } from '../stores/fileStore';
@@ -82,6 +83,7 @@ const getExtension = (fileName: string) => {
 };
 
 export default function Documents() {
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const [documents, setDocuments] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -178,7 +180,7 @@ export default function Documents() {
       setDocuments(filterByCategory(allDocs));
     } catch (error) {
       console.error('Failed to load documents:', error);
-      toast('Error al cargar los documentos', 'error');
+      toast(t('documents.loadError'), 'error');
     } finally {
       setLoading(false);
     }
@@ -238,9 +240,9 @@ export default function Documents() {
     try {
       const url = `${window.location.origin}${getFileUrl(doc.id, 'view')}`;
       await navigator.clipboard.writeText(url);
-      toast('Enlace copiado al portapapeles', 'success');
+      toast(t('documents.linkCopied'), 'success');
     } catch {
-      toast('Error al copiar el enlace', 'error');
+      toast(t('documents.linkCopyError'), 'error');
     }
     closeContextMenu();
   };
@@ -256,9 +258,9 @@ export default function Documents() {
       setDocuments(prev => prev.map(d => 
         d.id === doc.id ? { ...d, isFavorite: !d.isFavorite } : d
       ));
-      toast(doc.isFavorite ? 'Eliminado de favoritos' : 'Añadido a favoritos', 'success');
+      toast(doc.isFavorite ? t('documents.removedFromFavorites') : t('documents.addedToFavorites'), 'success');
     } catch {
-      toast('Error al actualizar favorito', 'error');
+      toast(t('documents.favoriteError'), 'error');
     }
     closeContextMenu();
   };
@@ -266,10 +268,10 @@ export default function Documents() {
   const handleDelete = async (doc: FileItem) => {
     try {
       await api.delete(`/files/${doc.id}`);
-      toast('Documento movido a la papelera', 'success');
+      toast(t('documents.movedToTrash'), 'success');
       loadData();
     } catch {
-      toast('Error al eliminar', 'error');
+      toast(t('documents.deleteError'), 'error');
     }
     closeContextMenu();
   };
@@ -281,9 +283,9 @@ export default function Documents() {
       setDocuments(prev => prev.map(d => 
         d.id === doc.id ? { ...d, isFavorite: !d.isFavorite } : d
       ));
-      toast(doc.isFavorite ? 'Eliminado de favoritos' : 'Añadido a favoritos', 'success');
+      toast(doc.isFavorite ? t('documents.removedFromFavorites') : t('documents.addedToFavorites'), 'success');
     } catch {
-      toast('Error al actualizar favorito', 'error');
+      toast(t('documents.favoriteError'), 'error');
     }
   };
 
@@ -420,8 +422,8 @@ export default function Documents() {
       ) : (
         <div className="flex flex-col items-center justify-center h-64 text-dark-500">
           <FileText className="w-16 h-16 mb-4 opacity-50" />
-          <p className="text-lg font-medium">No hay documentos</p>
-          <p className="text-sm">Sube archivos de documentos para verlos aquí</p>
+          <p className="text-lg font-medium">{t('documents.noDocuments')}</p>
+          <p className="text-sm">{t('documents.uploadDocuments')}</p>
         </div>
       )}
 
@@ -457,7 +459,7 @@ export default function Documents() {
             {isMultiSelect && (
               <>
                 <div className="px-4 py-2 text-sm font-medium text-dark-500 dark:text-dark-400">
-                  {selectedCount} documentos seleccionados
+                  {t('documents.selectedDocuments', { count: selectedCount })}
                 </div>
                 <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
               </>
@@ -473,7 +475,7 @@ export default function Documents() {
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
                   >
                     <Eye className="w-5 h-5" />
-                    <span>Vista previa</span>
+                    <span>{t('documents.preview')}</span>
                   </button>
                 </div>
                 
@@ -486,21 +488,21 @@ export default function Documents() {
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
                   >
                     <Download className="w-5 h-5" />
-                    <span>Descargar</span>
+                    <span>{t('common.download')}</span>
                   </button>
                   <button
                     onClick={() => handleShare(contextMenu.doc)}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
                   >
                     <Share2 className="w-5 h-5" />
-                    <span>Compartir</span>
+                    <span>{t('common.share')}</span>
                   </button>
                   <button
                     onClick={() => handleCopyLink(contextMenu.doc)}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
                   >
                     <Copy className="w-5 h-5" />
-                    <span>Copiar enlace</span>
+                    <span>{t('common.copyLink')}</span>
                   </button>
                 </div>
                 
@@ -513,14 +515,14 @@ export default function Documents() {
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
                   >
                     <Star className={cn('w-5 h-5', contextMenu.doc.isFavorite && 'fill-yellow-500 text-yellow-500')} />
-                    <span>{contextMenu.doc.isFavorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}</span>
+                    <span>{contextMenu.doc.isFavorite ? t('common.removeFromFavorites') : t('common.addToFavorites')}</span>
                   </button>
                   <button
                     onClick={() => handleShowInfo(contextMenu.doc)}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
                   >
                     <Info className="w-5 h-5" />
-                    <span>Información</span>
+                    <span>{t('common.info')}</span>
                   </button>
                 </div>
                 
@@ -540,7 +542,7 @@ export default function Documents() {
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
                   >
                     <Download className="w-5 h-5" />
-                    <span>Descargar {selectedCount} documentos</span>
+                    <span>{t('documents.downloadCount', { count: selectedCount })}</span>
                   </button>
                 </div>
                 
@@ -555,7 +557,7 @@ export default function Documents() {
                 className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
               >
                 <Trash2 className="w-5 h-5" />
-                <span>{isMultiSelect ? `Eliminar ${selectedCount} documentos` : 'Eliminar'}</span>
+                <span>{isMultiSelect ? t('documents.deleteCount', { count: selectedCount }) : t('common.delete')}</span>
               </button>
             </div>
           </motion.div>
@@ -618,26 +620,26 @@ export default function Documents() {
             
             <div className="space-y-3 mb-6">
               <div className="flex justify-between py-2 border-b border-dark-200 dark:border-dark-700">
-                <span className="text-dark-500">Tamaño</span>
+                <span className="text-dark-500">{t('documents.size')}</span>
                 <span className="text-dark-900 dark:text-white font-medium">{formatBytes(infoDoc.size)}</span>
               </div>
               <div className="flex justify-between py-2 border-b border-dark-200 dark:border-dark-700">
-                <span className="text-dark-500">Extensión</span>
+                <span className="text-dark-500">{t('documents.extension')}</span>
                 <span className="text-dark-900 dark:text-white font-medium">{getExtension(infoDoc.name) || 'N/A'}</span>
               </div>
               <div className="flex justify-between py-2 border-b border-dark-200 dark:border-dark-700">
-                <span className="text-dark-500">Fecha de subida</span>
+                <span className="text-dark-500">{t('documents.uploadDate')}</span>
                 <span className="text-dark-900 dark:text-white font-medium">{formatDate(infoDoc.createdAt)}</span>
               </div>
               <div className="flex justify-between py-2">
-                <span className="text-dark-500">Favorito</span>
-                <span className="text-dark-900 dark:text-white font-medium">{infoDoc.isFavorite ? 'Sí' : 'No'}</span>
+                <span className="text-dark-500">{t('documents.favorite')}</span>
+                <span className="text-dark-900 dark:text-white font-medium">{infoDoc.isFavorite ? t('common.yes') : t('common.no')}</span>
               </div>
             </div>
             
             <div className="flex justify-end">
               <Button onClick={() => setInfoDoc(null)}>
-                Cerrar
+                {t('common.close')}
               </Button>
             </div>
           </motion.div>

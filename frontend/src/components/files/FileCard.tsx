@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import { useLocation } from 'react-router-dom';
-import { FileItem, Folder } from '../../types';
+import { FileItem } from '../../types';
 import { useFileStore } from '../../stores/fileStore';
 import { useGlobalProgressStore } from '../../stores/globalProgressStore';
 import { useDragDropStore, DragItem } from '../../stores/dragDropStore';
@@ -45,6 +46,7 @@ const fileIcons: Record<string, typeof File> = {
 };
 
 export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: FileCardProps) {
+  const { t } = useTranslation();
   const location = useLocation();
   const { selectedItems, addToSelection, removeFromSelection, selectRange, selectSingle, lastSelectedId } = useFileStore();
   const { addOperation, incrementProgress, completeOperation, failOperation } = useGlobalProgressStore();
@@ -169,10 +171,10 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
     setContextMenu(null);
     try {
       await api.patch(`/files/${file.id}/favorite`);
-      toast(file.isFavorite ? 'Eliminado de favoritos' : 'Añadido a favoritos', 'success');
+      toast(file.isFavorite ? t('fileCard.removedFromFavorites') : t('fileCard.addedToFavorites'), 'success');
       onRefresh?.();
     } catch {
-      toast('Error al actualizar favorito', 'error');
+      toast(t('fileCard.favoriteError'), 'error');
     }
   };
 
@@ -191,7 +193,7 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
       const opId = addOperation({
         id: `delete-context-${Date.now()}`,
         type: 'delete',
-        title: `Eliminando ${total} elemento(s)`,
+        title: t('fileCard.deletingItems', { count: total }),
         totalItems: total,
       });
       
@@ -211,26 +213,26 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
         
         completeOperation(opId);
         clearSelectionFn();
-        toast(`${total} elemento(s) movido(s) a papelera`, 'success');
+        toast(t('fileCard.itemsMovedToTrash', { count: total }), 'success');
         // Trigger refresh event and call onRefresh
         window.dispatchEvent(new CustomEvent('workzone-refresh'));
         onRefresh?.();
         refreshUser(); // Update storage info in sidebar
       } catch {
-        failOperation(opId, 'Error al eliminar elementos');
-        toast('Error al eliminar elementos', 'error');
+        failOperation(opId, t('fileCard.deleteError'));
+        toast(t('fileCard.deleteError'), 'error');
       }
     } else {
       // Single item delete
       try {
         await api.delete(`/files/${file.id}`);
-        toast('Archivo movido a papelera', 'success');
+        toast(t('fileCard.fileMovedToTrash'), 'success');
         // Trigger refresh event and call onRefresh
         window.dispatchEvent(new CustomEvent('workzone-refresh'));
         onRefresh?.();
         refreshUser(); // Update storage info in sidebar
       } catch {
-        toast('Error al eliminar archivo', 'error');
+        toast(t('fileCard.deleteFileError'), 'error');
       }
     }
   };
@@ -308,39 +310,39 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
           onClick={handleDownload}
           className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700"
         >
-          <Download className="w-4 h-4" /> Descargar
+          <Download className="w-4 h-4" /> {t('fileCard.download')}
         </button>
         <button
           onClick={handleFavorite}
           className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700"
         >
-          <Star className="w-4 h-4" /> {file.isFavorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}
+          <Star className="w-4 h-4" /> {file.isFavorite ? t('fileCard.removeFromFavorites') : t('fileCard.addToFavorites')}
         </button>
         <button
           onClick={() => { setContextMenu(null); setShowShareModal(true); }}
           className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700"
         >
-          <Share2 className="w-4 h-4" /> Compartir
+          <Share2 className="w-4 h-4" /> {t('fileCard.share')}
         </button>
         <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
         <button
           onClick={() => { setContextMenu(null); setShowRenameModal(true); }}
           className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700"
         >
-          <Edit className="w-4 h-4" /> Renombrar
+          <Edit className="w-4 h-4" /> {t('fileCard.rename')}
         </button>
         <button
           onClick={() => { setContextMenu(null); setShowMoveModal(true); }}
           className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700"
         >
-          <Move className="w-4 h-4" /> Mover
+          <Move className="w-4 h-4" /> {t('fileCard.move')}
         </button>
         <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
         <button
           onClick={handleDelete}
           className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
         >
-          <Trash2 className="w-4 h-4" /> Mover a papelera
+          <Trash2 className="w-4 h-4" /> {t('fileCard.moveToTrash')}
         </button>
       </motion.div>
     </AnimatePresence>,
@@ -379,9 +381,9 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
           data-file-name={file.name}
           data-file-data={JSON.stringify(file)}
           draggable
-          onDragStart={handleDragStart}
-          onDrag={handleDrag}
-          onDragEnd={handleDragEnd}
+          onDragStart={handleDragStart as any}
+          onDrag={handleDrag as any}
+          onDragEnd={handleDragEnd as any}
           onClick={handleClick}
           onDoubleClick={handleDoubleClick}
           onContextMenu={handleContextMenu}
@@ -422,9 +424,9 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
         data-file-name={file.name}
         data-file-data={JSON.stringify(file)}
         draggable
-        onDragStart={handleDragStart}
-        onDrag={handleDrag}
-        onDragEnd={handleDragEnd}
+        onDragStart={handleDragStart as any}
+        onDrag={handleDrag as any}
+        onDragEnd={handleDragEnd as any}
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
         onContextMenu={handleContextMenu}

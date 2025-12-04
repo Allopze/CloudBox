@@ -1,5 +1,6 @@
-import { useState, useCallback, useEffect, Fragment, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Outlet, useLocation, useNavigate, useSearchParams, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
 import UploadProgress from '../components/UploadProgress';
@@ -16,17 +17,17 @@ import { useBrandingStore } from '../stores/brandingStore';
 import { useGlobalProgressStore } from '../stores/globalProgressStore';
 import { useAuthStore } from '../stores/authStore';
 import { cn } from '../lib/utils';
-import { PanelLeftClose, PanelLeft, Grid, List, SortAsc, SortDesc, Check, Link as LinkIcon, Users, Image, Star, Video, Camera, FolderOpen, Settings, ShieldCheck, Home, ChevronRight, Upload, FolderPlus, Trash2, Music, Disc, Plus, ArrowLeft, FilePlus, FolderUp, CheckSquare, RefreshCw, FileText, FileSpreadsheet, Presentation, FileCode } from 'lucide-react';
+import { PanelLeftClose, PanelLeft, Grid, List, SortAsc, SortDesc, Check, Link as LinkIcon, Users, Image, Star, Video, Camera, FolderOpen, Settings, ShieldCheck, Upload, FolderPlus, Trash2, Music, Disc, Plus, ArrowLeft, FilePlus, FolderUp, CheckSquare, RefreshCw, FileText, FileSpreadsheet, Presentation, FileCode } from 'lucide-react';
 import { Album } from '../types';
 import Dropdown, { DropdownItem, DropdownDivider } from '../components/ui/Dropdown';
 import { api } from '../lib/api';
 import { toast } from '../components/ui/Toast';
 
 const sortOptions = [
-  { value: 'name', label: 'Nombre' },
-  { value: 'createdAt', label: 'Fecha de creación' },
-  { value: 'updatedAt', label: 'Fecha de modificación' },
-  { value: 'size', label: 'Tamaño' },
+  { value: 'name', labelKey: 'layout.sortName' },
+  { value: 'createdAt', labelKey: 'layout.sortCreatedAt' },
+  { value: 'updatedAt', labelKey: 'layout.sortUpdatedAt' },
+  { value: 'size', labelKey: 'layout.sortSize' },
 ];
 
 // Pages that show view/sort controls
@@ -36,6 +37,7 @@ const pagesWithViewControls = ['/files', '/documents', '/trash', '/favorites'];
 const pagesWithBreadcrumbs = ['/files'];
 
 export default function MainLayout() {
+  const { t } = useTranslation();
   const { sidebarOpen, toggleSidebar } = useUIStore();
   const { viewMode, setViewMode, sortBy, sortOrder, setSortBy, setSortOrder, breadcrumbs, selectAll, clearSelection, selectedItems } = useFileStore();
   const { isDragging: isInternalDragging, endDrag } = useDragDropStore();
@@ -265,12 +267,12 @@ export default function MainLayout() {
       });
       
       resetGlobalProgress();
-      toast(`${allFiles.length} archivo(s) subido(s) correctamente`, 'success');
+      toast(t('files.uploadSuccess', { count: allFiles.length }), 'success');
       triggerRefresh();
       refreshUser(); // Update storage info in sidebar
     } catch {
       resetGlobalProgress();
-      toast('Error al subir los archivos', 'error');
+      toast(t('files.uploadError'), 'error');
     }
   }, [setGlobalProgress, resetGlobalProgress, isInternalDragging, refreshUser]);
 
@@ -346,7 +348,7 @@ export default function MainLayout() {
         const opId = addOperation({
           id: `delete-keyboard-${Date.now()}`,
           type: 'delete',
-          title: `Eliminando ${total} elemento(s)`,
+          title: t('files.deleting', { count: total }),
           totalItems: total,
         });
         
@@ -367,13 +369,13 @@ export default function MainLayout() {
           
           completeOperation(opId);
           clearSelection();
-          toast(`${total} elemento${total > 1 ? 's' : ''} movido${total > 1 ? 's' : ''} a papelera`, 'success');
+          toast(t('files.deleted', { count: total }), 'success');
           // Trigger a refresh by dispatching a custom event
           window.dispatchEvent(new CustomEvent('workzone-refresh'));
           refreshUser(); // Update storage info in sidebar
         } catch {
-          failOperation(opId, 'Error al eliminar elementos');
-          toast('Error al eliminar elementos', 'error');
+          failOperation(opId, t('files.deleteError'));
+          toast(t('files.deleteError'), 'error');
         }
       }
     };
@@ -595,6 +597,7 @@ export default function MainLayout() {
   const showViewControls = pagesWithViewControls.includes(location.pathname);
   const showBreadcrumbs = pagesWithBreadcrumbs.some(p => location.pathname.startsWith(p));
   const currentSort = sortOptions.find((s) => s.value === sortBy);
+  const currentSortLabel = currentSort ? t(currentSort.labelKey) : t('layout.sort');
   const isSharedPage = location.pathname === '/shared';
   const isAlbumDetailPage = !!albumId && location.pathname.startsWith('/albums/');
   const isPhotosPage = location.pathname === '/photos';
@@ -657,15 +660,15 @@ export default function MainLayout() {
     }
 
     try {
-      toast(`Subiendo ${filesWithPaths.length} archivo(s)...`, 'info');
+      toast(t('files.uploading', { count: filesWithPaths.length }), 'info');
       await api.post('/files/upload-with-folders', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      toast('Carpeta subida correctamente', 'success');
+      toast(t('files.folderUploaded'), 'success');
       triggerRefresh();
       refreshUser(); // Update storage info in sidebar
     } catch (error: any) {
-      toast(error.response?.data?.error || 'Error al subir la carpeta', 'error');
+      toast(error.response?.data?.error || t('files.folderUploadError'), 'error');
     }
 
     e.target.value = '';
@@ -701,7 +704,7 @@ export default function MainLayout() {
             <button
               onClick={toggleSidebar}
               className="w-11 h-11 flex items-center justify-center bg-white dark:bg-[#222222] text-dark-500 dark:text-white/70 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/10 rounded-full border border-dark-200 dark:border-[#2a2a2a] shadow-sm transition-colors"
-              title={sidebarOpen ? 'Ocultar sidebar' : 'Mostrar sidebar'}
+              title={sidebarOpen ? t('layout.hideSidebar') : t('layout.showSidebar')}
             >
               {sidebarOpen ? (
                 <PanelLeftClose className="w-5 h-5" />
@@ -716,12 +719,12 @@ export default function MainLayout() {
               {isSettingsPage ? (
                 <div className="flex items-center gap-2 ml-2">
                   <Settings className="w-5 h-5 text-[#FF3B3B]" />
-                  <span className="text-base font-semibold text-dark-900 dark:text-white">Configuración</span>
+                  <span className="text-base font-semibold text-dark-900 dark:text-white">{t('layout.settings')}</span>
                 </div>
               ) : isAdminPage ? (
                 <div className="flex items-center gap-2 ml-2">
                   <ShieldCheck className="w-5 h-5 text-[#FF3B3B]" />
-                  <span className="text-base font-semibold text-dark-900 dark:text-white">Administración</span>
+                  <span className="text-base font-semibold text-dark-900 dark:text-white">{t('layout.administration')}</span>
                 </div>
               ) : isSharedPage ? (
                 <div className="flex items-center gap-1">
@@ -735,7 +738,7 @@ export default function MainLayout() {
                     )}
                   >
                     <LinkIcon className="w-5 h-5" />
-                    Mis compartidos
+                    {t('layout.myShares')}
                   </button>
                   <button
                     onClick={() => setSearchParams({ tab: 'shared-with-me' })}
@@ -747,21 +750,21 @@ export default function MainLayout() {
                     )}
                   >
                     <Users className="w-5 h-5" />
-                    Compartidos conmigo
+                    {t('layout.sharedWithMe')}
                   </button>
                 </div>
               ) : isTrashPage ? (
                 <>
                   <div className="flex items-center gap-2 ml-2">
                     <Trash2 className="w-5 h-5 text-red-500" />
-                    <span className="text-base font-semibold text-dark-900 dark:text-white">Papelera</span>
+                    <span className="text-base font-semibold text-dark-900 dark:text-white">{t('layout.trash')}</span>
                   </div>
                   <button
                     onClick={() => window.dispatchEvent(new CustomEvent('empty-trash'))}
                     className="h-7 px-3 mr-1 flex items-center gap-2 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors"
                   >
                     <Trash2 className="w-4 h-4" />
-                    Vaciar papelera
+                    {t('layout.emptyTrash')}
                   </button>
                 </>
               ) : isFavoritesPage ? (
@@ -769,12 +772,12 @@ export default function MainLayout() {
                   <button
                     onClick={() => navigate('/files')}
                     className="p-1.5 rounded-full hover:bg-dark-100 dark:hover:bg-white/10 transition-colors"
-                    aria-label="Volver a archivos"
+                    aria-label={t('layout.backToFiles')}
                   >
                     <ArrowLeft className="w-5 h-5 text-dark-500" />
                   </button>
                   <Star className="w-5 h-5 text-yellow-500" />
-                  <span className="text-base font-semibold text-dark-900 dark:text-white">Favoritos</span>
+                  <span className="text-base font-semibold text-dark-900 dark:text-white">{t('layout.favorites')}</span>
                 </div>
               ) : isAlbumDetailPage && currentAlbum ? (
                 <>
@@ -782,14 +785,14 @@ export default function MainLayout() {
                     <button
                       onClick={() => navigate('/albums')}
                       className="p-1.5 rounded-full hover:bg-dark-100 dark:hover:bg-white/10 transition-colors"
-                      aria-label="Volver a álbumes"
+                      aria-label={t('layout.backToAlbums')}
                     >
                       <ArrowLeft className="w-5 h-5 text-dark-500" />
                     </button>
                     <div className="flex items-center gap-2">
                       <FolderOpen className="w-5 h-5 text-primary-500" />
                       <span className="text-base font-semibold text-dark-900 dark:text-white">{currentAlbum.name}</span>
-                      <span className="text-sm text-dark-500">• {albumPhotoCount} fotos</span>
+                      <span className="text-sm text-dark-500">• {albumPhotoCount} {t('layout.photos')}</span>
                     </div>
                   </div>
                   <button
@@ -797,7 +800,7 @@ export default function MainLayout() {
                     className="h-7 px-3 mr-1 flex items-center gap-2 text-sm font-medium text-primary-600 hover:text-primary-700 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-full transition-colors"
                   >
                     <Plus className="w-4 h-4" />
-                    Añadir fotos
+                    {t('layout.addPhotos')}
                   </button>
                 </>
               ) : isMusicPage ? (
@@ -814,7 +817,7 @@ export default function MainLayout() {
                     aria-label="Ver toda la música"
                   >
                     <Music className="w-5 h-5" />
-                    Todo
+                    {t('layout.all')}
                   </button>
                   <button
                     onClick={() => navigate('/music?tab=favorites')}
@@ -827,7 +830,7 @@ export default function MainLayout() {
                     aria-label="Ver música favorita"
                   >
                     <Star className="w-5 h-5" />
-                    Favoritos
+                    {t('layout.favorites')}
                   </button>
                   <button
                     onClick={() => navigate('/music?tab=albums')}
@@ -840,7 +843,7 @@ export default function MainLayout() {
                     aria-label="Ver álbumes de música"
                   >
                     <Disc className="w-5 h-5" />
-                    Álbumes
+                    {t('layout.albums')}
                   </button>
                 </div>
                 {(musicTab === 'all' || musicTab === 'albums') && (
@@ -849,7 +852,7 @@ export default function MainLayout() {
                     className="h-7 px-3 mr-1 flex items-center gap-2 text-sm font-medium text-primary-600 hover:text-primary-700 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-full transition-colors"
                   >
                     <Plus className="w-4 h-4" />
-                    Nuevo álbum
+                    {t('layout.newAlbum')}
                   </button>
                 )}
                 </>
@@ -866,7 +869,7 @@ export default function MainLayout() {
                     aria-label="Ver todos los documentos"
                   >
                     <FileText className="w-5 h-5" />
-                    Todo
+                    {t('layout.all')}
                   </button>
                   <button
                     onClick={() => navigate('/documents?tab=pdf')}
@@ -878,7 +881,7 @@ export default function MainLayout() {
                     )}
                     aria-label="Ver PDFs"
                   >
-                    PDFs
+                    {t('layout.pdfs')}
                   </button>
                   <button
                     onClick={() => navigate('/documents?tab=text')}
@@ -890,7 +893,7 @@ export default function MainLayout() {
                     )}
                     aria-label="Ver documentos de texto"
                   >
-                    Texto
+                    {t('layout.text')}
                   </button>
                   <button
                     onClick={() => navigate('/documents?tab=spreadsheet')}
@@ -903,7 +906,7 @@ export default function MainLayout() {
                     aria-label="Ver hojas de cálculo"
                   >
                     <FileSpreadsheet className="w-5 h-5" />
-                    Cálculo
+                    {t('layout.spreadsheet')}
                   </button>
                   <button
                     onClick={() => navigate('/documents?tab=presentation')}
@@ -916,7 +919,7 @@ export default function MainLayout() {
                     aria-label="Ver presentaciones"
                   >
                     <Presentation className="w-5 h-5" />
-                    Presentaciones
+                    {t('layout.presentations')}
                   </button>
                   <button
                     onClick={() => navigate('/documents?tab=code')}
@@ -929,7 +932,7 @@ export default function MainLayout() {
                     aria-label="Ver archivos de código"
                   >
                     <FileCode className="w-5 h-5" />
-                    Código
+                    {t('layout.code')}
                   </button>
                 </div>
               ) : isGalleryPage ? (
@@ -946,7 +949,7 @@ export default function MainLayout() {
                     aria-label="Ver todas las fotos"
                   >
                     <Image className="w-5 h-5" />
-                    Todo
+                    {t('layout.all')}
                   </button>
                   <button
                     onClick={() => navigate('/photos?tab=favorites')}
@@ -959,7 +962,7 @@ export default function MainLayout() {
                     aria-label="Ver fotos favoritas"
                   >
                     <Star className="w-5 h-5" />
-                    Favoritos
+                    {t('layout.favorites')}
                   </button>
                   <button
                     onClick={() => navigate('/photos?tab=videos')}
@@ -972,7 +975,7 @@ export default function MainLayout() {
                     aria-label="Ver videos"
                   >
                     <Video className="w-5 h-5" />
-                    Videos
+                    {t('layout.videos')}
                   </button>
                   <button
                     onClick={() => navigate('/photos?tab=screenshots')}
@@ -985,7 +988,7 @@ export default function MainLayout() {
                     aria-label="Ver capturas de pantalla"
                   >
                     <Camera className="w-5 h-5" />
-                    Capturas
+                    {t('layout.screenshots')}
                   </button>
                   <button
                     onClick={() => navigate('/albums')}
@@ -998,7 +1001,7 @@ export default function MainLayout() {
                     aria-label="Ver álbumes"
                   >
                     <FolderOpen className="w-5 h-5" />
-                    Álbumes
+                    {t('layout.albums')}
                   </button>
                 </div>
                 {isAlbumsPage && (
@@ -1007,7 +1010,7 @@ export default function MainLayout() {
                     className="h-7 px-3 mr-1 flex items-center gap-2 text-sm font-medium text-primary-600 hover:text-primary-700 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-full transition-colors"
                   >
                     <Plus className="w-4 h-4" />
-                    Nuevo álbum
+                    {t('layout.newAlbum')}
                   </button>
                 )}
                 </>
@@ -1031,7 +1034,7 @@ export default function MainLayout() {
                             ) : (
                               <SortDesc className="w-4 h-4" />
                             )}
-                            <span className="hidden sm:inline">{currentSort?.label || 'Ordenar'}</span>
+                            <span className="hidden sm:inline">{currentSortLabel}</span>
                           </button>
                         }
                         align="right"
@@ -1042,7 +1045,7 @@ export default function MainLayout() {
                               key={option.value}
                               onClick={() => setSortBy(option.value as any)}
                             >
-                              {option.label}
+                              {t(option.labelKey)}
                               {sortBy === option.value && (
                                 <Check className="w-4 h-4 ml-auto text-primary-600" />
                               )}
@@ -1050,13 +1053,13 @@ export default function MainLayout() {
                           ))}
                           <DropdownDivider />
                           <DropdownItem onClick={() => setSortOrder('asc')}>
-                            <SortAsc className="w-4 h-4" /> Ascendente
+                            <SortAsc className="w-4 h-4" /> {t('layout.ascending')}
                             {sortOrder === 'asc' && (
                               <Check className="w-4 h-4 ml-auto text-primary-600" />
                             )}
                           </DropdownItem>
                           <DropdownItem onClick={() => setSortOrder('desc')}>
-                            <SortDesc className="w-4 h-4" /> Descendente
+                            <SortDesc className="w-4 h-4" /> {t('layout.descending')}
                             {sortOrder === 'desc' && (
                               <Check className="w-4 h-4 ml-auto text-primary-600" />
                             )}
@@ -1167,7 +1170,7 @@ export default function MainLayout() {
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
                     >
                       <CheckSquare className="w-4 h-4 text-dark-400" />
-                      Seleccionar todo
+                      {t('layout.selectAll')}
                     </button>
                     <div className="h-px bg-dark-100 dark:bg-dark-700 my-1.5" />
                   </>
@@ -1183,7 +1186,7 @@ export default function MainLayout() {
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
                 >
                   <Upload className="w-4 h-4 text-dark-400" />
-                  Añadir archivo
+                  {t('layout.addFile')}
                 </button>
                 {isFilesPage && (
                   <button
@@ -1194,7 +1197,7 @@ export default function MainLayout() {
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
                   >
                     <FolderUp className="w-4 h-4 text-dark-400" />
-                    Añadir carpeta
+                    {t('layout.addFolder')}
                   </button>
                 )}
                 
@@ -1212,7 +1215,7 @@ export default function MainLayout() {
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
                     >
                       <FilePlus className="w-4 h-4 text-dark-400" />
-                      Crear archivo
+                      {t('header.createFile')}
                     </button>
                     <button
                       onMouseDown={(e) => {
@@ -1223,7 +1226,7 @@ export default function MainLayout() {
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
                     >
                       <FolderPlus className="w-4 h-4 text-dark-400" />
-                      Crear carpeta
+                      {t('header.createFolder')}
                     </button>
                     
                     <div className="h-px bg-dark-100 dark:bg-dark-700 my-1.5" />
@@ -1238,7 +1241,7 @@ export default function MainLayout() {
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
                     >
                       <RefreshCw className="w-4 h-4 text-dark-400" />
-                      Actualizar
+                      {t('layout.refresh')}
                     </button>
                   </>
                 )}
@@ -1256,7 +1259,7 @@ export default function MainLayout() {
           <div className="bg-dark-900/80 dark:bg-white/90 backdrop-blur-sm rounded-full px-6 py-3 shadow-lg flex items-center gap-3">
             <Upload className="w-5 h-5 text-white dark:text-dark-900" />
             <span className="text-sm font-medium text-white dark:text-dark-900">
-              Suelta para subir
+              {t('layout.dropToUpload')}
             </span>
           </div>
         </div>

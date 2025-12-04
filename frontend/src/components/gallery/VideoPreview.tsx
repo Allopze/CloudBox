@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import {
   X,
   Play,
@@ -33,6 +34,7 @@ export default function VideoPreview({
   onShare,
   onDownload,
 }: VideoPreviewProps) {
+  const { t } = useTranslation();
   const videoRef = useRef<HTMLVideoElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -429,7 +431,7 @@ export default function VideoPreview({
               {showSettings && (
                 <div className="absolute bottom-full right-0 mb-2 bg-gray-900 rounded-lg shadow-lg overflow-hidden min-w-[120px]">
                   <p className="px-3 py-2 text-xs text-gray-400 border-b border-gray-700">
-                    Velocidad
+                    {t('gallery.speed')}
                   </p>
                   {[0.5, 0.75, 1, 1.25, 1.5, 2].map((rate) => (
                     <button
@@ -440,7 +442,7 @@ export default function VideoPreview({
                         playbackRate === rate ? 'text-primary-400' : 'text-white'
                       )}
                     >
-                      {rate === 1 ? 'Normal' : `${rate}x`}
+                      {rate === 1 ? t('gallery.normal') : `${rate}x`}
                     </button>
                   ))}
                 </div>
@@ -451,7 +453,7 @@ export default function VideoPreview({
             <button
               onClick={toggleFullscreen}
               className="p-2 text-white hover:bg-white/10 rounded-lg transition-colors"
-              title="Pantalla completa (F)"
+              title={isFullscreen ? t('gallery.exitFullscreen') : t('gallery.fullscreen')}
             >
               {isFullscreen ? (
                 <Minimize className="w-5 h-5" />

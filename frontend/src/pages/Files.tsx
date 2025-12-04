@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { api, getFileUrl } from '../lib/api';
 import { FileItem, Folder } from '../types';
 import { useFileStore } from '../stores/fileStore';
@@ -23,6 +24,7 @@ import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Files() {
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const folderId = searchParams.get('folder');
   const searchQuery = searchParams.get('search');
@@ -99,7 +101,7 @@ export default function Files() {
     const opId = addOperation({
       id: `delete-${Date.now()}`,
       type: 'delete',
-      title: `Eliminando ${total} elemento(s)`,
+      title: t('files.deletingItems', { count: total }),
       totalItems: total,
     });
 
@@ -115,10 +117,10 @@ export default function Files() {
       completeOperation(opId);
       clearSelection();
       loadData();
-      toast(`${total} elemento(s) eliminado(s)`, 'success');
+      toast(t('files.itemsDeleted', { count: total }), 'success');
     } catch (error) {
-      failOperation(opId, 'Error al eliminar');
-      toast('Error al eliminar elementos', 'error');
+      failOperation(opId, t('files.deleteError'));
+      toast(t('files.deleteError'), 'error');
     } finally {
       setIsDeleting(false);
       setDeleteConfirmOpen(false);
@@ -152,7 +154,7 @@ export default function Files() {
       setRenameModalOpen(true);
     } else if (selectedFolders.length === 1 && selectedFiles.length === 0) {
       // Handle folder rename - would need a separate modal
-      toast('Usa el menú contextual para renombrar carpetas', 'info');
+      toast(t('files.useContextMenuForFolders'), 'info');
     }
   }, [getSelectedItems]);
 
@@ -220,8 +222,8 @@ export default function Files() {
         setBreadcrumbs([]);
       }
     } catch (error) {
-      console.error('Error al cargar archivos:', error);
-      toast('Error al cargar los archivos', 'error');
+      console.error('Error loading files:', error);
+      toast(t('files.errorLoading'), 'error');
     } finally {
       setLoading(false);
     }
@@ -313,14 +315,14 @@ export default function Files() {
     }
 
     try {
-      toast(`Subiendo ${filesWithPaths.length} archivo(s)...`, 'info');
+      toast(t('files.uploadingFiles', { count: filesWithPaths.length }), 'info');
       await api.post('/files/upload-with-folders', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      toast('Carpeta subida correctamente', 'success');
+      toast(t('files.folderUploaded'), 'success');
       loadData();
     } catch (error: any) {
-      toast(error.response?.data?.error || 'Error al subir la carpeta', 'error');
+      toast(error.response?.data?.error || t('files.folderUploadError'), 'error');
     }
 
     // Reset input
@@ -410,7 +412,7 @@ export default function Files() {
               left: Math.min(workzoneContextMenu.x, window.innerWidth - 220)
             }}
           >
-            {/* Seleccionar todo */}
+            {/* Select All */}
             {allItemIds.length > 0 && (
               <>
                 <button
@@ -421,7 +423,7 @@ export default function Files() {
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
                 >
                   <CheckSquare className="w-4 h-4" />
-                  <span>Seleccionar todo</span>
+                  <span>{t('layout.selectAll')}</span>
                 </button>
                 <div className="h-px bg-dark-200 dark:bg-dark-700 my-2" />
               </>
@@ -435,14 +437,14 @@ export default function Files() {
               className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
             >
               <Upload className="w-4 h-4" />
-              <span>Añadir archivo</span>
+              <span>{t('layout.addFile')}</span>
             </button>
             <button
               onClick={handleFolderUpload}
               className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
             >
               <FolderUp className="w-4 h-4" />
-              <span>Añadir carpeta</span>
+              <span>{t('layout.addFolder')}</span>
             </button>
             
             <div className="h-px bg-dark-200 dark:bg-dark-700 my-2" />
@@ -455,7 +457,7 @@ export default function Files() {
               className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
             >
               <FilePlus className="w-4 h-4" />
-              <span>Crear archivo</span>
+              <span>{t('header.createFile')}</span>
             </button>
             <button
               onClick={() => {
@@ -465,7 +467,7 @@ export default function Files() {
               className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
             >
               <FolderPlus className="w-4 h-4" />
-              <span>Crear carpeta</span>
+              <span>{t('header.createFolder')}</span>
             </button>
             
             <div className="h-px bg-dark-200 dark:bg-dark-700 my-2" />
@@ -478,7 +480,7 @@ export default function Files() {
               className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
             >
               <RefreshCw className="w-4 h-4" />
-              <span>Actualizar</span>
+              <span>{t('layout.refresh')}</span>
             </button>
           </motion.div>,
           document.body
@@ -587,18 +589,18 @@ export default function Files() {
           setDeleteConfirmData(null);
         }}
         onConfirm={performDelete}
-        title="Eliminar elementos"
+        title={t('files.deleteItems')}
         message={
           deleteConfirmData ? (
             <>
-              ¿Estás seguro de que deseas eliminar <strong>{deleteConfirmData.files.length + deleteConfirmData.folders.length}</strong> elemento(s)?
+              {t('files.confirmDeleteItems', { count: deleteConfirmData.files.length + deleteConfirmData.folders.length })}
               <br />
-              <span className="text-sm">Esta acción moverá los elementos a la papelera.</span>
+              <span className="text-sm">{t('files.moveToTrashWarning')}</span>
             </>
           ) : ''
         }
-        confirmText="Eliminar"
-        cancelText="Cancelar"
+        confirmText={t('common.delete')}
+        cancelText={t('common.cancel')}
         variant="danger"
         loading={isDeleting}
       />

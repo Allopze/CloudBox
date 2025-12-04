@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api, getFileUrl } from '../lib/api';
 import { FileItem, Folder } from '../types';
 import { useFileStore } from '../stores/fileStore';
@@ -13,6 +14,7 @@ import DocumentViewer from '../components/gallery/DocumentViewer';
 import ShareModal from '../components/modals/ShareModal';
 
 export default function Favorites() {
+  const { t } = useTranslation();
   const [files, setFiles] = useState<FileItem[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,7 +45,7 @@ export default function Favorites() {
       setFolders(foldersRes.data.filter((f: Folder) => f.isFavorite) || []);
     } catch (error) {
       console.error('Failed to load favorites:', error);
-      toast('Error al cargar favoritos', 'error');
+      toast(t('favorites.loadError'), 'error');
     } finally {
       setLoading(false);
     }

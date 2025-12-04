@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api } from '../lib/api';
 import { Loader2, Trash2, RotateCcw, AlertTriangle, File, Folder, Info } from 'lucide-react';
 import { toast } from '../components/ui/Toast';
@@ -24,6 +25,7 @@ interface ContextMenuState {
 }
 
 export default function Trash() {
+  const { t } = useTranslation();
   const [data, setData] = useState<TrashData>({ files: [], folders: [] });
   const [loading, setLoading] = useState(true);
   const [showEmptyModal, setShowEmptyModal] = useState(false);
@@ -44,8 +46,8 @@ export default function Trash() {
       const response = await api.get('/trash');
       setData(response.data || { files: [], folders: [] });
     } catch (error) {
-      console.error('Error al cargar la papelera:', error);
-      toast('Error al cargar la papelera', 'error');
+      console.error('Error loading trash:', error);
+      toast(t('trash.loadError'), 'error');
     } finally {
       setLoading(false);
     }
@@ -73,42 +75,42 @@ export default function Trash() {
   const restoreFile = async (file: FileItem) => {
     try {
       await api.post(`/trash/restore/file/${file.id}`);
-      toast('Archivo restaurado correctamente', 'success');
+      toast(t('trash.restored', { type: t('trash.file') }), 'success');
       loadData();
     } catch (error) {
-      toast('Error al restaurar el archivo', 'error');
+      toast(t('trash.restoreError', { type: t('trash.file') }), 'error');
     }
   };
 
   const restoreFolder = async (folder: FolderType) => {
     try {
       await api.post(`/trash/restore/folder/${folder.id}`);
-      toast('Carpeta restaurada correctamente', 'success');
+      toast(t('trash.restored', { type: t('trash.folder') }), 'success');
       loadData();
     } catch (error) {
-      toast('Error al restaurar la carpeta', 'error');
+      toast(t('trash.restoreError', { type: t('trash.folder') }), 'error');
     }
   };
 
   const deleteFile = async (file: FileItem) => {
     try {
       await api.delete(`/files/${file.id}?permanent=true`);
-      toast('Archivo eliminado permanentemente', 'success');
+      toast(t('trash.deleted', { type: t('trash.file') }), 'success');
       loadData();
       refreshUser(); // Update storage info in sidebar
     } catch (error) {
-      toast('Error al eliminar el archivo', 'error');
+      toast(t('trash.deleteError', { type: t('trash.file') }), 'error');
     }
   };
 
   const deleteFolder = async (folder: FolderType) => {
     try {
       await api.delete(`/folders/${folder.id}?permanent=true`);
-      toast('Carpeta eliminada permanentemente', 'success');
+      toast(t('trash.deleted', { type: t('trash.folder') }), 'success');
       loadData();
       refreshUser(); // Update storage info in sidebar
     } catch (error) {
-      toast('Error al eliminar la carpeta', 'error');
+      toast(t('trash.deleteError', { type: t('trash.folder') }), 'error');
     }
   };
 
@@ -119,20 +121,20 @@ export default function Trash() {
     const opId = addOperation({
       id: `empty-trash-${Date.now()}`,
       type: 'delete',
-      title: `Vaciando papelera (${totalItems} elementos)`,
+      title: t('trash.emptyingTrash', { count: totalItems }),
       totalItems: totalItems,
     });
     
     try {
       await api.delete('/trash/empty');
       completeOperation(opId);
-      toast('Papelera vaciada correctamente', 'success');
+      toast(t('sidebar.trashEmptied'), 'success');
       setShowEmptyModal(false);
       loadData();
       refreshUser(); // Update storage info in sidebar
     } catch (error) {
-      failOperation(opId, 'Error al vaciar la papelera');
-      toast('Error al vaciar la papelera', 'error');
+      failOperation(opId, t('sidebar.trashEmptyError'));
+      toast(t('sidebar.trashEmptyError'), 'error');
     } finally {
       setEmptyingTrash(false);
     }
@@ -197,7 +199,7 @@ export default function Trash() {
       const opId = addOperation({
         id: `restore-${Date.now()}`,
         type: 'move',
-        title: `Restaurando ${total} elemento(s)`,
+        title: t('trash.restoringItems', { count: total }),
         totalItems: total,
       });
       
@@ -209,12 +211,12 @@ export default function Trash() {
           await api.post(`/trash/restore/folder/${folder.id}`);
         }
         completeOperation(opId);
-        toast(`${total} elemento(s) restaurado(s)`, 'success');
+        toast(t('trash.itemsRestored', { count: total }), 'success');
         clearSelection();
         loadData();
       } catch (error) {
-        failOperation(opId, 'Error al restaurar');
-        toast('Error al restaurar elementos', 'error');
+        failOperation(opId, t('trash.restoreErrorGeneric'));
+        toast(t('trash.restoreErrorGeneric'), 'error');
       }
     }
     
@@ -264,7 +266,7 @@ export default function Trash() {
     const opId = addOperation({
       id: `delete-permanent-${Date.now()}`,
       type: 'delete',
-      title: `Eliminando ${total} elemento(s) permanentemente`,
+      title: t('trash.deletingPermanently', { count: total }),
       totalItems: total,
     });
     
@@ -276,13 +278,13 @@ export default function Trash() {
         await api.delete(`/folders/${folder.id}?permanent=true`);
       }
       completeOperation(opId);
-      toast(`${total} elemento(s) eliminado(s) permanentemente`, 'success');
+      toast(t('trash.itemsDeleted', { count: total }), 'success');
       clearSelection();
       loadData();
       refreshUser(); // Update storage info in sidebar
     } catch (error) {
-      failOperation(opId, 'Error al eliminar');
-      toast('Error al eliminar elementos', 'error');
+      failOperation(opId, t('trash.deleteErrorGeneric'));
+      toast(t('trash.deleteErrorGeneric'), 'error');
     } finally {
       setIsDeleting(false);
       setDeleteConfirmation(null);
@@ -343,9 +345,9 @@ export default function Trash() {
                     {folder.name}
                   </p>
                   <div className="flex items-center gap-3 text-sm text-dark-500 dark:text-dark-400">
-                    <span>Carpeta</span>
+                    <span>{t('trash.folder')}</span>
                     <span>•</span>
-                    <span>Eliminado {formatDate(folder.trashedAt || folder.updatedAt)}</span>
+                    <span>{t('trash.deletedOn', { date: formatDate(folder.trashedAt || folder.updatedAt) })}</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
@@ -354,18 +356,18 @@ export default function Trash() {
                     size="sm"
                     onClick={() => restoreFolder(folder)}
                     icon={<RotateCcw className="w-4 h-4" />}
-                    aria-label={`Restaurar carpeta ${folder.name}`}
+                    aria-label={t('trash.restoreFolder', { name: folder.name })}
                   >
-                    Restaurar
+                    {t('trash.restore')}
                 </Button>
                 <Button
                   variant="danger"
                   size="sm"
                   onClick={() => deleteFolder(folder)}
                   icon={<Trash2 className="w-4 h-4" />}
-                  aria-label={`Eliminar permanentemente carpeta ${folder.name}`}
+                  aria-label={t('trash.deleteFolderPermanently', { name: folder.name })}
                 >
-                  Eliminar
+                  {t('trash.delete')}
                 </Button>
               </div>
             </div>
@@ -396,11 +398,11 @@ export default function Trash() {
                     {file.name}
                   </p>
                   <div className="flex items-center gap-3 text-sm text-dark-500 dark:text-dark-400">
-                    <span>Archivo</span>
+                    <span>{t('trash.file')}</span>
                     <span>•</span>
                     <span>{formatBytes(file.size)}</span>
                     <span>•</span>
-                    <span>Eliminado {formatDate(file.trashedAt || file.updatedAt)}</span>
+                    <span>{t('trash.deletedOn', { date: formatDate(file.trashedAt || file.updatedAt) })}</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
@@ -409,18 +411,18 @@ export default function Trash() {
                     size="sm"
                     onClick={() => restoreFile(file)}
                     icon={<RotateCcw className="w-4 h-4" />}
-                    aria-label={`Restaurar archivo ${file.name}`}
+                    aria-label={t('trash.restoreFile', { name: file.name })}
                   >
-                    Restaurar
+                    {t('trash.restore')}
                   </Button>
                   <Button
                     variant="danger"
                     size="sm"
                     onClick={() => deleteFile(file)}
                     icon={<Trash2 className="w-4 h-4" />}
-                    aria-label={`Eliminar permanentemente archivo ${file.name}`}
+                    aria-label={t('trash.deleteFilePermanently', { name: file.name })}
                   >
-                    Eliminar
+                    {t('trash.delete')}
                   </Button>
                 </div>
               </div>
@@ -430,7 +432,7 @@ export default function Trash() {
       ) : (
         <div className="flex flex-col items-center justify-center h-64 text-dark-500">
           <Trash2 className="w-16 h-16 mb-4 opacity-50" />
-          <p className="text-lg font-medium">La papelera está vacía</p>
+          <p className="text-lg font-medium">{t('trash.empty')}</p>
         </div>
       )}
 
@@ -438,7 +440,7 @@ export default function Trash() {
       <Modal
         isOpen={showEmptyModal}
         onClose={() => setShowEmptyModal(false)}
-        title="Vaciar papelera"
+        title={t('trash.emptyConfirmTitle')}
         size="sm"
       >
         <div className="text-center">
@@ -448,17 +450,17 @@ export default function Trash() {
             </div>
           </div>
           <p className="text-dark-700 dark:text-dark-300 mb-2">
-            ¿Estás seguro de que deseas eliminar permanentemente {totalItems} {totalItems === 1 ? 'elemento' : 'elementos'} de la papelera?
+            {t('trash.emptyConfirmMessage', { count: totalItems })}
           </p>
           <p className="text-sm text-dark-500 dark:text-dark-400 mb-6">
-            Esta acción no se puede deshacer.
+            {t('trash.emptyConfirmWarning')}
           </p>
           <div className="flex justify-center gap-3">
             <Button variant="ghost" onClick={() => setShowEmptyModal(false)}>
-              Cancelar
+              {t('trash.cancel')}
             </Button>
             <Button variant="danger" loading={emptyingTrash} onClick={emptyTrash}>
-              Vaciar papelera
+              {t('trash.emptyTrash')}
             </Button>
           </div>
         </div>
@@ -493,7 +495,7 @@ export default function Trash() {
                 className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
               >
                 <RotateCcw className="w-5 h-5" />
-                <span>Restaurar</span>
+                <span>{t('trash.restore')}</span>
               </button>
             </div>
             
@@ -506,7 +508,7 @@ export default function Trash() {
                 className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
               >
                 <Info className="w-5 h-5" />
-                <span>Información</span>
+                <span>{t('trash.info')}</span>
               </button>
             </div>
             
@@ -519,7 +521,7 @@ export default function Trash() {
                 className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"
               >
                 <Trash2 className="w-5 h-5" />
-                <span>Eliminar permanentemente</span>
+                <span>{t('trash.deletePermanently')}</span>
               </button>
             </div>
           </motion.div>
@@ -547,27 +549,27 @@ export default function Trash() {
                 <h3 className="text-xl font-semibold text-dark-900 dark:text-white truncate">
                   {infoItem.item.name}
                 </h3>
-                <p className="text-sm text-dark-500">{infoItem.type === 'folder' ? 'Carpeta' : 'Archivo'}</p>
+                <p className="text-sm text-dark-500">{infoItem.type === 'folder' ? t('trash.folder') : t('trash.file')}</p>
               </div>
             </div>
             
             <div className="space-y-3 mb-6">
               {infoItem.type === 'file' && (
                 <div className="flex justify-between py-2 border-b border-dark-200 dark:border-dark-700">
-                  <span className="text-dark-500">Tamaño</span>
+                  <span className="text-dark-500">{t('trash.size')}</span>
                   <span className="text-dark-900 dark:text-white font-medium">
                     {formatBytes((infoItem.item as FileItem).size)}
                   </span>
                 </div>
               )}
               <div className="flex justify-between py-2 border-b border-dark-200 dark:border-dark-700">
-                <span className="text-dark-500">Fecha de eliminación</span>
+                <span className="text-dark-500">{t('trash.deletedDate')}</span>
                 <span className="text-dark-900 dark:text-white font-medium">
                   {formatDate(infoItem.item.trashedAt || infoItem.item.updatedAt)}
                 </span>
               </div>
               <div className="flex justify-between py-2">
-                <span className="text-dark-500">Creado</span>
+                <span className="text-dark-500">{t('trash.createdDate')}</span>
                 <span className="text-dark-900 dark:text-white font-medium">
                   {formatDate(infoItem.item.createdAt)}
                 </span>
@@ -576,7 +578,7 @@ export default function Trash() {
             
             <div className="flex justify-end">
               <Button onClick={() => setInfoItem(null)}>
-                Cerrar
+                {t('trash.close')}
               </Button>
             </div>
           </motion.div>
@@ -598,17 +600,17 @@ export default function Trash() {
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-dark-900 dark:text-white">
-                  Eliminar permanentemente
+                  {t('trash.deleteConfirmTitle')}
                 </h3>
                 <p className="text-sm text-dark-500">
-                  {deleteConfirmation.files.length + deleteConfirmation.folders.length} elemento(s) seleccionado(s)
+                  {t('trash.deleteConfirmSelected', { count: deleteConfirmation.files.length + deleteConfirmation.folders.length })}
                 </p>
               </div>
             </div>
             
             <p className="text-dark-600 dark:text-dark-300 mb-6">
-              ¿Estás seguro de que deseas eliminar permanentemente estos elementos? 
-              <span className="text-red-600 dark:text-red-400 font-medium"> Esta acción no se puede deshacer.</span>
+              {t('trash.deleteConfirmMessage')}
+              <span className="text-red-600 dark:text-red-400 font-medium"> {t('trash.emptyConfirmWarning')}</span>
             </p>
             
             {/* Preview of items to delete */}
@@ -633,7 +635,7 @@ export default function Trash() {
                 onClick={() => setDeleteConfirmation(null)}
                 disabled={isDeleting}
               >
-                Cancelar
+                {t('trash.cancel')}
               </Button>
               <Button
                 variant="danger"
@@ -643,10 +645,10 @@ export default function Trash() {
                 {isDeleting ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                    Eliminando...
+                    {t('common.loading')}
                   </>
                 ) : (
-                  'Eliminar permanentemente'
+                  t('trash.deletePermanently')
                 )}
               </Button>
             </div>

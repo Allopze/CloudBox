@@ -1,4 +1,5 @@
 import { useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useFileStore } from '../stores/fileStore';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '../components/ui/Toast';
@@ -30,6 +31,7 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
     enabled = true,
   } = options;
 
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const {
     selectedItems,
@@ -58,7 +60,7 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
         event.preventDefault();
         if (allItemIds.length > 0) {
           selectAll(allItemIds);
-          toast(`${allItemIds.length} elementos seleccionados`, 'success');
+          toast(t('keyboard.itemsSelected', { count: allItemIds.length }), 'success');
         }
         return;
       }
@@ -95,14 +97,14 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
       if (modifier && event.key === 'c' && selectedItems.size > 0) {
         event.preventDefault();
         // This would need the actual items, not just IDs
-        toast(`${selectedItems.size} elemento(s) copiado(s)`, 'success');
+        toast(t('keyboard.itemsCopied', { count: selectedItems.size }), 'success');
         return;
       }
 
       // Ctrl/Cmd + X - Cut
       if (modifier && event.key === 'x' && selectedItems.size > 0) {
         event.preventDefault();
-        toast(`${selectedItems.size} elemento(s) cortado(s)`, 'success');
+        toast(t('keyboard.itemsCut', { count: selectedItems.size }), 'success');
         return;
       }
 
@@ -168,6 +170,7 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
       onPaste,
       onPreview,
       navigate,
+      t,
     ]
   );
 
@@ -184,18 +187,18 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
   };
 }
 
-// Keyboard shortcuts help text
-export const keyboardShortcuts = [
-  { keys: ['Ctrl', 'A'], description: 'Seleccionar todo' },
-  { keys: ['Esc'], description: 'Limpiar selección' },
-  { keys: ['Delete'], description: 'Eliminar seleccionados' },
-  { keys: ['F2'], description: 'Renombrar' },
-  { keys: ['Enter'], description: 'Abrir / Vista previa' },
-  { keys: ['Ctrl', 'C'], description: 'Copiar' },
-  { keys: ['Ctrl', 'X'], description: 'Cortar' },
-  { keys: ['Ctrl', 'V'], description: 'Pegar' },
-  { keys: ['Ctrl', 'D'], description: 'Descargar' },
-  { keys: ['Ctrl', 'Shift', 'S'], description: 'Compartir' },
-  { keys: ['Ctrl', 'U'], description: 'Subir archivos' },
-  { keys: ['Ctrl', 'Shift', 'N'], description: 'Nueva carpeta' },
+// Keyboard shortcuts help text - keys that need to be translated
+export const getKeyboardShortcuts = (t: (key: string) => string) => [
+  { keys: ['Ctrl', 'A'], description: t('keyboard.selectAll') },
+  { keys: ['Esc'], description: t('keyboard.clearSelection') },
+  { keys: ['Delete'], description: t('keyboard.delete') },
+  { keys: ['F2'], description: t('keyboard.rename') },
+  { keys: ['Enter'], description: t('keyboard.openPreview') },
+  { keys: ['Ctrl', 'C'], description: t('keyboard.copy') },
+  { keys: ['Ctrl', 'X'], description: t('keyboard.cut') },
+  { keys: ['Ctrl', 'V'], description: t('keyboard.paste') },
+  { keys: ['Ctrl', 'D'], description: t('keyboard.download') },
+  { keys: ['Ctrl', 'Shift', 'S'], description: t('keyboard.share') },
+  { keys: ['Ctrl', 'U'], description: t('keyboard.uploadFiles') },
+  { keys: ['Ctrl', 'Shift', 'N'], description: t('keyboard.newFolder') },
 ];

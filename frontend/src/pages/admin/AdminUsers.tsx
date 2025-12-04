@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api } from '../../lib/api';
 import { useAuthStore } from '../../stores/authStore';
 import { User } from '../../types';
@@ -46,6 +47,7 @@ interface StorageRequest {
 }
 
 export default function AdminUsers() {
+  const { t } = useTranslation();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -88,7 +90,7 @@ export default function AdminUsers() {
     { value: '214748364800', label: '200 GB' },
     { value: '536870912000', label: '500 GB' },
     { value: '1099511627776', label: '1 TB' },
-    { value: 'custom', label: 'Personalizado' },
+    { value: 'custom', label: t('admin.users.custom') },
   ];
 
   const handleQuotaChange = (value: string) => {
@@ -118,11 +120,11 @@ export default function AdminUsers() {
       setUsers(response.data.users || response.data || []);
     } catch (error) {
       console.error('Failed to load users:', error);
-      toast('Failed to load users', 'error');
+      toast(t('admin.loadError'), 'error');
     } finally {
       setLoading(false);
     }
-  }, [searchQuery]);
+  }, [searchQuery, t]);
 
   const loadStorageRequests = useCallback(async () => {
     try {
@@ -195,7 +197,7 @@ export default function AdminUsers() {
 
   const createUser = async () => {
     if (!formName || !formEmail || !formPassword) {
-      toast('Please fill all required fields', 'error');
+      toast(t('admin.saveError'), 'error');
       return;
     }
     setSaving(true);
@@ -207,11 +209,11 @@ export default function AdminUsers() {
         role: formRole,
         storageQuota: getEffectiveQuota(),
       });
-      toast('User created', 'success');
+      toast(t('admin.users.userCreated'), 'success');
       setShowCreateModal(false);
       loadUsers();
     } catch (error: any) {
-      toast(error.response?.data?.message || 'Failed to create user', 'error');
+      toast(error.response?.data?.message || t('admin.saveError'), 'error');
     } finally {
       setSaving(false);
     }
@@ -228,7 +230,7 @@ export default function AdminUsers() {
         role: formRole,
         storageQuota: getEffectiveQuota(),
       });
-      toast('User updated', 'success');
+      toast(t('admin.users.userUpdated'), 'success');
       setShowEditModal(false);
       loadUsers();
       // If updating the current user, refresh their data in the auth store
@@ -236,7 +238,7 @@ export default function AdminUsers() {
         await refreshUser();
       }
     } catch (error: any) {
-      toast(error.response?.data?.message || 'Failed to update user', 'error');
+      toast(error.response?.data?.message || t('admin.saveError'), 'error');
     } finally {
       setSaving(false);
     }
@@ -252,10 +254,10 @@ export default function AdminUsers() {
     setIsDeleting(true);
     try {
       await api.delete(`/admin/users/${userToDelete.id}`);
-      toast('Usuario eliminado', 'success');
+      toast(t('admin.users.userDeleted'), 'success');
       loadUsers();
     } catch (error) {
-      toast('Error al eliminar usuario', 'error');
+      toast(t('admin.saveError'), 'error');
     } finally {
       setIsDeleting(false);
       setShowDeleteConfirm(false);
@@ -268,10 +270,10 @@ export default function AdminUsers() {
       await api.patch(`/admin/users/${user.id}`, {
         role: user.role === 'ADMIN' ? 'USER' : 'ADMIN',
       });
-      toast(`User ${user.role === 'ADMIN' ? 'demoted' : 'promoted'} to ${user.role === 'ADMIN' ? 'user' : 'admin'}`, 'success');
+      toast(t('admin.users.userUpdated'), 'success');
       loadUsers();
     } catch (error) {
-      toast('Failed to update user role', 'error');
+      toast(t('admin.saveError'), 'error');
     }
   };
 
@@ -282,14 +284,14 @@ export default function AdminUsers() {
       await api.post(`/admin/storage-requests/${selectedRequest.id}/approve`, {
         adminResponse: adminResponse || undefined,
       });
-      toast('Solicitud aprobada', 'success');
+      toast(t('admin.users.approved'), 'success');
       setShowResponseModal(false);
       setSelectedRequest(null);
       loadStorageRequests();
       loadPendingRequestsCount();
       loadUsers();
     } catch (error: any) {
-      toast(error.response?.data?.error || 'Error al aprobar la solicitud', 'error');
+      toast(error.response?.data?.error || t('admin.saveError'), 'error');
     } finally {
       setProcessingRequest(false);
     }
@@ -302,13 +304,13 @@ export default function AdminUsers() {
       await api.post(`/admin/storage-requests/${selectedRequest.id}/reject`, {
         adminResponse: adminResponse || undefined,
       });
-      toast('Solicitud rechazada', 'success');
+      toast(t('admin.users.rejected'), 'success');
       setShowResponseModal(false);
       setSelectedRequest(null);
       loadStorageRequests();
       loadPendingRequestsCount();
     } catch (error: any) {
-      toast(error.response?.data?.error || 'Error al rechazar la solicitud', 'error');
+      toast(error.response?.data?.error || t('admin.saveError'), 'error');
     } finally {
       setProcessingRequest(false);
     }
@@ -320,21 +322,21 @@ export default function AdminUsers() {
         return (
           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
             <Clock className="w-3 h-3" />
-            Pendiente
+            {t('admin.users.pending')}
           </span>
         );
       case 'APPROVED':
         return (
           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
             <CheckCircle className="w-3 h-3" />
-            Aprobada
+            {t('admin.users.approved')}
           </span>
         );
       case 'REJECTED':
         return (
           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
             <XCircle className="w-3 h-3" />
-            Rechazada
+            {t('admin.users.rejected')}
           </span>
         );
       default:
@@ -357,10 +359,10 @@ export default function AdminUsers() {
         <div>
           <h1 className="text-2xl font-bold text-dark-900 dark:text-white flex items-center gap-2">
             <Users className="w-6 h-6" />
-            User Management
+            {t('admin.users.title')}
           </h1>
           <p className="text-dark-500 dark:text-dark-400 mt-1">
-            {users.length} users
+            {t('admin.users.usersCount', { count: users.length })}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -370,7 +372,7 @@ export default function AdminUsers() {
             onClick={() => setShowRequestsPanel(!showRequestsPanel)}
             icon={<HardDrive className="w-4 h-4" />}
           >
-            Solicitudes
+            {t('admin.users.requests')}
             {pendingRequestsCount > 0 && (
               <span className="ml-2 px-2 py-0.5 text-xs font-bold bg-red-500 text-white rounded-full">
                 {pendingRequestsCount}
@@ -378,7 +380,7 @@ export default function AdminUsers() {
             )}
           </Button>
           <Button onClick={openCreateModal} icon={<UserPlus className="w-4 h-4" />}>
-            Add User
+            {t('admin.users.newUser')}
           </Button>
         </div>
       </div>
@@ -388,11 +390,11 @@ export default function AdminUsers() {
         <div className="bg-white dark:bg-dark-800 rounded-xl border border-dark-200 dark:border-dark-700 p-6 mb-6">
           <h2 className="text-lg font-semibold text-dark-900 dark:text-white mb-4 flex items-center gap-2">
             <HardDrive className="w-5 h-5" />
-            Solicitudes de almacenamiento
+            {t('admin.users.storageRequests')}
           </h2>
 
           {storageRequests.length === 0 ? (
-            <p className="text-dark-500 text-center py-8">No hay solicitudes</p>
+            <p className="text-dark-500 text-center py-8">{t('admin.users.noRequests')}</p>
           ) : (
             <div className="space-y-4">
               {storageRequests.map((request) => (
@@ -432,19 +434,19 @@ export default function AdminUsers() {
 
                   <div className="mt-3 grid grid-cols-3 gap-4 text-sm">
                     <div>
-                      <p className="text-dark-500">Cuota actual</p>
+                      <p className="text-dark-500">{t('admin.users.currentQuota')}</p>
                       <p className="font-medium text-dark-900 dark:text-white">
                         {formatBytes(request.currentQuota)}
                       </p>
                     </div>
                     <div>
-                      <p className="text-dark-500">Cuota solicitada</p>
+                      <p className="text-dark-500">{t('admin.users.requestedQuota')}</p>
                       <p className="font-medium text-dark-900 dark:text-white">
                         {formatBytes(request.requestedQuota)}
                       </p>
                     </div>
                     <div>
-                      <p className="text-dark-500">Fecha</p>
+                      <p className="text-dark-500">{t('admin.users.date')}</p>
                       <p className="font-medium text-dark-900 dark:text-white">
                         {formatDate(request.createdAt)}
                       </p>
@@ -455,7 +457,7 @@ export default function AdminUsers() {
                     <div className="mt-3 p-3 bg-white dark:bg-dark-800 rounded-lg">
                       <p className="text-xs text-dark-500 mb-1 flex items-center gap-1">
                         <MessageSquare className="w-3 h-3" />
-                        Motivo
+                        {t('admin.users.reason')}
                       </p>
                       <p className="text-sm text-dark-700 dark:text-dark-300">{request.reason}</p>
                     </div>
@@ -463,7 +465,7 @@ export default function AdminUsers() {
 
                   {request.adminResponse && (
                     <div className="mt-2 p-3 bg-primary-50 dark:bg-primary-900/20 rounded-lg">
-                      <p className="text-xs text-primary-600 mb-1">Respuesta del admin</p>
+                      <p className="text-xs text-primary-600 mb-1">{t('admin.users.adminResponse')}</p>
                       <p className="text-sm text-primary-700 dark:text-primary-400">{request.adminResponse}</p>
                     </div>
                   )}
@@ -479,7 +481,7 @@ export default function AdminUsers() {
                         }}
                         icon={<CheckCircle className="w-4 h-4" />}
                       >
-                        Aprobar
+                        {t('admin.users.approve')}
                       </Button>
                       <Button
                         size="sm"
@@ -491,7 +493,7 @@ export default function AdminUsers() {
                         }}
                         icon={<XCircle className="w-4 h-4" />}
                       >
-                        Rechazar
+                        {t('admin.users.reject')}
                       </Button>
                     </div>
                   )}
@@ -505,7 +507,7 @@ export default function AdminUsers() {
       {/* Search */}
       <div className="mb-6">
         <Input
-          placeholder="Search users..."
+          placeholder={t('admin.users.search')}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           icon={<Search className="w-5 h-5" />}
@@ -518,19 +520,19 @@ export default function AdminUsers() {
           <thead className="bg-dark-50 dark:bg-dark-700">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-dark-500 uppercase tracking-wider">
-                User
+                {t('admin.users.user')}
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-dark-500 uppercase tracking-wider">
-                Role
+                {t('admin.users.role')}
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-dark-500 uppercase tracking-wider">
-                Storage
+                {t('admin.users.storage')}
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-dark-500 uppercase tracking-wider">
-                Joined
+                {t('admin.users.joined')}
               </th>
               <th className="px-6 py-3 text-right text-xs font-medium text-dark-500 uppercase tracking-wider">
-                Actions
+                {t('admin.users.actions')}
               </th>
             </tr>
           </thead>
@@ -569,7 +571,7 @@ export default function AdminUsers() {
                         : 'bg-dark-100 text-dark-700 dark:bg-dark-700 dark:text-dark-300'
                     )}
                   >
-                    {user.role}
+                    {t(`admin.users.${user.role}`)}
                   </span>
                 </td>
                 <td className="px-6 py-4">
@@ -595,22 +597,22 @@ export default function AdminUsers() {
                     align="right"
                   >
                     <DropdownItem onClick={() => openEditModal(user)}>
-                      <Edit className="w-4 h-4" /> Edit
+                      <Edit className="w-4 h-4" /> {t('admin.users.edit')}
                     </DropdownItem>
                     <DropdownItem onClick={() => toggleAdmin(user)}>
                       {user.role === 'ADMIN' ? (
                         <>
-                          <ShieldOff className="w-4 h-4" /> Demote to User
+                          <ShieldOff className="w-4 h-4" /> {t('admin.users.demoteUser')}
                         </>
                       ) : (
                         <>
-                          <Shield className="w-4 h-4" /> Promote to Admin
+                          <Shield className="w-4 h-4" /> {t('admin.users.promoteAdmin')}
                         </>
                       )}
                     </DropdownItem>
                     <DropdownDivider />
                     <DropdownItem danger onClick={() => openDeleteConfirm(user)}>
-                      <Trash2 className="w-4 h-4" /> Eliminar
+                      <Trash2 className="w-4 h-4" /> {t('admin.users.delete')}
                     </DropdownItem>
                   </Dropdown>
                 </td>
@@ -624,23 +626,23 @@ export default function AdminUsers() {
       <Modal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        title="Create User"
+        title={t('admin.users.createUser')}
       >
         <form onSubmit={(e) => { e.preventDefault(); createUser(); }} className="space-y-4">
           <Input
-            label="Name"
+            label={t('admin.users.name')}
             value={formName}
             onChange={(e) => setFormName(e.target.value)}
           />
           <Input
-            label="Email"
+            label={t('admin.users.email')}
             type="email"
             value={formEmail}
             onChange={(e) => setFormEmail(e.target.value)}
             autoComplete="off"
           />
           <Input
-            label="Password"
+            label={t('admin.users.password')}
             type="password"
             value={formPassword}
             onChange={(e) => setFormPassword(e.target.value)}
@@ -648,20 +650,20 @@ export default function AdminUsers() {
           />
           <div>
             <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">
-              Role
+              {t('admin.users.role')}
             </label>
             <select
               value={formRole}
               onChange={(e) => setFormRole(e.target.value as 'USER' | 'ADMIN')}
               className="input"
             >
-              <option value="USER">User</option>
-              <option value="ADMIN">Admin</option>
+              <option value="USER">{t('admin.users.USER')}</option>
+              <option value="ADMIN">{t('admin.users.ADMIN')}</option>
             </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">
-              Storage Quota
+              {t('admin.users.storageQuota')}
             </label>
             <select
               value={formStorageQuota}
@@ -680,7 +682,7 @@ export default function AdminUsers() {
                   type="number"
                   value={customQuotaValue}
                   onChange={(e) => setCustomQuotaValue(e.target.value)}
-                  placeholder="Cantidad"
+                  placeholder={t('admin.users.amount')}
                   min="1"
                   className="input flex-1"
                 />
@@ -697,10 +699,10 @@ export default function AdminUsers() {
           </div>
           <div className="flex justify-end gap-3 mt-6">
             <Button variant="ghost" type="button" onClick={() => setShowCreateModal(false)}>
-              Cancel
+              {t('admin.users.cancel')}
             </Button>
             <Button type="submit" loading={saving}>
-              Create
+              {t('admin.users.create')}
             </Button>
           </div>
         </form>
@@ -710,23 +712,23 @@ export default function AdminUsers() {
       <Modal
         isOpen={showEditModal}
         onClose={() => setShowEditModal(false)}
-        title="Edit User"
+        title={t('admin.users.editUser')}
       >
         <form onSubmit={(e) => { e.preventDefault(); updateUser(); }} className="space-y-4">
           <Input
-            label="Name"
+            label={t('admin.users.name')}
             value={formName}
             onChange={(e) => setFormName(e.target.value)}
           />
           <Input
-            label="Email"
+            label={t('admin.users.email')}
             type="email"
             value={formEmail}
             onChange={(e) => setFormEmail(e.target.value)}
             autoComplete="off"
           />
           <Input
-            label="Password (leave blank to keep current)"
+            label={t('admin.users.passwordHint')}
             type="password"
             value={formPassword}
             onChange={(e) => setFormPassword(e.target.value)}
@@ -734,20 +736,20 @@ export default function AdminUsers() {
           />
           <div>
             <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">
-              Role
+              {t('admin.users.role')}
             </label>
             <select
               value={formRole}
               onChange={(e) => setFormRole(e.target.value as 'USER' | 'ADMIN')}
               className="input"
             >
-              <option value="USER">User</option>
-              <option value="ADMIN">Admin</option>
+              <option value="USER">{t('admin.users.USER')}</option>
+              <option value="ADMIN">{t('admin.users.ADMIN')}</option>
             </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">
-              Storage Quota
+              {t('admin.users.storageQuota')}
             </label>
             <select
               value={formStorageQuota}
@@ -766,7 +768,7 @@ export default function AdminUsers() {
                   type="number"
                   value={customQuotaValue}
                   onChange={(e) => setCustomQuotaValue(e.target.value)}
-                  placeholder="Cantidad"
+                  placeholder={t('admin.users.amount')}
                   min="1"
                   className="input flex-1"
                 />
@@ -783,10 +785,10 @@ export default function AdminUsers() {
           </div>
           <div className="flex justify-end gap-3 mt-6">
             <Button variant="ghost" type="button" onClick={() => setShowEditModal(false)}>
-              Cancel
+              {t('admin.users.cancel')}
             </Button>
             <Button type="submit" loading={saving}>
-              Save Changes
+              {t('admin.users.saveChanges')}
             </Button>
           </div>
         </form>
@@ -799,27 +801,27 @@ export default function AdminUsers() {
           setShowResponseModal(false);
           setSelectedRequest(null);
         }}
-        title="Responder solicitud"
+        title={t('admin.users.respondRequest')}
       >
         {selectedRequest && (
           <div className="space-y-4">
             <div className="p-4 bg-dark-50 dark:bg-dark-900 rounded-lg">
-              <p className="text-sm text-dark-500 mb-2">Solicitud de</p>
+              <p className="text-sm text-dark-500 mb-2">{t('admin.users.user')}</p>
               <p className="font-medium text-dark-900 dark:text-white">
                 {selectedRequest.user.name} ({selectedRequest.user.email})
               </p>
               <div className="mt-3 flex items-center gap-4 text-sm">
                 <span className="text-dark-500">
-                  Actual: <strong className="text-dark-900 dark:text-white">{formatBytes(selectedRequest.currentQuota)}</strong>
+                  {t('admin.users.currentQuota')}: <strong className="text-dark-900 dark:text-white">{formatBytes(selectedRequest.currentQuota)}</strong>
                 </span>
                 <span className="text-dark-400">→</span>
                 <span className="text-dark-500">
-                  Solicitado: <strong className="text-primary-600">{formatBytes(selectedRequest.requestedQuota)}</strong>
+                  {t('admin.users.requestedQuota')}: <strong className="text-primary-600">{formatBytes(selectedRequest.requestedQuota)}</strong>
                 </span>
               </div>
               {selectedRequest.reason && (
                 <div className="mt-3 p-2 bg-white dark:bg-dark-800 rounded">
-                  <p className="text-xs text-dark-500 mb-1">Motivo:</p>
+                  <p className="text-xs text-dark-500 mb-1">{t('admin.users.reason')}:</p>
                   <p className="text-sm text-dark-700 dark:text-dark-300">{selectedRequest.reason}</p>
                 </div>
               )}
@@ -827,13 +829,13 @@ export default function AdminUsers() {
 
             <div>
               <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">
-                Respuesta (opcional)
+                {t('admin.users.response')}
               </label>
               <textarea
                 value={adminResponse}
                 onChange={(e) => setAdminResponse(e.target.value)}
                 className="input w-full h-24 resize-none"
-                placeholder="Escribe un mensaje para el usuario..."
+                placeholder={t('admin.users.responseOptional')}
               />
             </div>
 
@@ -845,7 +847,7 @@ export default function AdminUsers() {
                   setSelectedRequest(null);
                 }}
               >
-                Cancelar
+                {t('admin.users.cancel')}
               </Button>
               <Button
                 variant="secondary"
@@ -853,14 +855,14 @@ export default function AdminUsers() {
                 loading={processingRequest}
                 icon={<XCircle className="w-4 h-4" />}
               >
-                Rechazar
+                {t('admin.users.reject')}
               </Button>
               <Button
                 onClick={handleApproveRequest}
                 loading={processingRequest}
                 icon={<CheckCircle className="w-4 h-4" />}
               >
-                Aprobar
+                {t('admin.users.approve')}
               </Button>
             </div>
           </div>
@@ -875,18 +877,18 @@ export default function AdminUsers() {
           setUserToDelete(null);
         }}
         onConfirm={deleteUser}
-        title="Eliminar usuario"
+        title={t('admin.users.delete')}
         message={
           userToDelete ? (
             <>
-              ¿Estás seguro de que deseas eliminar a <strong>{userToDelete.name}</strong>?
+              {t('admin.users.deleteConfirm')} <strong>{userToDelete.name}</strong>?
               <br />
-              <span className="text-sm">Esta acción no se puede deshacer. Todos los archivos del usuario serán eliminados permanentemente.</span>
+              <span className="text-sm">{t('admin.users.deleteWarning')}</span>
             </>
           ) : ''
         }
-        confirmText="Eliminar"
-        cancelText="Cancelar"
+        confirmText={t('admin.users.delete')}
+        cancelText={t('admin.users.cancel')}
         variant="danger"
         loading={isDeleting}
       />

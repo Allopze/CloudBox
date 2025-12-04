@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { ChevronRight, Home } from 'lucide-react';
 import { useDragDropStore } from '../../stores/dragDropStore';
 import { useFileStore } from '../../stores/fileStore';
@@ -20,6 +21,7 @@ interface BreadcrumbsProps {
 }
 
 export default function Breadcrumbs({ items = [], basePath = '/files', onRefresh }: BreadcrumbsProps) {
+  const { t } = useTranslation();
   const { isDragging, draggedItems, endDrag } = useDragDropStore();
   const [dragOverId, setDragOverId] = useState<string | null>(null);
 
@@ -68,14 +70,14 @@ export default function Breadcrumbs({ items = [], basePath = '/files', onRefresh
       }
       
       const targetName = targetFolderId 
-        ? items.find(i => i.id === targetFolderId)?.name || 'carpeta'
-        : 'Home';
-      toast(`${itemsToMove.length} elemento(s) movido(s) a "${targetName}"`, 'success');
+        ? items.find(i => i.id === targetFolderId)?.name || t('breadcrumbs.folder')
+        : t('breadcrumbs.home');
+      toast(t('files.itemsMovedTo', { count: itemsToMove.length, name: targetName }), 'success');
       clearSelectionFn();
       window.dispatchEvent(new CustomEvent('workzone-refresh'));
       onRefresh?.();
     } catch (error: any) {
-      toast(error.response?.data?.error || 'Error al mover elementos', 'error');
+      toast(error.response?.data?.error || t('files.moveError'), 'error');
     }
   };
 
@@ -93,7 +95,7 @@ export default function Breadcrumbs({ items = [], basePath = '/files', onRefresh
         )}
       >
         <Home className="w-4 h-4" />
-        <span>Home</span>
+        <span>{t('breadcrumbs.home')}</span>
       </Link>
 
       {items.map((item, index) => (

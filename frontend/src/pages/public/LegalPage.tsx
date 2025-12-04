@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, useLocation } from 'react-router-dom';
 import { ArrowLeft, Cloud, FileText, Shield } from 'lucide-react';
 import { useBrandingStore } from '../../stores/brandingStore';
@@ -14,6 +15,7 @@ interface LegalPageData {
 }
 
 export default function LegalPage() {
+  const { t } = useTranslation();
   const location = useLocation();
   const slug = location.pathname.replace('/', ''); // Get slug from path: /privacy -> privacy
   const { branding } = useBrandingStore();
@@ -27,7 +29,7 @@ export default function LegalPage() {
   useEffect(() => {
     const loadPage = async () => {
       if (!slug || !['privacy', 'terms'].includes(slug)) {
-        setError('Página no encontrada');
+        setError(t('legalPage.pageNotFoundError'));
         setLoading(false);
         return;
       }
@@ -36,14 +38,14 @@ export default function LegalPage() {
         const response = await api.get(`/admin/legal/${slug}`);
         setPage(response.data);
       } catch (err) {
-        setError('Error al cargar la página');
+        setError(t('legalPage.loadError'));
       } finally {
         setLoading(false);
       }
     };
 
     loadPage();
-  }, [slug]);
+  }, [slug, t]);
 
   const getIcon = () => {
     if (slug === 'privacy') {
@@ -64,12 +66,12 @@ export default function LegalPage() {
     return (
       <div className="min-h-screen bg-[#F9FAFB] dark:bg-dark-950 flex items-center justify-center">
         <div className="text-center">
-          <p className="text-dark-600 dark:text-dark-400 mb-4">{error || 'Página no encontrada'}</p>
+          <p className="text-dark-600 dark:text-dark-400 mb-4">{error || t('legalPage.notFound')}</p>
           <Link 
             to="/login" 
             className="text-primary-600 hover:text-primary-700 font-medium"
           >
-            Volver al inicio
+            {t('legalPage.login')}
           </Link>
         </div>
       </div>
@@ -95,7 +97,7 @@ export default function LegalPage() {
             className="flex items-center gap-2 text-dark-600 dark:text-dark-400 hover:text-dark-900 dark:hover:text-dark-200 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span className="text-sm">Volver</span>
+            <span className="text-sm">{t('legalPage.back')}</span>
           </Link>
         </div>
       </header>
@@ -113,7 +115,7 @@ export default function LegalPage() {
             </div>
             {page.updatedAt && (
               <p className="text-sm text-dark-500 dark:text-dark-400">
-                Última actualización: {new Date(page.updatedAt).toLocaleDateString('es-ES', {
+                {t('legalPage.lastUpdated')}: {new Date(page.updatedAt).toLocaleDateString(undefined, {
                   year: 'numeric',
                   month: 'long',
                   day: 'numeric'
@@ -141,21 +143,21 @@ export default function LegalPage() {
             to="/privacy" 
             className={`hover:text-primary-600 transition-colors ${slug === 'privacy' ? 'text-primary-600 font-medium' : ''}`}
           >
-            Política de Privacidad
+            {t('legalPage.privacyPolicy')}
           </Link>
           <span className="hidden sm:inline">•</span>
           <Link 
             to="/terms" 
             className={`hover:text-primary-600 transition-colors ${slug === 'terms' ? 'text-primary-600 font-medium' : ''}`}
           >
-            Términos de Servicio
+            {t('legalPage.termsOfService')}
           </Link>
           <span className="hidden sm:inline">•</span>
           <Link 
             to="/login" 
             className="hover:text-primary-600 transition-colors"
           >
-            Iniciar Sesión
+            {t('legalPage.login')}
           </Link>
         </div>
       </main>

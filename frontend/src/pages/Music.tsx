@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { api, getFileUrl } from '../lib/api';
 import { FileItem } from '../types';
 import { useMusicStore } from '../stores/musicStore';
@@ -38,6 +39,7 @@ const getGradientColors = (name: string) => {
 };
 
 export default function MusicPage() {
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [tracks, setTracks] = useState<FileItem[]>([]);
@@ -135,7 +137,7 @@ export default function MusicPage() {
       // Ignore aborted requests
       if (signal?.aborted) return;
       console.error('Failed to load music:', error);
-      toast('Error al cargar la música', 'error');
+      toast(t('music.loadError'), 'error');
     } finally {
       if (!signal?.aborted) {
         setLoading(false);
@@ -183,14 +185,14 @@ export default function MusicPage() {
     setCreatingAlbum(true);
     try {
       await api.post('/folders', { name: newAlbumName.trim() });
-      toast('Álbum creado correctamente', 'success');
+      toast(t('music.albumCreated'), 'success');
       setNewAlbumName('');
       setCreateAlbumOpen(false);
       loadData(undefined);
       // Navigate to albums tab to see the new album
       navigate('/music?tab=albums');
     } catch (error) {
-      toast('Error al crear el álbum', 'error');
+      toast(t('music.albumCreateError'), 'error');
     } finally {
       setCreatingAlbum(false);
     }
@@ -204,9 +206,9 @@ export default function MusicPage() {
       setTracks(prev => prev.map(t =>
         t.id === track.id ? { ...t, isFavorite: !t.isFavorite } : t
       ));
-      toast(track.isFavorite ? 'Eliminado de favoritos' : 'Añadido a favoritos', 'success');
+      toast(track.isFavorite ? t('music.removedFromFavorites') : t('music.addedToFavorites'), 'success');
     } catch (error) {
-      toast('Error al actualizar favorito', 'error');
+      toast(t('music.favoriteError'), 'error');
     }
   };
 
@@ -236,7 +238,7 @@ export default function MusicPage() {
   const handleAddToQueue = (track: FileItem) => {
     const currentQueue = useMusicStore.getState().queue;
     setQueue([...currentQueue, track]);
-    toast('Añadido a la cola', 'success');
+    toast(t('music.addedToQueue'), 'success');
     closeContextMenu();
   };
 
@@ -255,9 +257,9 @@ export default function MusicPage() {
     try {
       const url = `${window.location.origin}${getFileUrl(`/files/${track.id}/stream`)}`;
       await navigator.clipboard.writeText(url);
-      toast('Enlace copiado al portapapeles', 'success');
+      toast(t('music.linkCopied'), 'success');
     } catch {
-      toast('Error al copiar el enlace', 'error');
+      toast(t('music.linkCopyError'), 'error');
     }
     closeContextMenu();
   };
@@ -273,9 +275,9 @@ export default function MusicPage() {
       setTracks(prev => prev.map(t =>
         t.id === track.id ? { ...t, isFavorite: !t.isFavorite } : t
       ));
-      toast(track.isFavorite ? 'Eliminado de favoritos' : 'Añadido a favoritos', 'success');
+      toast(track.isFavorite ? t('music.removedFromFavorites') : t('music.addedToFavorites'), 'success');
     } catch {
-      toast('Error al actualizar favorito', 'error');
+      toast(t('music.favoriteError'), 'error');
     }
     closeContextMenu();
   };
@@ -288,15 +290,15 @@ export default function MusicPage() {
       if (isMultiSelect) {
         const promises = Array.from(selectedItems).map(id => api.delete(`/files/${id}`));
         await Promise.all(promises);
-        toast(`${selectedItems.size} canciones eliminadas`, 'success');
+        toast(t('music.songsDeleted', { count: selectedItems.size }), 'success');
         clearSelection();
       } else {
         await api.delete(`/files/${track.id}`);
-        toast('Canción movida a la papelera', 'success');
+        toast(t('music.songMovedToTrash'), 'success');
       }
       loadData();
     } catch {
-      toast('Error al eliminar', 'error');
+      toast(t('music.deleteError'), 'error');
     }
     closeContextMenu();
   };
@@ -332,7 +334,7 @@ export default function MusicPage() {
 
     tracks.forEach(track => {
       const folderId = track.folderId || 'no-folder';
-      const folderName = folders[folderId] || 'Sin álbum';
+      const folderName = folders[folderId] || t('music.noAlbum');
 
       if (!groups[folderId]) {
         groups[folderId] = {
@@ -403,7 +405,7 @@ export default function MusicPage() {
                   {selectedAlbumData.name}
                 </h2>
                 <p className="text-sm text-dark-500">
-                  {albumTracks.length} {albumTracks.length === 1 ? 'canción' : 'canciones'}
+                  {t('music.songsCount', { count: albumTracks.length })}
                 </p>
               </div>
             </div>
@@ -530,7 +532,7 @@ export default function MusicPage() {
                       {album.name}
                     </p>
                     <p className="text-xs text-dark-500">
-                      {album.tracks.length} {album.tracks.length === 1 ? 'canción' : 'canciones'}
+                      {t('music.songsCount', { count: album.tracks.length })}
                     </p>
                   </div>
                 </div>
@@ -540,8 +542,8 @@ export default function MusicPage() {
         ) : (
           <div className="flex flex-col items-center justify-center h-64 text-dark-500">
             <Disc className="w-16 h-16 mb-4 opacity-50" />
-            <p className="text-lg font-medium">No hay álbumes</p>
-            <p className="text-sm">Organiza tu música en carpetas para crear álbumes</p>
+            <p className="text-lg font-medium">{t('music.noAlbums')}</p>
+            <p className="text-sm">{t('music.organizeInFolders')}</p>
           </div>
         )}
       </div>
@@ -680,8 +682,8 @@ export default function MusicPage() {
       ) : (
         <div className="flex flex-col items-center justify-center h-64 text-dark-500">
           <Music className="w-16 h-16 mb-4 opacity-50" />
-          <p className="text-lg font-medium">No hay música</p>
-          <p className="text-sm">Sube archivos de audio para verlos aquí</p>
+          <p className="text-lg font-medium">{t('music.noMusic')}</p>
+          <p className="text-sm">{t('music.uploadAudioFiles')}</p>
         </div>
       )}
 
@@ -717,7 +719,7 @@ export default function MusicPage() {
               {isMultiSelect && (
                 <>
                   <div className="px-4 py-2 text-sm font-medium text-dark-500 dark:text-dark-400">
-                    {selectedCount} canciones seleccionadas
+                    {t('music.songsSelected', { count: selectedCount })}
                   </div>
                   <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
                 </>
@@ -726,68 +728,68 @@ export default function MusicPage() {
               {/* Single item actions */}
               {!isMultiSelect && (
                 <>
-                  {/* Reproducir */}
+                  {/* Play */}
                   <div className="px-2 py-1">
                     <button
                       onClick={() => handlePlayFromMenu(contextMenu.track)}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
                     >
                       <Play className="w-5 h-5" />
-                      <span>Reproducir</span>
+                      <span>{t('music.play')}</span>
                     </button>
                     <button
                       onClick={() => handleAddToQueue(contextMenu.track)}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
                     >
                       <ListPlus className="w-5 h-5" />
-                      <span>Añadir a la cola</span>
+                      <span>{t('music.addToQueue')}</span>
                     </button>
                   </div>
 
                   <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
 
-                  {/* Acciones de archivo */}
+                  {/* File actions */}
                   <div className="px-2 py-1">
                     <button
                       onClick={() => handleDownload(contextMenu.track)}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
                     >
                       <Download className="w-5 h-5" />
-                      <span>Descargar</span>
+                      <span>{t('common.download')}</span>
                     </button>
                     <button
                       onClick={() => handleShare(contextMenu.track)}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
                     >
                       <Share2 className="w-5 h-5" />
-                      <span>Compartir</span>
+                      <span>{t('common.share')}</span>
                     </button>
                     <button
                       onClick={() => handleCopyLink(contextMenu.track)}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
                     >
                       <Copy className="w-5 h-5" />
-                      <span>Copiar enlace</span>
+                      <span>{t('music.copyLink')}</span>
                     </button>
                   </div>
 
                   <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
 
-                  {/* Organización */}
+                  {/* Organization */}
                   <div className="px-2 py-1">
                     <button
                       onClick={() => handleFavoriteFromMenu(contextMenu.track)}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
                     >
                       <Star className={cn('w-5 h-5', contextMenu.track.isFavorite && 'fill-yellow-500 text-yellow-500')} />
-                      <span>{contextMenu.track.isFavorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}</span>
+                      <span>{contextMenu.track.isFavorite ? t('music.removeFromFavorites') : t('music.addToFavorites')}</span>
                     </button>
                     <button
                       onClick={() => handleShowInfo(contextMenu.track)}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
                     >
                       <Info className="w-5 h-5" />
-                      <span>Información</span>
+                      <span>{t('common.info')}</span>
                     </button>
                   </div>
 
@@ -808,7 +810,7 @@ export default function MusicPage() {
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
                     >
                       <ListPlus className="w-5 h-5" />
-                      <span>Añadir {selectedCount} a la cola</span>
+                      <span>{t('music.addCountToQueue', { count: selectedCount })}</span>
                     </button>
                     <button
                       onClick={() => {
@@ -818,7 +820,7 @@ export default function MusicPage() {
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
                     >
                       <Download className="w-5 h-5" />
-                      <span>Descargar {selectedCount} canciones</span>
+                      <span>{t('music.downloadSongs', { count: selectedCount })}</span>
                     </button>
                   </div>
 
@@ -826,14 +828,14 @@ export default function MusicPage() {
                 </>
               )}
 
-              {/* Eliminar - siempre visible */}
+              {/* Delete - always visible */}
               <div className="px-2 py-1">
                 <button
                   onClick={() => handleDelete(contextMenu.track)}
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                 >
                   <Trash2 className="w-5 h-5" />
-                  <span>{isMultiSelect ? `Eliminar ${selectedCount} canciones` : 'Eliminar'}</span>
+                  <span>{isMultiSelect ? t('music.deleteSongs', { count: selectedCount }) : t('common.delete')}</span>
                 </button>
               </div>
             </motion.div>
@@ -888,28 +890,28 @@ export default function MusicPage() {
 
             <div className="space-y-3 mb-6">
               <div className="flex justify-between py-2 border-b border-dark-200 dark:border-dark-700">
-                <span className="text-dark-500">Tamaño</span>
+                <span className="text-dark-500">{t('music.size')}</span>
                 <span className="text-dark-900 dark:text-white font-medium">{formatSize(Number(infoTrack.size))}</span>
               </div>
               <div className="flex justify-between py-2 border-b border-dark-200 dark:border-dark-700">
-                <span className="text-dark-500">Duración</span>
+                <span className="text-dark-500">{t('music.duration')}</span>
                 <span className="text-dark-900 dark:text-white font-medium">
-                  {trackDurations[infoTrack.id] ? formatTime(trackDurations[infoTrack.id]) : 'Calculando...'}
+                  {trackDurations[infoTrack.id] ? formatTime(trackDurations[infoTrack.id]) : t('music.calculating')}
                 </span>
               </div>
               <div className="flex justify-between py-2 border-b border-dark-200 dark:border-dark-700">
-                <span className="text-dark-500">Fecha de subida</span>
+                <span className="text-dark-500">{t('music.uploadDate')}</span>
                 <span className="text-dark-900 dark:text-white font-medium">{formatDate(infoTrack.createdAt)}</span>
               </div>
               <div className="flex justify-between py-2">
-                <span className="text-dark-500">Favorito</span>
-                <span className="text-dark-900 dark:text-white font-medium">{infoTrack.isFavorite ? 'Sí' : 'No'}</span>
+                <span className="text-dark-500">{t('music.favorite')}</span>
+                <span className="text-dark-900 dark:text-white font-medium">{infoTrack.isFavorite ? t('common.yes') : t('common.no')}</span>
               </div>
             </div>
 
             <div className="flex justify-end">
               <Button onClick={() => setInfoTrack(null)}>
-                Cerrar
+                {t('common.close')}
               </Button>
             </div>
           </motion.div>
@@ -930,27 +932,27 @@ export default function MusicPage() {
                 <FolderPlus className="w-6 h-6 text-primary-600" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-dark-900 dark:text-white">Nuevo álbum</h3>
-                <p className="text-sm text-dark-500">Crea una carpeta para organizar tu música</p>
+                <h3 className="text-lg font-semibold text-dark-900 dark:text-white">{t('music.newAlbum')}</h3>
+                <p className="text-sm text-dark-500">{t('music.createFolderForMusic')}</p>
               </div>
             </div>
             
             <form onSubmit={(e) => { e.preventDefault(); handleCreateAlbum(); }}>
               <Input
-                label="Nombre del álbum"
+                label={t('music.albumName')}
                 value={newAlbumName}
                 onChange={(e) => setNewAlbumName(e.target.value)}
-                placeholder="Mi nuevo álbum"
+                placeholder={t('music.myNewAlbum')}
                 autoFocus
               />
               
               <div className="flex justify-end gap-3 mt-6">
                 <Button 
                   type="button" 
-                  variant="outline" 
+                  variant="secondary" 
                   onClick={() => setCreateAlbumOpen(false)}
                 >
-                  Cancelar
+                  {t('common.cancel')}
                 </Button>
                 <Button 
                   type="submit" 
@@ -958,7 +960,7 @@ export default function MusicPage() {
                   loading={creatingAlbum}
                 >
                   <Plus className="w-4 h-4 mr-2" />
-                  Crear álbum
+                  {t('music.createAlbum')}
                 </Button>
               </div>
             </form>

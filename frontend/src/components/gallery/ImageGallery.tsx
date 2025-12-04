@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { 
   X, 
   ChevronLeft, 
@@ -34,6 +35,7 @@ export default function ImageGallery({
   onShare,
   onDownload,
 }: ImageGalleryProps) {
+  const { t } = useTranslation();
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [isPlaying, setIsPlaying] = useState(false);
   const [zoom, setZoom] = useState(1);
@@ -201,7 +203,7 @@ export default function ImageGallery({
               <button
                 onClick={() => onDownload(currentImage)}
                 className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-                title="Descargar"
+                title={t('gallery.download')}
               >
                 <Download className="w-5 h-5" />
               </button>
@@ -210,7 +212,7 @@ export default function ImageGallery({
               <button
                 onClick={() => onShare(currentImage)}
                 className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-                title="Compartir"
+                title={t('gallery.share')}
               >
                 <Share2 className="w-5 h-5" />
               </button>
@@ -218,7 +220,7 @@ export default function ImageGallery({
             <button
               onClick={onClose}
               className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-              title="Cerrar (Esc)"
+              title={t('gallery.close')}
             >
               <X className="w-5 h-5" />
             </button>
@@ -255,7 +257,7 @@ export default function ImageGallery({
               'absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-black/50 hover:bg-black/70 text-white rounded-full transition-all',
               showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
             )}
-            title="Anterior (←)"
+            title={t('gallery.previous')}
           >
             <ChevronLeft className="w-6 h-6" />
           </button>
@@ -265,7 +267,7 @@ export default function ImageGallery({
               'absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-black/50 hover:bg-black/70 text-white rounded-full transition-all',
               showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
             )}
-            title="Siguiente (→)"
+            title={t('gallery.next')}
           >
             <ChevronRight className="w-6 h-6" />
           </button>
@@ -290,7 +292,7 @@ export default function ImageGallery({
                   ? 'bg-primary-500 text-white'
                   : 'text-white/80 hover:text-white hover:bg-white/10'
               )}
-              title={isPlaying ? 'Pausar (Espacio)' : 'Reproducir (Espacio)'}
+              title={isPlaying ? t('gallery.pause') : t('gallery.play')}
             >
               {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
             </button>
@@ -303,7 +305,7 @@ export default function ImageGallery({
             onClick={handleZoomOut}
             disabled={zoom <= 0.5}
             className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Alejar (-)"
+            title={t('gallery.zoomOut')}
           >
             <ZoomOut className="w-5 h-5" />
           </button>
@@ -314,7 +316,7 @@ export default function ImageGallery({
             onClick={handleZoomIn}
             disabled={zoom >= 3}
             className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Acercar (+)"
+            title={t('gallery.zoomIn')}
           >
             <ZoomIn className="w-5 h-5" />
           </button>
@@ -325,7 +327,7 @@ export default function ImageGallery({
           <button
             onClick={handleRotate}
             className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-            title="Rotar (R)"
+            title={t('gallery.rotate')}
           >
             <RotateCw className="w-5 h-5" />
           </button>
@@ -337,7 +339,7 @@ export default function ImageGallery({
               setRotation(0);
             }}
             className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-            title="Restablecer (0)"
+            title={t('gallery.reset')}
           >
             <Maximize2 className="w-5 h-5" />
           </button>

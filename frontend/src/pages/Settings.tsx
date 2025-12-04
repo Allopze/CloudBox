@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../stores/authStore';
 import { useThemeStore } from '../stores/themeStore';
 import { api } from '../lib/api';
@@ -20,6 +21,7 @@ interface StorageRequest {
 }
 
 export default function Settings() {
+  const { t } = useTranslation();
   const { user, updateUser } = useAuthStore();
   const { isDark, toggleTheme } = useThemeStore();
 
@@ -52,9 +54,9 @@ export default function Settings() {
     try {
       const response = await api.patch('/users/me', { name, email });
       updateUser(response.data);
-      toast('Perfil actualizado', 'success');
+      toast(t('settings.profileUpdated'), 'success');
     } catch (error: any) {
-      toast(error.response?.data?.message || 'Error al actualizar perfil', 'error');
+      toast(error.response?.data?.message || t('settings.profileUpdateError'), 'error');
     } finally {
       setSaving(false);
     }
@@ -62,11 +64,11 @@ export default function Settings() {
 
   const handleChangePassword = async () => {
     if (newPassword !== confirmPassword) {
-      toast('Las contraseñas no coinciden', 'error');
+      toast(t('settings.passwordMismatch'), 'error');
       return;
     }
     if (newPassword.length < 8) {
-      toast('La contraseña debe tener al menos 8 caracteres', 'error');
+      toast(t('settings.passwordTooShort'), 'error');
       return;
     }
 
@@ -79,9 +81,9 @@ export default function Settings() {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      toast('Contraseña actualizada', 'success');
+      toast(t('settings.passwordUpdated'), 'success');
     } catch (error: any) {
-      toast(error.response?.data?.error || 'Error al cambiar contraseña', 'error');
+      toast(error.response?.data?.error || t('settings.passwordUpdateError'), 'error');
     } finally {
       setSavingPassword(false);
     }
@@ -97,13 +99,13 @@ export default function Settings() {
 
     // Validate file type
     if (!['image/jpeg', 'image/png', 'image/gif'].includes(file.type)) {
-      toast('Solo se permiten archivos JPG, PNG o GIF', 'error');
+      toast(t('settings.photoRequirements'), 'error');
       return;
     }
 
     // Validate file size (5MB max)
     if (file.size > 5 * 1024 * 1024) {
-      toast('El archivo no puede superar los 5MB', 'error');
+      toast(t('settings.photoRequirements'), 'error');
       return;
     }
 
@@ -117,9 +119,9 @@ export default function Settings() {
       });
 
       updateUser({ avatar: response.data.avatar + '?t=' + Date.now() });
-      toast('Foto de perfil actualizada', 'success');
+      toast(t('settings.profileUpdated'), 'success');
     } catch (error: any) {
-      toast(error.response?.data?.error || 'Error al subir la foto', 'error');
+      toast(error.response?.data?.error || t('settings.profileUpdateError'), 'error');
     } finally {
       setUploadingAvatar(false);
       if (fileInputRef.current) {
@@ -150,7 +152,7 @@ export default function Settings() {
 
   const handleSubmitStorageRequest = async () => {
     if (!requestReason.trim()) {
-      toast('Por favor, indica el motivo de tu solicitud', 'error');
+      toast(t('settings.reasonRequired'), 'error');
       return;
     }
 
@@ -160,12 +162,12 @@ export default function Settings() {
         requestedQuota,
         reason: requestReason,
       });
-      toast('Solicitud enviada correctamente', 'success');
+      toast(t('settings.requestSent'), 'success');
       setShowStorageModal(false);
       setRequestReason('');
       loadStorageRequests();
     } catch (error: any) {
-      toast(error.response?.data?.error || 'Error al enviar la solicitud', 'error');
+      toast(error.response?.data?.error || t('settings.requestError'), 'error');
     } finally {
       setSubmittingRequest(false);
     }
@@ -181,10 +183,10 @@ export default function Settings() {
         storageQuota: response.data.storageQuota,
         storageUsed: response.data.storageUsed,
       });
-      toast('Cuota actualizada', 'success');
+      toast(t('settings.quotaUpdated'), 'success');
       setShowStorageModal(false);
     } catch (error: any) {
-      toast(error.response?.data?.error || 'Error al actualizar la cuota', 'error');
+      toast(error.response?.data?.error || t('settings.quotaUpdateError'), 'error');
     } finally {
       setSavingQuota(false);
     }
@@ -196,21 +198,21 @@ export default function Settings() {
         return (
           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
             <Clock className="w-3 h-3" />
-            Pendiente
+            {t('settings.pending')}
           </span>
         );
       case 'APPROVED':
         return (
           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
             <CheckCircle className="w-3 h-3" />
-            Aprobada
+            {t('settings.approved')}
           </span>
         );
       case 'REJECTED':
         return (
           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
             <XCircle className="w-3 h-3" />
-            Rechazada
+            {t('settings.rejected')}
           </span>
         );
       default:
@@ -239,13 +241,13 @@ export default function Settings() {
       <section className="bg-white dark:bg-dark-800 rounded-2xl border border-dark-100 dark:border-dark-700 p-6 mb-6">
         <div className="flex items-center gap-2 mb-1">
           <User className="w-4 h-4 text-[#FF3B3B]" />
-          <h2 className="text-lg font-semibold text-dark-900 dark:text-white">Mi Perfil</h2>
+          <h2 className="text-lg font-semibold text-dark-900 dark:text-white">{t('settings.myProfile')}</h2>
         </div>
-        <p className="text-sm text-dark-500 dark:text-dark-400 mb-6">Actualiza tu información personal</p>
+        <p className="text-sm text-dark-500 dark:text-dark-400 mb-6">{t('settings.updateInfo')}</p>
 
         {/* Foto de Perfil */}
         <div className="mb-6">
-          <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-2">Foto de Perfil</label>
+          <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-2">{t('settings.profilePhoto')}</label>
           <div className="flex items-center gap-4">
             {user?.avatar ? (
               <img src={user.avatar} alt={user.name} className="w-12 h-12 rounded-full object-cover" />
@@ -261,23 +263,23 @@ export default function Settings() {
               onClick={handleAvatarClick}
               disabled={uploadingAvatar}
             >
-              {uploadingAvatar ? 'Subiendo...' : 'Subir foto'}
+              {uploadingAvatar ? t('settings.uploading') : t('settings.uploadPhoto')}
             </Button>
-            <span className="text-xs text-dark-400">JPG, PNG o GIF. Máximo 5MB.</span>
+            <span className="text-xs text-dark-400">{t('settings.photoRequirements')}</span>
           </div>
         </div>
 
         {/* Form Fields */}
         <div className="grid grid-cols-2 gap-4 mb-6">
           <Input
-            label="Nombre Completo"
+            label={t('settings.fullName')}
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Tu nombre completo"
+            placeholder={t('settings.fullName')}
             required
           />
           <div>
-            <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">Nombre de Usuario</label>
+            <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">{t('settings.username')}</label>
             <input
               type="text"
               value={user?.email?.split('@')[0] || ''}
@@ -286,34 +288,34 @@ export default function Settings() {
             />
             <p className="text-xs text-dark-400 mt-1 flex items-center gap-1">
               <span className="w-3 h-3 rounded-full border border-dark-300 flex items-center justify-center text-[8px]">i</span>
-              El nombre de usuario no se puede cambiar
+              {t('settings.usernameNote')}
             </p>
           </div>
         </div>
 
         <div className="mb-6">
           <Input
-            label="Email"
+            label={t('settings.email')}
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="tu@email.com"
+            placeholder={t('settings.email')}
             required
           />
         </div>
 
         {/* Información de la cuenta */}
         <div className="mb-6">
-          <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-2">Información de la cuenta</label>
+          <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-2">{t('settings.accountInfo')}</label>
           <div className="grid grid-cols-2 gap-4">
             <div className="flex items-center gap-3 p-3 bg-dark-50 dark:bg-dark-900 rounded-xl">
               <div className="w-10 h-10 rounded-xl bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
                 <Calendar className="w-5 h-5 text-primary-600" />
               </div>
               <div>
-                <p className="text-xs text-dark-500">Miembro desde</p>
+                <p className="text-xs text-dark-500">{t('settings.memberSince')}</p>
                 <p className="font-medium text-dark-900 dark:text-white">
-                  {user?.createdAt ? new Date(user.createdAt).toLocaleDateString('es-ES') : '-'}
+                  {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : '-'}
                 </p>
               </div>
             </div>
@@ -322,7 +324,7 @@ export default function Settings() {
                 <ShieldIcon className="w-5 h-5 text-orange-600" />
               </div>
               <div>
-                <p className="text-xs text-dark-500">Rol</p>
+                <p className="text-xs text-dark-500">{t('settings.role')}</p>
                 <p className="font-medium text-dark-900 dark:text-white">{user?.role || '-'}</p>
               </div>
             </div>
@@ -331,9 +333,9 @@ export default function Settings() {
 
         {/* Footer */}
         <div className="flex items-center justify-between pt-4 border-t border-dark-100 dark:border-dark-700">
-          <p className="text-xs text-dark-400">Los campos marcados con <span className="text-[#FF3B3B]">*</span> son obligatorios</p>
+          <p className="text-xs text-dark-400">{t('settings.requiredFields')}</p>
           <Button onClick={handleUpdateProfile} loading={saving} icon={<Save className="w-4 h-4" />}>
-            Guardar Cambios
+            {t('settings.saveChanges')}
           </Button>
         </div>
       </section>
@@ -342,32 +344,32 @@ export default function Settings() {
       <section className="bg-white dark:bg-dark-800 rounded-2xl border border-dark-100 dark:border-dark-700 p-6 mb-6">
         <div className="flex items-center gap-2 mb-1">
           <Lock className="w-4 h-4 text-[#FF3B3B]" />
-          <h2 className="text-lg font-semibold text-dark-900 dark:text-white">Seguridad</h2>
+          <h2 className="text-lg font-semibold text-dark-900 dark:text-white">{t('settings.security')}</h2>
         </div>
-        <p className="text-sm text-dark-500 dark:text-dark-400 mb-6">Protege tu cuenta y mantén tus datos seguros</p>
+        <p className="text-sm text-dark-500 dark:text-dark-400 mb-6">{t('settings.securityDescription')}</p>
 
         <div className="grid grid-cols-3 gap-4 mb-4">
           <Input
-            label="Contraseña actual"
+            label={t('settings.currentPassword')}
             type="password"
             value={currentPassword}
             onChange={(e) => setCurrentPassword(e.target.value)}
           />
           <Input
-            label="Nueva contraseña"
+            label={t('settings.newPassword')}
             type="password"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
           />
           <Input
-            label="Confirmar contraseña"
+            label={t('settings.confirmPassword')}
             type="password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
           />
         </div>
         <Button onClick={handleChangePassword} loading={savingPassword} variant="secondary" icon={<Lock className="w-4 h-4" />}>
-          Cambiar Contraseña
+          {t('settings.changePassword')}
         </Button>
       </section>
 
@@ -375,9 +377,9 @@ export default function Settings() {
       <section className="bg-white dark:bg-dark-800 rounded-2xl border border-dark-100 dark:border-dark-700 p-6 mb-6">
         <div className="flex items-center gap-2 mb-1">
           <Sun className="w-4 h-4 text-[#FF3B3B]" />
-          <h2 className="text-lg font-semibold text-dark-900 dark:text-white">Apariencia</h2>
+          <h2 className="text-lg font-semibold text-dark-900 dark:text-white">{t('settings.appearance')}</h2>
         </div>
-        <p className="text-sm text-dark-500 dark:text-dark-400 mb-4">Personaliza la interfaz</p>
+        <p className="text-sm text-dark-500 dark:text-dark-400 mb-4">{t('settings.customizeInterface')}</p>
 
         <div className="flex items-center gap-3">
           <button
@@ -387,7 +389,7 @@ export default function Settings() {
             }`}
           >
             <Sun className="w-4 h-4" />
-            <span className="text-sm font-medium">Claro</span>
+            <span className="text-sm font-medium">{t('settings.light')}</span>
           </button>
           <button
             onClick={() => !isDark && toggleTheme()}
@@ -396,7 +398,7 @@ export default function Settings() {
             }`}
           >
             <Moon className="w-4 h-4" />
-            <span className="text-sm font-medium">Oscuro</span>
+            <span className="text-sm font-medium">{t('settings.dark')}</span>
           </button>
         </div>
       </section>
@@ -405,9 +407,9 @@ export default function Settings() {
       <section className="bg-white dark:bg-dark-800 rounded-2xl border border-dark-100 dark:border-dark-700 p-6">
         <div className="flex items-center gap-2 mb-1">
           <HardDrive className="w-4 h-4 text-[#FF3B3B]" />
-          <h2 className="text-lg font-semibold text-dark-900 dark:text-white">Almacenamiento</h2>
+          <h2 className="text-lg font-semibold text-dark-900 dark:text-white">{t('settings.storageSection')}</h2>
         </div>
-        <p className="text-sm text-dark-500 dark:text-dark-400 mb-4">Espacio usado en tu cuenta</p>
+        <p className="text-sm text-dark-500 dark:text-dark-400 mb-4">{t('settings.storageDescription')}</p>
 
         <div className="flex items-center gap-4">
           <div className="flex-1">
@@ -420,7 +422,7 @@ export default function Settings() {
             </div>
           </div>
           <Button variant="secondary" size="sm" onClick={handleOpenStorageModal}>
-            {user?.role === 'ADMIN' ? 'Ajustar cuota' : 'Ampliar'}
+            {user?.role === 'ADMIN' ? t('settings.adjustQuota') : t('settings.expand')}
           </Button>
         </div>
 
@@ -431,7 +433,7 @@ export default function Settings() {
               onClick={() => setShowRequestsHistory(!showRequestsHistory)}
               className="text-sm text-primary-600 hover:text-primary-700"
             >
-              {showRequestsHistory ? 'Ocultar historial' : 'Ver historial de solicitudes'}
+              {showRequestsHistory ? t('settings.hideHistory') : t('settings.viewHistory')}
             </button>
             
             {showRequestsHistory && (
@@ -441,7 +443,7 @@ export default function Settings() {
                     <Loader2 className="w-5 h-5 animate-spin text-primary-600" />
                   </div>
                 ) : storageRequests.length === 0 ? (
-                  <p className="text-sm text-dark-500 text-center py-4">No hay solicitudes previas</p>
+                  <p className="text-sm text-dark-500 text-center py-4">{t('settings.noRequests')}</p>
                 ) : (
                   storageRequests.map((request) => (
                     <div
@@ -450,16 +452,16 @@ export default function Settings() {
                     >
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-sm font-medium text-dark-900 dark:text-white">
-                          Solicitud: {formatBytes(request.requestedQuota)}
+                          {t('settings.requestedQuota', { quota: formatBytes(request.requestedQuota) })}
                         </span>
                         {getStatusBadge(request.status)}
                       </div>
                       <p className="text-xs text-dark-500">
-                        {new Date(request.createdAt).toLocaleDateString('es-ES')}
+                        {new Date(request.createdAt).toLocaleDateString()}
                       </p>
                       {request.adminResponse && (
                         <p className="text-xs text-dark-600 dark:text-dark-400 mt-1 italic">
-                          Respuesta: {request.adminResponse}
+                          {t('settings.response', { response: request.adminResponse })}
                         </p>
                       )}
                     </div>
@@ -475,18 +477,18 @@ export default function Settings() {
       <Modal
         isOpen={showStorageModal}
         onClose={() => setShowStorageModal(false)}
-        title={user?.role === 'ADMIN' ? 'Ajustar cuota de almacenamiento' : 'Solicitar más almacenamiento'}
+        title={user?.role === 'ADMIN' ? t('settings.adjustQuotaTitle') : t('settings.requestMoreStorage')}
       >
         {user?.role === 'ADMIN' ? (
           /* Admin: Ajustar cuota directamente */
           <div className="space-y-4">
             <p className="text-sm text-dark-500 dark:text-dark-400">
-              Como administrador, puedes ajustar tu cuota de almacenamiento directamente.
+              {t('settings.adminQuotaDescription')}
             </p>
             
             <div>
               <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">
-                Nueva cuota de almacenamiento
+                {t('settings.newQuota')}
               </label>
               <select
                 value={adminQuota}
@@ -506,10 +508,10 @@ export default function Settings() {
 
             <div className="flex justify-end gap-3 mt-6">
               <Button variant="ghost" onClick={() => setShowStorageModal(false)}>
-                Cancelar
+                {t('common.cancel')}
               </Button>
               <Button onClick={handleSaveAdminQuota} loading={savingQuota}>
-                Guardar
+                {t('settings.save')}
               </Button>
             </div>
           </div>
@@ -520,21 +522,21 @@ export default function Settings() {
               <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
                 <div className="flex items-center gap-2 text-yellow-800 dark:text-yellow-400">
                   <Clock className="w-5 h-5" />
-                  <span className="font-medium">Solicitud pendiente</span>
+                  <span className="font-medium">{t('settings.pendingRequestTitle')}</span>
                 </div>
                 <p className="text-sm text-yellow-700 dark:text-yellow-500 mt-1">
-                  Ya tienes una solicitud de almacenamiento pendiente. Espera a que un administrador la revise.
+                  {t('settings.pendingRequestMessage')}
                 </p>
               </div>
             ) : (
               <>
                 <p className="text-sm text-dark-500 dark:text-dark-400">
-                  Envía una solicitud al administrador para aumentar tu cuota de almacenamiento.
+                  {t('settings.sendRequestDescription')}
                 </p>
 
                 <div>
                   <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">
-                    Cuota actual
+                    {t('settings.currentQuota')}
                   </label>
                   <div className="input w-full bg-dark-50 dark:bg-dark-900">
                     {formatBytes(user?.storageQuota || 0)}
@@ -543,7 +545,7 @@ export default function Settings() {
 
                 <div>
                   <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">
-                    Cuota solicitada
+                    {t('settings.requestedQuotaLabel')}
                   </label>
                   <select
                     value={requestedQuota}
@@ -560,22 +562,22 @@ export default function Settings() {
 
                 <div>
                   <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">
-                    Motivo de la solicitud <span className="text-red-500">*</span>
+                    {t('settings.reasonLabel')} <span className="text-red-500">*</span>
                   </label>
                   <textarea
                     value={requestReason}
                     onChange={(e) => setRequestReason(e.target.value)}
                     className="input w-full h-24 resize-none"
-                    placeholder="Explica por qué necesitas más almacenamiento..."
+                    placeholder={t('settings.reasonPlaceholder')}
                   />
                 </div>
 
                 <div className="flex justify-end gap-3 mt-6">
                   <Button variant="ghost" onClick={() => setShowStorageModal(false)}>
-                    Cancelar
+                    {t('common.cancel')}
                   </Button>
                   <Button onClick={handleSubmitStorageRequest} loading={submittingRequest}>
-                    Enviar solicitud
+                    {t('settings.sendRequest')}
                   </Button>
                 </div>
               </>
