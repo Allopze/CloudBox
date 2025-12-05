@@ -1,6 +1,55 @@
 import { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import crypto from 'crypto';
+import Redis from 'ioredis';
+import type { Redis as RedisType } from 'ioredis';
+import logger from './logger.js';
+
+// Redis configuration for distributed rate limiting
+const RATE_LIMIT_REDIS_CONFIG = {
+  host: process.env.REDIS_HOST || 'localhost',
+  port: parseInt(process.env.REDIS_PORT || '6379'),
+  password: process.env.REDIS_PASSWORD || undefined,
+  db: parseInt(process.env.REDIS_DB || '0'),
+  keyPrefix: 'ratelimit:',
+};
+
+let rateLimitRedis: RedisType | null = null;
+let isRedisAvailable = false;
+
+/**
+ * Initialize Redis for distributed rate limiting
+ * Called during app startup
+ */
+export async function initRateLimitRedis(): Promise<boolean> {
+  try {
+    // @ts-ignore - ioredis types issue with ESM
+    rateLimitRedis = new Redis({
+      ...RATE_LIMIT_REDIS_CONFIG,
+      maxRetriesPerRequest: 3,
+      lazyConnect: true,
+    });
+
+    await rateLimitRedis!.connect();
+    isRedisAvailable = true;
+    logger.info('Distributed rate limiting initialized with Redis');
+    return true;
+  } catch (error) {
+    logger.warn('Rate limiting using in-memory fallback (single-node only)', {
+      error: error instanceof Error ? error.message : 'Unknown',
+    });
+    rateLimitRedis = null;
+    isRedisAvailable = false;
+    return false;
+  }
+}
+
+/**
+ * Check if distributed rate limiting is available
+ */
+export function isDistributedRateLimitAvailable(): boolean {
+  return isRedisAvailable && rateLimitRedis !== null;
+}
 
 /**
  * Sanitize filename to prevent path traversal attacks
@@ -168,7 +217,7 @@ export function sanitizeSearchQuery(query: string): string {
 }
 
 /**
- * Rate limit store for per-user limiting
+ * Rate limit store for per-user limiting (in-memory fallback)
  */
 interface RateLimitEntry {
   count: number;
@@ -178,7 +227,66 @@ interface RateLimitEntry {
 const userRateLimits = new Map<string, RateLimitEntry>();
 
 /**
- * Check if user has exceeded rate limit
+ * Check if user has exceeded rate limit using Redis (distributed)
+ * Falls back to in-memory if Redis is unavailable
+ */
+export async function checkUserRateLimitDistributed(
+  userId: string,
+  maxRequests: number,
+  windowMs: number
+): Promise<{ allowed: boolean; remaining: number; resetAt: number }> {
+  const now = Date.now();
+  const windowSeconds = Math.ceil(windowMs / 1000);
+  
+  // Try Redis first for distributed rate limiting
+  if (isDistributedRateLimitAvailable() && rateLimitRedis) {
+    try {
+      const key = `user:${userId}`;
+      const multi = rateLimitRedis.multi();
+      
+      // Increment the counter
+      multi.incr(key);
+      // Get current count
+      multi.get(key);
+      // Get TTL
+      multi.ttl(key);
+      
+      const results = await multi.exec();
+      
+      if (!results) {
+        throw new Error('Redis multi exec failed');
+      }
+      
+      const currentCount = parseInt(results[1]?.[1] as string || '1');
+      const ttl = parseInt(results[2]?.[1] as string || '-1');
+      
+      // If key is new (no TTL), set expiration
+      if (ttl === -1) {
+        await rateLimitRedis.expire(key, windowSeconds);
+      }
+      
+      const resetAt = ttl > 0 ? now + (ttl * 1000) : now + windowMs;
+      const remaining = Math.max(0, maxRequests - currentCount);
+      
+      return {
+        allowed: currentCount <= maxRequests,
+        remaining,
+        resetAt,
+      };
+    } catch (error) {
+      logger.debug('Redis rate limit check failed, using fallback', {
+        error: error instanceof Error ? error.message : 'Unknown',
+      });
+      // Fall through to in-memory fallback
+    }
+  }
+  
+  // In-memory fallback (single-node only)
+  return checkUserRateLimit(userId, maxRequests, windowMs);
+}
+
+/**
+ * Check if user has exceeded rate limit (in-memory, single-node)
  */
 export function checkUserRateLimit(
   userId: string,
@@ -207,10 +315,10 @@ export function checkUserRateLimit(
 }
 
 /**
- * Middleware for per-user rate limiting
+ * Middleware for per-user rate limiting (with Redis support for multi-node)
  */
 export function userRateLimiter(maxRequests: number, windowMs: number) {
-  return (req: Request, res: Response, next: NextFunction): void => {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const userId = req.user?.userId;
     
     // Skip if no user (handled by IP-based rate limiter)
@@ -219,7 +327,8 @@ export function userRateLimiter(maxRequests: number, windowMs: number) {
       return;
     }
     
-    const result = checkUserRateLimit(userId, maxRequests, windowMs);
+    // Use distributed rate limiting when Redis is available
+    const result = await checkUserRateLimitDistributed(userId, maxRequests, windowMs);
     
     res.setHeader('X-RateLimit-Limit', maxRequests);
     res.setHeader('X-RateLimit-Remaining', result.remaining);
@@ -234,6 +343,16 @@ export function userRateLimiter(maxRequests: number, windowMs: number) {
     }
     
     next();
+  };
+}
+
+/**
+ * Get rate limit statistics for health checks
+ */
+export function getRateLimitStats(): { usingRedis: boolean; inMemoryEntries: number } {
+  return {
+    usingRedis: isDistributedRateLimitAvailable(),
+    inMemoryEntries: userRateLimits.size,
   };
 }
 

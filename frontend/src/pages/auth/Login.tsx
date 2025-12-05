@@ -200,7 +200,6 @@ export default function Login() {
           onChange={(e) => {
             setEmail(e.target.value);
             if (emailError) setEmailError('');
-            if (error) setError('');
           }}
           onBlur={handleEmailBlur}
           icon={<Mail className="w-5 h-5" />}
@@ -224,7 +223,6 @@ export default function Login() {
             onChange={(e) => {
               setPassword(e.target.value);
               if (passwordError) setPasswordError('');
-              if (error) setError('');
             }}
             onBlur={handlePasswordBlur}
             icon={<Lock className="w-5 h-5" />}

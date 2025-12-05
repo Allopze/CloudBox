@@ -5,9 +5,10 @@ import prisma from '../lib/prisma.js';
 import { authenticate, optionalAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { createShareSchema, addCollaboratorSchema, publicLinkPasswordSchema } from '../schemas/index.js';
-import { fileExists } from '../lib/storage.js';
+import { fileExists, isValidUUID } from '../lib/storage.js';
 import archiver from 'archiver';
 import { config } from '../config/index.js';
+import logger from '../lib/logger.js';
 
 const router = Router();
 
@@ -87,7 +88,7 @@ router.post('/', authenticate, validate(createShareSchema), async (req: Request,
       publicUrl: share.publicToken ? `/share/${share.publicToken}` : null,
     });
   } catch (error) {
-    console.error('Create share error:', error);
+    logger.error('Create share error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to create share' });
   }
 });
@@ -143,7 +144,7 @@ router.post('/:id/collaborators', authenticate, validate(addCollaboratorSchema),
 
     res.json({ message: 'Collaborator added successfully' });
   } catch (error) {
-    console.error('Add collaborator error:', error);
+    logger.error('Add collaborator error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to add collaborator' });
   }
 });
@@ -169,7 +170,7 @@ router.delete('/:id/collaborators/:userId', authenticate, async (req: Request, r
 
     res.json({ message: 'Collaborator removed successfully' });
   } catch (error) {
-    console.error('Remove collaborator error:', error);
+    logger.error('Remove collaborator error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to remove collaborator' });
   }
 });
@@ -199,7 +200,7 @@ router.get('/by-me', authenticate, async (req: Request, res: Response) => {
       publicUrl: s.publicToken ? `/share/${s.publicToken}` : null,
     })));
   } catch (error) {
-    console.error('List shares by me error:', error);
+    logger.error('List shares by me error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to list shares' });
   }
 });
@@ -229,7 +230,7 @@ router.get('/with-me', authenticate, async (req: Request, res: Response) => {
       file: c.share.file ? { ...c.share.file, size: c.share.file.size?.toString() } : null,
     })));
   } catch (error) {
-    console.error('List shares with me error:', error);
+    logger.error('List shares with me error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to list shares' });
   }
 });
@@ -268,7 +269,7 @@ router.patch('/:id', authenticate, async (req: Request, res: Response) => {
 
     res.json(updatedShare);
   } catch (error) {
-    console.error('Update share error:', error);
+    logger.error('Update share error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to update share' });
   }
 });
@@ -301,7 +302,7 @@ router.delete('/:id', authenticate, async (req: Request, res: Response) => {
 
     res.json({ message: 'Share deleted successfully' });
   } catch (error) {
-    console.error('Delete share error:', error);
+    logger.error('Delete share error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to delete share' });
   }
 });
@@ -326,7 +327,7 @@ router.post('/bulk-delete', authenticate, async (req: Request, res: Response) =>
 
     res.json({ message: 'Shares deleted successfully' });
   } catch (error) {
-    console.error('Bulk delete shares error:', error);
+    logger.error('Bulk delete shares error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to delete shares' });
   }
 });
@@ -409,7 +410,7 @@ router.get('/public/:token', optionalAuth, async (req: Request, res: Response) =
       folders,
     });
   } catch (error) {
-    console.error('Get public share error:', error);
+    logger.error('Get public share error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to get share' });
   }
 });
@@ -437,7 +438,7 @@ router.post('/public/:token/verify', validate(publicLinkPasswordSchema), async (
 
     res.json({ verified: true });
   } catch (error) {
-    console.error('Verify password error:', error);
+    logger.error('Verify password error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to verify password' });
   }
 });
@@ -484,19 +485,33 @@ router.get('/public/:token/download', async (req: Request, res: Response) => {
       }
     }
 
-    // Update download count
-    await prisma.share.update({
+    // Update download count atomically (prevent race condition)
+    const updatedShare = await prisma.share.update({
       where: { id: share.id },
       data: { downloadCount: { increment: 1 } },
     });
 
+    // Double-check limit after increment (atomic check)
+    if (share.downloadLimit && updatedShare.downloadCount > share.downloadLimit) {
+      // Rollback the increment
+      await prisma.share.update({
+        where: { id: share.id },
+        data: { downloadCount: { decrement: 1 } },
+      });
+      res.status(410).json({ error: 'Download limit reached' });
+      return;
+    }
+
     if (share.file) {
       if (!await fileExists(share.file.path)) {
+        logger.warn('Share file exists in DB but not on disk', { shareId: share.id, path: share.file.path });
         res.status(404).json({ error: 'File not found' });
         return;
       }
 
-      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(share.file.name)}"`);
+      // Safe filename encoding for Content-Disposition
+      const safeFilename = encodeURIComponent(share.file.name).replace(/['()]/g, escape);
+      res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"; filename*=UTF-8''${safeFilename}`);
       res.setHeader('Content-Type', share.file.mimeType);
       res.sendFile(share.file.path);
     } else if (share.folder) {
@@ -531,7 +546,7 @@ router.get('/public/:token/download', async (req: Request, res: Response) => {
       await archive.finalize();
     }
   } catch (error) {
-    console.error('Download public file error:', error);
+    logger.error('Download public file error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to download' });
   }
 });
@@ -620,18 +635,30 @@ router.get('/public/:token/files/:fileId/download', async (req: Request, res: Re
       return;
     }
 
-    // Increment download count for individual file downloads too
-    await prisma.share.update({
+    // Increment download count for individual file downloads too (atomic)
+    const updatedShare = await prisma.share.update({
       where: { id: share.id },
       data: { downloadCount: { increment: 1 } },
     });
 
-    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(file.name)}"`);
+    // Double-check limit after increment
+    if (share.downloadLimit && updatedShare.downloadCount > share.downloadLimit) {
+      await prisma.share.update({
+        where: { id: share.id },
+        data: { downloadCount: { decrement: 1 } },
+      });
+      res.status(410).json({ error: 'Download limit reached' });
+      return;
+    }
+
+    // Safe filename encoding for Content-Disposition
+    const safeFilename = encodeURIComponent(file.name).replace(/['()]/g, escape);
+    res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"; filename*=UTF-8''${safeFilename}`);
     res.setHeader('Content-Type', file.mimeType);
     res.sendFile(file.path);
 
   } catch (error) {
-    console.error('Download shared file error:', error);
+    logger.error('Download shared file error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to download file' });
   }
 });

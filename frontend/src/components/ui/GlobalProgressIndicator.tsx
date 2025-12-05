@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   X,
   ChevronDown,
@@ -119,6 +120,7 @@ function OperationItem({ operation }: { operation: GlobalOperation }) {
 }
 
 export default function GlobalProgressIndicator() {
+  const { t } = useTranslation();
   const { operations, isMinimized, toggleMinimize, clearCompleted } = useGlobalProgressStore();
   const [isExpanded, setIsExpanded] = useState(true);
 
@@ -153,7 +155,7 @@ export default function GlobalProgressIndicator() {
           <>
             <CheckCircle className="w-4 h-4 text-green-600" />
             <span className="text-sm font-medium text-dark-900 dark:text-white">
-              {completedOperations.length} completado(s)
+              {t('progress.completed', { count: completedOperations.length })}
             </span>
           </>
         )}
@@ -174,8 +176,8 @@ export default function GlobalProgressIndicator() {
           )}
           <h4 className="font-medium text-sm text-dark-900 dark:text-white">
             {activeOperations.length > 0
-              ? `${activeOperations.length} operación(es) en progreso`
-              : 'Operaciones completadas'}
+              ? t('progress.inProgress', { count: activeOperations.length })
+              : t('progress.allCompleted')}
           </h4>
         </div>
         <div className="flex items-center gap-1">
@@ -203,7 +205,7 @@ export default function GlobalProgressIndicator() {
         <div className="px-4 py-2 border-b border-dark-200 dark:border-dark-700">
           <Progress value={overallProgress} size="sm" />
           <p className="text-xs text-dark-500 dark:text-dark-400 mt-1 text-center">
-            Total: {completedItems} de {totalItems} elementos
+            {t('progress.total', { completed: completedItems, total: totalItems })}
           </p>
         </div>
       )}
@@ -224,7 +226,7 @@ export default function GlobalProgressIndicator() {
             onClick={clearCompleted}
             className="text-xs text-primary-600 hover:text-primary-700 dark:text-primary-400"
           >
-            Limpiar completados
+            {t('progress.clearCompleted')}
           </button>
         </div>
       )}

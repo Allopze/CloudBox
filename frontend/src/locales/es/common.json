@@ -41,6 +41,14 @@
     "userMenu": "Menú de usuario"
   },
   "sidebar": {
+    "dashboard": "Inicio",
+    "files": "Mis archivos",
+    "documents": "Documentos",
+    "photos": "Galería",
+    "music": "Música",
+    "shared": "Compartidos",
+    "trash": "Papelera",
+    "settings": "Configuración",
     "storage": "Almacenamiento",
     "emptyTrash": "Vaciar papelera",
     "emptying": "Vaciando...",
@@ -70,11 +78,11 @@
     "photos": "fotos",
     "addPhotos": "Añadir fotos",
     "all": "Todo",
-    "videos": "Videos",
+    "videos": "Vídeos",
     "screenshots": "Capturas",
     "albums": "Álbumes",
     "newAlbum": "Nuevo álbum",
-    "pdfs": "PDFs",
+    "pdfs": "Archivos PDF",
     "text": "Texto",
     "spreadsheet": "Cálculo",
     "presentations": "Presentaciones",
@@ -151,10 +159,18 @@
     "favorite": "Favorito",
     "addPhotosToAlbum": "Añadir {{count}} foto(s) a álbum",
     "newAlbumName": "Nombre del nuevo álbum",
-    "color": "Color",
+    "color": "Tono",
     "noAlbums": "No tienes álbumes",
     "createOneAbove": "Crea uno arriba",
-    "photosCount": "{{count}} fotos"
+    "photosCount": "{{count}} fotos",
+    "noPhotos": "No hay fotos",
+    "uploadPhotos": "Sube archivos de imagen para verlos aquí",
+    "noVideos": "No hay vídeos",
+    "uploadVideos": "Sube archivos de vídeo para verlos aquí",
+    "noScreenshots": "No hay capturas de pantalla",
+    "uploadScreenshots": "Las capturas de pantalla aparecerán aquí",
+    "noFavoritePhotos": "No hay fotos favoritas",
+    "addFavoritePhotos": "Añade fotos a favoritos para verlas aquí"
   },
   "music": {
     "loadError": "Error al cargar la música",
@@ -175,6 +191,8 @@
     "organizeInFolders": "Organiza tu música en carpetas para crear álbumes",
     "noMusic": "No hay música",
     "uploadAudioFiles": "Sube archivos de audio para verlos aquí",
+    "noFavoriteMusic": "No hay música favorita",
+    "addFavoriteMusic": "Añade música a favoritos para verla aquí",
     "songsSelected": "{{count}} canciones seleccionadas",
     "play": "Reproducir",
     "addToQueue": "Añadir a la cola",
@@ -206,6 +224,16 @@
     "deleteError": "Error al eliminar",
     "noDocuments": "No hay documentos",
     "uploadDocuments": "Sube archivos de documentos para verlos aquí",
+    "noPdfs": "No hay archivos PDF",
+    "uploadPdfs": "Sube archivos PDF para verlos aquí",
+    "noText": "No hay archivos de texto",
+    "uploadText": "Sube archivos de texto o Word para verlos aquí",
+    "noSpreadsheets": "No hay hojas de cálculo",
+    "uploadSpreadsheets": "Sube archivos Excel o CSV para verlos aquí",
+    "noPresentations": "No hay presentaciones",
+    "uploadPresentations": "Sube archivos PowerPoint para verlos aquí",
+    "noCode": "No hay archivos de código",
+    "uploadCode": "Sube archivos de código fuente para verlos aquí",
     "selectedDocuments": "{{count}} documentos seleccionados",
     "preview": "Vista previa",
     "downloadCount": "Descargar {{count}} documentos",
@@ -216,7 +244,9 @@
     "favorite": "Favorito"
   },
   "favorites": {
-    "loadError": "Error al cargar favoritos"
+    "loadError": "Error al cargar favoritos",
+    "noFavorites": "No hay favoritos aún",
+    "addFavorites": "Añade archivos o carpetas a favoritos para verlos aquí"
   },
   "shared": {
     "loadError": "Error al cargar los elementos compartidos",
@@ -239,7 +269,11 @@
     "unknownUser": "Usuario desconocido",
     "canEditPermission": "Puedes editar",
     "itemOptions": "Opciones del elemento compartido",
-    "open": "Abrir"
+    "open": "Abrir",
+    "noMyShares": "No has compartido nada",
+    "startSharing": "Comparte archivos o carpetas para acceder rápidamente desde aquí",
+    "noSharedWithMe": "Nadie ha compartido contigo",
+    "waitForShares": "Cuando alguien comparta archivos contigo, aparecerán aquí"
   },
   "albums": {
     "loadError": "Error al cargar los álbumes",
@@ -275,6 +309,7 @@
   "trash": {
     "title": "Papelera",
     "empty": "La papelera está vacía",
+    "emptySubtitle": "Los archivos eliminados aparecerán aquí",
     "emptyTrash": "Vaciar papelera",
     "emptyConfirmTitle": "Vaciar papelera",
     "emptyConfirmMessage": "¿Estás seguro de que deseas eliminar permanentemente {{count}} elemento(s) de la papelera?",
@@ -350,7 +385,7 @@
     "fullName": "Nombre Completo",
     "username": "Nombre de Usuario",
     "usernameNote": "El nombre de usuario no se puede cambiar",
-    "email": "Email",
+    "email": "Correo electrónico",
     "accountInfo": "Información de la cuenta",
     "memberSince": "Miembro desde",
     "role": "Rol",
@@ -479,13 +514,13 @@
     "edit": "Editar",
     "close": "Cerrar",
     "confirm": "Confirmar",
-    "error": "Error",
+    "error": "Fallo",
     "success": "Éxito",
     "warning": "Advertencia",
     "info": "Información",
     "yes": "Sí",
-    "no": "No",
-    "ok": "OK",
+    "no": "Ninguno",
+    "ok": "Aceptar",
     "retry": "Reintentar",
     "back": "Volver",
     "next": "Siguiente",
@@ -555,7 +590,15 @@
       "completed": "Todos los archivos subidos",
       "done": "Hecho",
       "uploadFiles": "Subir archivos",
-      "allFilesUploaded": "Todos los archivos se subieron correctamente"
+      "allFilesUploaded": "Todos los archivos se subieron correctamente",
+      "quotaWarning": "No tienes suficiente espacio para todos los archivos. Solo se subirán los que quepan.",
+      "uploading": "Subiendo",
+      "active": "activo",
+      "chunks": "fragmentos",
+      "parallelInfo": "Subiendo {{fileCount}} archivos en paralelo ({{chunkCount}} fragmentos cada uno)",
+      "filesCompleted": "{{completed}} de {{total}} archivos completados",
+      "someFilesFailed": "Algunos archivos fallaron al subirse",
+      "cancel": "Cancelar"
     },
     "createFolder": {
       "title": "Crear carpeta",
@@ -634,7 +677,7 @@
       "viewOnly": "Solo ver",
       "edit": "Editar",
       "addCollaborator": "Añadir colaborador",
-      "editor": "Editor",
+      "editor": "Puede editar",
       "viewer": "Visor",
       "removeCollaborator": "Eliminar colaborador {{name}}",
       "noCollaborators": "No hay colaboradores añadidos",
@@ -683,7 +726,7 @@
       "activeUsers": "Usuarios Activos"
     },
     "general": {
-      "title": "General",
+      "title": "Configuración general",
       "description": "Información básica del sitio",
       "siteName": "Nombre del Sitio",
       "siteDescription": "Descripción",
@@ -695,7 +738,7 @@
       "save": "Guardar General"
     },
     "email": {
-      "title": "Email (SMTP)",
+      "title": "Correo electrónico (SMTP)",
       "description": "Configuración del servidor de correo",
       "host": "Host SMTP",
       "port": "Puerto",
@@ -714,7 +757,7 @@
       "custom": "Personalizadas",
       "customized": "Personalizada",
       "notCustomized": "Sin personalizar",
-      "editor": "Editor",
+      "editor": "Editor de código",
       "preview": "Vista Previa",
       "subject": "Asunto",
       "htmlContent": "Contenido HTML",
@@ -803,7 +846,7 @@
       "createUser": "Crear Usuario",
       "editUser": "Editar Usuario",
       "name": "Nombre",
-      "email": "Email",
+      "email": "Correo electrónico",
       "password": "Contraseña",
       "passwordHint": "Dejar vacío para mantener",
       "cancel": "Cancelar",
@@ -888,7 +931,7 @@
     "fullscreen": "Pantalla completa (F)",
     "exitFullscreen": "Salir de pantalla completa",
     "speed": "Velocidad",
-    "normal": "Normal",
+    "normal": "Estándar",
     "loadingDocument": "Cargando documento...",
     "loadingPdf": "Cargando PDF...",
     "page": "Página",
@@ -1001,5 +1044,51 @@
       "noConnection": "Sin conexión a internet. Verifica tu conexión",
       "resetError": "Error al restablecer la contraseña. Por favor intenta de nuevo"
     }
+  },
+  "errorBoundary": {
+    "title": "¡Algo salió mal!",
+    "description": "Ha ocurrido un error inesperado. Por favor, intenta recargar la página.",
+    "showDetails": "Ver detalles del error",
+    "reload": "Recargar página",
+    "goHome": "Ir al inicio"
+  },
+  "verifyEmail": {
+    "verifying": "Verificando tu correo...",
+    "pleaseWait": "Por favor espera mientras verificamos tu correo.",
+    "success": "¡Correo verificado!",
+    "successMessage": "¡Tu correo ha sido verificado exitosamente!",
+    "continueToLogin": "Continuar al inicio de sesión",
+    "failed": "Verificación fallida",
+    "goToLogin": "Ir al inicio de sesión",
+    "errorMessage": "Error al verificar el correo. El enlace puede haber expirado."
+  },
+  "passwordStrength": {
+    "title": "Seguridad de la contraseña",
+    "minLength": "Mínimo 8 caracteres",
+    "uppercase": "Al menos una mayúscula",
+    "lowercase": "Al menos una minúscula",
+    "number": "Al menos un número",
+    "special": "Al menos un carácter especial (!@#$%^&*)",
+    "weak": "Débil",
+    "fair": "Regular",
+    "good": "Buena",
+    "strong": "Fuerte",
+    "veryStrong": "Muy fuerte"
+  },
+  "keyboardShortcuts": {
+    "title": "Atajos de teclado",
+    "macNote": "Nota: En Mac, usa"
+  },
+  "toolbar": {
+    "selected": "{{count}} seleccionado(s)",
+    "clear": "Limpiar",
+    "delete": "Eliminar"
+  },
+  "progress": {
+    "total": "Total: {{completed}} de {{total}} elementos",
+    "clearCompleted": "Limpiar completados",
+    "completed": "{{count}} completado(s)",
+    "inProgress": "{{count}} operación(es) en progreso",
+    "allCompleted": "Operaciones completadas"
   }
 }

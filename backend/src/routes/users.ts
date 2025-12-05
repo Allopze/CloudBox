@@ -8,14 +8,26 @@ import { validate } from '../middleware/validate.js';
 import { changePasswordSchema, updateProfileSchema } from '../schemas/index.js';
 import { getAvatarPath, deleteFile, fileExists, deleteDirectory, getStoragePath } from '../lib/storage.js';
 import { processAvatar } from '../lib/thumbnail.js';
+import * as cache from '../lib/cache.js';
+import logger from '../lib/logger.js';
 
 const router = Router();
 
 // Get current user
 router.get('/me', authenticate, async (req: Request, res: Response) => {
   try {
+    const userId = req.user!.userId;
+    
+    // Try to get user from cache first
+    const cachedUser = await cache.getUser(userId);
+    if (cachedUser) {
+      logger.debug('Cache hit for user info', { userId });
+      res.json(cachedUser);
+      return;
+    }
+
     const user = await prisma.user.findUnique({
-      where: { id: req.user!.userId },
+      where: { id: userId },
       select: {
         id: true,
         email: true,
@@ -34,11 +46,16 @@ router.get('/me', authenticate, async (req: Request, res: Response) => {
       return;
     }
 
-    res.json({
+    const userResponse = {
       ...user,
       storageQuota: user.storageQuota.toString(),
       storageUsed: user.storageUsed.toString(),
-    });
+    };
+
+    // Cache the user info
+    await cache.setUser(userId, userResponse);
+
+    res.json(userResponse);
   } catch (error) {
     console.error('Get user error:', error);
     res.status(500).json({ error: 'Failed to get user' });
@@ -80,6 +97,9 @@ router.patch('/me', authenticate, validate(updateProfileSchema), async (req: Req
       },
     });
 
+    // Invalidate user cache after update
+    await cache.invalidateUser(userId);
+
     res.json({
       ...user,
       storageQuota: user.storageQuota.toString(),
@@ -90,7 +110,6 @@ router.patch('/me', authenticate, validate(updateProfileSchema), async (req: Req
     res.status(500).json({ error: 'Failed to update profile' });
   }
 });
-
 // Change password
 router.post('/change-password', authenticate, validate(changePasswordSchema), async (req: Request, res: Response) => {
   try {

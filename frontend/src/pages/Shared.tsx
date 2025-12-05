@@ -130,8 +130,40 @@ export default function Shared() {
 
   const currentData = activeTab === 'my-shares' ? myShares : sharedWithMe;
 
+  // Empty state configuration based on tab
+  const getEmptyStateConfig = () => {
+    if (activeTab === 'my-shares') {
+      return {
+        icon: Share2,
+        title: t('shared.noMyShares'),
+        subtitle: t('shared.startSharing'),
+        color: 'text-primary-500'
+      };
+    }
+    return {
+      icon: Users,
+      title: t('shared.noSharedWithMe'),
+      subtitle: t('shared.waitForShares'),
+      color: 'text-blue-500'
+    };
+  };
+
+  const emptyState = getEmptyStateConfig();
+
   return (
     <div className="space-y-6">
+      {/* Empty state */}
+      {currentData.length === 0 && (
+        <div className="flex flex-col items-center justify-center h-64 text-center">
+          <emptyState.icon className={`w-16 h-16 ${emptyState.color} mb-4`} />
+          <h3 className="text-lg font-medium text-dark-900 dark:text-white mb-2">
+            {emptyState.title}
+          </h3>
+          <p className="text-dark-500 dark:text-dark-400 max-w-sm">
+            {emptyState.subtitle}
+          </p>
+        </div>
+      )}
       {/* Content - tabs are handled by MainLayout */}
       {currentData.length > 0 && (
         <div className="space-y-1">

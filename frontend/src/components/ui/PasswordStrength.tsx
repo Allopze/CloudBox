@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Check, X } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
@@ -8,7 +9,7 @@ interface PasswordStrengthProps {
 }
 
 interface PasswordRequirement {
-  label: string;
+  key: string;
   met: boolean;
 }
 
@@ -18,11 +19,11 @@ export function validatePassword(password: string): {
   requirements: PasswordRequirement[];
 } {
   const requirements: PasswordRequirement[] = [
-    { label: 'Mínimo 8 caracteres', met: password.length >= 8 },
-    { label: 'Al menos una mayúscula', met: /[A-Z]/.test(password) },
-    { label: 'Al menos una minúscula', met: /[a-z]/.test(password) },
-    { label: 'Al menos un número', met: /[0-9]/.test(password) },
-    { label: 'Al menos un carácter especial (!@#$%^&*)', met: /[!@#$%^&*(),.?":{}|<>]/.test(password) },
+    { key: 'minLength', met: password.length >= 8 },
+    { key: 'uppercase', met: /[A-Z]/.test(password) },
+    { key: 'lowercase', met: /[a-z]/.test(password) },
+    { key: 'number', met: /[0-9]/.test(password) },
+    { key: 'special', met: /[!@#$%^&*(),.?":{}|<>]/.test(password) },
   ];
 
   const metCount = requirements.filter((r) => r.met).length;
@@ -32,21 +33,22 @@ export function validatePassword(password: string): {
   return { isValid, score, requirements };
 }
 
-export function getPasswordStrengthLabel(score: number): {
-  label: string;
+export function getPasswordStrengthKey(score: number): {
+  key: string;
   color: string;
 } {
-  if (score === 0) return { label: '', color: 'bg-dark-200' };
-  if (score < 0.4) return { label: 'Débil', color: 'bg-red-500' };
-  if (score < 0.6) return { label: 'Regular', color: 'bg-orange-500' };
-  if (score < 0.8) return { label: 'Buena', color: 'bg-yellow-500' };
-  if (score < 1) return { label: 'Fuerte', color: 'bg-green-500' };
-  return { label: 'Muy fuerte', color: 'bg-green-600' };
+  if (score === 0) return { key: '', color: 'bg-dark-200' };
+  if (score < 0.4) return { key: 'weak', color: 'bg-red-500' };
+  if (score < 0.6) return { key: 'fair', color: 'bg-orange-500' };
+  if (score < 0.8) return { key: 'good', color: 'bg-yellow-500' };
+  if (score < 1) return { key: 'strong', color: 'bg-green-500' };
+  return { key: 'veryStrong', color: 'bg-green-600' };
 }
 
 export default function PasswordStrength({ password, showRequirements = true }: PasswordStrengthProps) {
+  const { t } = useTranslation();
   const { score, requirements } = useMemo(() => validatePassword(password), [password]);
-  const { label, color } = getPasswordStrengthLabel(score);
+  const { key: strengthKey, color } = getPasswordStrengthKey(score);
 
   if (!password) return null;
 
@@ -55,12 +57,12 @@ export default function PasswordStrength({ password, showRequirements = true }: 
       {/* Strength bar */}
       <div className="space-y-1">
         <div className="flex items-center justify-between text-xs">
-          <span className="text-dark-500 dark:text-dark-400">Seguridad de la contraseña</span>
+          <span className="text-dark-500 dark:text-dark-400">{t('passwordStrength.title')}</span>
           <span className={cn(
             'font-medium',
             score < 0.4 ? 'text-red-500' : score < 0.8 ? 'text-yellow-500' : 'text-green-500'
           )}>
-            {label}
+            {strengthKey && t(`passwordStrength.${strengthKey}`)}
           </span>
         </div>
         <div className="h-1.5 w-full bg-dark-100 dark:bg-dark-700 rounded-full overflow-hidden">
@@ -87,7 +89,7 @@ export default function PasswordStrength({ password, showRequirements = true }: 
               ) : (
                 <X className="w-3 h-3" />
               )}
-              <span>{req.label}</span>
+              <span>{t(`passwordStrength.${req.key}`)}</span>
             </div>
           ))}
         </div>

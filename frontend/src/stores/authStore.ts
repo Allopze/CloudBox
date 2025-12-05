@@ -31,10 +31,10 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoggingIn: true });
         try {
           const response = await api.post('/auth/login', { email, password });
-          const { user, accessToken, refreshToken } = response.data;
+          const { user, accessToken } = response.data;
           
           localStorage.setItem('accessToken', accessToken);
-          localStorage.setItem('refreshToken', refreshToken);
+          // Note: refreshToken is now stored in httpOnly cookie by the server
           
           set({ user, isAuthenticated: true, isLoading: false, isLoggingIn: false });
         } catch (error) {
@@ -47,10 +47,10 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoggingIn: true });
         try {
           const response = await api.post('/auth/google', { token });
-          const { user, accessToken, refreshToken } = response.data;
+          const { user, accessToken } = response.data;
           
           localStorage.setItem('accessToken', accessToken);
-          localStorage.setItem('refreshToken', refreshToken);
+          // Note: refreshToken is now stored in httpOnly cookie by the server
           
           set({ user, isAuthenticated: true, isLoggingIn: false });
         } catch (error) {
@@ -63,10 +63,10 @@ export const useAuthStore = create<AuthState>()(
         set({ isRegistering: true });
         try {
           const response = await api.post('/auth/register', { email, password, name });
-          const { user, accessToken, refreshToken } = response.data;
+          const { user, accessToken } = response.data;
           
           localStorage.setItem('accessToken', accessToken);
-          localStorage.setItem('refreshToken', refreshToken);
+          // Note: refreshToken is now stored in httpOnly cookie by the server
           
           set({ user, isAuthenticated: true, isRegistering: false });
         } catch (error) {
@@ -76,15 +76,15 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: async () => {
-        const refreshToken = localStorage.getItem('refreshToken');
+        // Security: Refresh token is sent via httpOnly cookie automatically
         try {
-          await api.post('/auth/logout', { refreshToken });
+          await api.post('/auth/logout', {});
         } catch {
           // Ignore errors
         }
         
         localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
+        // Note: refreshToken cookie is cleared by the server
         
         set({ user: null, isAuthenticated: false });
       },
@@ -104,7 +104,7 @@ export const useAuthStore = create<AuthState>()(
         } catch (error) {
           if (signal?.aborted) return;
           localStorage.removeItem('accessToken');
-          localStorage.removeItem('refreshToken');
+          // Note: refreshToken cookie is cleared by the server on logout
           set({ user: null, isAuthenticated: false, isLoading: false });
         }
       },

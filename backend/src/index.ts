@@ -5,12 +5,21 @@ import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import compression from 'compression';
 import path from 'path';
+import http from 'http';
 import { config } from './config/index.js';
 import { errorHandler } from './middleware/error.js';
 import { initStorage, getStoragePath } from './lib/storage.js';
 import prisma, { updateParentFolderSizes } from './lib/prisma.js';
 import { auditContext, suspiciousActivityDetector } from './lib/audit.js';
 import logger from './lib/logger.js';
+import { initSocketIO, getConnectedUserCount } from './lib/socket.js';
+import { initTranscodingQueue, getQueueStats, cleanupOldJobs } from './lib/transcodingQueue.js';
+import { initThumbnailQueue, getThumbnailQueueStats } from './lib/thumbnailQueue.js';
+import { initCache, getCacheStats } from './lib/cache.js';
+import { initSessionStore, getSessionStats } from './lib/sessionStore.js';
+import { initBullBoard, closeBullBoard } from './lib/bullBoard.js';
+import { authenticate, requireAdmin } from './middleware/auth.js';
+import { initRateLimitRedis, getRateLimitStats } from './lib/security.js';
 
 // Routes
 import authRoutes from './routes/auth.js';
@@ -198,6 +207,87 @@ app.get('/api/health', async (req, res) => {
     healthChecks.smtp = { status: 'healthy', message: 'SMTP check skipped' };
   }
 
+  // Check Redis/transcoding queue
+  try {
+    const queueStats = await getQueueStats();
+    healthChecks.transcoding = {
+      status: queueStats.isRedisAvailable ? 'healthy' : 'degraded',
+      message: queueStats.isRedisAvailable 
+        ? `Redis connected, ${queueStats.active} active jobs`
+        : 'Running in fallback mode (no Redis) - CPU competes with API',
+      usingRedis: queueStats.isRedisAvailable,
+    };
+  } catch (error) {
+    healthChecks.transcoding = { status: 'degraded', message: 'Queue check failed' };
+  }
+
+  // Check thumbnail queue
+  try {
+    const thumbnailStats = await getThumbnailQueueStats();
+    healthChecks.thumbnails = {
+      status: thumbnailStats.usingRedis ? 'healthy' : 'degraded',
+      message: thumbnailStats.usingRedis 
+        ? `Redis connected, ${thumbnailStats.active} active, ${thumbnailStats.waiting} waiting`
+        : `Fallback mode, ${thumbnailStats.active} active - CPU competes with API`,
+      usingRedis: thumbnailStats.usingRedis,
+    };
+  } catch (error) {
+    healthChecks.thumbnails = { status: 'degraded', message: 'Thumbnail queue check failed' };
+  }
+
+  // Check cache
+  try {
+    const cacheStats = await getCacheStats();
+    healthChecks.cache = {
+      status: cacheStats ? 'healthy' : 'degraded',
+      message: cacheStats 
+        ? `Redis connected, ${cacheStats.keys} keys, ${cacheStats.memory} memory`
+        : 'Cache disabled - all queries hit database directly',
+      usingRedis: !!cacheStats,
+    };
+  } catch (error) {
+    healthChecks.cache = { status: 'degraded', message: 'Cache check failed' };
+  }
+
+  // Check session store
+  try {
+    const sessionStats = await getSessionStats();
+    healthChecks.sessions = {
+      status: sessionStats ? 'healthy' : 'degraded',
+      message: sessionStats 
+        ? `Redis connected, ${sessionStats.totalSessions} active sessions`
+        : 'Session store using database fallback - no instant invalidation',
+      usingRedis: !!sessionStats,
+    };
+  } catch (error) {
+    healthChecks.sessions = { status: 'degraded', message: 'Session store check failed' };
+  }
+
+  // Check rate limiting
+  try {
+    const rateLimitStats = getRateLimitStats();
+    healthChecks.rateLimiting = {
+      status: rateLimitStats.usingRedis ? 'healthy' : 'degraded',
+      message: rateLimitStats.usingRedis 
+        ? 'Redis connected - distributed rate limiting active'
+        : `In-memory fallback (single-node only), ${rateLimitStats.inMemoryEntries} tracked users`,
+      usingRedis: rateLimitStats.usingRedis,
+    };
+  } catch (error) {
+    healthChecks.rateLimiting = { status: 'degraded', message: 'Rate limiting check failed' };
+  }
+
+  // Check WebSocket connections
+  try {
+    const connectedUsers = getConnectedUserCount();
+    healthChecks.websocket = {
+      status: 'healthy',
+      message: `${connectedUsers} users connected`,
+    };
+  } catch (error) {
+    healthChecks.websocket = { status: 'healthy', message: 'WebSocket check skipped' };
+  }
+
   // Security: Only expose version in development mode
   const response: Record<string, any> = {
     status: overallHealthy ? 'healthy' : 'unhealthy',
@@ -336,22 +426,47 @@ const cleanupExpiredTokens = async () => {
 };
 
 // Cleanup orphan chunks (run every hour)
+// Note: In multi-instance deployments, use distributed locking (e.g., Redis)
+// to prevent concurrent cleanup from multiple instances
 const cleanupOrphanChunks = async () => {
   const fs = await import('fs/promises');
   const path = await import('path');
   
+  // Simple file-based lock for single-server or when Redis is not available
+  const lockPath = path.join(config.storage.path, '.chunk_cleanup_lock');
+  
   try {
+    // Try to acquire lock (create lock file with current timestamp)
+    const now = Date.now();
+    const lockTimeout = 30 * 60 * 1000; // 30 minutes lock timeout
+    
+    try {
+      const lockData = await fs.readFile(lockPath, 'utf-8');
+      const lockTime = parseInt(lockData, 10);
+      
+      // If lock exists and is not stale, skip this run
+      if (!isNaN(lockTime) && (now - lockTime) < lockTimeout) {
+        logger.debug('Chunk cleanup skipped - another instance is running', { lockAge: now - lockTime });
+        return;
+      }
+    } catch {
+      // Lock file doesn't exist, proceed
+    }
+    
+    // Write our lock
+    await fs.writeFile(lockPath, now.toString());
+    
     const chunksDir = path.join(config.storage.path, 'chunks');
     
     // Check if chunks directory exists
     try {
       await fs.access(chunksDir);
     } catch {
+      await fs.unlink(lockPath).catch(() => {});
       return; // Directory doesn't exist, nothing to clean
     }
     
     const uploadDirs = await fs.readdir(chunksDir);
-    const now = Date.now();
     const MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
     let cleanedCount = 0;
     
@@ -364,6 +479,12 @@ const cleanupOrphanChunks = async () => {
         // If directory is older than 24 hours, remove it
         if (now - stats.mtimeMs > MAX_AGE_MS) {
           await fs.rm(uploadPath, { recursive: true, force: true });
+          
+          // Also clean up any orphan fileChunk records
+          await prisma.fileChunk.deleteMany({
+            where: { uploadId },
+          }).catch(() => {});
+          
           cleanedCount++;
         }
       } catch (error) {
@@ -375,8 +496,14 @@ const cleanupOrphanChunks = async () => {
     if (cleanedCount > 0) {
       logger.info('Cleaned up orphan chunk directories', { count: cleanedCount });
     }
+    
+    // Release lock
+    await fs.unlink(lockPath).catch(() => {});
   } catch (error) {
     logger.error('Orphan chunk cleanup error', {}, error instanceof Error ? error : new Error(String(error)));
+    // Try to release lock on error
+    const fs = await import('fs/promises');
+    await fs.unlink(lockPath).catch(() => {});
   }
 };
 
@@ -393,13 +520,55 @@ const start = async () => {
     await prisma.$connect();
     logger.info('Database connected');
 
+    // Initialize transcoding queue (Redis-based or fallback)
+    await initTranscodingQueue();
+    logger.info('Transcoding queue initialized');
+
+    // Initialize thumbnail queue (Redis-based or fallback)
+    await initThumbnailQueue();
+    logger.info('Thumbnail queue initialized');
+
+    // Initialize cache (Redis-based)
+    const cacheEnabled = await initCache();
+    if (cacheEnabled) {
+      logger.info('Cache initialized with Redis');
+    }
+
+    // Initialize session store (Redis-based)
+    const sessionStoreEnabled = await initSessionStore();
+    if (sessionStoreEnabled) {
+      logger.info('Session store initialized with Redis');
+    }
+
+    // Initialize distributed rate limiting (Redis-based)
+    const rateLimitRedisEnabled = await initRateLimitRedis();
+    if (rateLimitRedisEnabled) {
+      logger.info('Distributed rate limiting initialized with Redis');
+    }
+
+    // Initialize Bull Board for queue monitoring (requires Redis)
+    const bullBoardAdapter = await initBullBoard();
+    if (bullBoardAdapter) {
+      // Mount Bull Board at /admin/queues (requires admin auth)
+      app.use('/admin/queues', authenticate, requireAdmin, bullBoardAdapter.getRouter());
+      logger.info('Bull Board initialized at /admin/queues');
+    }
+
     // Run initial cleanups
     await cleanupTrash();
     await cleanupTempStorage();
     await cleanupOrphanChunks();
     await cleanupExpiredTokens();
+    await cleanupOldJobs(7); // Clean transcoding jobs older than 7 days
 
-    const server = app.listen(config.port, () => {
+    // Create HTTP server
+    const server = http.createServer(app);
+
+    // Initialize Socket.io
+    initSocketIO(server);
+    logger.info('Socket.io initialized');
+
+    server.listen(config.port, () => {
       logger.info('Server started', { port: config.port, frontendUrl: config.frontendUrl });
     });
 
@@ -408,7 +577,8 @@ const start = async () => {
       setInterval(() => cleanupTrash().catch(e => logger.error('Scheduled trash cleanup failed', {}, e instanceof Error ? e : new Error(String(e)))), 60 * 60 * 1000),
       setInterval(() => cleanupTempStorage().catch(e => logger.error('Scheduled temp cleanup failed', {}, e instanceof Error ? e : new Error(String(e)))), 6 * 60 * 60 * 1000),
       setInterval(() => cleanupExpiredTokens().catch(e => logger.error('Scheduled token cleanup failed', {}, e instanceof Error ? e : new Error(String(e)))), 60 * 60 * 1000),
-      setInterval(() => cleanupOrphanChunks().catch(e => logger.error('Scheduled chunk cleanup failed', {}, e instanceof Error ? e : new Error(String(e)))), 60 * 60 * 1000)
+      setInterval(() => cleanupOrphanChunks().catch(e => logger.error('Scheduled chunk cleanup failed', {}, e instanceof Error ? e : new Error(String(e)))), 60 * 60 * 1000),
+      setInterval(() => cleanupOldJobs(7).catch(e => logger.error('Scheduled transcoding cleanup failed', {}, e instanceof Error ? e : new Error(String(e)))), 24 * 60 * 60 * 1000) // Daily
     );
 
     // Graceful shutdown handler
@@ -423,6 +593,10 @@ const start = async () => {
         logger.info('HTTP server closed');
         
         try {
+          // Close Bull Board connections
+          await closeBullBoard();
+          logger.info('Bull Board connections closed');
+          
           // Disconnect from database
           await prisma.$disconnect();
           logger.info('Database disconnected');

@@ -1,5 +1,6 @@
+import { useTranslation } from 'react-i18next';
 import Modal from './Modal';
-import { keyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
+import { getKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 
 interface KeyboardShortcutsModalProps {
   isOpen: boolean;
@@ -10,10 +11,13 @@ export default function KeyboardShortcutsModal({
   isOpen,
   onClose,
 }: KeyboardShortcutsModalProps) {
+  const { t } = useTranslation();
+  const shortcuts = getKeyboardShortcuts(t);
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Atajos de teclado" size="md">
+    <Modal isOpen={isOpen} onClose={onClose} title={t('keyboardShortcuts.title')} size="md">
       <div className="space-y-1">
-        {keyboardShortcuts.map((shortcut, index) => (
+        {shortcuts.map((shortcut, index) => (
           <div
             key={index}
             className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-dark-50 dark:hover:bg-dark-700"
@@ -39,7 +43,7 @@ export default function KeyboardShortcutsModal({
 
       <div className="mt-6 pt-4 border-t border-dark-200 dark:border-dark-700">
         <p className="text-xs text-dark-500 dark:text-dark-400">
-          Nota: En Mac, usa <kbd className="px-1.5 py-0.5 text-xs font-semibold text-dark-800 bg-dark-100 dark:text-dark-200 dark:bg-dark-700 border border-dark-300 dark:border-dark-600 rounded">⌘</kbd> en lugar de <kbd className="px-1.5 py-0.5 text-xs font-semibold text-dark-800 bg-dark-100 dark:text-dark-200 dark:bg-dark-700 border border-dark-300 dark:border-dark-600 rounded">Ctrl</kbd>
+          {t('keyboardShortcuts.macNote')} <kbd className="px-1.5 py-0.5 text-xs font-semibold text-dark-800 bg-dark-100 dark:text-dark-200 dark:bg-dark-700 border border-dark-300 dark:border-dark-600 rounded">⌘</kbd> / <kbd className="px-1.5 py-0.5 text-xs font-semibold text-dark-800 bg-dark-100 dark:text-dark-200 dark:bg-dark-700 border border-dark-300 dark:border-dark-600 rounded">Ctrl</kbd>
         </p>
       </div>
     </Modal>

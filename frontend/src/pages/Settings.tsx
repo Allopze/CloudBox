@@ -6,7 +6,7 @@ import { api } from '../lib/api';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Modal from '../components/ui/Modal';
-import { Lock, Upload, Save, Moon, Sun, Calendar, Shield as ShieldIcon, User, HardDrive, Clock, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { Lock, Upload, Save, Moon, Sun, Calendar, Shield as ShieldIcon, User, HardDrive, Clock, CheckCircle, XCircle, Loader2, Globe } from 'lucide-react';
 import { toast } from '../components/ui/Toast';
 import { formatBytes } from '../lib/utils';
 
@@ -21,7 +21,7 @@ interface StorageRequest {
 }
 
 export default function Settings() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { user, updateUser } = useAuthStore();
   const { isDark, toggleTheme } = useThemeStore();
 
@@ -381,7 +381,7 @@ export default function Settings() {
         </div>
         <p className="text-sm text-dark-500 dark:text-dark-400 mb-4">{t('settings.customizeInterface')}</p>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 mb-6">
           <button
             onClick={() => isDark && toggleTheme()}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 transition-all ${
@@ -400,6 +400,29 @@ export default function Settings() {
             <Moon className="w-4 h-4" />
             <span className="text-sm font-medium">{t('settings.dark')}</span>
           </button>
+        </div>
+
+        {/* Language selector */}
+        <div className="pt-4 border-t border-dark-100 dark:border-dark-700">
+          <div className="flex items-center gap-2 mb-3">
+            <Globe className="w-4 h-4 text-[#FF3B3B]" />
+            <span className="text-sm font-medium text-dark-700 dark:text-dark-300">{t('language.label')}</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {(['en', 'es', 'fr', 'de', 'it', 'pt'] as const).map((lang) => (
+              <button
+                key={lang}
+                onClick={() => i18n.changeLanguage(lang)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 transition-all ${
+                  i18n.language === lang || i18n.language.startsWith(lang + '-')
+                    ? 'border-[#FF3B3B] bg-[#FF3B3B]/5 text-[#FF3B3B]'
+                    : 'border-dark-200 dark:border-dark-700 text-dark-700 dark:text-dark-300 hover:border-dark-300 dark:hover:border-dark-600'
+                }`}
+              >
+                <span className="text-sm font-medium">{t(`language.${lang}`)}</span>
+              </button>
+            ))}
+          </div>
         </div>
       </section>
 

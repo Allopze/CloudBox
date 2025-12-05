@@ -2,13 +2,63 @@ import { PrismaClient } from '@prisma/client';
 
 const globalForPrisma = global as unknown as { prisma: PrismaClient };
 
+// Database connection pool configuration
+// These can be tuned based on your server resources and expected load
+const connectionPoolConfig = {
+  // Maximum number of connections in the pool
+  // For PostgreSQL: recommended 10-20 for most applications
+  // Formula: ((core_count * 2) + effective_spindle_count)
+  connectionLimit: parseInt(process.env.DATABASE_POOL_SIZE || '10'),
+  
+  // Connection timeout in seconds
+  connectionTimeout: parseInt(process.env.DATABASE_CONNECT_TIMEOUT || '10'),
+};
+
+// Build connection URL with pool parameters if using PostgreSQL
+const getDatabaseUrl = (): string => {
+  const baseUrl = process.env.DATABASE_URL || '';
+  
+  // If using SQLite (for development), return as-is
+  if (baseUrl.startsWith('file:')) {
+    return baseUrl;
+  }
+  
+  // For PostgreSQL, append connection pool parameters
+  const url = new URL(baseUrl);
+  
+  // Connection pool settings via query parameters
+  if (!url.searchParams.has('connection_limit')) {
+    url.searchParams.set('connection_limit', connectionPoolConfig.connectionLimit.toString());
+  }
+  if (!url.searchParams.has('connect_timeout')) {
+    url.searchParams.set('connect_timeout', connectionPoolConfig.connectionTimeout.toString());
+  }
+  
+  // Enable pgbouncer mode if using external connection pooler
+  if (process.env.DATABASE_POOLER === 'pgbouncer') {
+    url.searchParams.set('pgbouncer', 'true');
+  }
+  
+  return url.toString();
+};
+
 export const prisma =
   globalForPrisma.prisma ||
   new PrismaClient({
     log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+    datasources: {
+      db: {
+        url: getDatabaseUrl(),
+      },
+    },
   });
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+
+// Graceful shutdown - close database connections
+process.on('beforeExit', async () => {
+  await prisma.$disconnect();
+});
 
 export const updateParentFolderSizes = async (
   folderId: string | null,

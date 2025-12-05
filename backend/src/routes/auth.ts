@@ -6,13 +6,23 @@ import {
   generateAccessToken, 
   generateRefreshToken, 
   verifyRefreshToken,
-  generateRandomToken 
+  generateRandomToken,
+  hashToken,
+  generateSignedUrlToken,
 } from '../lib/jwt.js';
 import { sendWelcomeEmail, sendResetPasswordEmail } from '../lib/email.js';
 import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { config } from '../config/index.js';
 import { auditLog, getClientIP } from '../lib/audit.js';
+import {
+  createSession,
+  invalidateSession,
+  invalidateAllSessions,
+  findSessionByRefreshToken,
+  updateSessionRefreshToken,
+  isSessionStoreAvailable,
+} from '../lib/sessionStore.js';
 import {
   registerSchema,
   loginSchema,
@@ -24,6 +34,61 @@ import {
 
 const router = Router();
 const googleClient = new OAuth2Client(config.google.clientId);
+
+// Security: Cookie options for refresh token
+const getRefreshTokenCookieOptions = () => ({
+  httpOnly: true,
+  secure: config.cookies.secure,
+  sameSite: config.cookies.sameSite,
+  path: '/api/auth', // Restrict to auth endpoints only
+  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+});
+
+// Security: Helper to set auth cookies
+const setAuthCookies = (res: Response, refreshToken: string) => {
+  res.cookie('refreshToken', refreshToken, getRefreshTokenCookieOptions());
+};
+
+// Security: Helper to clear auth cookies
+const clearAuthCookies = (res: Response) => {
+  res.clearCookie('refreshToken', { path: '/api/auth' });
+};
+
+// Security: Store refresh token with hash
+const storeRefreshToken = async (
+  userId: string,
+  token: string,
+  jti: string,
+  familyId: string,
+  expiresAt: Date
+) => {
+  await prisma.refreshToken.create({
+    data: {
+      tokenHash: hashToken(token),
+      jti,
+      userId,
+      familyId,
+      expiresAt,
+    },
+  });
+};
+
+// Security: Store refresh token and create Redis session
+const storeRefreshTokenWithSession = async (
+  userId: string,
+  token: string,
+  jti: string,
+  familyId: string,
+  expiresAt: Date,
+  deviceInfo: { userAgent?: string; ip?: string }
+): Promise<string | null> => {
+  // Store in database (always)
+  await storeRefreshToken(userId, token, jti, familyId, expiresAt);
+  
+  // Create Redis session for instant invalidation (if available)
+  const sessionId = await createSession(userId, hashToken(token), deviceInfo);
+  return sessionId;
+};
 
 // Brute force protection settings
 const MAX_LOGIN_ATTEMPTS = 5;
@@ -114,7 +179,7 @@ router.post('/register', validate(registerSchema), async (req: Request, res: Res
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
-      res.status(400).json({ error: 'Email already registered' });
+      res.status(400).json({ error: 'Email already registered', code: 'EMAIL_EXISTS' });
       return;
     }
     const userCount = await prisma.user.count();
@@ -146,19 +211,25 @@ router.post('/register', validate(registerSchema), async (req: Request, res: Res
       role: user.role,
     });
 
-    const refreshToken = generateRefreshToken({
+    // Security: Generate refresh token with jti and familyId for rotation tracking
+    const { token: refreshToken, jti, familyId } = generateRefreshToken({
       userId: user.id,
       email: user.email,
       role: user.role,
     });
 
-    await prisma.refreshToken.create({
-      data: {
-        token: refreshToken,
-        userId: user.id,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      },
-    });
+    // Security: Store hashed refresh token and create Redis session
+    await storeRefreshTokenWithSession(
+      user.id,
+      refreshToken,
+      jti,
+      familyId,
+      new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      { userAgent: req.headers['user-agent'], ip: getClientIP(req) }
+    );
+
+    // Security: Set refresh token in httpOnly cookie
+    setAuthCookies(res, refreshToken);
 
     res.status(201).json({
       user: {
@@ -171,7 +242,7 @@ router.post('/register', validate(registerSchema), async (req: Request, res: Res
         storageUsed: user.storageUsed.toString(),
       },
       accessToken,
-      refreshToken,
+      // Note: refreshToken no longer returned in body, only in httpOnly cookie
     });
   } catch (error) {
     console.error('Register error:', error);
@@ -293,19 +364,25 @@ router.post('/login', validate(loginSchema), async (req: Request, res: Response)
       role: user.role,
     });
 
-    const refreshToken = generateRefreshToken({
+    // Security: Generate refresh token with jti and familyId for rotation tracking
+    const { token: refreshToken, jti, familyId } = generateRefreshToken({
       userId: user.id,
       email: user.email,
       role: user.role,
     });
 
-    await prisma.refreshToken.create({
-      data: {
-        token: refreshToken,
-        userId: user.id,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      },
-    });
+    // Security: Store hashed refresh token and create Redis session
+    await storeRefreshTokenWithSession(
+      user.id,
+      refreshToken,
+      jti,
+      familyId,
+      new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      { userAgent, ip: ipAddress }
+    );
+
+    // Security: Set refresh token in httpOnly cookie
+    setAuthCookies(res, refreshToken);
 
     res.json({
       user: {
@@ -319,7 +396,7 @@ router.post('/login', validate(loginSchema), async (req: Request, res: Response)
         storageUsed: user.storageUsed.toString(),
       },
       accessToken,
-      refreshToken,
+      // Note: refreshToken no longer returned in body, only in httpOnly cookie
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -370,19 +447,25 @@ router.post('/google', validate(googleAuthSchema), async (req: Request, res: Res
       role: user.role,
     });
 
-    const refreshToken = generateRefreshToken({
+    // Security: Generate refresh token with jti and familyId for rotation tracking
+    const { token: refreshToken, jti, familyId } = generateRefreshToken({
       userId: user.id,
       email: user.email,
       role: user.role,
     });
 
-    await prisma.refreshToken.create({
-      data: {
-        token: refreshToken,
-        userId: user.id,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      },
-    });
+    // Security: Store hashed refresh token and create Redis session
+    await storeRefreshTokenWithSession(
+      user.id,
+      refreshToken,
+      jti,
+      familyId,
+      new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      { userAgent: req.headers['user-agent'], ip: getClientIP(req) }
+    );
+
+    // Security: Set refresh token in httpOnly cookie
+    setAuthCookies(res, refreshToken);
 
     res.json({
       user: {
@@ -396,7 +479,7 @@ router.post('/google', validate(googleAuthSchema), async (req: Request, res: Res
         storageUsed: user.storageUsed.toString(),
       },
       accessToken,
-      refreshToken,
+      // Note: refreshToken no longer returned in body, only in httpOnly cookie
     });
   } catch (error) {
     console.error('Google auth error:', error);
@@ -404,30 +487,87 @@ router.post('/google', validate(googleAuthSchema), async (req: Request, res: Res
   }
 });
 
-// Refresh token
+// Refresh token - Security: Now reads from httpOnly cookie and implements token rotation with family tracking
 router.post('/refresh', async (req: Request, res: Response) => {
   try {
-    const { refreshToken } = req.body;
+    // Security: Read refresh token from httpOnly cookie (preferred) or body (for migration)
+    const refreshToken = req.cookies.refreshToken || req.body.refreshToken;
 
     if (!refreshToken) {
       res.status(400).json({ error: 'Refresh token required' });
       return;
     }
 
-    const payload = verifyRefreshToken(refreshToken);
-
-    const storedToken = await prisma.refreshToken.findUnique({
-      where: { token: refreshToken },
-      include: { user: true },
-    });
-
-    if (!storedToken || storedToken.expiresAt < new Date()) {
-      res.status(401).json({ error: 'Invalid or expired refresh token' });
+    let payload;
+    try {
+      payload = verifyRefreshToken(refreshToken);
+    } catch (error) {
+      clearAuthCookies(res);
+      res.status(401).json({ error: 'Invalid refresh token' });
       return;
     }
 
-    // Delete old token (use deleteMany to avoid error if already deleted)
-    await prisma.refreshToken.deleteMany({ where: { id: storedToken.id } });
+    const tokenHash = hashToken(refreshToken);
+    
+    // Security: Look up by jti (more secure than full token comparison)
+    const storedToken = await prisma.refreshToken.findUnique({
+      where: { jti: payload.jti },
+      include: { user: true },
+    });
+
+    // Security: Token reuse detection - if token was already used/revoked, invalidate entire family
+    if (!storedToken || storedToken.revokedAt) {
+      if (storedToken?.familyId) {
+        // Potential token theft! Revoke all tokens in this family
+        await prisma.refreshToken.updateMany({
+          where: { familyId: storedToken.familyId },
+          data: { revokedAt: new Date() },
+        });
+        
+        await auditLog({
+          action: 'SECURITY_ALERT',
+          userId: storedToken.userId,
+          ipAddress: getClientIP(req),
+          userAgent: req.headers['user-agent'],
+          details: { reason: 'refresh_token_reuse', familyId: storedToken.familyId },
+          success: false,
+        });
+      }
+      
+      clearAuthCookies(res);
+      res.status(401).json({ error: 'Token has been revoked. Please login again.' });
+      return;
+    }
+
+    // Verify token hash matches
+    if (storedToken.tokenHash !== tokenHash) {
+      clearAuthCookies(res);
+      res.status(401).json({ error: 'Invalid refresh token' });
+      return;
+    }
+
+    if (storedToken.expiresAt < new Date()) {
+      clearAuthCookies(res);
+      res.status(401).json({ error: 'Refresh token expired' });
+      return;
+    }
+
+    // Security: Validate session in Redis (if available) for instant invalidation support
+    if (isSessionStoreAvailable()) {
+      const session = await findSessionByRefreshToken(storedToken.user.id, tokenHash);
+      if (!session) {
+        // Session was invalidated (e.g., via logout from all devices)
+        clearAuthCookies(res);
+        res.status(401).json({ error: 'Session invalidated. Please login again.' });
+        return;
+      }
+    }
+
+    // Security: Revoke old token (mark as used, don't delete for audit trail)
+    await prisma.refreshToken.update({
+      where: { id: storedToken.id },
+      data: { revokedAt: new Date() },
+    });
 
     const newAccessToken = generateAccessToken({
       userId: storedToken.user.id,
@@ -435,40 +575,85 @@ router.post('/refresh', async (req: Request, res: Response) => {
       role: storedToken.user.role,
     });
 
-    const newRefreshToken = generateRefreshToken({
-      userId: storedToken.user.id,
-      email: storedToken.user.email,
-      role: storedToken.user.role,
-    });
-
-    await prisma.refreshToken.create({
-      data: {
-        token: newRefreshToken,
+    // Security: Generate new refresh token in same family (for rotation tracking)
+    const { token: newRefreshToken, jti: newJti, familyId } = generateRefreshToken(
+      {
         userId: storedToken.user.id,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        email: storedToken.user.email,
+        role: storedToken.user.role,
       },
-    });
+      storedToken.familyId || undefined // Keep same family for rotation detection
+    );
+
+    // Security: Store new hashed refresh token
+    await storeRefreshToken(
+      storedToken.user.id,
+      newRefreshToken,
+      newJti,
+      familyId,
+      new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+    );
+
+    // Security: Update Redis session with new refresh token hash
+    if (isSessionStoreAvailable()) {
+      const session = await findSessionByRefreshToken(storedToken.user.id, tokenHash);
+      if (session) {
+        await updateSessionRefreshToken(
+          storedToken.user.id, 
+          session.sessionId, 
+          hashToken(newRefreshToken)
+        );
+      }
+    }
+
+    // Security: Set new refresh token in httpOnly cookie
+    setAuthCookies(res, newRefreshToken);
 
     res.json({
       accessToken: newAccessToken,
-      refreshToken: newRefreshToken,
+      // Note: refreshToken no longer returned in body, only in httpOnly cookie
     });
   } catch (error) {
     console.error('Refresh error:', error);
+    clearAuthCookies(res);
     res.status(401).json({ error: 'Invalid refresh token' });
   }
 });
 
-// Logout
+// Logout - Security: Now also clears httpOnly cookie and Redis session
 router.post('/logout', authenticate, async (req: Request, res: Response) => {
   try {
-    const { refreshToken } = req.body;
+    // Security: Read from cookie or body for backward compatibility
+    const refreshToken = req.cookies.refreshToken || req.body.refreshToken;
+    const userId = req.user!.userId;
 
     if (refreshToken) {
-      await prisma.refreshToken.deleteMany({
-        where: { token: refreshToken },
-      });
+      try {
+        const payload = verifyRefreshToken(refreshToken);
+        const tokenHash = hashToken(refreshToken);
+        
+        // Revoke entire token family on logout
+        if (payload.familyId) {
+          await prisma.refreshToken.updateMany({
+            where: { familyId: payload.familyId },
+            data: { revokedAt: new Date() },
+          });
+        }
+        
+        // Invalidate Redis session for this token
+        if (isSessionStoreAvailable()) {
+          const session = await findSessionByRefreshToken(userId, tokenHash);
+          if (session) {
+            await invalidateSession(userId, session.sessionId);
+          }
+        }
+      } catch {
+        // Token invalid, just continue with logout
+      }
     }
+
+    // Security: Clear httpOnly cookie
+    clearAuthCookies(res);
 
     res.json({ message: 'Logged out successfully' });
   } catch (error) {
@@ -551,6 +736,11 @@ router.post('/reset-password', validate(resetPasswordSchema), async (req: Reques
       return;
     }
 
+    // Invalidate all Redis sessions for this user (instant logout from all devices)
+    if (isSessionStoreAvailable()) {
+      await invalidateAllSessions(result.id);
+    }
+
     res.json({ message: 'Password reset successfully' });
   } catch (error) {
     console.error('Reset password error:', error);
@@ -588,6 +778,94 @@ router.get('/verify-email/:token', validate(verifyEmailSchema), async (req: Requ
   } catch (error) {
     console.error('Verify email error:', error);
     res.status(500).json({ error: 'Failed to verify email' });
+  }
+});
+
+// Get user's active sessions (requires Redis session store)
+router.get('/sessions', authenticate, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+    
+    if (!isSessionStoreAvailable()) {
+      res.json({ 
+        sessions: [],
+        message: 'Session tracking not available (Redis required)',
+      });
+      return;
+    }
+    
+    // Import getUserSessions dynamically to avoid circular dependency issues
+    const { getUserSessions } = await import('../lib/sessionStore.js');
+    const sessions = await getUserSessions(userId);
+    
+    // Mark the current session
+    const currentTokenHash = req.cookies.refreshToken 
+      ? hashToken(req.cookies.refreshToken) 
+      : null;
+    
+    const sessionsWithCurrent = sessions.map(session => ({
+      ...session,
+      isCurrent: session.refreshToken === currentTokenHash,
+      refreshToken: undefined, // Don't expose the hash
+    }));
+    
+    res.json({ sessions: sessionsWithCurrent });
+  } catch (error) {
+    console.error('Get sessions error:', error);
+    res.status(500).json({ error: 'Failed to get sessions' });
+  }
+});
+
+// Logout from a specific session
+router.delete('/sessions/:sessionId', authenticate, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+    const { sessionId } = req.params;
+    
+    if (!isSessionStoreAvailable()) {
+      res.status(400).json({ error: 'Session management not available (Redis required)' });
+      return;
+    }
+    
+    const success = await invalidateSession(userId, sessionId);
+    
+    if (success) {
+      res.json({ message: 'Session terminated successfully' });
+    } else {
+      res.status(404).json({ error: 'Session not found' });
+    }
+  } catch (error) {
+    console.error('Terminate session error:', error);
+    res.status(500).json({ error: 'Failed to terminate session' });
+  }
+});
+
+// Logout from all sessions (except current)
+router.post('/sessions/logout-all', authenticate, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+    
+    // Invalidate all database tokens
+    await prisma.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    
+    // Invalidate all Redis sessions
+    if (isSessionStoreAvailable()) {
+      const count = await invalidateAllSessions(userId);
+      res.json({ 
+        message: 'All sessions terminated successfully',
+        terminatedCount: count,
+      });
+    } else {
+      res.json({ 
+        message: 'Database tokens invalidated, but instant session termination not available (Redis required)',
+      });
+    }
+  } catch (error) {
+    console.error('Logout all sessions error:', error);
+    res.status(500).json({ error: 'Failed to logout from all sessions' });
   }
 });
 

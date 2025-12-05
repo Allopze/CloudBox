@@ -8,7 +8,7 @@ import FileCard from '../components/files/FileCard';
 import DocumentThumbnail from '../components/files/DocumentThumbnail';
 import { 
   Loader2, FileText, FileSpreadsheet, File, Eye, Heart, Check,
-  Download, Share2, Trash2, Info, Copy, Star
+  Download, Share2, Trash2, Info, Copy, Star, Code, Presentation, FileType
 } from 'lucide-react';
 import { toast } from '../components/ui/Toast';
 import { cn, formatBytes, formatDate } from '../lib/utils';
@@ -420,11 +420,63 @@ export default function Documents() {
           </div>
         )
       ) : (
-        <div className="flex flex-col items-center justify-center h-64 text-dark-500">
-          <FileText className="w-16 h-16 mb-4 opacity-50" />
-          <p className="text-lg font-medium">{t('documents.noDocuments')}</p>
-          <p className="text-sm">{t('documents.uploadDocuments')}</p>
-        </div>
+        (() => {
+          // Get icon and text based on current tab
+          const getEmptyStateConfig = () => {
+            switch (tab) {
+              case 'pdf':
+                return { 
+                  icon: FileText, 
+                  title: t('documents.noPdfs'), 
+                  subtitle: t('documents.uploadPdfs'),
+                  color: 'text-red-400'
+                };
+              case 'text':
+                return { 
+                  icon: FileText, 
+                  title: t('documents.noText'), 
+                  subtitle: t('documents.uploadText'),
+                  color: 'text-blue-400'
+                };
+              case 'spreadsheet':
+                return { 
+                  icon: FileSpreadsheet, 
+                  title: t('documents.noSpreadsheets'), 
+                  subtitle: t('documents.uploadSpreadsheets'),
+                  color: 'text-green-400'
+                };
+              case 'presentation':
+                return { 
+                  icon: Presentation, 
+                  title: t('documents.noPresentations'), 
+                  subtitle: t('documents.uploadPresentations'),
+                  color: 'text-orange-400'
+                };
+              case 'code':
+                return { 
+                  icon: Code, 
+                  title: t('documents.noCode'), 
+                  subtitle: t('documents.uploadCode'),
+                  color: 'text-purple-400'
+                };
+              default:
+                return { 
+                  icon: FileText, 
+                  title: t('documents.noDocuments'), 
+                  subtitle: t('documents.uploadDocuments'),
+                  color: 'text-dark-400'
+                };
+            }
+          };
+          const { icon: EmptyIcon, title, subtitle, color } = getEmptyStateConfig();
+          return (
+            <div className="flex flex-col items-center justify-center h-64 text-dark-500">
+              <EmptyIcon className={`w-16 h-16 mb-4 opacity-50 ${color}`} />
+              <p className="text-lg font-medium">{title}</p>
+              <p className="text-sm">{subtitle}</p>
+            </div>
+          );
+        })()
       )}
 
       {/* Context Menu */}

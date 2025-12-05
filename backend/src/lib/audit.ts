@@ -20,7 +20,8 @@ export type AuditAction =
   | 'ADMIN_USER_DELETE'
   | 'ADMIN_SETTINGS_CHANGE'
   | 'ACCOUNT_DELETE'
-  | 'SUSPICIOUS_ACTIVITY';
+  | 'SUSPICIOUS_ACTIVITY'
+  | 'SECURITY_ALERT';
 
 interface AuditLogEntry {
   action: AuditAction;

@@ -8,6 +8,8 @@ import fs from 'fs/promises';
 import { fileExists, getStoragePath, deleteFile as deleteStorageFile } from '../lib/storage.js';
 import { v4 as uuidv4 } from 'uuid';
 import { config } from '../config/index.js';
+import * as cache from '../lib/cache.js';
+import logger from '../lib/logger.js';
 
 const router = Router();
 
@@ -64,6 +66,9 @@ router.post('/', authenticate, validate(createFolderSchema), async (req: Request
       },
     });
 
+    // Invalidate folder cache after creation
+    await cache.invalidateAfterFolderChange(userId);
+
     res.status(201).json(serializeFolder(folder));
   } catch (error) {
     console.error('Create folder error:', error);
@@ -76,6 +81,18 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
   try {
     const userId = req.user!.userId;
     const { parentId, favorites } = req.query;
+
+    // Try cache for non-filtered requests (root folders without favorites filter)
+    const canUseCache = !favorites && (parentId === 'null' || parentId === '' || !parentId);
+    
+    if (canUseCache) {
+      const cachedFolders = await cache.getFolders(userId);
+      if (cachedFolders) {
+        logger.debug('Cache hit for folders list', { userId });
+        res.json(cachedFolders);
+        return;
+      }
+    }
 
     const where: any = {
       userId,
@@ -105,6 +122,11 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
       ...folder,
       size: folder.size?.toString() ?? '0',
     }));
+
+    // Cache root folders (most commonly accessed)
+    if (canUseCache) {
+      await cache.setFolders(userId, serializedFolders);
+    }
 
     res.json(serializedFolders);
   } catch (error) {
@@ -189,6 +211,9 @@ router.patch('/:id', authenticate, validate(updateFolderSchema), async (req: Req
         ...(category !== undefined && { category }),
       },
     });
+
+    // Invalidate folder cache after update
+    await cache.invalidateAfterFolderChange(userId);
 
     res.json(serializeFolder(updated));
   } catch (error) {
@@ -295,6 +320,9 @@ router.patch('/:id/move', authenticate, validate(moveFolderSchema), async (req: 
       },
     });
 
+    // Invalidate folder cache after move
+    await cache.invalidateAfterFolderChange(userId);
+
     res.json(serializeFolder(updated));
   } catch (error) {
     console.error('Move folder error:', error);
@@ -380,6 +408,9 @@ router.delete('/:id', authenticate, async (req: Request, res: Response) => {
 
     await deleteRecursively(id, permanent === 'true' || folder.isTrash);
 
+    // Invalidate folder cache after deletion
+    await cache.invalidateAfterFolderChange(userId);
+
     res.json({ message: 'Folder deleted successfully' });
   } catch (error) {
     console.error('Delete folder error:', error);
@@ -433,6 +464,9 @@ router.patch('/:id/favorite', authenticate, async (req: Request, res: Response) 
       where: { id },
       data: { isFavorite: !folder.isFavorite },
     });
+
+    // Invalidate folder cache after favorite toggle
+    await cache.invalidateAfterFolderChange(userId);
 
     res.json(serializeFolder(updated));
   } catch (error) {

@@ -7,7 +7,7 @@
     "songs": "músicas",
     "shuffle": "Aleatório",
     "repeat": "Repetir",
-    "volume": "Volume",
+    "volume": "Som",
     "previous": "Anterior",
     "next": "Próximo",
     "play": "Reproduzir",
@@ -41,6 +41,14 @@
     "userMenu": "Menu do usuário"
   },
   "sidebar": {
+    "dashboard": "Início",
+    "files": "Meus arquivos",
+    "documents": "Documentos",
+    "photos": "Galeria",
+    "music": "Música",
+    "shared": "Compartilhados",
+    "trash": "Lixeira",
+    "settings": "Configurações",
     "storage": "Armazenamento",
     "emptyTrash": "Esvaziar lixeira",
     "emptying": "Esvaziando...",
@@ -154,7 +162,15 @@
     "color": "Cor",
     "noAlbums": "Você não tem álbuns",
     "createOneAbove": "Crie um acima",
-    "photosCount": "{{count}} fotos"
+    "photosCount": "{{count}} fotos",
+    "noPhotos": "Sem fotos",
+    "uploadPhotos": "Carregue imagens para vê-las aqui",
+    "noVideos": "Sem vídeos",
+    "uploadVideos": "Carregue vídeos para vê-los aqui",
+    "noScreenshots": "Sem capturas de tela",
+    "uploadScreenshots": "Capturas de tela aparecerão aqui",
+    "noFavoritePhotos": "Sem fotos favoritas",
+    "addFavoritePhotos": "Adicione fotos aos favoritos para vê-las aqui"
   },
   "music": {
     "loadError": "Erro ao carregar música",
@@ -175,6 +191,8 @@
     "organizeInFolders": "Organize sua música em pastas para criar álbuns",
     "noMusic": "Nenhuma música",
     "uploadAudioFiles": "Envie arquivos de áudio para vê-los aqui",
+    "noFavoriteMusic": "Sem música favorita",
+    "addFavoriteMusic": "Adicione música aos favoritos para vê-la aqui",
     "songsSelected": "{{count}} músicas selecionadas",
     "play": "Reproduzir",
     "addToQueue": "Adicionar à fila",
@@ -206,6 +224,16 @@
     "deleteError": "Erro ao excluir",
     "noDocuments": "Sem documentos",
     "uploadDocuments": "Carregue arquivos de documentos para vê-los aqui",
+    "noPdfs": "Sem arquivos PDF",
+    "uploadPdfs": "Carregue arquivos PDF para vê-los aqui",
+    "noText": "Sem arquivos de texto",
+    "uploadText": "Carregue arquivos de texto ou Word para vê-los aqui",
+    "noSpreadsheets": "Sem planilhas",
+    "uploadSpreadsheets": "Carregue arquivos Excel ou CSV para vê-los aqui",
+    "noPresentations": "Sem apresentações",
+    "uploadPresentations": "Carregue arquivos PowerPoint para vê-los aqui",
+    "noCode": "Sem arquivos de código",
+    "uploadCode": "Carregue arquivos de código fonte para vê-los aqui",
     "selectedDocuments": "{{count}} documentos selecionados",
     "preview": "Visualização",
     "downloadCount": "Baixar {{count}} documentos",
@@ -216,7 +244,9 @@
     "favorite": "Favorito"
   },
   "favorites": {
-    "loadError": "Erro ao carregar favoritos"
+    "loadError": "Erro ao carregar favoritos",
+    "noFavorites": "Sem favoritos ainda",
+    "addFavorites": "Adicione arquivos ou pastas aos favoritos para vê-los aqui"
   },
   "shared": {
     "loadError": "Erro ao carregar os itens compartilhados",
@@ -239,7 +269,11 @@
     "unknownUser": "Usuário desconhecido",
     "canEditPermission": "Você pode editar",
     "itemOptions": "Opções do item compartilhado",
-    "open": "Abrir"
+    "open": "Abrir",
+    "noMyShares": "Você não compartilhou nada",
+    "startSharing": "Compartilhe arquivos ou pastas para acessá-los rapidamente daqui",
+    "noSharedWithMe": "Ninguém compartilhou com você",
+    "waitForShares": "Quando alguém compartilhar arquivos com você, eles aparecerão aqui"
   },
   "albums": {
     "loadError": "Erro ao carregar os álbuns",
@@ -275,6 +309,7 @@
   "trash": {
     "title": "Lixeira",
     "empty": "A lixeira está vazia",
+    "emptySubtitle": "Os arquivos excluídos aparecerão aqui",
     "emptyTrash": "Esvaziar lixeira",
     "emptyConfirmTitle": "Esvaziar lixeira",
     "emptyConfirmMessage": "Tem certeza de que deseja excluir permanentemente {{count}} item(ns) da lixeira?",
@@ -485,7 +520,7 @@
     "info": "Informação",
     "yes": "Sim",
     "no": "Não",
-    "ok": "OK",
+    "ok": "Certo",
     "retry": "Tentar novamente",
     "back": "Voltar",
     "next": "Próximo",
@@ -617,7 +652,7 @@
       "copy": "Copiar",
       "passwordProtected": "Protegido por senha",
       "expires": "Expira",
-      "downloads": "downloads",
+      "downloads": "descargas",
       "modifySettings": "Modificar configurações",
       "newPassword": "Nova senha (opcional)",
       "leaveEmptyPassword": "Deixe vazio para manter a atual",
@@ -634,7 +669,7 @@
       "viewOnly": "Apenas visualizar",
       "edit": "Editar",
       "addCollaborator": "Adicionar colaborador",
-      "editor": "Editor",
+      "editor": "Editora",
       "viewer": "Visualizador",
       "removeCollaborator": "Remover colaborador {{name}}",
       "noCollaborators": "Nenhum colaborador adicionado",
@@ -714,7 +749,7 @@
       "custom": "Personalizados",
       "customized": "Personalizado",
       "notCustomized": "Não personalizado",
-      "editor": "Editor",
+      "editor": "Editor de código",
       "preview": "Pré-visualização",
       "subject": "Assunto",
       "htmlContent": "Conteúdo HTML",
@@ -751,12 +786,12 @@
       "testSent": "Email de teste enviado"
     },
     "branding": {
-      "title": "Branding",
+      "title": "Identidade visual",
       "description": "Personalize a aparência",
       "primaryColor": "Cor principal",
       "logoLight": "Logo (claro)",
       "logoDark": "Logo (escuro)",
-      "favicon": "Favicon",
+      "favicon": "Ícone do site",
       "save": "Salvar Branding",
       "uploaded": "Arquivo enviado",
       "saved": "Branding salvo"
@@ -803,7 +838,7 @@
       "createUser": "Criar Usuário",
       "editUser": "Editar Usuário",
       "name": "Nome",
-      "email": "Email",
+      "email": "Endereço de e-mail",
       "password": "Senha",
       "passwordHint": "Deixe vazio para manter",
       "cancel": "Cancelar",
@@ -888,7 +923,7 @@
     "fullscreen": "Tela cheia (F)",
     "exitFullscreen": "Sair da tela cheia",
     "speed": "Velocidade",
-    "normal": "Normal",
+    "normal": "Padrão",
     "loadingDocument": "Carregando documento...",
     "loadingPdf": "Carregando PDF...",
     "page": "Página",
@@ -1001,5 +1036,51 @@
       "noConnection": "Sem conexão com a internet. Verifique sua conexão",
       "resetError": "Erro ao redefinir a senha. Tente novamente"
     }
+  },
+  "errorBoundary": {
+    "title": "Algo deu errado!",
+    "description": "Ocorreu um erro inesperado. Por favor, recarregue a página.",
+    "showDetails": "Ver detalhes do erro",
+    "reload": "Recarregar página",
+    "goHome": "Ir para início"
+  },
+  "verifyEmail": {
+    "verifying": "Verificando seu email...",
+    "pleaseWait": "Aguarde enquanto verificamos seu email.",
+    "success": "Email verificado!",
+    "successMessage": "Seu email foi verificado com sucesso!",
+    "continueToLogin": "Continuar para o login",
+    "failed": "Verificação falhou",
+    "goToLogin": "Ir para o login",
+    "errorMessage": "Erro ao verificar o email. O link pode ter expirado."
+  },
+  "passwordStrength": {
+    "title": "Força da senha",
+    "minLength": "Mínimo 8 caracteres",
+    "uppercase": "Pelo menos uma maiúscula",
+    "lowercase": "Pelo menos uma minúscula",
+    "number": "Pelo menos um número",
+    "special": "Pelo menos um caractere especial (!@#$%^&*)",
+    "weak": "Fraca",
+    "fair": "Razoável",
+    "good": "Boa",
+    "strong": "Forte",
+    "veryStrong": "Muito forte"
+  },
+  "keyboardShortcuts": {
+    "title": "Atalhos de teclado",
+    "macNote": "Nota: No Mac, use"
+  },
+  "toolbar": {
+    "selected": "{{count}} selecionado(s)",
+    "clear": "Limpar",
+    "delete": "Excluir"
+  },
+  "progress": {
+    "total": "Total: {{completed}} de {{total}} itens",
+    "clearCompleted": "Limpar concluídos",
+    "completed": "{{count}} concluído(s)",
+    "inProgress": "{{count}} operação(ões) em andamento",
+    "allCompleted": "Operações concluídas"
   }
 }

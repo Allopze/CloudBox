@@ -8,7 +8,19 @@ import { authenticate } from '../middleware/auth.js';
 import { authOptional } from '../middleware/authOptional.js';
 import { uploadFile, uploadChunk, decodeFilename } from '../middleware/upload.js';
 import { validate } from '../middleware/validate.js';
-import { renameFileSchema, moveFileSchema } from '../schemas/index.js';
+import { 
+  renameFileSchema, 
+  moveFileSchema, 
+  uploadFilesSchema,
+  uploadWithFoldersSchema,
+  uploadInitSchema,
+  uploadChunkSchema,
+  fileIdParamSchema,
+  fileAccessSchema,
+  parseRangeHeader,
+  UPLOAD_LIMITS,
+  UPLOAD_ERROR_CODES,
+} from '../schemas/index.js';
 import { 
   getUserFilePath, 
   ensureUserDir, 
@@ -19,25 +31,77 @@ import {
   getChunkPath,
   deleteDirectory,
   streamFile,
+  isValidUUID,
 } from '../lib/storage.js';
 import { generateThumbnail } from '../lib/thumbnail.js';
 import { thumbnailQueue } from '../lib/thumbnailQueue.js';
 import { config } from '../config/index.js';
 import { sanitizeFilename, validateMimeType, isDangerousExtension, checkUserRateLimit } from '../lib/security.js';
 import { auditLog } from '../lib/audit.js';
+import logger from '../lib/logger.js';
 import ExcelJS from 'exceljs';
+import * as cache from '../lib/cache.js';
 
 const router = Router();
 
+// Helper function to cleanup chunks on failure
+async function cleanupChunks(uploadId: string, userId: string, totalSize: number): Promise<void> {
+  try {
+    // Delete chunk records from database
+    await prisma.fileChunk.deleteMany({ where: { uploadId } });
+    
+    // Delete chunk directory
+    await deleteDirectory(getStoragePath('chunks', uploadId));
+    
+    // Release reserved tempStorage
+    await prisma.user.update({
+      where: { id: userId },
+      data: { tempStorage: { decrement: totalSize } },
+    }).catch(() => {});
+    
+    logger.info('Cleaned up failed upload chunks', { uploadId, userId });
+  } catch (error) {
+    logger.error('Failed to cleanup chunks', { uploadId, userId }, error instanceof Error ? error : undefined);
+  }
+}
+
+// Helper function to validate folderId belongs to user
+async function validateFolderOwnership(folderId: string | null, userId: string): Promise<boolean> {
+  if (!folderId) return true;
+  
+  // Validate UUID format
+  if (!isValidUUID(folderId)) {
+    return false;
+  }
+  
+  const folder = await prisma.folder.findFirst({ where: { id: folderId, userId } });
+  return !!folder;
+}
+
 // Upload single/multiple files
-router.post('/upload', authenticate, uploadFile.array('files', 20), async (req: Request, res: Response) => {
+router.post('/upload', authenticate, uploadFile.array('files', UPLOAD_LIMITS.MAX_FILES_PER_REQUEST), async (req: Request, res: Response) => {
   try {
     const userId = req.user!.userId;
     const folderId = req.body.folderId || null;
     const files = req.files as Express.Multer.File[];
 
     if (!files || files.length === 0) {
-      res.status(400).json({ error: 'No files uploaded' });
+      res.status(400).json({ error: 'No files uploaded', code: UPLOAD_ERROR_CODES.INVALID_CHUNK });
+      return;
+    }
+
+    // Validate file count limit
+    if (files.length > UPLOAD_LIMITS.MAX_FILES_PER_REQUEST) {
+      res.status(400).json({ 
+        error: `Maximum ${UPLOAD_LIMITS.MAX_FILES_PER_REQUEST} files allowed per request`,
+        code: UPLOAD_ERROR_CODES.MAX_FILES_EXCEEDED,
+      });
+      return;
+    }
+
+    // Validate folderId format and ownership
+    if (folderId && !isValidUUID(folderId)) {
+      res.status(400).json({ error: 'Invalid folder ID format', code: UPLOAD_ERROR_CODES.INVALID_FOLDER });
       return;
     }
 
@@ -52,15 +116,14 @@ router.post('/upload', authenticate, uploadFile.array('files', 20), async (req: 
         details: { reason: 'rate_limit', blocked: true },
         success: false,
       });
-      res.status(429).json({ error: 'Too many uploads. Please wait a moment.' });
+      res.status(429).json({ error: 'Too many uploads. Please wait a moment.', code: UPLOAD_ERROR_CODES.RATE_LIMIT_EXCEEDED });
       return;
     }
 
     // Validate folderId belongs to user
     if (folderId) {
-      const folder = await prisma.folder.findFirst({ where: { id: folderId, userId } });
-      if (!folder) {
-        res.status(404).json({ error: 'Folder not found' });
+      if (!await validateFolderOwnership(folderId, userId)) {
+        res.status(404).json({ error: 'Folder not found', code: UPLOAD_ERROR_CODES.INVALID_FOLDER });
         return;
       }
     }
@@ -83,7 +146,12 @@ router.post('/upload', authenticate, uploadFile.array('files', 20), async (req: 
         throw new Error('Storage quota exceeded');
       }
 
-      // Check max file size
+      // Check max file size and total request size
+      const maxTotalRequestSize = Number(user.maxFileSize) * UPLOAD_LIMITS.MAX_FILES_PER_REQUEST;
+      if (totalSize > maxTotalRequestSize) {
+        throw new Error(`Total upload size exceeds maximum limit of ${maxTotalRequestSize} bytes`);
+      }
+
       for (const file of files) {
         if (file.size > Number(user.maxFileSize)) {
           throw new Error(`File ${decodeFilename(file.originalname)} exceeds maximum size limit`);
@@ -191,6 +259,9 @@ router.post('/upload', authenticate, uploadFile.array('files', 20), async (req: 
       success: true,
     });
 
+    // Invalidate cache after file upload
+    await cache.invalidateAfterFileChange(userId);
+
     res.status(201).json(uploadedFiles);
   } catch (error: any) {
     // Clean up temp files on any error
@@ -202,12 +273,13 @@ router.post('/upload', authenticate, uploadFile.array('files', 20), async (req: 
       }
     }
     
-    console.error('Upload error:', error);
+    logger.error('Upload error', { userId: req.user?.userId, error: error.message }, error instanceof Error ? error : undefined);
     if (error.message === 'Storage quota exceeded' || 
         error.message.includes('exceeds maximum size limit') ||
+        error.message.includes('exceeds maximum limit') ||
         error.message.includes('File type not allowed') ||
         error.message.includes('Invalid file type')) {
-      res.status(400).json({ error: error.message });
+      res.status(400).json({ error: error.message, code: UPLOAD_ERROR_CODES.QUOTA_EXCEEDED });
     } else {
       res.status(500).json({ error: 'Failed to upload files' });
     }
@@ -215,7 +287,7 @@ router.post('/upload', authenticate, uploadFile.array('files', 20), async (req: 
 });
 
 // Upload files with folder structure (drag & drop folders)
-router.post('/upload-with-folders', authenticate, uploadFile.array('files', 100), async (req: Request, res: Response) => {
+router.post('/upload-with-folders', authenticate, uploadFile.array('files', UPLOAD_LIMITS.MAX_FILES_FOLDER_UPLOAD), async (req: Request, res: Response) => {
   try {
     const userId = req.user!.userId;
     const baseFolderId = req.body.folderId || null;
@@ -223,7 +295,22 @@ router.post('/upload-with-folders', authenticate, uploadFile.array('files', 100)
     const files = req.files as Express.Multer.File[];
 
     if (!files || files.length === 0) {
-      res.status(400).json({ error: 'No files uploaded' });
+      res.status(400).json({ error: 'No files uploaded', code: UPLOAD_ERROR_CODES.INVALID_CHUNK });
+      return;
+    }
+
+    // Validate file count limit
+    if (files.length > UPLOAD_LIMITS.MAX_FILES_FOLDER_UPLOAD) {
+      res.status(400).json({ 
+        error: `Maximum ${UPLOAD_LIMITS.MAX_FILES_FOLDER_UPLOAD} files allowed per folder upload`,
+        code: UPLOAD_ERROR_CODES.MAX_FILES_EXCEEDED,
+      });
+      return;
+    }
+
+    // Validate baseFolderId format
+    if (baseFolderId && !isValidUUID(baseFolderId)) {
+      res.status(400).json({ error: 'Invalid folder ID format', code: UPLOAD_ERROR_CODES.INVALID_FOLDER });
       return;
     }
 
@@ -238,15 +325,14 @@ router.post('/upload-with-folders', authenticate, uploadFile.array('files', 100)
         details: { reason: 'rate_limit', blocked: true },
         success: false,
       });
-      res.status(429).json({ error: 'Too many uploads. Please wait a moment.' });
+      res.status(429).json({ error: 'Too many uploads. Please wait a moment.', code: UPLOAD_ERROR_CODES.RATE_LIMIT_EXCEEDED });
       return;
     }
 
     // Validate baseFolderId belongs to user
     if (baseFolderId) {
-      const folder = await prisma.folder.findFirst({ where: { id: baseFolderId, userId } });
-      if (!folder) {
-        res.status(404).json({ error: 'Folder not found' });
+      if (!await validateFolderOwnership(baseFolderId, userId)) {
+        res.status(404).json({ error: 'Folder not found', code: UPLOAD_ERROR_CODES.INVALID_FOLDER });
         return;
       }
     }
@@ -430,6 +516,10 @@ router.post('/upload-with-folders', authenticate, uploadFile.array('files', 100)
       success: true,
     });
 
+    // Invalidate cache after file upload
+    await cache.invalidateAfterFileChange(userId);
+    await cache.invalidateFolders(userId);
+
     res.status(201).json(uploadedFiles);
   } catch (error: any) {
     // Clean up temp files
@@ -440,20 +530,153 @@ router.post('/upload-with-folders', authenticate, uploadFile.array('files', 100)
       }
     }
     
-    console.error('Upload with folders error:', error);
+    logger.error('Upload with folders error', { userId: req.user?.userId, error: error.message }, error instanceof Error ? error : undefined);
     if (error.message === 'Storage quota exceeded') {
-      res.status(400).json({ error: error.message });
+      res.status(400).json({ error: error.message, code: UPLOAD_ERROR_CODES.QUOTA_EXCEEDED });
     } else {
       res.status(500).json({ error: 'Failed to upload files' });
     }
   }
 });
 
+// Pre-validation endpoint for checking files before upload
+router.post('/upload/validate', authenticate, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+    const { files, folderId } = req.body as {
+      files: Array<{ name: string; size: number; type?: string }>;
+      folderId?: string | null;
+    };
+
+    if (!files || !Array.isArray(files) || files.length === 0) {
+      res.status(400).json({ error: 'No files to validate' });
+      return;
+    }
+
+    // Validate folderId if provided
+    if (folderId && !isValidUUID(folderId)) {
+      res.status(400).json({ error: 'Invalid folder ID format', code: UPLOAD_ERROR_CODES.INVALID_FOLDER });
+      return;
+    }
+
+    if (folderId) {
+      if (!await validateFolderOwnership(folderId, userId)) {
+        res.status(404).json({ error: 'Folder not found', code: UPLOAD_ERROR_CODES.INVALID_FOLDER });
+        return;
+      }
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    const remainingQuota = Number(user.storageQuota) - Number(user.storageUsed) - Number(user.tempStorage || 0);
+    const maxFileSize = Number(user.maxFileSize);
+
+    const validationResults: Array<{
+      name: string;
+      valid: boolean;
+      error?: string;
+      errorCode?: string;
+    }> = [];
+
+    let totalSize = 0;
+
+    for (const file of files) {
+      const sanitizedName = sanitizeFilename(file.name);
+      
+      // Check dangerous extensions
+      if (isDangerousExtension(sanitizedName)) {
+        validationResults.push({
+          name: file.name,
+          valid: false,
+          error: 'File type not allowed',
+          errorCode: UPLOAD_ERROR_CODES.DANGEROUS_EXTENSION,
+        });
+        continue;
+      }
+
+      // Check file size limit
+      if (file.size > maxFileSize) {
+        const maxSizeMB = Math.round(maxFileSize / 1024 / 1024);
+        validationResults.push({
+          name: file.name,
+          valid: false,
+          error: `File exceeds maximum size limit of ${maxSizeMB}MB`,
+          errorCode: UPLOAD_ERROR_CODES.FILE_TOO_LARGE,
+        });
+        continue;
+      }
+
+      totalSize += file.size;
+      validationResults.push({ name: file.name, valid: true });
+    }
+
+    // Check combined quota
+    const quotaExceeded = totalSize > remainingQuota;
+
+    res.json({
+      valid: validationResults.every(r => r.valid) && !quotaExceeded,
+      files: validationResults,
+      quota: {
+        used: Number(user.storageUsed),
+        total: Number(user.storageQuota),
+        remaining: remainingQuota,
+        maxFileSize,
+      },
+      totalSize,
+      quotaExceeded,
+    });
+  } catch (error: any) {
+    logger.error('Validate upload error', { userId: req.user?.userId, error: error.message }, error instanceof Error ? error : undefined);
+    res.status(500).json({ error: 'Failed to validate files' });
+  }
+});
+
 // Chunked upload - initialize
-router.post('/upload/init', authenticate, async (req: Request, res: Response) => {
+router.post('/upload/init', authenticate, validate(uploadInitSchema), async (req: Request, res: Response) => {
   try {
     const { filename, totalChunks, totalSize, folderId } = req.body;
     const userId = req.user!.userId;
+
+    // Validate folderId if provided
+    if (folderId && !isValidUUID(folderId)) {
+      res.status(400).json({ error: 'Invalid folder ID format', code: UPLOAD_ERROR_CODES.INVALID_FOLDER });
+      return;
+    }
+
+    if (folderId) {
+      if (!await validateFolderOwnership(folderId, userId)) {
+        res.status(404).json({ error: 'Folder not found', code: UPLOAD_ERROR_CODES.INVALID_FOLDER });
+        return;
+      }
+    }
+
+    // Validate chunk count
+    if (totalChunks > UPLOAD_LIMITS.MAX_TOTAL_CHUNKS) {
+      res.status(400).json({ 
+        error: `Cannot exceed ${UPLOAD_LIMITS.MAX_TOTAL_CHUNKS} chunks`,
+        code: UPLOAD_ERROR_CODES.INVALID_CHUNK,
+      });
+      return;
+    }
+
+    // Validate filename
+    const sanitizedFilename = sanitizeFilename(filename);
+    if (isDangerousExtension(sanitizedFilename)) {
+      await auditLog({
+        action: 'SUSPICIOUS_ACTIVITY',
+        userId,
+        ipAddress: req.ip || 'unknown',
+        userAgent: req.headers['user-agent'],
+        details: { filename, reason: 'dangerous_extension_init' },
+        success: false,
+      });
+      res.status(400).json({ error: 'File type not allowed', code: UPLOAD_ERROR_CODES.DANGEROUS_EXTENSION });
+      return;
+    }
 
     // Use transaction to atomically check and reserve space
     const uploadId = await prisma.$transaction(async (tx) => {
@@ -483,11 +706,13 @@ router.post('/upload/init', authenticate, async (req: Request, res: Response) =>
 
     res.json({ uploadId, totalChunks, reservedSize: totalSize });
   } catch (error: any) {
-    console.error('Init upload error:', error);
+    logger.error('Init upload error', { userId: req.user?.userId, error: error.message }, error instanceof Error ? error : undefined);
     if (error.message === 'User not found') {
       res.status(404).json({ error: 'User not found' });
-    } else if (error.message === 'File exceeds maximum size limit' || error.message === 'Storage quota exceeded') {
-      res.status(400).json({ error: error.message });
+    } else if (error.message === 'File exceeds maximum size limit') {
+      res.status(400).json({ error: error.message, code: UPLOAD_ERROR_CODES.FILE_TOO_LARGE });
+    } else if (error.message === 'Storage quota exceeded') {
+      res.status(400).json({ error: error.message, code: UPLOAD_ERROR_CODES.QUOTA_EXCEEDED });
     } else {
       res.status(500).json({ error: 'Failed to initialize upload' });
     }
@@ -501,12 +726,61 @@ router.post('/upload/chunk', authenticate, uploadChunk.single('chunk'), async (r
     const filename = decodeFilename(rawFilename);
     const userId = req.user!.userId;
 
-    if (!req.file) {
-      res.status(400).json({ error: 'No chunk uploaded' });
+    // Validate uploadId is a valid UUID
+    if (!isValidUUID(uploadId)) {
+      logger.warn('Invalid uploadId in chunk upload', { uploadId, userId });
+      res.status(400).json({ error: 'Invalid upload ID', code: UPLOAD_ERROR_CODES.UPLOAD_NOT_FOUND });
       return;
     }
 
-    const chunkPath = getChunkPath(uploadId, parseInt(chunkIndex));
+    // Validate chunk index
+    const chunkIdx = parseInt(chunkIndex, 10);
+    const totalChunksNum = parseInt(totalChunks, 10);
+    
+    if (isNaN(chunkIdx) || chunkIdx < 0 || isNaN(totalChunksNum) || totalChunksNum <= 0) {
+      res.status(400).json({ error: 'Invalid chunk parameters', code: UPLOAD_ERROR_CODES.INVALID_CHUNK });
+      return;
+    }
+
+    if (chunkIdx >= totalChunksNum) {
+      res.status(400).json({ error: 'Chunk index exceeds total chunks', code: UPLOAD_ERROR_CODES.CHUNK_MISMATCH });
+      return;
+    }
+
+    if (!req.file) {
+      res.status(400).json({ error: 'No chunk uploaded', code: UPLOAD_ERROR_CODES.INVALID_CHUNK });
+      return;
+    }
+
+    // Validate chunk size
+    if (req.file.size > UPLOAD_LIMITS.MAX_CHUNK_SIZE) {
+      await deleteFile(req.file.path);
+      res.status(400).json({ 
+        error: `Chunk size exceeds maximum of ${UPLOAD_LIMITS.MAX_CHUNK_SIZE / 1024 / 1024}MB`,
+        code: UPLOAD_ERROR_CODES.FILE_TOO_LARGE,
+      });
+      return;
+    }
+
+    // Validate filename and MIME type
+    const sanitizedFilename = sanitizeFilename(filename);
+    if (isDangerousExtension(sanitizedFilename)) {
+      await deleteFile(req.file.path);
+      await cleanupChunks(uploadId, userId, parseInt(totalSize, 10));
+      logger.warn('Dangerous extension in chunk upload', { filename: sanitizedFilename, userId });
+      res.status(400).json({ error: 'File type not allowed', code: UPLOAD_ERROR_CODES.DANGEROUS_EXTENSION });
+      return;
+    }
+
+    if (!validateMimeType(mimeType, sanitizedFilename)) {
+      await deleteFile(req.file.path);
+      await cleanupChunks(uploadId, userId, parseInt(totalSize, 10));
+      logger.warn('MIME type mismatch in chunk upload', { mimeType, filename: sanitizedFilename, userId });
+      res.status(400).json({ error: 'Invalid file type', code: UPLOAD_ERROR_CODES.INVALID_FILE_TYPE });
+      return;
+    }
+
+    const chunkPath = getChunkPath(uploadId, chunkIdx);
     await fs.mkdir(path.dirname(chunkPath), { recursive: true });
     await moveFileStorage(req.file.path, chunkPath);
 
@@ -514,8 +788,8 @@ router.post('/upload/chunk', authenticate, uploadChunk.single('chunk'), async (r
     await prisma.fileChunk.create({
       data: {
         uploadId,
-        chunkIndex: parseInt(chunkIndex),
-        totalChunks: parseInt(totalChunks),
+        chunkIndex: chunkIdx,
+        totalChunks: totalChunksNum,
         path: chunkPath,
         size: BigInt(req.file.size),
       },
@@ -527,10 +801,22 @@ router.post('/upload/chunk', authenticate, uploadChunk.single('chunk'), async (r
       orderBy: { chunkIndex: 'asc' },
     });
 
-    if (chunks.length === parseInt(totalChunks)) {
+    if (chunks.length === totalChunksNum) {
+      // Validate all chunks are present (no gaps)
+      const indices = chunks.map(c => c.chunkIndex).sort((a, b) => a - b);
+      for (let i = 0; i < indices.length; i++) {
+        if (indices[i] !== i) {
+          logger.error('Chunk index mismatch during merge', { uploadId, expected: i, got: indices[i] });
+          await cleanupChunks(uploadId, userId, parseInt(totalSize, 10));
+          res.status(400).json({ error: 'Chunk index mismatch', code: UPLOAD_ERROR_CODES.CHUNK_MISMATCH });
+          return;
+        }
+      }
+
       // Merge chunks using temporary file for atomicity
       const fileId = uuidv4();
-      const ext = path.extname(filename);
+      const sanitizedName = sanitizeFilename(filename);
+      const ext = path.extname(sanitizedName);
       const filePath = getUserFilePath(userId, fileId, ext);
       const tempFilePath = getStoragePath('temp', `${uploadId}_merged${ext}`);
 
@@ -637,22 +923,19 @@ router.post('/upload/chunk', authenticate, uploadChunk.single('chunk'), async (r
       } catch (error) {
         // Clean up temp file on error
         await deleteFile(tempFilePath).catch(() => {});
-        // Release reserved tempStorage on error
-        await prisma.user.update({
-          where: { id: userId },
-          data: { tempStorage: { decrement: parseInt(totalSize) } },
-        }).catch(() => {});
+        // Transactional cleanup of chunks and reserved storage
+        await cleanupChunks(uploadId, userId, parseInt(totalSize, 10));
         throw error;
       }
     } else {
       res.json({
         completed: false,
         uploadedChunks: chunks.length,
-        totalChunks: parseInt(totalChunks),
+        totalChunks: totalChunksNum,
       });
     }
   } catch (error) {
-    console.error('Chunk upload error:', error);
+    logger.error('Chunk upload error', { userId: req.user?.userId }, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to upload chunk' });
   }
 });
@@ -671,6 +954,23 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
       sortBy = 'createdAt',
       sortOrder = 'desc',
     } = req.query;
+
+    const pageNum = parseInt(page as string);
+    const limitNum = parseInt(limit as string);
+    const folderIdStr = folderId === 'null' || folderId === '' ? null : (folderId as string) || null;
+    
+    // Build cache key based on query params (only for non-search queries)
+    const canUseCache = !search && !favorite;
+    
+    if (canUseCache) {
+      // Try to get from cache first
+      const cachedFiles = await cache.getFiles(userId, folderIdStr, pageNum, type as string);
+      if (cachedFiles) {
+        logger.debug('Cache hit for files list', { userId, folderId: folderIdStr, page: pageNum });
+        res.json(cachedFiles);
+        return;
+      }
+    }
 
     const where: any = {
       userId,
@@ -717,9 +1017,6 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
       where.isFavorite = true;
     }
 
-    const pageNum = parseInt(page as string);
-    const limitNum = parseInt(limit as string);
-
     // Build orderBy clause
     const validSortFields = ['name', 'createdAt', 'updatedAt', 'size'];
     const sortField = validSortFields.includes(sortBy as string) ? sortBy : 'createdAt';
@@ -735,7 +1032,7 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
       prisma.file.count({ where }),
     ]);
 
-    res.json({
+    const response = {
       files: files.map((f: any) => ({ ...f, size: f.size.toString() })),
       pagination: {
         page: pageNum,
@@ -743,9 +1040,16 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
         total,
         totalPages: Math.ceil(total / limitNum),
       },
-    });
+    };
+
+    // Cache the result if it's a cacheable query
+    if (canUseCache) {
+      await cache.setFiles(userId, folderIdStr, pageNum, type as string, response as any);
+    }
+
+    res.json(response);
   } catch (error) {
-    console.error('List files error:', error);
+    logger.error('List files error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to list files' });
   }
 });
@@ -755,6 +1059,12 @@ router.get('/:id', authenticate, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const userId = req.user!.userId;
+
+    // Validate UUID format
+    if (!isValidUUID(id)) {
+      res.status(400).json({ error: 'Invalid file ID format' });
+      return;
+    }
 
     const file = await prisma.file.findFirst({
       where: { id, userId },
@@ -767,7 +1077,7 @@ router.get('/:id', authenticate, async (req: Request, res: Response) => {
 
     res.json({ ...file, size: file.size.toString() });
   } catch (error) {
-    console.error('Get file error:', error);
+    logger.error('Get file error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to get file' });
   }
 });
@@ -802,9 +1112,12 @@ router.patch('/:id/rename', authenticate, validate(renameFileSchema), async (req
       },
     });
 
+    // Invalidate cache after file rename
+    await cache.invalidateAfterFileChange(userId, id);
+
     res.json({ ...updated, size: updated.size.toString() });
   } catch (error) {
-    console.error('Rename file error:', error);
+    logger.error('Rename file error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to rename file' });
   }
 });
@@ -865,9 +1178,12 @@ router.patch('/:id/move', authenticate, validate(moveFileSchema), async (req: Re
       },
     });
 
+    // Invalidate cache after file move
+    await cache.invalidateAfterFileChange(userId, id);
+
     res.json({ ...updated, size: updated.size.toString() });
   } catch (error) {
-    console.error('Move file error:', error);
+    logger.error('Move file error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to move file' });
   }
 });
@@ -894,7 +1210,7 @@ router.patch('/:id/favorite', authenticate, async (req: Request, res: Response) 
 
     res.json({ ...updated, size: updated.size.toString() });
   } catch (error) {
-    console.error('Toggle favorite error:', error);
+    logger.error('Toggle favorite error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to toggle favorite' });
   }
 });
@@ -949,9 +1265,12 @@ router.delete('/:id', authenticate, async (req: Request, res: Response) => {
       },
     });
 
+    // Invalidate cache after file deletion
+    await cache.invalidateAfterFileChange(userId, id);
+
     res.json({ message: 'File deleted successfully' });
   } catch (error) {
-    console.error('Delete file error:', error);
+    logger.error('Delete file error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to delete file' });
   }
 });
@@ -961,6 +1280,12 @@ router.get('/:id/download', authOptional, async (req: Request, res: Response) =>
   try {
     const { id } = req.params;
     const userId = req.user?.userId;
+
+    // Validate file ID format
+    if (!isValidUUID(id)) {
+      res.status(400).json({ error: 'Invalid file ID format' });
+      return;
+    }
 
     if (!userId) {
       res.status(401).json({ error: 'Unauthorized' });
@@ -972,11 +1297,13 @@ router.get('/:id/download', authOptional, async (req: Request, res: Response) =>
     });
 
     if (!file) {
+      logger.info('File not found for download', { fileId: id, userId });
       res.status(404).json({ error: 'File not found' });
       return;
     }
 
     if (!await fileExists(file.path)) {
+      logger.warn('File exists in DB but not on disk', { fileId: id, path: file.path });
       res.status(404).json({ error: 'File not found on disk' });
       return;
     }
@@ -995,10 +1322,16 @@ router.get('/:id/download', authOptional, async (req: Request, res: Response) =>
     const range = req.headers.range;
 
     if (range) {
-      // Streaming / resume support
-      const parts = range.replace(/bytes=/, '').split('-');
-      const start = parseInt(parts[0], 10);
-      const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
+      // Validate and parse Range header
+      const parsedRange = parseRangeHeader(range, Number(stat.size));
+      
+      if (!parsedRange) {
+        logger.warn('Invalid Range header in download', { fileId: id, range });
+        res.status(416).json({ error: 'Invalid Range header' });
+        return;
+      }
+
+      const { start, end } = parsedRange;
       const chunkSize = end - start + 1;
 
       res.status(206);
@@ -1011,18 +1344,25 @@ router.get('/:id/download', authOptional, async (req: Request, res: Response) =>
       const stream = createReadStream(file.path, { start, end });
       stream.pipe(res);
     } else {
-      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(file.name)}"`);
+      // Safe filename encoding for Content-Disposition
+      const safeFilename = encodeURIComponent(file.name).replace(/['()]/g, escape);
+      res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"; filename*=UTF-8''${safeFilename}`);
       res.setHeader('Content-Type', file.mimeType);
       res.setHeader('Content-Length', stat.size);
       res.sendFile(file.path);
     }
   } catch (error) {
-    console.error('Download file error:', error);
+    logger.error('Download file error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to download file' });
   }
 });
 
 const findFile = async (id: string, userId?: string, sharePassword?: string) => {
+  // Validate ID format first
+  if (!isValidUUID(id)) {
+    return { file: null, requiresPassword: false, error: 'invalid_id' };
+  }
+
   // First try to find file owned by user
   if (userId) {
     const file = await prisma.file.findFirst({
@@ -1082,6 +1422,11 @@ router.get('/:id/stream', authOptional, async (req: Request, res: Response) => {
 
     const result = await findFile(id, userId, sharePassword);
 
+    if (result.error === 'invalid_id') {
+      res.status(400).json({ error: 'Invalid file ID format' });
+      return;
+    }
+
     if (result.requiresPassword) {
       res.status(401).json({ error: 'Password required', hasPassword: true });
       return;
@@ -1105,14 +1450,19 @@ router.get('/:id/stream', authOptional, async (req: Request, res: Response) => {
     const file = result.file;
 
     if (!await fileExists(file.path)) {
+      logger.warn('File exists in DB but not on disk for stream', { fileId: id, path: file.path });
       res.status(404).json({ error: 'File not found on disk' });
       return;
     }
 
     const stat = await fs.stat(file.path);
 
-    // For video transcoding to MP4
+    // For video transcoding to MP4 - delegate to worker/queue for non-blocking
     if (req.query.transcode === 'true' && file.mimeType.startsWith('video/') && !file.mimeType.includes('mp4')) {
+      // TODO: Move transcoding to a worker queue for scalability
+      // For now, stream directly but log the operation
+      logger.info('Video transcoding requested', { fileId: id, mimeType: file.mimeType });
+      
       const { spawn } = await import('child_process');
       
       res.setHeader('Content-Type', 'video/mp4');
@@ -1139,7 +1489,7 @@ router.get('/:id/stream', authOptional, async (req: Request, res: Response) => {
 
     return streamFile(req, res, file, stat);
   } catch (error) {
-    console.error('Stream file error:', error);
+    logger.error('Stream file error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to stream file' });
   }
 });
@@ -1154,6 +1504,11 @@ router.get('/:id/excel-html', authOptional, async (req: Request, res: Response) 
 
     const result = await findFile(id, userId, sharePassword);
     
+    if (result.error === 'invalid_id') {
+      res.status(400).json({ error: 'Invalid file ID format' });
+      return;
+    }
+
     if (result.requiresPassword) {
       res.status(401).json({ error: 'Password required', hasPassword: true });
       return;
@@ -1423,7 +1778,7 @@ router.get('/:id/excel-html', authOptional, async (req: Request, res: Response) 
       fileName: file.name
     });
   } catch (error) {
-    console.error('Excel to HTML error:', error);
+    logger.error('Excel to HTML error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to convert Excel file' });
   }
 });
@@ -1437,6 +1792,11 @@ router.get('/:id/view', authOptional, async (req: Request, res: Response) => {
 
     const result = await findFile(id, userId, sharePassword);
     
+    if (result.error === 'invalid_id') {
+      res.status(400).json({ error: 'Invalid file ID format' });
+      return;
+    }
+
     if (result.requiresPassword) {
       res.status(401).json({ error: 'Password required', hasPassword: true });
       return;
@@ -1457,7 +1817,7 @@ router.get('/:id/view', authOptional, async (req: Request, res: Response) => {
     const stat = await fs.stat(file.path);
     return streamFile(req, res, file, stat);
   } catch (error) {
-    console.error('View file error:', error);
+    logger.error('View file error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to view file' });
   }
 });
@@ -1470,6 +1830,11 @@ router.get('/:id/thumbnail', authOptional, async (req: Request, res: Response) =
     const sharePassword = req.query.password as string | undefined;
 
     const result = await findFile(id, userId, sharePassword);
+
+    if (result.error === 'invalid_id') {
+      res.status(400).json({ error: 'Invalid file ID format' });
+      return;
+    }
 
     if (result.requiresPassword) {
       res.status(401).json({ error: 'Password required', hasPassword: true });
@@ -1486,10 +1851,11 @@ router.get('/:id/thumbnail', authOptional, async (req: Request, res: Response) =
     if (file.thumbnailPath && await fileExists(file.thumbnailPath)) {
       res.sendFile(file.thumbnailPath);
     } else {
+      logger.info('Thumbnail path in DB but file missing', { fileId: id, thumbnailPath: file.thumbnailPath });
       res.status(404).json({ error: 'Thumbnail not found' });
     }
   } catch (error) {
-    console.error('Get thumbnail error:', error);
+    logger.error('Get thumbnail error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to get thumbnail' });
   }
 });
@@ -1508,6 +1874,12 @@ router.post('/create-empty', authenticate, async (req: Request, res: Response) =
       return;
     }
 
+    // Validate folderId format if provided
+    if (folderId && !isValidUUID(folderId)) {
+      res.status(400).json({ error: 'Invalid folder ID format' });
+      return;
+    }
+
     // Validate content size if provided
     const fileContent = content || '';
     if (fileContent && Buffer.byteLength(fileContent, 'utf8') > MAX_CREATE_CONTENT_SIZE) {
@@ -1515,10 +1887,19 @@ router.post('/create-empty', authenticate, async (req: Request, res: Response) =
       return;
     }
 
+    // Validate folder ownership
+    if (folderId) {
+      if (!await validateFolderOwnership(folderId, userId)) {
+        res.status(404).json({ error: 'Folder not found' });
+        return;
+      }
+    }
+
     await ensureUserDir(userId);
 
     const fileId = uuidv4();
-    const ext = path.extname(name) || '.txt';
+    const sanitizedName = sanitizeFilename(name);
+    const ext = path.extname(sanitizedName) || '.txt';
     const filePath = getUserFilePath(userId, fileId, ext);
 
     await fs.writeFile(filePath, fileContent);
@@ -1529,8 +1910,8 @@ router.post('/create-empty', authenticate, async (req: Request, res: Response) =
     const dbFile = await prisma.file.create({
       data: {
         id: fileId,
-        name,
-        originalName: name,
+        name: sanitizedName,
+        originalName: sanitizedName,
         mimeType,
         size: BigInt(fileSize),
         path: filePath,
@@ -1541,8 +1922,70 @@ router.post('/create-empty', authenticate, async (req: Request, res: Response) =
 
     res.status(201).json({ ...dbFile, size: String(fileSize) });
   } catch (error) {
-    console.error('Create empty file error:', error);
+    logger.error('Create empty file error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to create file' });
+  }
+});
+
+// Security: Generate signed URL for secure file access without query string tokens
+router.post('/:id/signed-url', authenticate, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { action = 'view' } = req.body;
+    const userId = req.user!.userId;
+
+    // Validate file ID format
+    if (!isValidUUID(id)) {
+      res.status(400).json({ error: 'Invalid file ID format' });
+      return;
+    }
+
+    // Validate action
+    const validActions = ['view', 'download', 'stream', 'thumbnail'];
+    if (!validActions.includes(action)) {
+      res.status(400).json({ error: 'Invalid action' });
+      return;
+    }
+
+    // Verify file ownership
+    const file = await prisma.file.findFirst({
+      where: { id, userId, isTrash: false },
+    });
+
+    if (!file) {
+      res.status(404).json({ error: 'File not found' });
+      return;
+    }
+
+    // Import config for expiration
+    const { config } = await import('../config/index.js');
+    const { generateSignedUrlToken } = await import('../lib/jwt.js');
+
+    const token = generateSignedUrlToken();
+    const expiresAt = new Date(Date.now() + config.signedUrls.expiresIn * 1000);
+
+    await prisma.signedUrl.create({
+      data: {
+        token,
+        fileId: id,
+        userId,
+        action,
+        expiresAt,
+      },
+    });
+
+    // Clean up expired signed URLs (async, don't wait)
+    prisma.signedUrl.deleteMany({
+      where: { expiresAt: { lt: new Date() } },
+    }).catch(() => {});
+
+    res.json({
+      signedUrl: `${config.frontendUrl.replace(/\/$/, '')}/api/files/${id}/${action}?sig=${token}`,
+      expiresAt: expiresAt.toISOString(),
+    });
+  } catch (error) {
+    logger.error('Generate signed URL error', {}, error instanceof Error ? error : undefined);
+    res.status(500).json({ error: 'Failed to generate signed URL' });
   }
 });
 

@@ -2,8 +2,10 @@ import nodemailer from 'nodemailer';
 import { config } from '../config/index.js';
 import prisma from './prisma.js';
 import { decryptSecret, isEncrypted } from './encryption.js';
+import { logger } from './logger.js';
 
 let transporter: nodemailer.Transporter | null = null;
+let smtpConfigured = false;
 
 export const getTransporter = async (): Promise<nodemailer.Transporter> => {
   if (transporter) return transporter;
@@ -28,14 +30,29 @@ export const getTransporter = async (): Promise<nodemailer.Transporter> => {
     smtpPassword = decryptSecret(smtpPassword);
   }
 
-  transporter = nodemailer.createTransport({
-    host: settings.smtp_host || config.smtp.host,
-    port: parseInt(settings.smtp_port || String(config.smtp.port)),
-    secure: (settings.smtp_secure || String(config.smtp.secure)) === 'true',
+  const smtpUser = settings.smtp_user || config.smtp.user;
+  const smtpHost = settings.smtp_host || config.smtp.host;
+  
+  // Check if SMTP is configured
+  smtpConfigured = !!(smtpHost && smtpUser && smtpPassword);
+  
+  if (!smtpConfigured) {
+    logger.warn('SMTP not configured - emails will be logged but not sent');
+  }
+  
+  // Only configure auth if credentials are provided
+  const authConfig = smtpUser && smtpPassword ? {
     auth: {
-      user: settings.smtp_user || config.smtp.user,
+      user: smtpUser,
       pass: smtpPassword,
     },
+  } : {};
+
+  transporter = nodemailer.createTransport({
+    host: smtpHost,
+    port: parseInt(settings.smtp_port || String(config.smtp.port)),
+    secure: (settings.smtp_secure || String(config.smtp.secure)) === 'true',
+    ...authConfig,
   });
 
   return transporter;
@@ -43,15 +60,22 @@ export const getTransporter = async (): Promise<nodemailer.Transporter> => {
 
 export const resetTransporter = () => {
   transporter = null;
+  smtpConfigured = false;
 };
 
 export const sendEmail = async (to: string, subject: string, html: string): Promise<void> => {
-  const transport = await getTransporter();
+  await getTransporter(); // Initialize to check if configured
   
   const smtpFrom = await prisma.settings.findUnique({ where: { key: 'smtp_from' } });
   const from = smtpFrom?.value || config.smtp.from;
 
-  await transport.sendMail({
+  // If SMTP is not configured, log the email instead of sending
+  if (!smtpConfigured) {
+    logger.info('Email not sent (SMTP not configured)', { to, subject, from });
+    return;
+  }
+
+  await transporter!.sendMail({
     from,
     to,
     subject,

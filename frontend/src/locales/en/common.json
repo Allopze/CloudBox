@@ -41,6 +41,14 @@
     "userMenu": "User menu"
   },
   "sidebar": {
+    "dashboard": "Dashboard",
+    "files": "My Files",
+    "documents": "Documents",
+    "photos": "Gallery",
+    "music": "Music",
+    "shared": "Shared",
+    "trash": "Trash",
+    "settings": "Settings",
     "storage": "Storage",
     "emptyTrash": "Empty trash",
     "emptying": "Emptying...",
@@ -154,7 +162,15 @@
     "color": "Color",
     "noAlbums": "You have no albums",
     "createOneAbove": "Create one above",
-    "photosCount": "{{count}} photos"
+    "photosCount": "{{count}} photos",
+    "noPhotos": "No photos",
+    "uploadPhotos": "Upload image files to see them here",
+    "noVideos": "No videos",
+    "uploadVideos": "Upload video files to see them here",
+    "noScreenshots": "No screenshots",
+    "uploadScreenshots": "Screenshots will appear here",
+    "noFavoritePhotos": "No favorite photos",
+    "addFavoritePhotos": "Add photos to favorites to see them here"
   },
   "music": {
     "loadError": "Error loading music",
@@ -175,6 +191,8 @@
     "organizeInFolders": "Organize your music in folders to create albums",
     "noMusic": "No music",
     "uploadAudioFiles": "Upload audio files to see them here",
+    "noFavoriteMusic": "No favorite music",
+    "addFavoriteMusic": "Add music to favorites to see it here",
     "songsSelected": "{{count}} songs selected",
     "play": "Play",
     "addToQueue": "Add to queue",
@@ -206,6 +224,16 @@
     "deleteError": "Error deleting",
     "noDocuments": "No documents",
     "uploadDocuments": "Upload document files to see them here",
+    "noPdfs": "No PDF files",
+    "uploadPdfs": "Upload PDF files to see them here",
+    "noText": "No text files",
+    "uploadText": "Upload text or Word files to see them here",
+    "noSpreadsheets": "No spreadsheets",
+    "uploadSpreadsheets": "Upload Excel or CSV files to see them here",
+    "noPresentations": "No presentations",
+    "uploadPresentations": "Upload PowerPoint files to see them here",
+    "noCode": "No code files",
+    "uploadCode": "Upload source code files to see them here",
     "selectedDocuments": "{{count}} documents selected",
     "preview": "Preview",
     "downloadCount": "Download {{count}} documents",
@@ -216,7 +244,9 @@
     "favorite": "Favorite"
   },
   "favorites": {
-    "loadError": "Error loading favorites"
+    "loadError": "Error loading favorites",
+    "noFavorites": "No favorites yet",
+    "addFavorites": "Add files or folders to favorites to see them here"
   },
   "shared": {
     "loadError": "Error loading shared items",
@@ -239,7 +269,11 @@
     "unknownUser": "Unknown user",
     "canEditPermission": "You can edit",
     "itemOptions": "Shared item options",
-    "open": "Open"
+    "open": "Open",
+    "noMyShares": "You haven't shared anything",
+    "startSharing": "Share files or folders to access them quickly from here",
+    "noSharedWithMe": "No one has shared with you",
+    "waitForShares": "When someone shares files with you, they'll appear here"
   },
   "albums": {
     "loadError": "Error loading albums",
@@ -275,6 +309,7 @@
   "trash": {
     "title": "Trash",
     "empty": "Trash is empty",
+    "emptySubtitle": "Deleted files will appear here",
     "emptyTrash": "Empty trash",
     "emptyConfirmTitle": "Empty trash",
     "emptyConfirmMessage": "Are you sure you want to permanently delete {{count}} item(s) from trash?",
@@ -555,7 +590,15 @@
       "completed": "All files uploaded",
       "done": "Done",
       "uploadFiles": "Upload files",
-      "allFilesUploaded": "All files uploaded successfully"
+      "allFilesUploaded": "All files uploaded successfully",
+      "quotaWarning": "You don't have enough storage for all files. Only files that fit will be uploaded.",
+      "uploading": "Uploading",
+      "active": "active",
+      "chunks": "chunks",
+      "parallelInfo": "Uploading {{fileCount}} files in parallel ({{chunkCount}} chunks each)",
+      "filesCompleted": "{{completed}} of {{total}} files completed",
+      "someFilesFailed": "Some files failed to upload",
+      "cancel": "Cancel"
     },
     "createFolder": {
       "title": "Create folder",
@@ -1001,5 +1044,51 @@
       "noConnection": "No internet connection. Check your connection",
       "resetError": "Error resetting password. Please try again"
     }
+  },
+  "errorBoundary": {
+    "title": "Something went wrong!",
+    "description": "An unexpected error occurred. Please try reloading the page.",
+    "showDetails": "Show error details",
+    "reload": "Reload page",
+    "goHome": "Go to home"
+  },
+  "verifyEmail": {
+    "verifying": "Verifying your email...",
+    "pleaseWait": "Please wait while we verify your email.",
+    "success": "Email verified!",
+    "successMessage": "Your email has been verified successfully!",
+    "continueToLogin": "Continue to login",
+    "failed": "Verification failed",
+    "goToLogin": "Go to login",
+    "errorMessage": "Error verifying email. The link may have expired."
+  },
+  "passwordStrength": {
+    "title": "Password strength",
+    "minLength": "Minimum 8 characters",
+    "uppercase": "At least one uppercase",
+    "lowercase": "At least one lowercase",
+    "number": "At least one number",
+    "special": "At least one special character (!@#$%^&*)",
+    "weak": "Weak",
+    "fair": "Fair",
+    "good": "Good",
+    "strong": "Strong",
+    "veryStrong": "Very strong"
+  },
+  "keyboardShortcuts": {
+    "title": "Keyboard shortcuts",
+    "macNote": "Note: On Mac, use"
+  },
+  "toolbar": {
+    "selected": "{{count}} selected",
+    "clear": "Clear",
+    "delete": "Delete"
+  },
+  "progress": {
+    "total": "Total: {{completed}} of {{total}} items",
+    "clearCompleted": "Clear completed",
+    "completed": "{{count}} completed",
+    "inProgress": "{{count}} operation(s) in progress",
+    "allCompleted": "Operations completed"
   }
 }

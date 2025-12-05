@@ -1,14 +1,20 @@
 generator client {
   provider = "prisma-client-js"
+  // Enable preview features for better PostgreSQL support
+  previewFeatures = ["fullTextSearch", "fullTextIndex"]
 }
 
 datasource db {
-  provider = "sqlite"
+  // PostgreSQL for production, SQLite for development/testing
+  // Set DATABASE_PROVIDER env var to "sqlite" for local development without PostgreSQL
+  provider = "postgresql"
   url      = env("DATABASE_URL")
+  // Connection pooling configuration (via connection string or external pooler like PgBouncer)
+  // For Prisma Accelerate or Neon: directUrl = env("DIRECT_DATABASE_URL")
 }
 
 model User {
-  id                String    @id @default(uuid())
+  id                String    @id @default(uuid()) @db.Uuid
   email             String    @unique
   password          String?
   name              String
@@ -24,8 +30,8 @@ model User {
   resetTokenExpiry  DateTime?
   verifyToken       String?
   verifyTokenExpiry DateTime?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  createdAt         DateTime  @default(now()) @db.Timestamptz
+  updatedAt         DateTime  @updatedAt @db.Timestamptz
 
   files             File[]
   folders           Folder[]
@@ -36,62 +42,88 @@ model User {
   refreshTokens     RefreshToken[]
   storageRequests   StorageRequest[]
 
+  @@index([email])
+  @@index([createdAt])
   @@map("users")
 }
 
 model RefreshToken {
-  id        String   @id @default(uuid())
-  token     String   @unique
-  userId    String
+  id        String   @id @default(uuid()) @db.Uuid
+  tokenHash String   @unique // Security: Store hash of token, not plaintext
+  jti       String   @unique // JWT ID for token identification and revocation
+  userId    String   @db.Uuid
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  expiresAt DateTime
-  createdAt DateTime @default(now())
+  familyId  String?  @db.Uuid // For refresh token rotation - invalidate entire family on reuse
+  expiresAt DateTime @db.Timestamptz
+  revokedAt DateTime? @db.Timestamptz // Track when token was revoked
+  createdAt DateTime @default(now()) @db.Timestamptz
 
+  @@index([userId])
+  @@index([familyId])
+  @@index([expiresAt])
   @@map("refresh_tokens")
 }
 
+// Signed URL tokens for secure file access without query string tokens
+model SignedUrl {
+  id        String   @id @default(uuid()) @db.Uuid
+  token     String   @unique
+  fileId    String   @db.Uuid
+  userId    String   @db.Uuid
+  action    String   // 'view', 'download', 'stream', 'thumbnail'
+  expiresAt DateTime @db.Timestamptz
+  createdAt DateTime @default(now()) @db.Timestamptz
+
+  @@index([token])
+  @@index([expiresAt])
+  @@map("signed_urls")
+}
+
 model Folder {
-  id          String    @id @default(uuid())
+  id          String    @id @default(uuid()) @db.Uuid
   name        String
   color       String?
   category    String?
-  parentId    String?
+  parentId    String?   @db.Uuid
   parent      Folder?   @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
   children    Folder[]  @relation("FolderTree")
-  userId      String
+  userId      String    @db.Uuid
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   isFavorite  Boolean   @default(false)
   isTrash     Boolean   @default(false)
-  trashedAt   DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  trashedAt   DateTime? @db.Timestamptz
+  createdAt   DateTime  @default(now()) @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @db.Timestamptz
 
   files       File[]
   shares      Share[]
   size        BigInt    @default(0)
 
   @@unique([name, parentId, userId])
+  @@index([userId])
+  @@index([parentId])
+  @@index([isTrash])
   @@map("folders")
 }
 
 model File {
-  id            String    @id @default(uuid())
+  id            String    @id @default(uuid()) @db.Uuid
   name          String
   originalName  String
   mimeType      String
   size          BigInt
   path          String
   thumbnailPath String?
-  folderId      String?
+  folderId      String?   @db.Uuid
   folder        Folder?   @relation(fields: [folderId], references: [id], onDelete: SetNull)
-  userId        String
+  userId        String    @db.Uuid
   user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   isFavorite    Boolean   @default(false)
   isTrash       Boolean   @default(false)
-  trashedAt     DateTime?
-  metadata      String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  trashedAt     DateTime? @db.Timestamptz
+  metadata      String?   @db.Text
+  createdAt     DateTime  @default(now()) @db.Timestamptz
+  updatedAt     DateTime  @updatedAt @db.Timestamptz
 
   transcodedPath String?
   transcodingJob TranscodingJob?
@@ -100,148 +132,166 @@ model File {
   albumFiles    AlbumFile[]
   chunks        FileChunk[]
 
+  @@index([userId])
+  @@index([folderId])
+  @@index([isTrash])
+  @@index([mimeType])
+  @@index([createdAt])
   @@map("files")
 }
 
 model TranscodingJob {
-  id          String   @id @default(uuid())
-  fileId      String   @unique
+  id          String   @id @default(uuid()) @db.Uuid
+  fileId      String   @unique @db.Uuid
   file        File     @relation(fields: [fileId], references: [id], onDelete: Cascade)
   status      String   @default("PENDING")
   progress    Int      @default(0)
-  error       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  error       String?  @db.Text
+  createdAt   DateTime @default(now()) @db.Timestamptz
+  updatedAt   DateTime @updatedAt @db.Timestamptz
 
+  @@index([status])
   @@map("transcoding_jobs")
 }
 
 model FileChunk {
-  id          String   @id @default(uuid())
-  fileId      String?
+  id          String   @id @default(uuid()) @db.Uuid
+  fileId      String?  @db.Uuid
   file        File?    @relation(fields: [fileId], references: [id], onDelete: Cascade)
-  uploadId    String
+  uploadId    String   @db.Uuid
   chunkIndex  Int
   totalChunks Int
   path        String
   size        BigInt
-  createdAt   DateTime @default(now())
+  createdAt   DateTime @default(now()) @db.Timestamptz
 
   @@unique([uploadId, chunkIndex])
+  @@index([uploadId])
   @@map("file_chunks")
 }
 
 model Share {
-  id            String    @id @default(uuid())
+  id            String    @id @default(uuid()) @db.Uuid
   type          String    @default("PRIVATE")
-  fileId        String?
+  fileId        String?   @db.Uuid
   file          File?     @relation(fields: [fileId], references: [id], onDelete: Cascade)
-  folderId      String?
+  folderId      String?   @db.Uuid
   folder        Folder?   @relation(fields: [folderId], references: [id], onDelete: Cascade)
-  ownerId       String
+  ownerId       String    @db.Uuid
   owner         User      @relation("ShareOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   publicToken   String?   @unique
   password      String?
-  expiresAt     DateTime?
+  expiresAt     DateTime? @db.Timestamptz
   downloadLimit Int?
   downloadCount Int       @default(0)
   allowDownload Boolean   @default(true)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime  @default(now()) @db.Timestamptz
+  updatedAt     DateTime  @updatedAt @db.Timestamptz
 
   collaborators ShareCollaborator[]
 
+  @@index([ownerId])
+  @@index([publicToken])
+  @@index([type])
   @@map("shares")
 }
 
 model ShareCollaborator {
-  id         String   @id @default(uuid())
-  shareId    String
+  id         String   @id @default(uuid()) @db.Uuid
+  shareId    String   @db.Uuid
   share      Share    @relation(fields: [shareId], references: [id], onDelete: Cascade)
-  userId     String
+  userId     String   @db.Uuid
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   permission String   @default("VIEWER")
-  createdAt  DateTime @default(now())
+  createdAt  DateTime @default(now()) @db.Timestamptz
 
   @@unique([shareId, userId])
+  @@index([userId])
   @@map("share_collaborators")
 }
 
 model Album {
-  id        String      @id @default(uuid())
+  id        String      @id @default(uuid()) @db.Uuid
   name      String
   color     String?
-  userId    String
+  userId    String      @db.Uuid
   user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   coverPath String?
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
+  createdAt DateTime    @default(now()) @db.Timestamptz
+  updatedAt DateTime    @updatedAt @db.Timestamptz
 
   files     AlbumFile[]
 
   @@unique([name, userId])
+  @@index([userId])
   @@map("albums")
 }
 
 model AlbumFile {
-  id        String   @id @default(uuid())
-  albumId   String
+  id        String   @id @default(uuid()) @db.Uuid
+  albumId   String   @db.Uuid
   album     Album    @relation(fields: [albumId], references: [id], onDelete: Cascade)
-  fileId    String
+  fileId    String   @db.Uuid
   file      File     @relation(fields: [fileId], references: [id], onDelete: Cascade)
   order     Int      @default(0)
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @db.Timestamptz
 
   @@unique([albumId, fileId])
+  @@index([albumId])
   @@map("album_files")
 }
 
 model Activity {
-  id        String   @id @default(uuid())
+  id        String   @id @default(uuid()) @db.Uuid
   type      String
-  userId    String
+  userId    String   @db.Uuid
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  fileId    String?
-  folderId  String?
-  details   String?
-  createdAt DateTime @default(now())
+  fileId    String?  @db.Uuid
+  folderId  String?  @db.Uuid
+  details   String?  @db.Text
+  createdAt DateTime @default(now()) @db.Timestamptz
 
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
   @@map("activities")
 }
 
 model CompressionJob {
-  id          String   @id @default(uuid())
+  id          String   @id @default(uuid()) @db.Uuid
   type        String
   status      String   @default("PENDING")
   progress    Int      @default(0)
-  inputPaths  String
+  inputPaths  String   @db.Text
   outputPath  String?
   format      String
-  userId      String
-  error       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  userId      String   @db.Uuid
+  error       String?  @db.Text
+  createdAt   DateTime @default(now()) @db.Timestamptz
+  updatedAt   DateTime @updatedAt @db.Timestamptz
 
+  @@index([userId])
+  @@index([status])
   @@map("compression_jobs")
 }
 
 model Settings {
-  id        String   @id @default(uuid())
+  id        String   @id @default(uuid()) @db.Uuid
   key       String   @unique
-  value     String
-  updatedAt DateTime @updatedAt
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt @db.Timestamptz
 
   @@map("settings")
 }
 
 model EmailTemplate {
-  id        String   @id @default(uuid())
+  id        String   @id @default(uuid()) @db.Uuid
   name      String   @unique
   subject   String
-  body      String
+  body      String   @db.Text
   isDefault Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
 
   variables EmailTemplateVariable[]
 
@@ -249,27 +299,28 @@ model EmailTemplate {
 }
 
 model EmailTemplateVariable {
-  id           String        @id @default(uuid())
-  templateId   String
+  id           String        @id @default(uuid()) @db.Uuid
+  templateId   String        @db.Uuid
   template     EmailTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
   name         String        // Variable name without {{ }} e.g., "companyName"
   defaultValue String        // Default value to use
   description  String?       // Description for admin UI
   isSystem     Boolean       @default(false) // System variables can't be deleted (name, verifyUrl, etc.)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  createdAt    DateTime      @default(now()) @db.Timestamptz
+  updatedAt    DateTime      @updatedAt @db.Timestamptz
 
   @@unique([templateId, name])
+  @@index([templateId])
   @@map("email_template_variables")
 }
 
 model LoginAttempt {
-  id        String   @id @default(uuid())
+  id        String   @id @default(uuid()) @db.Uuid
   email     String
-  ipAddress String
+  ipAddress String   @db.Inet // PostgreSQL INET type for IP addresses
   success   Boolean  @default(false)
-  userAgent String?
-  createdAt DateTime @default(now())
+  userAgent String?  @db.Text
+  createdAt DateTime @default(now()) @db.Timestamptz
 
   @@index([email, createdAt])
   @@index([ipAddress, createdAt])
@@ -277,28 +328,30 @@ model LoginAttempt {
 }
 
 model StorageRequest {
-  id              String   @id @default(uuid())
-  userId          String
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @db.Uuid
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   requestedQuota  BigInt
   currentQuota    BigInt
-  reason          String?
+  reason          String?  @db.Text
   status          String   @default("PENDING") // PENDING, APPROVED, REJECTED
-  adminResponse   String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  adminResponse   String?  @db.Text
+  createdAt       DateTime @default(now()) @db.Timestamptz
+  updatedAt       DateTime @updatedAt @db.Timestamptz
 
+  @@index([userId])
+  @@index([status])
   @@map("storage_requests")
 }
 
 model LegalPage {
-  id        String   @id @default(uuid())
+  id        String   @id @default(uuid()) @db.Uuid
   slug      String   @unique // "privacy" or "terms"
   title     String
-  content   String   // HTML content
+  content   String   @db.Text // HTML content
   isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
 
   @@map("legal_pages")
 }

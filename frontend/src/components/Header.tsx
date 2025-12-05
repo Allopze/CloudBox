@@ -22,7 +22,6 @@ import {
   X,
   Trash2,
   Download,
-  Globe,
 } from 'lucide-react';
 import Dropdown, { DropdownItem, DropdownDivider } from './ui/Dropdown';
 import UploadModal from './modals/UploadModal';
@@ -52,19 +51,17 @@ function useDebounce<T>(value: T, delay: number): T {
 
 export default function Header() {
   const navigate = useNavigate();
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { isDark, toggleTheme } = useThemeStore();
   const { user, logout } = useAuthStore();
   const { isUploading, uploadedBytes, totalBytes, speed } = useUploadStore();
   const { selectedItems, clearSelection } = useFileStore();
   const { addOperation, incrementProgress, completeOperation, failOperation } = useGlobalProgressStore();
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [showLanguageMenu, setShowLanguageMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchParams] = useSearchParams();
   const currentFolderId = searchParams.get('folder');
   const userMenuRef = useRef<HTMLDivElement>(null);
-  const languageMenuRef = useRef<HTMLDivElement>(null);
   const [isUploadModalOpen, setUploadModalOpen] = useState(false);
   const [isUploadFolderModalOpen, setUploadFolderModalOpen] = useState(false);
   const [isCreateFolderModalOpen, setCreateFolderModalOpen] = useState(false);
@@ -136,9 +133,6 @@ export default function Header() {
     const handleClickOutside = (e: MouseEvent) => {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
         setShowUserMenu(false);
-      }
-      if (languageMenuRef.current && !languageMenuRef.current.contains(e.target as Node)) {
-        setShowLanguageMenu(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -269,50 +263,6 @@ export default function Header() {
 
       {/* Right actions */}
       <div className="flex items-center gap-1">
-        {/* Language selector */}
-        <div className="relative" ref={languageMenuRef}>
-          <button
-            onClick={() => setShowLanguageMenu(!showLanguageMenu)}
-            className="p-2 text-dark-500 dark:text-white/70 hover:text-dark-900 dark:hover:text-white rounded-lg hover:bg-dark-100 dark:hover:bg-white/10 transition-colors"
-            title={t('language.label')}
-            aria-label={t('language.label')}
-            aria-expanded={showLanguageMenu}
-            aria-haspopup="menu"
-          >
-            <Globe className="w-5 h-5" />
-          </button>
-          <AnimatePresence>
-            {showLanguageMenu && (
-              <motion.div
-                initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                transition={{ duration: 0.15, ease: 'easeOut' }}
-                className="absolute right-0 mt-2 w-40 bg-white dark:bg-[#121212] rounded-lg shadow-lg border border-dark-200 dark:border-[#2a2a2a] py-1 z-50 text-dark-900 dark:text-white"
-                role="menu"
-              >
-                {(['en', 'es', 'fr', 'de', 'it', 'pt'] as const).map((lang) => (
-                  <button
-                    key={lang}
-                    onClick={() => {
-                      i18n.changeLanguage(lang);
-                      setShowLanguageMenu(false);
-                    }}
-                    className={`w-full flex items-center gap-2 px-4 py-2 text-sm transition-colors ${
-                      i18n.language === lang || i18n.language.startsWith(lang + '-')
-                        ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 font-medium'
-                        : 'text-dark-700 dark:text-white hover:bg-dark-50 dark:hover:bg-white/10'
-                    }`}
-                    role="menuitem"
-                  >
-                    {t(`language.${lang}`)}
-                  </button>
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
         {/* Theme toggle */}
         <button
           onClick={toggleTheme}

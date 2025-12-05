@@ -11,7 +11,7 @@
     "previous": "Vorheriger",
     "next": "Nächster",
     "play": "Abspielen",
-    "pause": "Pause",
+    "pause": "Anhalten",
     "close": "Player schließen",
     "trackOf": "{{current}} von {{total}}"
   },
@@ -41,6 +41,14 @@
     "userMenu": "Benutzermenü"
   },
   "sidebar": {
+    "dashboard": "Startseite",
+    "files": "Meine Dateien",
+    "documents": "Dokumente",
+    "photos": "Galerie",
+    "music": "Musik",
+    "shared": "Geteilt",
+    "trash": "Papierkorb",
+    "settings": "Einstellungen",
     "storage": "Speicher",
     "emptyTrash": "Papierkorb leeren",
     "emptying": "Wird geleert...",
@@ -70,17 +78,17 @@
     "photos": "Fotos",
     "addPhotos": "Fotos hinzufügen",
     "all": "Alle",
-    "videos": "Videos",
-    "screenshots": "Screenshots",
+    "videos": "Videodateien",
+    "screenshots": "Bildschirmfotos",
     "albums": "Alben",
     "newAlbum": "Neues Album",
-    "pdfs": "PDFs",
-    "text": "Text",
+    "pdfs": "PDF-Dateien",
+    "text": "Textdateien",
     "spreadsheet": "Tabelle",
     "presentations": "Präsentationen",
-    "code": "Code",
+    "code": "Quellcode",
     "sort": "Sortieren",
-    "sortName": "Name",
+    "sortName": "Alphabetisch",
     "sortCreatedAt": "Erstellungsdatum",
     "sortUpdatedAt": "Änderungsdatum",
     "sortSize": "Größe",
@@ -154,7 +162,15 @@
     "color": "Farbe",
     "noAlbums": "Sie haben keine Alben",
     "createOneAbove": "Erstellen Sie oben eines",
-    "photosCount": "{{count}} Fotos"
+    "photosCount": "{{count}} Fotos",
+    "noPhotos": "Keine Fotos",
+    "uploadPhotos": "Laden Sie Bilder hoch, um sie hier zu sehen",
+    "noVideos": "Keine Videos",
+    "uploadVideos": "Laden Sie Videos hoch, um sie hier zu sehen",
+    "noScreenshots": "Keine Bildschirmfotos",
+    "uploadScreenshots": "Bildschirmfotos werden hier angezeigt",
+    "noFavoritePhotos": "Keine Lieblingsfotos",
+    "addFavoritePhotos": "Fügen Sie Fotos zu den Favoriten hinzu, um sie hier zu sehen"
   },
   "music": {
     "loadError": "Fehler beim Laden der Musik",
@@ -175,6 +191,8 @@
     "organizeInFolders": "Organisieren Sie Ihre Musik in Ordnern, um Alben zu erstellen",
     "noMusic": "Keine Musik",
     "uploadAudioFiles": "Laden Sie Audiodateien hoch, um sie hier zu sehen",
+    "noFavoriteMusic": "Keine Lieblingsmusik",
+    "addFavoriteMusic": "Fügen Sie Musik zu den Favoriten hinzu, um sie hier zu sehen",
     "songsSelected": "{{count}} Songs ausgewählt",
     "play": "Abspielen",
     "addToQueue": "Zur Warteschlange hinzufügen",
@@ -206,6 +224,16 @@
     "deleteError": "Fehler beim Löschen",
     "noDocuments": "Keine Dokumente",
     "uploadDocuments": "Laden Sie Dokumentdateien hoch, um sie hier zu sehen",
+    "noPdfs": "Keine PDF-Dateien",
+    "uploadPdfs": "Laden Sie PDF-Dateien hoch, um sie hier zu sehen",
+    "noText": "Keine Textdateien",
+    "uploadText": "Laden Sie Text- oder Word-Dateien hoch, um sie hier zu sehen",
+    "noSpreadsheets": "Keine Tabellen",
+    "uploadSpreadsheets": "Laden Sie Excel- oder CSV-Dateien hoch, um sie hier zu sehen",
+    "noPresentations": "Keine Präsentationen",
+    "uploadPresentations": "Laden Sie PowerPoint-Dateien hoch, um sie hier zu sehen",
+    "noCode": "Keine Codedateien",
+    "uploadCode": "Laden Sie Quellcode-Dateien hoch, um sie hier zu sehen",
     "selectedDocuments": "{{count}} Dokumente ausgewählt",
     "preview": "Vorschau",
     "downloadCount": "{{count}} Dokumente herunterladen",
@@ -216,7 +244,9 @@
     "favorite": "Favorit"
   },
   "favorites": {
-    "loadError": "Fehler beim Laden der Favoriten"
+    "loadError": "Fehler beim Laden der Favoriten",
+    "noFavorites": "Noch keine Favoriten",
+    "addFavorites": "Fügen Sie Dateien oder Ordner zu den Favoriten hinzu, um sie hier zu sehen"
   },
   "shared": {
     "loadError": "Fehler beim Laden der geteilten Elemente",
@@ -239,7 +269,11 @@
     "unknownUser": "Unbekannter Benutzer",
     "canEditPermission": "Sie können bearbeiten",
     "itemOptions": "Optionen des geteilten Elements",
-    "open": "Öffnen"
+    "open": "Öffnen",
+    "noMyShares": "Sie haben nichts geteilt",
+    "startSharing": "Teilen Sie Dateien oder Ordner, um schnell von hier darauf zuzugreifen",
+    "noSharedWithMe": "Niemand hat mit Ihnen geteilt",
+    "waitForShares": "Wenn jemand Dateien mit Ihnen teilt, werden sie hier angezeigt"
   },
   "albums": {
     "loadError": "Fehler beim Laden der Alben",
@@ -275,6 +309,7 @@
   "trash": {
     "title": "Papierkorb",
     "empty": "Papierkorb ist leer",
+    "emptySubtitle": "Gelöschte Dateien werden hier angezeigt",
     "emptyTrash": "Papierkorb leeren",
     "emptyConfirmTitle": "Papierkorb leeren",
     "emptyConfirmMessage": "Sind Sie sicher, dass Sie {{count}} Element(e) dauerhaft aus dem Papierkorb löschen möchten?",
@@ -482,10 +517,10 @@
     "error": "Fehler",
     "success": "Erfolg",
     "warning": "Warnung",
-    "info": "Information",
+    "info": "Hinweis",
     "yes": "Ja",
     "no": "Nein",
-    "ok": "OK",
+    "ok": "In Ordnung",
     "retry": "Wiederholen",
     "back": "Zurück",
     "next": "Weiter",
@@ -506,7 +541,7 @@
     "deselectAll": "Alle abwählen",
     "noResults": "Keine Ergebnisse",
     "required": "Erforderlich",
-    "optional": "Optional",
+    "optional": "Freiwillig",
     "create": "Erstellen"
   },
   "fileCard": {
@@ -698,7 +733,7 @@
       "title": "E-Mail (SMTP)",
       "description": "E-Mail-Server-Konfiguration",
       "host": "SMTP-Host",
-      "port": "Port",
+      "port": "Anschluss",
       "user": "Benutzer",
       "password": "Passwort",
       "senderName": "Absendername",
@@ -714,7 +749,7 @@
       "custom": "Angepasst",
       "customized": "Angepasst",
       "notCustomized": "Nicht angepasst",
-      "editor": "Editor",
+      "editor": "Bearbeiter",
       "preview": "Vorschau",
       "subject": "Betreff",
       "htmlContent": "HTML-Inhalt",
@@ -751,12 +786,12 @@
       "testSent": "Test-E-Mail gesendet"
     },
     "branding": {
-      "title": "Branding",
+      "title": "Markendesign",
       "description": "Erscheinungsbild anpassen",
       "primaryColor": "Primärfarbe",
       "logoLight": "Logo (hell)",
       "logoDark": "Logo (dunkel)",
-      "favicon": "Favicon",
+      "favicon": "Webseitensymbol",
       "save": "Branding speichern",
       "uploaded": "Datei hochgeladen",
       "saved": "Branding gespeichert"
@@ -802,7 +837,7 @@
       "userDeleted": "Benutzer gelöscht",
       "createUser": "Benutzer erstellen",
       "editUser": "Benutzer bearbeiten",
-      "name": "Name",
+      "name": "Vollständiger Name",
       "email": "E-Mail",
       "password": "Passwort",
       "passwordHint": "Leer lassen zum Beibehalten",
@@ -888,7 +923,7 @@
     "fullscreen": "Vollbild (F)",
     "exitFullscreen": "Vollbild verlassen",
     "speed": "Geschwindigkeit",
-    "normal": "Normal",
+    "normal": "Standard",
     "loadingDocument": "Dokument wird geladen...",
     "loadingPdf": "PDF wird geladen...",
     "page": "Seite",
@@ -918,7 +953,7 @@
     "listView": "Listenansicht",
     "downloadAll": "Alle herunterladen",
     "download": "Herunterladen",
-    "name": "Name",
+    "name": "Dateiname",
     "size": "Größe",
     "modified": "Geändert",
     "actions": "Aktionen",
@@ -1001,5 +1036,51 @@
       "noConnection": "Keine Internetverbindung. Überprüfen Sie Ihre Verbindung",
       "resetError": "Fehler beim Zurücksetzen des Passworts. Bitte versuchen Sie es erneut"
     }
+  },
+  "errorBoundary": {
+    "title": "Etwas ist schiefgelaufen!",
+    "description": "Ein unerwarteter Fehler ist aufgetreten. Bitte laden Sie die Seite neu.",
+    "showDetails": "Fehlerdetails anzeigen",
+    "reload": "Seite neu laden",
+    "goHome": "Zur Startseite"
+  },
+  "verifyEmail": {
+    "verifying": "E-Mail wird verifiziert...",
+    "pleaseWait": "Bitte warten Sie, während wir Ihre E-Mail verifizieren.",
+    "success": "E-Mail verifiziert!",
+    "successMessage": "Ihre E-Mail wurde erfolgreich verifiziert!",
+    "continueToLogin": "Weiter zur Anmeldung",
+    "failed": "Verifizierung fehlgeschlagen",
+    "goToLogin": "Zur Anmeldung",
+    "errorMessage": "Fehler bei der E-Mail-Verifizierung. Der Link ist möglicherweise abgelaufen."
+  },
+  "passwordStrength": {
+    "title": "Passwortstärke",
+    "minLength": "Mindestens 8 Zeichen",
+    "uppercase": "Mindestens ein Großbuchstabe",
+    "lowercase": "Mindestens ein Kleinbuchstabe",
+    "number": "Mindestens eine Zahl",
+    "special": "Mindestens ein Sonderzeichen (!@#$%^&*)",
+    "weak": "Schwach",
+    "fair": "Mäßig",
+    "good": "Gut",
+    "strong": "Stark",
+    "veryStrong": "Sehr stark"
+  },
+  "keyboardShortcuts": {
+    "title": "Tastenkürzel",
+    "macNote": "Hinweis: Auf Mac verwenden Sie"
+  },
+  "toolbar": {
+    "selected": "{{count}} ausgewählt",
+    "clear": "Auswahl aufheben",
+    "delete": "Löschen"
+  },
+  "progress": {
+    "total": "Gesamt: {{completed}} von {{total}} Elementen",
+    "clearCompleted": "Abgeschlossene löschen",
+    "completed": "{{count}} abgeschlossen",
+    "inProgress": "{{count}} Vorgang/Vorgänge in Bearbeitung",
+    "allCompleted": "Vorgänge abgeschlossen"
   }
 }

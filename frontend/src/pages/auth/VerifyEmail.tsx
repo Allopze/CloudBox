@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { api } from '../../lib/api';
 
 export default function VerifyEmail() {
+  const { t } = useTranslation();
   const { token } = useParams<{ token: string }>();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('');
@@ -16,10 +18,10 @@ export default function VerifyEmail() {
     try {
       await api.post('/auth/verify-email', { token });
       setStatus('success');
-      setMessage('¡Tu correo ha sido verificado exitosamente!');
+      setMessage(t('verifyEmail.successMessage'));
     } catch (error: any) {
       setStatus('error');
-      setMessage(error.response?.data?.message || 'Error al verificar el correo. El enlace puede haber expirado.');
+      setMessage(error.response?.data?.message || t('verifyEmail.errorMessage'));
     }
   };
 
@@ -30,10 +32,10 @@ export default function VerifyEmail() {
           <Loader2 className="w-8 h-8 text-primary-600 animate-spin" />
         </div>
         <h2 className="text-2xl font-bold text-dark-900 dark:text-white mb-2">
-          Verificando tu correo...
+          {t('verifyEmail.verifying')}
         </h2>
         <p className="text-dark-600 dark:text-dark-400">
-          Por favor espera mientras verificamos tu correo.
+          {t('verifyEmail.pleaseWait')}
         </p>
       </div>
     );
@@ -46,7 +48,7 @@ export default function VerifyEmail() {
           <CheckCircle className="w-8 h-8 text-green-600" />
         </div>
         <h2 className="text-2xl font-bold text-dark-900 dark:text-white mb-2">
-          ¡Correo verificado!
+          {t('verifyEmail.success')}
         </h2>
         <p className="text-dark-600 dark:text-dark-400 mb-6">
           {message}
@@ -55,7 +57,7 @@ export default function VerifyEmail() {
           to="/login"
           className="inline-flex items-center justify-center px-6 py-3 bg-primary-600 text-white font-medium rounded-full hover:bg-primary-700 transition-colors"
         >
-          Continuar al inicio de sesión
+          {t('verifyEmail.continueToLogin')}
         </Link>
       </div>
     );
@@ -67,7 +69,7 @@ export default function VerifyEmail() {
         <XCircle className="w-8 h-8 text-red-600" />
       </div>
       <h2 className="text-2xl font-bold text-dark-900 dark:text-white mb-2">
-        Verificación fallida
+        {t('verifyEmail.failed')}
       </h2>
       <p className="text-dark-600 dark:text-dark-400 mb-6">
         {message}
@@ -76,7 +78,7 @@ export default function VerifyEmail() {
         to="/login"
         className="inline-flex items-center justify-center px-6 py-3 bg-primary-600 text-white font-medium rounded-full hover:bg-primary-700 transition-colors"
       >
-        Ir al inicio de sesión
+        {t('verifyEmail.goToLogin')}
       </Link>
     </div>
   );

@@ -333,7 +333,7 @@ export default function Sidebar() {
           end={item.path === '/'}
         >
           {IconComponent && <IconComponent className="w-5 h-5 flex-shrink-0" />}
-          <span>{item.label}</span>
+          <span>{t(item.labelKey)}</span>
         </NavLink>
       </div>
     );
@@ -355,7 +355,7 @@ export default function Sidebar() {
       >
         <div className="flex items-center gap-3 px-4 py-3 rounded-full text-base font-semibold bg-primary-500/15 text-primary-600 dark:text-primary-400 border border-primary-500/25 shadow-lg backdrop-blur-sm">
           {IconComponent && <IconComponent className="w-5 h-5 flex-shrink-0" />}
-          <span>{draggedItem.label}</span>
+          <span>{t(draggedItem.labelKey)}</span>
         </div>
       </div>,
       document.body

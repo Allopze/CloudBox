@@ -680,11 +680,35 @@ export default function MusicPage() {
           })}
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center h-64 text-dark-500">
-          <Music className="w-16 h-16 mb-4 opacity-50" />
-          <p className="text-lg font-medium">{t('music.noMusic')}</p>
-          <p className="text-sm">{t('music.uploadAudioFiles')}</p>
-        </div>
+        (() => {
+          // Get icon and text based on current tab
+          const getEmptyStateConfig = () => {
+            switch (tab) {
+              case 'favorites':
+                return { 
+                  icon: Star, 
+                  title: t('music.noFavoriteMusic'), 
+                  subtitle: t('music.addFavoriteMusic'),
+                  color: 'text-yellow-400'
+                };
+              default:
+                return { 
+                  icon: Music, 
+                  title: t('music.noMusic'), 
+                  subtitle: t('music.uploadAudioFiles'),
+                  color: 'text-primary-400'
+                };
+            }
+          };
+          const { icon: EmptyIcon, title, subtitle, color } = getEmptyStateConfig();
+          return (
+            <div className="flex flex-col items-center justify-center h-64 text-dark-500">
+              <EmptyIcon className={`w-16 h-16 mb-4 opacity-50 ${color}`} />
+              <p className="text-lg font-medium">{title}</p>
+              <p className="text-sm">{subtitle}</p>
+            </div>
+          );
+        })()
       )}
 
       {/* Context Menu */}

@@ -352,6 +352,50 @@ export default function Photos() {
         <div className="flex items-center justify-center h-64">
           <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
         </div>
+      ) : photos.length === 0 ? (
+        (() => {
+          // Get icon and text based on current tab
+          const getEmptyStateConfig = () => {
+            switch (activeTab) {
+              case 'videos':
+                return { 
+                  icon: Images, 
+                  title: t('photos.noVideos'), 
+                  subtitle: t('photos.uploadVideos'),
+                  color: 'text-purple-400'
+                };
+              case 'screenshots':
+                return { 
+                  icon: Images, 
+                  title: t('photos.noScreenshots'), 
+                  subtitle: t('photos.uploadScreenshots'),
+                  color: 'text-cyan-400'
+                };
+              case 'favorites':
+                return { 
+                  icon: Star, 
+                  title: t('photos.noFavoritePhotos'), 
+                  subtitle: t('photos.addFavoritePhotos'),
+                  color: 'text-yellow-400'
+                };
+              default:
+                return { 
+                  icon: Images, 
+                  title: t('photos.noPhotos'), 
+                  subtitle: t('photos.uploadPhotos'),
+                  color: 'text-primary-400'
+                };
+            }
+          };
+          const { icon: EmptyIcon, title, subtitle, color } = getEmptyStateConfig();
+          return (
+            <div className="flex flex-col items-center justify-center h-64 text-dark-500">
+              <EmptyIcon className={`w-16 h-16 mb-4 opacity-50 ${color}`} />
+              <p className="text-lg font-medium">{title}</p>
+              <p className="text-sm">{subtitle}</p>
+            </div>
+          );
+        })()
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
           {photos.map((photo, index) => {

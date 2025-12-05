@@ -4,7 +4,7 @@ import { persist } from 'zustand/middleware';
 export interface NavItem {
   id: string;
   icon: string;
-  label: string;
+  labelKey: string; // Translation key instead of static label
   path: string;
 }
 
@@ -17,17 +17,17 @@ interface SidebarState {
 }
 
 const defaultNavItems: NavItem[] = [
-  { id: 'dashboard', icon: 'LayoutDashboard', label: 'Dashboard', path: '/' },
-  { id: 'files', icon: 'FolderOpen', label: 'Mis archivos', path: '/files' },
-  { id: 'documents', icon: 'FileText', label: 'Documentos', path: '/documents' },
-  { id: 'photos', icon: 'Image', label: 'Galería', path: '/photos' },
-  { id: 'music', icon: 'Music', label: 'Música', path: '/music' },
-  { id: 'shared', icon: 'Users', label: 'Compartidos', path: '/shared' },
+  { id: 'dashboard', icon: 'LayoutDashboard', labelKey: 'sidebar.dashboard', path: '/' },
+  { id: 'files', icon: 'FolderOpen', labelKey: 'sidebar.files', path: '/files' },
+  { id: 'documents', icon: 'FileText', labelKey: 'sidebar.documents', path: '/documents' },
+  { id: 'photos', icon: 'Image', labelKey: 'sidebar.photos', path: '/photos' },
+  { id: 'music', icon: 'Music', labelKey: 'sidebar.music', path: '/music' },
+  { id: 'shared', icon: 'Users', labelKey: 'sidebar.shared', path: '/shared' },
 ];
 
 const defaultBottomNavItems: NavItem[] = [
-  { id: 'trash', icon: 'Trash2', label: 'Papelera', path: '/trash' },
-  { id: 'settings', icon: 'Settings', label: 'Configuración', path: '/settings' },
+  { id: 'trash', icon: 'Trash2', labelKey: 'sidebar.trash', path: '/trash' },
+  { id: 'settings', icon: 'Settings', labelKey: 'sidebar.settings', path: '/settings' },
 ];
 
 export const useSidebarStore = create<SidebarState>()(
@@ -44,19 +44,15 @@ export const useSidebarStore = create<SidebarState>()(
         }),
     }),
     {
-      name: 'sidebar-storage-v3',
+      name: 'sidebar-storage-v4',
       migrate: (persistedState: unknown) => {
-        const state = persistedState as SidebarState;
-        // Remove 'activity' from navItems if it exists from old storage
-        if (state?.navItems) {
-          state.navItems = state.navItems.filter(item => item.id !== 'activity');
-        }
-        if (state?.bottomNavItems) {
-          state.bottomNavItems = state.bottomNavItems.filter(item => item.id !== 'activity');
-        }
-        return state;
+        // Always reset to defaults to use new labelKey format
+        return {
+          navItems: defaultNavItems,
+          bottomNavItems: defaultBottomNavItems,
+        };
       },
-      version: 3,
+      version: 4,
     }
   )
 );

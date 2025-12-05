@@ -200,3 +200,133 @@ export const publicLinkPasswordSchema = z.object({
     password: z.string().min(1),
   }),
 });
+
+// ============================================================
+// Upload Schemas - Validation for file upload endpoints
+// ============================================================
+
+// Common constants for upload validation
+export const UPLOAD_LIMITS = {
+  MAX_FILES_PER_REQUEST: 20,
+  MAX_FILES_FOLDER_UPLOAD: 100,
+  MAX_TOTAL_CHUNKS: 10000,
+  MAX_CHUNK_SIZE: 10 * 1024 * 1024, // 10MB per chunk
+  MAX_FILENAME_LENGTH: 255,
+  ALLOWED_MIME_PATTERNS: [
+    'image/*', 'video/*', 'audio/*', 'text/*',
+    'application/pdf', 'application/zip', 'application/json',
+    'application/msword', 'application/vnd.openxmlformats-officedocument.*',
+    'application/vnd.ms-*', 'application/x-*', 'application/octet-stream',
+  ],
+} as const;
+
+// Schema for single/multiple file upload body params
+export const uploadFilesSchema = z.object({
+  body: z.object({
+    folderId: z.string().uuid().nullable().optional(),
+  }),
+});
+
+// Schema for upload with folder structure
+export const uploadWithFoldersSchema = z.object({
+  body: z.object({
+    folderId: z.string().uuid().nullable().optional(),
+    paths: z.union([
+      z.string(),
+      z.array(z.string().max(1024)),
+    ]).optional(),
+  }),
+});
+
+// Schema for chunked upload initialization
+export const uploadInitSchema = z.object({
+  body: z.object({
+    filename: z.string()
+      .min(1, 'Filename is required')
+      .max(UPLOAD_LIMITS.MAX_FILENAME_LENGTH, `Filename must not exceed ${UPLOAD_LIMITS.MAX_FILENAME_LENGTH} characters`),
+    totalChunks: z.number()
+      .int('Total chunks must be an integer')
+      .positive('Total chunks must be positive')
+      .max(UPLOAD_LIMITS.MAX_TOTAL_CHUNKS, `Cannot exceed ${UPLOAD_LIMITS.MAX_TOTAL_CHUNKS} chunks`),
+    totalSize: z.number()
+      .int('Total size must be an integer')
+      .positive('Total size must be positive'),
+    folderId: z.string().uuid().nullable().optional(),
+    mimeType: z.string().optional(),
+  }),
+});
+
+// Schema for chunk upload
+export const uploadChunkSchema = z.object({
+  body: z.object({
+    uploadId: z.string().uuid('Upload ID must be a valid UUID'),
+    chunkIndex: z.union([z.number(), z.string()])
+      .transform(val => typeof val === 'string' ? parseInt(val, 10) : val)
+      .refine(val => !isNaN(val) && val >= 0, 'Chunk index must be a non-negative number'),
+    totalChunks: z.union([z.number(), z.string()])
+      .transform(val => typeof val === 'string' ? parseInt(val, 10) : val)
+      .refine(val => !isNaN(val) && val > 0, 'Total chunks must be a positive number'),
+    filename: z.string()
+      .min(1, 'Filename is required')
+      .max(UPLOAD_LIMITS.MAX_FILENAME_LENGTH),
+    mimeType: z.string().min(1, 'MIME type is required'),
+    totalSize: z.union([z.number(), z.string()])
+      .transform(val => typeof val === 'string' ? parseInt(val, 10) : val)
+      .refine(val => !isNaN(val) && val > 0, 'Total size must be a positive number'),
+    folderId: z.string().uuid().nullable().optional(),
+  }),
+});
+
+// Schema for file ID parameter validation
+export const fileIdParamSchema = z.object({
+  params: z.object({
+    id: z.string().uuid('File ID must be a valid UUID'),
+  }),
+});
+
+// Schema for download/stream with optional signed URL
+export const fileAccessSchema = z.object({
+  params: z.object({
+    id: z.string().uuid('File ID must be a valid UUID'),
+  }),
+  query: z.object({
+    sig: z.string().optional(),
+    password: z.string().optional(),
+    transcode: z.enum(['true', 'false']).optional(),
+    sheet: z.string().optional(),
+  }).optional(),
+});
+
+// Schema for Range header validation
+export const rangeHeaderSchema = z.string()
+  .regex(/^bytes=\d+-\d*$/, 'Invalid Range header format')
+  .optional();
+
+// Helper to validate Range header values
+export function parseRangeHeader(range: string, fileSize: number): { start: number; end: number } | null {
+  const match = range.match(/^bytes=(\d+)-(\d*)$/);
+  if (!match) return null;
+  
+  const start = parseInt(match[1], 10);
+  const end = match[2] ? parseInt(match[2], 10) : fileSize - 1;
+  
+  // Validate range values
+  if (isNaN(start) || start < 0 || start >= fileSize) return null;
+  if (isNaN(end) || end < start || end >= fileSize) return null;
+  
+  return { start, end };
+}
+
+// Error codes for upload operations
+export const UPLOAD_ERROR_CODES = {
+  QUOTA_EXCEEDED: 'QUOTA_EXCEEDED',
+  FILE_TOO_LARGE: 'FILE_TOO_LARGE',
+  INVALID_FILE_TYPE: 'INVALID_FILE_TYPE',
+  DANGEROUS_EXTENSION: 'DANGEROUS_EXTENSION',
+  RATE_LIMIT_EXCEEDED: 'RATE_LIMIT_EXCEEDED',
+  INVALID_FOLDER: 'INVALID_FOLDER',
+  INVALID_CHUNK: 'INVALID_CHUNK',
+  CHUNK_MISMATCH: 'CHUNK_MISMATCH',
+  UPLOAD_NOT_FOUND: 'UPLOAD_NOT_FOUND',
+  MAX_FILES_EXCEEDED: 'MAX_FILES_EXCEEDED',
+} as const;

@@ -5,7 +5,7 @@ import { FileItem, Folder } from '../types';
 import { useFileStore } from '../stores/fileStore';
 import FileCard from '../components/files/FileCard';
 import FolderCard from '../components/files/FolderCard';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Star } from 'lucide-react';
 import { toast } from '../components/ui/Toast';
 import { cn, isImage, isVideo, isDocument } from '../lib/utils';
 import ImageGallery from '../components/gallery/ImageGallery';
@@ -84,6 +84,12 @@ export default function Favorites() {
       {loading ? (
         <div className="flex items-center justify-center h-64">
           <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
+        </div>
+      ) : files.length === 0 && folders.length === 0 ? (
+        <div className="flex flex-col items-center justify-center h-64 text-dark-500">
+          <Star className="w-16 h-16 mb-4 opacity-50 text-yellow-400" />
+          <p className="text-lg font-medium">{t('favorites.noFavorites')}</p>
+          <p className="text-sm">{t('favorites.addFavorites')}</p>
         </div>
       ) : (
         <div

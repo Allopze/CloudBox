@@ -7,7 +7,7 @@
     "songs": "canzoni",
     "shuffle": "Casuale",
     "repeat": "Ripeti",
-    "volume": "Volume",
+    "volume": "Audio",
     "previous": "Precedente",
     "next": "Successivo",
     "play": "Riproduci",
@@ -41,6 +41,14 @@
     "userMenu": "Menu utente"
   },
   "sidebar": {
+    "dashboard": "Home",
+    "files": "I miei file",
+    "documents": "Documenti",
+    "photos": "Galleria",
+    "music": "Musica",
+    "shared": "Condivisi",
+    "trash": "Cestino",
+    "settings": "Impostazioni",
     "storage": "Archiviazione",
     "emptyTrash": "Svuota cestino",
     "emptying": "Svuotamento...",
@@ -154,7 +162,15 @@
     "color": "Colore",
     "noAlbums": "Non hai album",
     "createOneAbove": "Creane uno sopra",
-    "photosCount": "{{count}} foto"
+    "photosCount": "{{count}} foto",
+    "noPhotos": "Nessuna foto",
+    "uploadPhotos": "Carica immagini per vederle qui",
+    "noVideos": "Nessun video",
+    "uploadVideos": "Carica video per vederli qui",
+    "noScreenshots": "Nessuna cattura schermo",
+    "uploadScreenshots": "Le catture schermo appariranno qui",
+    "noFavoritePhotos": "Nessuna foto preferita",
+    "addFavoritePhotos": "Aggiungi foto ai preferiti per vederle qui"
   },
   "music": {
     "loadError": "Errore durante il caricamento della musica",
@@ -175,6 +191,8 @@
     "organizeInFolders": "Organizza la tua musica in cartelle per creare album",
     "noMusic": "Nessuna musica",
     "uploadAudioFiles": "Carica file audio per vederli qui",
+    "noFavoriteMusic": "Nessuna musica preferita",
+    "addFavoriteMusic": "Aggiungi musica ai preferiti per vederla qui",
     "songsSelected": "{{count}} brani selezionati",
     "play": "Riproduci",
     "addToQueue": "Aggiungi alla coda",
@@ -206,6 +224,16 @@
     "deleteError": "Errore durante l'eliminazione",
     "noDocuments": "Nessun documento",
     "uploadDocuments": "Carica file di documenti per vederli qui",
+    "noPdfs": "Nessun file PDF",
+    "uploadPdfs": "Carica file PDF per vederli qui",
+    "noText": "Nessun file di testo",
+    "uploadText": "Carica file di testo o Word per vederli qui",
+    "noSpreadsheets": "Nessun foglio di calcolo",
+    "uploadSpreadsheets": "Carica file Excel o CSV per vederli qui",
+    "noPresentations": "Nessuna presentazione",
+    "uploadPresentations": "Carica file PowerPoint per vederli qui",
+    "noCode": "Nessun file di codice",
+    "uploadCode": "Carica file di codice sorgente per vederli qui",
     "selectedDocuments": "{{count}} documenti selezionati",
     "preview": "Anteprima",
     "downloadCount": "Scarica {{count}} documenti",
@@ -216,7 +244,9 @@
     "favorite": "Preferito"
   },
   "favorites": {
-    "loadError": "Errore durante il caricamento dei preferiti"
+    "loadError": "Errore durante il caricamento dei preferiti",
+    "noFavorites": "Nessun preferito ancora",
+    "addFavorites": "Aggiungi file o cartelle ai preferiti per vederli qui"
   },
   "shared": {
     "loadError": "Errore durante il caricamento degli elementi condivisi",
@@ -239,7 +269,11 @@
     "unknownUser": "Utente sconosciuto",
     "canEditPermission": "Puoi modificare",
     "itemOptions": "Opzioni dell'elemento condiviso",
-    "open": "Apri"
+    "open": "Apri",
+    "noMyShares": "Non hai condiviso nulla",
+    "startSharing": "Condividi file o cartelle per accedervi rapidamente da qui",
+    "noSharedWithMe": "Nessuno ha condiviso con te",
+    "waitForShares": "Quando qualcuno condivide file con te, appariranno qui"
   },
   "albums": {
     "loadError": "Errore durante il caricamento degli album",
@@ -275,6 +309,7 @@
   "trash": {
     "title": "Cestino",
     "empty": "Il cestino è vuoto",
+    "emptySubtitle": "I file eliminati appariranno qui",
     "emptyTrash": "Svuota cestino",
     "emptyConfirmTitle": "Svuota cestino",
     "emptyConfirmMessage": "Sei sicuro di voler eliminare definitivamente {{count}} elemento/i dal cestino?",
@@ -350,7 +385,7 @@
     "fullName": "Nome completo",
     "username": "Nome utente",
     "usernameNote": "Il nome utente non può essere modificato",
-    "email": "Email",
+    "email": "Indirizzo email",
     "accountInfo": "Informazioni account",
     "memberSince": "Membro dal",
     "role": "Ruolo",
@@ -407,9 +442,9 @@
     "login": "Accedi",
     "loginTitle": "Accedi",
     "loginWelcome": "Bentornato! Inserisci i tuoi dati.",
-    "email": "Email",
+    "email": "Indirizzo email",
     "emailPlaceholder": "Inserisci la tua email",
-    "password": "Password",
+    "password": "Parola chiave",
     "passwordPlaceholder": "Inserisci la tua password",
     "showPassword": "Mostra password",
     "hidePassword": "Nascondi password",
@@ -484,8 +519,8 @@
     "warning": "Avviso",
     "info": "Informazione",
     "yes": "Sì",
-    "no": "No",
-    "ok": "OK",
+    "no": "Nessuno",
+    "ok": "Va bene",
     "retry": "Riprova",
     "back": "Indietro",
     "next": "Avanti",
@@ -714,7 +749,7 @@
       "custom": "Personalizzati",
       "customized": "Personalizzato",
       "notCustomized": "Non personalizzato",
-      "editor": "Editor",
+      "editor": "Editor di codice",
       "preview": "Anteprima",
       "subject": "Oggetto",
       "htmlContent": "Contenuto HTML",
@@ -764,7 +799,7 @@
     "legal": {
       "title": "Pagine Legali",
       "description": "Modifica il contenuto di Privacy Policy e Termini di Servizio",
-      "privacy": "Privacy Policy",
+      "privacy": "Informativa sulla privacy",
       "terms": "Termini di Servizio",
       "default": "Predefinito",
       "pageTitle": "Titolo pagina",
@@ -803,8 +838,8 @@
       "createUser": "Crea Utente",
       "editUser": "Modifica Utente",
       "name": "Nome",
-      "email": "Email",
-      "password": "Password",
+      "email": "Indirizzo email",
+      "password": "Parola chiave",
       "passwordHint": "Lascia vuoto per mantenere",
       "cancel": "Annulla",
       "create": "Crea",
@@ -953,13 +988,13 @@
     "newFolder": "Nuova cartella"
   },
   "breadcrumbs": {
-    "home": "Home",
+    "home": "Pagina iniziale",
     "folder": "cartella"
   },
   "forgotPassword": {
     "title": "Password dimenticata?",
     "subtitle": "Non preoccuparti, ti invieremo le istruzioni.",
-    "emailLabel": "Email",
+    "emailLabel": "Indirizzo email",
     "emailPlaceholder": "Inserisci la tua email",
     "sendLink": "Invia link di recupero",
     "backToLogin": "Torna al login",
@@ -1001,5 +1036,51 @@
       "noConnection": "Nessuna connessione internet. Verifica la tua connessione",
       "resetError": "Errore nel reimpostare la password. Riprova"
     }
+  },
+  "errorBoundary": {
+    "title": "Qualcosa è andato storto!",
+    "description": "È si verificato un errore imprevisto. Ricarica la pagina.",
+    "showDetails": "Mostra dettagli errore",
+    "reload": "Ricarica pagina",
+    "goHome": "Vai alla home"
+  },
+  "verifyEmail": {
+    "verifying": "Verifica dell'email in corso...",
+    "pleaseWait": "Attendi mentre verifichiamo la tua email.",
+    "success": "Email verificata!",
+    "successMessage": "La tua email è stata verificata con successo!",
+    "continueToLogin": "Continua al login",
+    "failed": "Verifica fallita",
+    "goToLogin": "Vai al login",
+    "errorMessage": "Errore durante la verifica dell'email. Il link potrebbe essere scaduto."
+  },
+  "passwordStrength": {
+    "title": "Forza della password",
+    "minLength": "Minimo 8 caratteri",
+    "uppercase": "Almeno una maiuscola",
+    "lowercase": "Almeno una minuscola",
+    "number": "Almeno un numero",
+    "special": "Almeno un carattere speciale (!@#$%^&*)",
+    "weak": "Debole",
+    "fair": "Discreta",
+    "good": "Buona",
+    "strong": "Forte",
+    "veryStrong": "Molto forte"
+  },
+  "keyboardShortcuts": {
+    "title": "Scorciatoie da tastiera",
+    "macNote": "Nota: Su Mac, usa"
+  },
+  "toolbar": {
+    "selected": "{{count}} selezionato/i",
+    "clear": "Cancella",
+    "delete": "Elimina"
+  },
+  "progress": {
+    "total": "Totale: {{completed}} di {{total}} elementi",
+    "clearCompleted": "Cancella completati",
+    "completed": "{{count}} completato/i",
+    "inProgress": "{{count}} operazione/i in corso",
+    "allCompleted": "Operazioni completate"
   }
 }

@@ -430,9 +430,12 @@ export default function Trash() {
           })}
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center h-64 text-dark-500">
-          <Trash2 className="w-16 h-16 mb-4 opacity-50" />
-          <p className="text-lg font-medium">{t('trash.empty')}</p>
+        <div className="flex flex-col items-center justify-center h-64 text-center">
+          <Trash2 className="w-16 h-16 text-dark-400 mb-4" />
+          <h3 className="text-lg font-medium text-dark-900 dark:text-white mb-2">{t('trash.empty')}</h3>
+          <p className="text-dark-500 dark:text-dark-400 max-w-sm">
+            {t('trash.emptySubtitle')}
+          </p>
         </div>
       )}
 

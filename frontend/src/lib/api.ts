@@ -4,22 +4,36 @@ export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/ap
 
 export const api = axios.create({
   baseURL: API_URL,
-  withCredentials: true,
+  withCredentials: true, // Required for httpOnly cookies
 });
 
-export const getFileUrl = (pathOrFileId: string, endpoint?: 'view' | 'stream' | 'download' | 'thumbnail', includeToken: boolean = true) => {
-  // Get token for authenticated image/media requests
-  const token = includeToken ? localStorage.getItem('accessToken') : null;
-  const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
+// Security: Generate signed URL for file access (preferred over query string tokens)
+export const getSignedFileUrl = async (fileId: string, action: 'view' | 'download' | 'stream' | 'thumbnail' = 'view'): Promise<string> => {
+  try {
+    const response = await api.post(`/files/${fileId}/signed-url`, { action });
+    return response.data.signedUrl;
+  } catch (error) {
+    console.error('Failed to get signed URL:', error);
+    // Fallback to direct URL with Authorization header (for components that can set headers)
+    return `${API_URL}/files/${fileId}/${action}`;
+  }
+};
+
+// Security: For immediate use (e.g., img src, audio src), use this with Authorization header
+// Note: This returns a URL that requires Authorization header, not usable in img/audio src directly
+export const getFileUrl = (pathOrFileId: string, endpoint?: 'view' | 'stream' | 'download' | 'thumbnail', includeToken: boolean = false) => {
+  // Security: Query string tokens are deprecated, use signed URLs instead
+  // This function now returns URLs without tokens for backward compatibility
+  // Components should migrate to using getSignedFileUrl for direct browser access
 
   // Check if it's the old format (starts with /files/)
   if (pathOrFileId.startsWith('/files/')) {
-    return `${API_URL}${pathOrFileId}${tokenParam}`;
+    return `${API_URL}${pathOrFileId}`;
   }
   
   // New format: just fileId and endpoint type
   const endpointPath = endpoint || 'view';
-  return `${API_URL}/files/${pathOrFileId}/${endpointPath}${tokenParam}`;
+  return `${API_URL}/files/${pathOrFileId}/${endpointPath}`;
 };
 
 // Request interceptor for auth token
@@ -80,19 +94,18 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const refreshToken = localStorage.getItem('refreshToken');
-        if (!refreshToken) {
-          throw new Error('No refresh token');
-        }
+        // Security: Refresh token is now sent via httpOnly cookie automatically
+        // No need to send it in the request body
+        const response = await axios.post(
+          `${API_URL}/auth/refresh`,
+          {}, // Empty body - refresh token comes from cookie
+          { withCredentials: true } // Required for cookies
+        );
 
-        const response = await axios.post(`${API_URL}/auth/refresh`, {
-          refreshToken,
-        });
-
-        const { accessToken, refreshToken: newRefreshToken } = response.data;
+        const { accessToken } = response.data;
 
         localStorage.setItem('accessToken', accessToken);
-        localStorage.setItem('refreshToken', newRefreshToken);
+        // Note: refreshToken is now in httpOnly cookie, not stored in localStorage
 
         processQueue(null, accessToken);
 
@@ -101,7 +114,7 @@ api.interceptors.response.use(
       } catch (refreshError) {
         processQueue(refreshError, null);
         localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
+        // Note: refreshToken cookie is cleared by the server
         window.location.href = '/login';
         return Promise.reject(refreshError);
       } finally {
@@ -112,5 +125,32 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+// Pre-validation for upload files
+export interface UploadValidationResult {
+  valid: boolean;
+  files: Array<{
+    name: string;
+    valid: boolean;
+    error?: string;
+    errorCode?: string;
+  }>;
+  quota: {
+    used: number;
+    total: number;
+    remaining: number;
+    maxFileSize: number;
+  };
+  totalSize: number;
+  quotaExceeded: boolean;
+}
+
+export const validateUploadFiles = async (
+  files: Array<{ name: string; size: number; type?: string }>,
+  folderId?: string | null
+): Promise<UploadValidationResult> => {
+  const response = await api.post('/files/upload/validate', { files, folderId });
+  return response.data;
+};
 
 export default api;

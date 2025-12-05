@@ -1,5 +1,8 @@
+import Bull, { Job, Queue } from 'bull';
+import pLimit, { LimitFunction } from 'p-limit';
 import { generateThumbnail } from './thumbnail.js';
 import prisma from './prisma.js';
+import logger from './logger.js';
 
 interface ThumbnailJob {
   fileId: string;
@@ -7,6 +10,30 @@ interface ThumbnailJob {
   mimeType: string;
   userId?: string; // Security: Track user for rate limiting
 }
+
+// Queue configuration
+const QUEUE_CONFIG = {
+  redis: {
+    host: process.env.REDIS_HOST || 'localhost',
+    port: parseInt(process.env.REDIS_PORT || '6379'),
+    password: process.env.REDIS_PASSWORD || undefined,
+  },
+  defaultJobOptions: {
+    attempts: 3,
+    backoff: {
+      type: 'exponential' as const,
+      delay: 2000,
+    },
+    removeOnComplete: 100,
+    removeOnFail: 50,
+  },
+  concurrency: 4, // Process 4 thumbnails at a time with Redis
+  fallbackConcurrency: parseInt(process.env.THUMBNAIL_FALLBACK_CONCURRENCY || '2'), // Fallback concurrency
+};
+
+// Bull queue instance
+let bullQueue: Queue<ThumbnailJob> | null = null;
+let isRedisAvailable = false;
 
 // Security: Per-user rate limiting for thumbnail generation
 interface UserThumbnailLimit {
@@ -17,14 +44,23 @@ interface UserThumbnailLimit {
 class ThumbnailQueue {
   private queue: ThumbnailJob[] = [];
   private processing = false;
-  private concurrency = 2; // Process 2 thumbnails at a time
-  private activeJobs = 0;
   private maxQueueSize = 1000; // Maximum queue size to prevent memory leaks
+  
+  // p-limit for concurrency control in fallback mode
+  private limiter: LimitFunction;
   
   // Security: Per-user limits to prevent abuse
   private userLimits = new Map<string, UserThumbnailLimit>();
   private readonly maxJobsPerUserPerHour = 100;
   private readonly userLimitWindowMs = 60 * 60 * 1000; // 1 hour
+
+  constructor() {
+    // Initialize the limiter with configured concurrency
+    this.limiter = pLimit(QUEUE_CONFIG.fallbackConcurrency);
+    logger.info('ThumbnailQueue initialized', { 
+      fallbackConcurrency: QUEUE_CONFIG.fallbackConcurrency 
+    });
+  }
 
   private checkUserLimit(userId?: string): boolean {
     if (!userId) return true; // Allow anonymous jobs (shared files)
@@ -41,7 +77,7 @@ class ThumbnailQueue {
     }
     
     if (limit.count >= this.maxJobsPerUserPerHour) {
-      console.warn(`Thumbnail rate limit exceeded for user ${userId}`);
+      logger.warn('Thumbnail rate limit exceeded', { userId });
       return false;
     }
     
@@ -50,81 +86,80 @@ class ThumbnailQueue {
   }
 
   add(job: ThumbnailJob): boolean {
-    if (this.queue.length >= this.maxQueueSize) {
-      console.warn('Thumbnail queue is full, dropping job for file:', job.fileId);
-      return false;
-    }
-    
     // Security: Check per-user rate limit
     if (!this.checkUserLimit(job.userId)) {
       return false;
     }
+
+    // Use Bull queue if Redis is available
+    if (isRedisAvailable && bullQueue) {
+      bullQueue.add(job, QUEUE_CONFIG.defaultJobOptions);
+      return true;
+    }
+
+    // Fallback to in-memory queue with p-limit concurrency control
+    if (this.queue.length >= this.maxQueueSize) {
+      logger.warn('Thumbnail queue is full, dropping job', { fileId: job.fileId });
+      return false;
+    }
     
     this.queue.push(job);
-    this.processNext();
+    this.processQueue();
     return true;
   }
 
   addBatch(jobs: ThumbnailJob[]): number {
-    const availableSlots = this.maxQueueSize - this.queue.length;
     let addedCount = 0;
     
     for (const job of jobs) {
-      if (addedCount >= availableSlots) {
-        break;
-      }
-      
-      // Security: Check per-user rate limit for each job
-      if (this.checkUserLimit(job.userId)) {
-        this.queue.push(job);
+      if (this.add(job)) {
         addedCount++;
       }
     }
     
     if (addedCount < jobs.length) {
-      console.warn(`Thumbnail queue limited: only adding ${addedCount} of ${jobs.length} jobs`);
+      logger.warn('Thumbnail queue limited', { added: addedCount, requested: jobs.length });
     }
     
-    this.processNext();
     return addedCount;
   }
 
-  private async processNext(): Promise<void> {
-    if (this.activeJobs >= this.concurrency || this.queue.length === 0) {
-      return;
-    }
+  /**
+   * Process the queue using p-limit for concurrency control
+   * This is more efficient than manual activeJobs tracking
+   */
+  private processQueue(): void {
+    while (this.queue.length > 0) {
+      const job = this.queue.shift();
+      if (!job) break;
 
-    const job = this.queue.shift();
-    if (!job) return;
-
-    this.activeJobs++;
-
-    try {
-      const thumbnailPath = await generateThumbnail(job.filePath, job.fileId, job.mimeType);
-      if (thumbnailPath) {
-        await prisma.file.update({
-          where: { id: job.fileId },
-          data: { thumbnailPath },
-        }).catch((err) => {
-          // File might have been deleted, ignore error
-          console.error('Failed to update thumbnail path:', err.message);
-        });
-      }
-    } catch (error) {
-      console.error('Thumbnail generation failed for', job.fileId, ':', error);
-    } finally {
-      this.activeJobs--;
-      // Process next job
-      this.processNext();
+      // Use limiter to control concurrency - this returns immediately
+      // but the actual work is queued and limited
+      this.limiter(async () => {
+        try {
+          const thumbnailPath = await generateThumbnail(job.filePath, job.fileId, job.mimeType);
+          if (thumbnailPath) {
+            await prisma.file.update({
+              where: { id: job.fileId },
+              data: { thumbnailPath },
+            }).catch((err) => {
+              // File might have been deleted, ignore error
+              logger.debug('Failed to update thumbnail path (file may be deleted)', { fileId: job.fileId, error: err.message });
+            });
+          }
+        } catch (error) {
+          logger.error('Thumbnail generation failed', { fileId: job.fileId }, error instanceof Error ? error : undefined);
+        }
+      });
     }
   }
 
   get pendingCount(): number {
-    return this.queue.length;
+    return this.queue.length + this.limiter.pendingCount;
   }
 
   get activeCount(): number {
-    return this.activeJobs;
+    return this.limiter.activeCount;
   }
   
   // Cleanup old user limits periodically
@@ -136,6 +171,11 @@ class ThumbnailQueue {
       }
     }
   }
+
+  // Check if using Redis
+  get isUsingRedis(): boolean {
+    return isRedisAvailable;
+  }
 }
 
 // Singleton instance
@@ -145,3 +185,147 @@ export const thumbnailQueue = new ThumbnailQueue();
 setInterval(() => {
   thumbnailQueue.cleanupUserLimits();
 }, 10 * 60 * 1000);
+
+/**
+ * Process a thumbnail job (used by Bull worker)
+ */
+async function processThumbnailJob(job: Job<ThumbnailJob>): Promise<string | null> {
+  const { fileId, filePath, mimeType } = job.data;
+
+  try {
+    const thumbnailPath = await generateThumbnail(filePath, fileId, mimeType);
+    if (thumbnailPath) {
+      await prisma.file.update({
+        where: { id: fileId },
+        data: { thumbnailPath },
+      }).catch((err) => {
+        logger.debug('Failed to update thumbnail path (file may be deleted)', { fileId, error: err.message });
+      });
+    }
+    return thumbnailPath;
+  } catch (error) {
+    logger.error('Thumbnail generation failed', { fileId }, error instanceof Error ? error : undefined);
+    throw error;
+  }
+}
+
+/**
+ * Initialize the thumbnail queue with Redis
+ */
+export async function initThumbnailQueue(): Promise<void> {
+  try {
+    // Try to connect to Redis using dynamic import
+    const Redis = (await import('ioredis')).default;
+    // @ts-ignore - ioredis types issue with ESM
+    const redis = new Redis({
+      host: QUEUE_CONFIG.redis.host,
+      port: QUEUE_CONFIG.redis.port,
+      password: QUEUE_CONFIG.redis.password,
+      maxRetriesPerRequest: 1,
+      connectTimeout: 3000,
+      lazyConnect: true,
+    });
+
+    let resolved = false;
+    await new Promise<void>((resolve, reject) => {
+      const cleanup = () => {
+        if (!resolved) {
+          resolved = true;
+          redis.disconnect();
+        }
+      };
+
+      redis.once('ready', () => {
+        cleanup();
+        resolve();
+      });
+      
+      redis.once('error', (err: Error) => {
+        cleanup();
+        reject(err);
+      });
+      
+      setTimeout(() => {
+        cleanup();
+        reject(new Error('Redis connection timeout'));
+      }, 3000);
+
+      redis.connect().catch((err: Error) => {
+        cleanup();
+        reject(err);
+      });
+    });
+
+    // Redis is available, create Bull queue
+    bullQueue = new Bull<ThumbnailJob>('thumbnails', {
+      redis: QUEUE_CONFIG.redis,
+      defaultJobOptions: QUEUE_CONFIG.defaultJobOptions,
+    });
+
+    // Process jobs
+    bullQueue.process(QUEUE_CONFIG.concurrency, processThumbnailJob);
+
+    // Event handlers
+    bullQueue.on('completed', (job) => {
+      logger.debug('Thumbnail job completed', { fileId: job.data.fileId });
+    });
+
+    bullQueue.on('failed', (job, error) => {
+      logger.warn('Thumbnail job failed', { 
+        fileId: job?.data.fileId,
+        error: error.message,
+      });
+    });
+
+    bullQueue.on('error', (error: Error) => {
+      logger.error('Thumbnail queue error', {}, error);
+    });
+
+    isRedisAvailable = true;
+    logger.info('Thumbnail queue initialized with Redis');
+  } catch (error) {
+    logger.warn('Thumbnail queue using in-memory fallback (Redis not available)', {
+      error: error instanceof Error ? error.message : 'Unknown',
+    });
+    isRedisAvailable = false;
+  }
+}
+
+/**
+ * Get thumbnail queue statistics
+ */
+export async function getThumbnailQueueStats(): Promise<{
+  waiting: number;
+  active: number;
+  completed: number;
+  failed: number;
+  usingRedis: boolean;
+}> {
+  if (isRedisAvailable && bullQueue) {
+    const [waiting, active, completed, failed] = await Promise.all([
+      bullQueue.getWaitingCount(),
+      bullQueue.getActiveCount(),
+      bullQueue.getCompletedCount(),
+      bullQueue.getFailedCount(),
+    ]);
+    return { waiting, active, completed, failed, usingRedis: true };
+  }
+
+  return {
+    waiting: thumbnailQueue.pendingCount,
+    active: thumbnailQueue.activeCount,
+    completed: 0,
+    failed: 0,
+    usingRedis: false,
+  };
+}
+
+/**
+ * Close the thumbnail queue
+ */
+export async function closeThumbnailQueue(): Promise<void> {
+  if (bullQueue) {
+    await bullQueue.close();
+    bullQueue = null;
+  }
+}
