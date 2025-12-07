@@ -1,11 +1,12 @@
-import { useState, useEffect, memo } from 'react';
+import { useState, useEffect, memo, useMemo, useCallback } from 'react';
 import { FileText, FileSpreadsheet, File, Loader2 } from 'lucide-react';
-import { getFileUrl } from '../../lib/api';
+import { getFileUrl, api } from '../../lib/api';
 import { Document, Page, pdfjs } from 'react-pdf';
 import mammoth from 'mammoth';
 
-// Configure PDF.js worker
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+// Configure PDF.js worker using Vite's ?url import
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 interface DocumentThumbnailProps {
   fileId: string;
@@ -17,50 +18,50 @@ interface DocumentThumbnailProps {
 // Get icon and solid color based on document type
 const getDocumentStyle = (mimeType: string, fileName: string) => {
   if (mimeType === 'application/pdf' || fileName.endsWith('.pdf')) {
-    return { 
-      icon: FileText, 
+    return {
+      icon: FileText,
       bgColor: 'bg-red-500',
       label: 'PDF',
     };
   }
   if (mimeType.includes('word') || fileName.endsWith('.doc') || fileName.endsWith('.docx')) {
-    return { 
-      icon: FileText, 
+    return {
+      icon: FileText,
       bgColor: 'bg-blue-600',
       label: 'DOC',
     };
   }
-  if (mimeType.includes('excel') || mimeType.includes('spreadsheet') || 
-      fileName.endsWith('.xls') || fileName.endsWith('.xlsx') || fileName.endsWith('.csv')) {
-    return { 
-      icon: FileSpreadsheet, 
+  if (mimeType.includes('excel') || mimeType.includes('spreadsheet') ||
+    fileName.endsWith('.xls') || fileName.endsWith('.xlsx') || fileName.endsWith('.csv')) {
+    return {
+      icon: FileSpreadsheet,
       bgColor: 'bg-emerald-600',
       label: 'XLSX',
     };
   }
   if (mimeType.includes('presentation') || fileName.endsWith('.ppt') || fileName.endsWith('.pptx')) {
-    return { 
-      icon: FileText, 
+    return {
+      icon: FileText,
       bgColor: 'bg-orange-500',
       label: 'PPT',
     };
   }
   if (mimeType === 'text/plain' || fileName.endsWith('.txt')) {
-    return { 
-      icon: FileText, 
+    return {
+      icon: FileText,
       bgColor: 'bg-slate-500',
       label: 'TXT',
     };
   }
   if (mimeType === 'text/markdown' || fileName.endsWith('.md')) {
-    return { 
-      icon: FileText, 
+    return {
+      icon: FileText,
       bgColor: 'bg-violet-600',
       label: 'MD',
     };
   }
-  return { 
-    icon: File, 
+  return {
+    icon: File,
     bgColor: 'bg-slate-600',
     label: '',
   };
@@ -82,74 +83,119 @@ const DocumentThumbnail = memo(function DocumentThumbnail({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
-  const [, setPdfLoaded] = useState(false);
+  const [pdfLoaded, setPdfLoaded] = useState(false);
 
   const { icon: DocIcon, bgColor, label } = getDocumentStyle(mimeType, fileName);
   const ext = getExtension(fileName);
   const isPdf = mimeType === 'application/pdf' || fileName.endsWith('.pdf');
   const isWord = mimeType.includes('word') || fileName.endsWith('.doc') || fileName.endsWith('.docx');
   const isText = mimeType.startsWith('text/') || fileName.endsWith('.txt') || fileName.endsWith('.md');
-  const isSpreadsheet = mimeType.includes('excel') || mimeType.includes('spreadsheet') || 
-      fileName.endsWith('.xls') || fileName.endsWith('.xlsx') || fileName.endsWith('.csv');
+  const isSpreadsheet = mimeType.includes('excel') || mimeType.includes('spreadsheet') ||
+    fileName.endsWith('.xls') || fileName.endsWith('.xlsx') || fileName.endsWith('.csv');
+
+  // Memoize the file URL to prevent unnecessary re-renders
+  const fileUrl = useMemo(() => getFileUrl(fileId, 'view'), [fileId]);
+
+  // Memoize file options with auth header for react-pdf to prevent re-renders
+  const pdfOptions = useMemo(() => ({
+    url: fileUrl,
+    httpHeaders: {
+      Authorization: `Bearer ${localStorage.getItem('accessToken') || ''}`,
+    },
+    cMapUrl: 'https://unpkg.com/pdfjs-dist@5.4.296/cmaps/',
+    cMapPacked: true,
+  }), [fileUrl]);
+
+  // Memoize callbacks to prevent Document re-renders
+  const onPdfLoadSuccess = useCallback(() => setPdfLoaded(true), []);
+  const onPdfLoadError = useCallback(() => setError(true), []);
 
   useEffect(() => {
+    let mounted = true;
+    let blobUrl: string | null = null; // Track blob URL for cleanup
+
     const loadPreview = async () => {
       // PDF uses react-pdf, no need to load anything else
       if (isPdf) {
-        setLoading(false);
+        if (mounted) setLoading(false);
         return;
       }
 
-      // For spreadsheets, try to load a server-generated thumbnail
+      // For spreadsheets, try to load a server-generated thumbnail using authenticated request
       if (isSpreadsheet) {
-        const url = getFileUrl(`/files/${fileId}/thumbnail`);
-        setThumbnailUrl(url);
-        setLoading(false);
+        try {
+          const response = await api.get(`/files/${fileId}/thumbnail`, {
+            responseType: 'blob',
+          });
+          if (mounted) {
+            blobUrl = URL.createObjectURL(response.data);
+            setThumbnailUrl(blobUrl);
+          }
+        } catch {
+          // No thumbnail available, will show fallback icon
+        }
+        if (mounted) setLoading(false);
         return;
       }
 
       // Other documents - no preview needed for now
       if (!isText && !isWord) {
-        setLoading(false);
+        if (mounted) setLoading(false);
         return;
       }
 
       try {
-        const fileUrl = getFileUrl(fileId, 'view');
-        const response = await fetch(fileUrl);
+        // Use axios api instance to include Authorization header
+        // Use direct path instead of replacing baseURL from getFileUrl result
+        const response = await api.get(`/files/${fileId}/view`, {
+          responseType: isWord ? 'arraybuffer' : 'text',
+        });
+
+        if (!mounted) return;
 
         if (isWord) {
-          const arrayBuffer = await response.arrayBuffer();
+          const arrayBuffer = response.data;
           const result = await mammoth.extractRawText({ arrayBuffer });
           // Only take first 500 chars for preview
-          setPreviewContent(result.value.slice(0, 500));
+          if (mounted) setPreviewContent(result.value.slice(0, 500));
         } else if (isText) {
-          const text = await response.text();
+          const text = response.data;
           // Only take first 500 chars for preview
-          setPreviewContent(text.slice(0, 500));
+          if (mounted) setPreviewContent(text.slice(0, 500));
         }
 
-        setLoading(false);
+        if (mounted) setLoading(false);
       } catch (err) {
         console.error('Error loading document preview:', err);
-        setError(true);
-        setLoading(false);
+        if (mounted) {
+          setError(true);
+          setLoading(false);
+        }
       }
     };
 
     loadPreview();
-  }, [fileId, isPdf, isWord, isText, isSpreadsheet]);
 
-  const fileUrl = getFileUrl(fileId, 'view');
+    return () => {
+      mounted = false;
+      // Clean up blob URL if created
+      if (blobUrl) {
+        URL.revokeObjectURL(blobUrl);
+      }
+    };
+  }, [fileId, fileUrl, isPdf, isWord, isText, isSpreadsheet]);
+
+  // Suppress the pdfLoaded warning
+  void pdfLoaded;
 
   // PDF preview using react-pdf
   if (isPdf) {
     return (
       <div className={`relative w-full h-full overflow-hidden ${className}`}>
         <Document
-          file={fileUrl}
-          onLoadSuccess={() => setPdfLoaded(true)}
-          onLoadError={() => setError(true)}
+          file={pdfOptions}
+          onLoadSuccess={onPdfLoadSuccess}
+          onLoadError={onPdfLoadError}
           loading={
             <div className="flex items-center justify-center w-full h-full bg-gray-100 dark:bg-dark-700">
               <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />

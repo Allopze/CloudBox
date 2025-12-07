@@ -7,7 +7,11 @@
  * - Progress tracking via Socket.io
  * - Automatic retries with exponential backoff
  * - Job persistence across server restarts
- * - Fallback mode with p-limit for concurrency control
+ * - Fallback mode with p-limit for concurrency control (development only)
+ * 
+ * PRODUCTION NOTE: In production, Redis is REQUIRED. The fallback mode is disabled
+ * to prevent CPU-intensive transcoding from competing with the API server.
+ * Set REQUIRE_REDIS_WORKERS=true or NODE_ENV=production to enforce this.
  */
 
 import Bull, { Job, Queue } from 'bull';
@@ -61,6 +65,10 @@ const QUEUE_CONFIG = {
     duration: 1000,
   },
 };
+
+// Production mode: require Redis for worker isolation
+const isProduction = process.env.NODE_ENV === 'production';
+const requireRedis = process.env.REQUIRE_REDIS_WORKERS === 'true' || isProduction;
 
 // Quality presets for FFmpeg
 const QUALITY_PRESETS = {
@@ -420,9 +428,34 @@ export async function addTranscodingJob(
     return job.id?.toString() || null;
   }
 
-  // Fallback: Process with concurrency limit to avoid CPU saturation
+  // Production mode: reject jobs if Redis is required but not available
+  if (requireRedis) {
+    logger.error('Transcoding job rejected: Redis required in production but not available', { 
+      fileId,
+      userId,
+    });
+    
+    // Update job status to reflect the failure
+    await prisma.transcodingJob.upsert({
+      where: { fileId },
+      create: { 
+        fileId, 
+        status: 'FAILED', 
+        progress: 0,
+        error: 'Transcoding unavailable: Redis workers not configured',
+      },
+      update: { 
+        status: 'FAILED', 
+        error: 'Transcoding unavailable: Redis workers not configured',
+      },
+    });
+    
+    return null;
+  }
+
+  // Fallback: Process with concurrency limit to avoid CPU saturation (development only)
   // This ensures uploads/downloads aren't impacted by transcoding
-  logger.info('Processing transcoding job in fallback mode', { 
+  logger.warn('Processing transcoding job in fallback mode (development only)', { 
     fileId, 
     concurrencyLimit: FALLBACK_CONCURRENCY,
     pendingJobs: fallbackLimiter.pendingCount,

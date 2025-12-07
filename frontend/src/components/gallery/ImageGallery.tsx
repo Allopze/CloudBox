@@ -1,21 +1,22 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { 
-  X, 
-  ChevronLeft, 
-  ChevronRight, 
-  Play, 
-  Pause, 
-  ZoomIn, 
+import {
+  X,
+  ChevronLeft,
+  ChevronRight,
+  Play,
+  Pause,
+  ZoomIn,
   ZoomOut,
   Download,
   Share2,
   Maximize2,
-  RotateCw
+  RotateCw,
+  Loader2
 } from 'lucide-react';
 import { FileItem } from '../../types';
-import { getFileUrl } from '../../lib/api';
+import { getFileUrl, getSignedFileUrl } from '../../lib/api';
 import { cn } from '../../lib/utils';
 
 interface ImageGalleryProps {
@@ -47,6 +48,10 @@ export default function ImageGallery({
   const containerRef = useRef<HTMLDivElement>(null);
 
   const currentImage = images[currentIndex];
+
+  // Auth state for signed URL
+  const [signedUrl, setSignedUrl] = useState<string | null>(null);
+  const [loadingSignedUrl, setLoadingSignedUrl] = useState(false);
 
   // Reset state when gallery opens
   useEffect(() => {
@@ -93,7 +98,7 @@ export default function ImageGallery({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       resetControlsTimeout();
-      
+
       switch (e.key) {
         case 'Escape':
           onClose();
@@ -169,9 +174,26 @@ export default function ImageGallery({
     resetControlsTimeout();
   };
 
-  if (!isOpen || !currentImage) return null;
+  // Fetch signed URL when current image changes
+  useEffect(() => {
+    if (isOpen && currentImage) {
+      setLoadingSignedUrl(true);
+      // Use getSignedFileUrl for secure access
+      getSignedFileUrl(currentImage.id, 'view')
+        .then(url => {
+          setSignedUrl(url);
+        })
+        .catch(err => {
+          console.error('Failed to get signed URL', err);
+          setSignedUrl(null);
+        })
+        .finally(() => setLoadingSignedUrl(false));
+    } else {
+      setSignedUrl(null);
+    }
+  }, [isOpen, currentImage]);
 
-  const imageUrl = getFileUrl(currentImage.id, 'view');
+  if (!isOpen || !currentImage) return null;
 
   return createPortal(
     <div
@@ -230,22 +252,30 @@ export default function ImageGallery({
 
       {/* Main image */}
       <div className="relative w-full h-full flex items-center justify-center p-16">
-        {isLoading && (
+        {loadingSignedUrl || !signedUrl ? (
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            <Loader2 className="w-10 h-10 animate-spin text-white/50" />
           </div>
+        ) : (
+          <>
+            {isLoading && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              </div>
+            )}
+            <img
+              src={signedUrl}
+              alt={currentImage.name}
+              className="max-w-full max-h-full object-contain transition-all duration-200"
+              style={{
+                transform: `scale(${zoom}) rotate(${rotation}deg)`,
+                opacity: isLoading ? 0 : 1,
+              }}
+              onLoad={() => setIsLoading(false)}
+              draggable={false}
+            />
+          </>
         )}
-        <img
-          src={imageUrl}
-          alt={currentImage.name}
-          className="max-w-full max-h-full object-contain transition-all duration-200"
-          style={{
-            transform: `scale(${zoom}) rotate(${rotation}deg)`,
-            opacity: isLoading ? 0 : 1,
-          }}
-          onLoad={() => setIsLoading(false)}
-          draggable={false}
-        />
       </div>
 
       {/* Navigation arrows */}
@@ -365,7 +395,7 @@ export default function ImageGallery({
                 )}
               >
                 <img
-                  src={getFileUrl(image.id, 'thumbnail')}
+                  src={getFileUrl(image.id, 'thumbnail', true)}
                   alt={image.name}
                   className="w-full h-full object-cover"
                 />

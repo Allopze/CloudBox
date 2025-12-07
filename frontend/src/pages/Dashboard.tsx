@@ -65,7 +65,7 @@ interface DashboardStats {
 }
 
 export default function Dashboard() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { user } = useAuthStore();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -227,8 +227,9 @@ export default function Dashboard() {
           {stats?.recentFiles && stats.recentFiles.length > 0 ? (
             <div className="space-y-2.5">
               {stats.recentFiles.map((file: any) => (
-                <div
+                <Link
                   key={file.id}
+                  to={`/files?preview=${file.id}`}
                   className="flex items-center gap-3 p-3 rounded-md hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
                 >
                   <FileText className="w-8 h-8 text-dark-400" />
@@ -238,7 +239,7 @@ export default function Dashboard() {
                     </p>
                     <p className="text-sm text-dark-500">{formatBytes(file.size)}</p>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           ) : (
@@ -261,8 +262,9 @@ export default function Dashboard() {
           {stats?.favoriteFiles && stats.favoriteFiles.length > 0 ? (
             <div className="space-y-2.5">
               {stats.favoriteFiles.map((file: any) => (
-                <div
+                <Link
                   key={file.id}
+                  to={`/files?preview=${file.id}`}
                   className="flex items-center gap-3 p-3 rounded-md hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
                 >
                   <FileText className="w-8 h-8 text-dark-400" />
@@ -273,7 +275,7 @@ export default function Dashboard() {
                     <p className="text-sm text-dark-500">{formatBytes(file.size)}</p>
                   </div>
                   <Star className="w-5 h-5 text-primary-500 fill-primary-500" />
-                </div>
+                </Link>
               ))}
             </div>
           ) : (
@@ -304,7 +306,7 @@ export default function Dashboard() {
                   key={activity.id}
                   className="flex items-center gap-3 p-3 rounded-lg hover:bg-dark-50 dark:hover:bg-dark-700/50 transition-colors"
                 >
-                  <div 
+                  <div
                     className={cn('w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0', colorClass)}
                     aria-hidden="true"
                   >
@@ -321,7 +323,7 @@ export default function Dashboard() {
                     )}
                   </div>
                   <span className="text-xs text-dark-400 dark:text-dark-500 flex-shrink-0">
-                    {new Date(activity.createdAt).toLocaleTimeString('es-ES', {
+                    {new Date(activity.createdAt).toLocaleTimeString(i18n.language, {
                       hour: '2-digit',
                       minute: '2-digit',
                     })}

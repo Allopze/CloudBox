@@ -45,7 +45,7 @@ export const useSidebarStore = create<SidebarState>()(
     }),
     {
       name: 'sidebar-storage-v4',
-      migrate: (persistedState: unknown) => {
+      migrate: (_persistedState: unknown) => {
         // Always reset to defaults to use new labelKey format
         return {
           navItems: defaultNavItems,

@@ -60,7 +60,7 @@ export default function MainLayout() {
   const [isCreateFolderModalOpen, setCreateFolderModalOpen] = useState(false);
   const [isCreateFileModalOpen, setCreateFileModalOpen] = useState(false);
   const folderInputRef = useRef<HTMLInputElement>(null);
-  
+
   // Drag and drop state
   const [isDragging, setIsDragging] = useState(false);
   const [, setDragCounter] = useState(0);
@@ -88,11 +88,11 @@ export default function MainLayout() {
   const handleDragEnter = useCallback((e: DragEvent) => {
     // Ignore internal drags (file/folder moves within the app)
     if (isInternalDragging) return;
-    
+
     // Check if this is an external file drag (from OS)
     const hasFiles = e.dataTransfer?.types?.includes('Files');
     if (!hasFiles) return;
-    
+
     e.preventDefault();
     e.stopPropagation();
     setDragCounter((prev) => prev + 1);
@@ -104,7 +104,7 @@ export default function MainLayout() {
   const handleDragLeave = useCallback((e: DragEvent) => {
     // Ignore internal drags
     if (isInternalDragging) return;
-    
+
     e.preventDefault();
     e.stopPropagation();
     setDragCounter((prev) => {
@@ -119,11 +119,11 @@ export default function MainLayout() {
   const handleDragOver = useCallback((e: DragEvent) => {
     // Ignore internal drags
     if (isInternalDragging) return;
-    
+
     // Check if this is an external file drag
     const hasFiles = e.dataTransfer?.types?.includes('Files');
     if (!hasFiles) return;
-    
+
     e.preventDefault();
     e.stopPropagation();
   }, [isInternalDragging]);
@@ -135,7 +135,7 @@ export default function MainLayout() {
   ): Promise<{ file: File; relativePath: string }[]> => {
     const results: { file: File; relativePath: string }[] = [];
     const reader = dirEntry.createReader();
-    
+
     const readEntries = (): Promise<FileSystemEntry[]> => {
       return new Promise((resolve, reject) => {
         reader.readEntries(resolve, reject);
@@ -171,7 +171,7 @@ export default function MainLayout() {
   const handleDrop = useCallback(async (e: DragEvent) => {
     // Ignore internal drags (handled by individual components)
     if (isInternalDragging) return;
-    
+
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
@@ -179,7 +179,7 @@ export default function MainLayout() {
 
     const items = e.dataTransfer?.items;
     if (!items || items.length === 0) return;
-    
+
     // Check if this is an external file drag
     const hasFiles = e.dataTransfer?.types?.includes('Files');
     if (!hasFiles) return;
@@ -197,7 +197,7 @@ export default function MainLayout() {
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
       if (item.kind !== 'file') continue;
-      
+
       const entry = item.webkitGetAsEntry?.();
       const file = item.getAsFile();
       entries.push({ entry, file });
@@ -230,51 +230,95 @@ export default function MainLayout() {
 
     if (allFiles.length === 0) return;
 
-    // Calculate total size
+    // Calculate total size for progress tracking
     const totalSize = allFiles.reduce((sum, { file }) => sum + file.size, 0);
+    let uploadedTotal = 0;
+    let lastSpeedUpdate = Date.now();
+    let lastUploadedTotal = 0;
+    let currentSpeed = 0;
 
-    // Upload all files with progress tracking
-    try {
-      const formData = new FormData();
-      for (const { file, relativePath } of allFiles) {
+    // Import chunked upload dynamically to avoid circular deps
+    const { uploadFile } = await import('../lib/chunkedUpload');
+
+    // Show initial progress
+    setGlobalProgress(0, totalSize, 0);
+
+    // Upload files one by one to preserve folder structure
+    // The backend will create folders as needed based on relativePath
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const { file, relativePath } of allFiles) {
+      try {
+        // For folder uploads, we need to pass the relative path to the backend
+        // We'll use the upload endpoint that supports folder structure
+        const formData = new FormData();
         formData.append('files', file);
         formData.append('paths', relativePath);
-      }
-      if (folderId) {
-        formData.append('folderId', folderId);
-      }
+        if (folderId) {
+          formData.append('folderId', folderId);
+        }
 
-      let lastTime = Date.now();
-      let lastLoaded = 0;
+        // For small files, use direct upload with folder support
+        // For large files, use chunked upload (folders will be created via path)
+        if (file.size <= 50 * 1024 * 1024) { // 50MB threshold for direct upload
+          await api.post('/files/upload-with-folders', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+            onUploadProgress: (progressEvent) => {
+              const loaded = progressEvent.loaded || 0;
+              const now = Date.now();
+              const timeDiff = (now - lastSpeedUpdate) / 1000;
 
-      await api.post('/files/upload-with-folders', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-        onUploadProgress: (progressEvent) => {
-          const loaded = progressEvent.loaded || 0;
-          const total = progressEvent.total || totalSize;
-          const now = Date.now();
-          const timeDiff = (now - lastTime) / 1000; // seconds
-          
-          let speed = 0;
-          if (timeDiff > 0.1) { // Update speed every 100ms
-            speed = (loaded - lastLoaded) / timeDiff;
-            lastTime = now;
-            lastLoaded = loaded;
-          }
-          
-          setGlobalProgress(loaded, total, speed);
-        },
-      });
-      
-      resetGlobalProgress();
-      toast(t('files.uploadSuccess', { count: allFiles.length }), 'success');
-      triggerRefresh();
-      refreshUser(); // Update storage info in sidebar
-    } catch {
-      resetGlobalProgress();
+              if (timeDiff > 0.1) {
+                currentSpeed = (uploadedTotal + loaded - lastUploadedTotal) / timeDiff;
+                lastSpeedUpdate = now;
+                lastUploadedTotal = uploadedTotal + loaded;
+              }
+
+              setGlobalProgress(uploadedTotal + loaded, totalSize, currentSpeed);
+            },
+          });
+        } else {
+          // Use chunked upload for large files
+          await uploadFile(
+            file,
+            folderId,
+            (progress) => {
+              const now = Date.now();
+              const timeDiff = (now - lastSpeedUpdate) / 1000;
+
+              if (timeDiff > 0.1) {
+                currentSpeed = progress.speed || currentSpeed;
+                lastSpeedUpdate = now;
+              }
+
+              setGlobalProgress(uploadedTotal + progress.uploadedSize, totalSize, currentSpeed);
+            }
+          );
+        }
+
+        uploadedTotal += file.size;
+        successCount++;
+      } catch (error: any) {
+        console.error(`Failed to upload ${relativePath}:`, error);
+        errorCount++;
+        uploadedTotal += file.size; // Still advance progress
+      }
+    }
+
+    resetGlobalProgress();
+
+    if (errorCount === 0) {
+      toast(t('files.uploadSuccess', { count: successCount }), 'success');
+    } else if (successCount > 0) {
+      toast(t('files.uploadPartialSuccess', { success: successCount, failed: errorCount }), 'warning');
+    } else {
       toast(t('files.uploadError'), 'error');
     }
-  }, [setGlobalProgress, resetGlobalProgress, isInternalDragging, refreshUser]);
+
+    triggerRefresh();
+    refreshUser(); // Update storage info in sidebar
+  }, [setGlobalProgress, resetGlobalProgress, isInternalDragging, refreshUser, t]);
 
   // Set up global drag and drop listeners
   useEffect(() => {
@@ -298,7 +342,7 @@ export default function MainLayout() {
         endDrag();
       }
     };
-    
+
     window.addEventListener('dragend', handleGlobalDragEnd);
     return () => window.removeEventListener('dragend', handleGlobalDragEnd);
   }, [isInternalDragging, endDrag]);
@@ -306,7 +350,7 @@ export default function MainLayout() {
   // Close context menu on any click outside
   useEffect(() => {
     const handleClickOutside = () => setContextMenu(null);
-    
+
     if (contextMenu) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => {
@@ -344,21 +388,21 @@ export default function MainLayout() {
         e.preventDefault();
         const itemIds = Array.from(selectedItems);
         const total = itemIds.length;
-        
+
         const opId = addOperation({
           id: `delete-keyboard-${Date.now()}`,
           type: 'delete',
           title: t('files.deleting', { count: total }),
           totalItems: total,
         });
-        
+
         try {
           // Delete files and folders sequentially to show progress
           for (const id of itemIds) {
             const fileEl = document.querySelector(`[data-file-item="${id}"]`);
             const folderEl = document.querySelector(`[data-folder-item="${id}"]`);
             const itemName = fileEl?.getAttribute('data-file-name') || folderEl?.getAttribute('data-folder-name') || id;
-            
+
             if (fileEl) {
               await api.delete(`/files/${id}`);
             } else if (folderEl) {
@@ -366,7 +410,7 @@ export default function MainLayout() {
             }
             incrementProgress(opId, itemName);
           }
-          
+
           completeOperation(opId);
           clearSelection();
           toast(t('files.deleted', { count: total }), 'success');
@@ -387,9 +431,12 @@ export default function MainLayout() {
   }, [selectAll, clearSelection, selectedItems, addOperation, incrementProgress, completeOperation, failOperation, refreshUser]);
 
   // Helper function to update selection based on marquee bounds
+  // Track previous selection to avoid unnecessary re-renders
+  const previousMarqueeSelectionRef = useRef<string[]>([]);
+
   const updateMarqueeSelection = useCallback((startX: number, startY: number, endX: number, endY: number) => {
     if (!workzoneRef.current) return;
-    
+
     const rect = workzoneRef.current.getBoundingClientRect();
     const minX = Math.min(startX, endX);
     const maxX = Math.max(startX, endX);
@@ -416,18 +463,23 @@ export default function MainLayout() {
       }
     });
 
-    selectAll(selectedIds);
+    // Only update if selection actually changed (reduces re-renders significantly)
+    const prev = previousMarqueeSelectionRef.current;
+    if (selectedIds.length !== prev.length || !selectedIds.every((id, i) => id === prev[i])) {
+      previousMarqueeSelectionRef.current = selectedIds;
+      selectAll(selectedIds);
+    }
   }, [selectAll]);
 
   // Marquee selection handlers
   const handleMarqueeMouseDown = useCallback((e: React.MouseEvent) => {
     // Don't start marquee if internal drag is active
     if (isInternalDragging) return;
-    
+
     // Only start marquee on left click and if clicking on the workzone background (not on items)
     if (e.button !== 0) return;
     const target = e.target as HTMLElement;
-    
+
     // Check if clicking on the main element or its direct scrollable child
     if (!target.closest('[data-file-item]') && !target.closest('[data-folder-item]')) {
       const rect = workzoneRef.current?.getBoundingClientRect();
@@ -450,24 +502,24 @@ export default function MainLayout() {
 
   // Throttle ref for selection updates
   const lastSelectionUpdateRef = useRef(0);
-  
+
   const handleMarqueeMouseMove = useCallback((e: React.MouseEvent) => {
     if (!isMarqueeActive || !workzoneRef.current) return;
-    
+
     // Store current mouse position in ref for auto-scroll
     mousePositionRef.current = { x: e.clientX, y: e.clientY };
-    
+
     const rect = workzoneRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left + workzoneRef.current.scrollLeft;
     const y = e.clientY - rect.top + workzoneRef.current.scrollTop;
-    
+
     // Update marquee visual immediately via ref
     marqueeEndRef.current = { x, y };
     setMarqueeEnd({ x, y });
 
-    // Throttle selection updates to every 32ms (~30fps) to reduce lag
+    // Throttle selection updates to every 50ms (~20fps) to reduce lag
     const now = performance.now();
-    if (now - lastSelectionUpdateRef.current > 32) {
+    if (now - lastSelectionUpdateRef.current > 50) {
       lastSelectionUpdateRef.current = now;
       updateMarqueeSelection(marqueeStart.x, marqueeStart.y, x, y);
     }
@@ -503,32 +555,32 @@ export default function MainLayout() {
   // Auto-scroll while marquee is active and mouse is near edges (vertical only)
   useEffect(() => {
     if (!isMarqueeActive) return;
-    
+
     const scrollSpeed = 12;
     const edgeThreshold = 50;
-    
+
     const autoScroll = () => {
       if (!workzoneRef.current) return;
-      
+
       const rect = workzoneRef.current.getBoundingClientRect();
       const { y: mouseY } = mousePositionRef.current;
-      
+
       // Check if mouse is even initialized
       if (mouseY === 0) {
         scrollIntervalRef.current = requestAnimationFrame(autoScroll);
         return;
       }
-      
+
       let scrolledY = 0;
-      
+
       // Calculate distance from edges relative to the workzone
       const distanceFromTop = mouseY - rect.top;
       const distanceFromBottom = rect.bottom - mouseY;
-      
+
       // Calculate scroll limits to prevent infinite scrolling
       const maxScrollTop = workzoneRef.current.scrollHeight - workzoneRef.current.clientHeight;
       const currentScrollTop = workzoneRef.current.scrollTop;
-      
+
       // Scroll down when near bottom edge (but not beyond content)
       if (distanceFromBottom < edgeThreshold && distanceFromBottom >= 0 && currentScrollTop < maxScrollTop) {
         const intensity = Math.min((edgeThreshold - distanceFromBottom) / edgeThreshold, 1);
@@ -549,7 +601,7 @@ export default function MainLayout() {
           workzoneRef.current.scrollTop += scrolledY;
         }
       }
-      
+
       // Update marquee end position and selection if scrolled
       if (scrolledY !== 0) {
         const newEndY = marqueeEndRef.current.y + scrolledY;
@@ -557,12 +609,12 @@ export default function MainLayout() {
         setMarqueeEnd({ x: marqueeEndRef.current.x, y: newEndY });
         updateMarqueeSelection(marqueeStartRef.current.x, marqueeStartRef.current.y, marqueeEndRef.current.x, newEndY);
       }
-      
+
       scrollIntervalRef.current = requestAnimationFrame(autoScroll);
     };
-    
+
     scrollIntervalRef.current = requestAnimationFrame(autoScroll);
-    
+
     return () => {
       if (scrollIntervalRef.current) {
         cancelAnimationFrame(scrollIntervalRef.current);
@@ -642,7 +694,7 @@ export default function MainLayout() {
     if (!fileList || fileList.length === 0) return;
 
     const filesWithPaths: { file: File; path: string }[] = [];
-    
+
     for (let i = 0; i < fileList.length; i++) {
       const file = fileList[i];
       const path = (file as any).webkitRelativePath || file.name;
@@ -654,7 +706,7 @@ export default function MainLayout() {
       formData.append('files', file);
       formData.append('paths', path);
     });
-    
+
     if (currentFolderId) {
       formData.append('folderId', currentFolderId);
     }
@@ -705,6 +757,7 @@ export default function MainLayout() {
               onClick={toggleSidebar}
               className="w-11 h-11 flex items-center justify-center bg-white dark:bg-[#222222] text-dark-500 dark:text-white/70 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/10 rounded-full border border-dark-200 dark:border-[#2a2a2a] shadow-sm transition-colors"
               title={sidebarOpen ? t('layout.hideSidebar') : t('layout.showSidebar')}
+              aria-label={sidebarOpen ? t('layout.hideSidebar') : t('layout.showSidebar')}
             >
               {sidebarOpen ? (
                 <PanelLeftClose className="w-5 h-5" />
@@ -805,56 +858,56 @@ export default function MainLayout() {
                 </>
               ) : isMusicPage ? (
                 <>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => navigate('/music?tab=all')}
-                    className={cn(
-                      'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                      musicTab === 'all'
-                        ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
-                        : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
-                    )}
-                    aria-label="Ver toda la música"
-                  >
-                    <Music className="w-5 h-5" />
-                    {t('layout.all')}
-                  </button>
-                  <button
-                    onClick={() => navigate('/music?tab=favorites')}
-                    className={cn(
-                      'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                      musicTab === 'favorites'
-                        ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
-                        : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
-                    )}
-                    aria-label="Ver música favorita"
-                  >
-                    <Star className="w-5 h-5" />
-                    {t('layout.favorites')}
-                  </button>
-                  <button
-                    onClick={() => navigate('/music?tab=albums')}
-                    className={cn(
-                      'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                      musicTab === 'albums'
-                        ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
-                        : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
-                    )}
-                    aria-label="Ver álbumes de música"
-                  >
-                    <Disc className="w-5 h-5" />
-                    {t('layout.albums')}
-                  </button>
-                </div>
-                {(musicTab === 'all' || musicTab === 'albums') && (
-                  <button
-                    onClick={() => window.dispatchEvent(new CustomEvent('create-music-album'))}
-                    className="h-7 px-3 mr-1 flex items-center gap-2 text-sm font-medium text-primary-600 hover:text-primary-700 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-full transition-colors"
-                  >
-                    <Plus className="w-4 h-4" />
-                    {t('layout.newAlbum')}
-                  </button>
-                )}
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => navigate('/music?tab=all')}
+                      className={cn(
+                        'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
+                        musicTab === 'all'
+                          ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                          : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                      )}
+                      aria-label="Ver toda la música"
+                    >
+                      <Music className="w-5 h-5" />
+                      {t('layout.all')}
+                    </button>
+                    <button
+                      onClick={() => navigate('/music?tab=favorites')}
+                      className={cn(
+                        'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
+                        musicTab === 'favorites'
+                          ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                          : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                      )}
+                      aria-label="Ver música favorita"
+                    >
+                      <Star className="w-5 h-5" />
+                      {t('layout.favorites')}
+                    </button>
+                    <button
+                      onClick={() => navigate('/music?tab=albums')}
+                      className={cn(
+                        'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
+                        musicTab === 'albums'
+                          ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                          : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                      )}
+                      aria-label="Ver álbumes de música"
+                    >
+                      <Disc className="w-5 h-5" />
+                      {t('layout.albums')}
+                    </button>
+                  </div>
+                  {(musicTab === 'all' || musicTab === 'albums') && (
+                    <button
+                      onClick={() => window.dispatchEvent(new CustomEvent('create-music-album'))}
+                      className="h-7 px-3 mr-1 flex items-center gap-2 text-sm font-medium text-primary-600 hover:text-primary-700 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-full transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                      {t('layout.newAlbum')}
+                    </button>
+                  )}
                 </>
               ) : isDocumentsPage ? (
                 <div className="flex items-center gap-1">
@@ -937,86 +990,86 @@ export default function MainLayout() {
                 </div>
               ) : isGalleryPage ? (
                 <>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => navigate('/photos?tab=all')}
-                    className={cn(
-                      'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                      isPhotosPage && photosTab === 'all'
-                        ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
-                        : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
-                    )}
-                    aria-label="Ver todas las fotos"
-                  >
-                    <Image className="w-5 h-5" />
-                    {t('layout.all')}
-                  </button>
-                  <button
-                    onClick={() => navigate('/photos?tab=favorites')}
-                    className={cn(
-                      'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                      isPhotosPage && photosTab === 'favorites'
-                        ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
-                        : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
-                    )}
-                    aria-label="Ver fotos favoritas"
-                  >
-                    <Star className="w-5 h-5" />
-                    {t('layout.favorites')}
-                  </button>
-                  <button
-                    onClick={() => navigate('/photos?tab=videos')}
-                    className={cn(
-                      'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                      isPhotosPage && photosTab === 'videos'
-                        ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
-                        : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
-                    )}
-                    aria-label="Ver videos"
-                  >
-                    <Video className="w-5 h-5" />
-                    {t('layout.videos')}
-                  </button>
-                  <button
-                    onClick={() => navigate('/photos?tab=screenshots')}
-                    className={cn(
-                      'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                      isPhotosPage && photosTab === 'screenshots'
-                        ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
-                        : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
-                    )}
-                    aria-label="Ver capturas de pantalla"
-                  >
-                    <Camera className="w-5 h-5" />
-                    {t('layout.screenshots')}
-                  </button>
-                  <button
-                    onClick={() => navigate('/albums')}
-                    className={cn(
-                      'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                      isAlbumsPage
-                        ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
-                        : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
-                    )}
-                    aria-label="Ver álbumes"
-                  >
-                    <FolderOpen className="w-5 h-5" />
-                    {t('layout.albums')}
-                  </button>
-                </div>
-                {isAlbumsPage && (
-                  <button
-                    onClick={() => window.dispatchEvent(new CustomEvent('create-album'))}
-                    className="h-7 px-3 mr-1 flex items-center gap-2 text-sm font-medium text-primary-600 hover:text-primary-700 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-full transition-colors"
-                  >
-                    <Plus className="w-4 h-4" />
-                    {t('layout.newAlbum')}
-                  </button>
-                )}
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => navigate('/photos?tab=all')}
+                      className={cn(
+                        'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
+                        isPhotosPage && photosTab === 'all'
+                          ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                          : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                      )}
+                      aria-label="Ver todas las fotos"
+                    >
+                      <Image className="w-5 h-5" />
+                      {t('layout.all')}
+                    </button>
+                    <button
+                      onClick={() => navigate('/photos?tab=favorites')}
+                      className={cn(
+                        'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
+                        isPhotosPage && photosTab === 'favorites'
+                          ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                          : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                      )}
+                      aria-label="Ver fotos favoritas"
+                    >
+                      <Star className="w-5 h-5" />
+                      {t('layout.favorites')}
+                    </button>
+                    <button
+                      onClick={() => navigate('/photos?tab=videos')}
+                      className={cn(
+                        'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
+                        isPhotosPage && photosTab === 'videos'
+                          ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                          : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                      )}
+                      aria-label="Ver videos"
+                    >
+                      <Video className="w-5 h-5" />
+                      {t('layout.videos')}
+                    </button>
+                    <button
+                      onClick={() => navigate('/photos?tab=screenshots')}
+                      className={cn(
+                        'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
+                        isPhotosPage && photosTab === 'screenshots'
+                          ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                          : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                      )}
+                      aria-label="Ver capturas de pantalla"
+                    >
+                      <Camera className="w-5 h-5" />
+                      {t('layout.screenshots')}
+                    </button>
+                    <button
+                      onClick={() => navigate('/albums')}
+                      className={cn(
+                        'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
+                        isAlbumsPage
+                          ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                          : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                      )}
+                      aria-label="Ver álbumes"
+                    >
+                      <FolderOpen className="w-5 h-5" />
+                      {t('layout.albums')}
+                    </button>
+                  </div>
+                  {isAlbumsPage && (
+                    <button
+                      onClick={() => window.dispatchEvent(new CustomEvent('create-album'))}
+                      className="h-7 px-3 mr-1 flex items-center gap-2 text-sm font-medium text-primary-600 hover:text-primary-700 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-full transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                      {t('layout.newAlbum')}
+                    </button>
+                  )}
                 </>
               ) : showBreadcrumbs ? (
-                <Breadcrumbs 
-                  items={breadcrumbs} 
+                <Breadcrumbs
+                  items={breadcrumbs}
                   basePath="/files"
                   onRefresh={triggerRefresh}
                 />
@@ -1028,7 +1081,10 @@ export default function MainLayout() {
                       {/* Sort dropdown */}
                       <Dropdown
                         trigger={
-                          <button className="h-7 flex items-center justify-center gap-2 px-3 text-sm font-medium text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5 rounded-full transition-colors border border-transparent">
+                          <button
+                            className="h-7 flex items-center justify-center gap-2 px-3 text-sm font-medium text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5 rounded-full transition-colors border border-transparent"
+                            aria-label={t('layout.sort')}
+                          >
                             {sortOrder === 'asc' ? (
                               <SortAsc className="w-4 h-4" />
                             ) : (
@@ -1071,23 +1127,27 @@ export default function MainLayout() {
                       <div className="flex items-center bg-dark-100 dark:bg-[#222222] border border-dark-200 dark:border-[#2a2a2a] rounded-full p-0.5">
                         <button
                           onClick={() => setViewMode('grid')}
-                            className={cn(
+                          className={cn(
                             'p-1.5 rounded-full transition-colors flex items-center justify-center',
                             viewMode === 'grid'
                               ? 'bg-white dark:bg-white/10 text-dark-900 dark:text-white shadow-sm'
                               : 'text-dark-500 dark:text-white/70 hover:text-dark-900 dark:hover:text-white hover:bg-dark-200 dark:hover:bg-white/5'
                           )}
+                          aria-label={t('layout.viewGrid')}
+                          aria-pressed={viewMode === 'grid' ? "true" : "false"}
                         >
                           <Grid className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => setViewMode('list')}
-                            className={cn(
+                          className={cn(
                             'p-1.5 rounded-full transition-colors flex items-center justify-center',
                             viewMode === 'list'
                               ? 'bg-white dark:bg-white/10 text-dark-900 dark:text-white shadow-sm'
                               : 'text-dark-500 dark:text-white/70 hover:text-dark-900 dark:hover:text-white hover:bg-dark-200 dark:hover:bg-white/5'
                           )}
+                          aria-label={t('layout.viewList')}
+                          aria-pressed={viewMode === 'list' ? "true" : "false"}
                         >
                           <List className="w-4 h-4" />
                         </button>
@@ -1100,7 +1160,7 @@ export default function MainLayout() {
           </div>
 
           {/* Main workzone - separated */}
-          <div 
+          <div
             className={cn(
               "bg-white dark:bg-[#121212] rounded-2xl flex-1 flex flex-col overflow-hidden border border-dark-200 dark:border-[#2a2a2a] shadow-sm transition-opacity duration-200 relative select-none",
               isDragging && "opacity-50"
@@ -1108,7 +1168,7 @@ export default function MainLayout() {
             onContextMenu={handleContextMenu}
             onClick={closeContextMenu}
           >
-            <main 
+            <main
               ref={workzoneRef}
               className="flex-1 overflow-y-auto overflow-x-hidden p-4 relative"
               onMouseDown={handleMarqueeMouseDown}
@@ -1138,10 +1198,10 @@ export default function MainLayout() {
               const menuWidth = 220;
               const menuHeight = 280;
               const padding = 16;
-              
+
               let left = contextMenu.x;
               let top = contextMenu.y;
-              
+
               if (left + menuWidth > window.innerWidth - padding) {
                 left = contextMenu.x - menuWidth;
               }
@@ -1150,102 +1210,102 @@ export default function MainLayout() {
               }
               if (left < padding) left = padding;
               if (top < padding) top = padding;
-              
+
               return (
-              <div
-                className="fixed z-50 bg-white dark:bg-dark-800 rounded-xl shadow-lg border border-dark-100 dark:border-dark-700 py-2 min-w-52"
-                style={{ left, top }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                {/* Seleccionar todo */}
-                {isFilesPage && (
-                  <>
-                    <button
-                      onMouseDown={(e) => {
-                        e.stopPropagation();
-                        // Dispatch event to select all in Files page
-                        window.dispatchEvent(new CustomEvent('workzone-select-all'));
-                        closeContextMenu();
-                      }}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
-                    >
-                      <CheckSquare className="w-4 h-4 text-dark-400" />
-                      {t('layout.selectAll')}
-                    </button>
-                    <div className="h-px bg-dark-100 dark:bg-dark-700 my-1.5" />
-                  </>
-                )}
-                
-                {/* Añadir archivos/carpetas */}
-                <button
-                  onMouseDown={(e) => {
-                    e.stopPropagation();
-                    setUploadModalOpen(true);
-                    closeContextMenu();
-                  }}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
+                <div
+                  className="fixed z-50 bg-white dark:bg-dark-800 rounded-xl shadow-lg border border-dark-200 dark:border-dark-700 py-1 min-w-[180px]"
+                  style={{ left, top }}
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  <Upload className="w-4 h-4 text-dark-400" />
-                  {t('layout.addFile')}
-                </button>
-                {isFilesPage && (
+                  {/* Seleccionar todo */}
+                  {isFilesPage && (
+                    <>
+                      <button
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          // Dispatch event to select all in Files page
+                          window.dispatchEvent(new CustomEvent('workzone-select-all'));
+                          closeContextMenu();
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
+                      >
+                        <CheckSquare className="w-4 h-4 text-dark-400" />
+                        {t('layout.selectAll')}
+                      </button>
+                      <div className="h-px bg-dark-100 dark:bg-dark-700 my-1.5" />
+                    </>
+                  )}
+
+                  {/* Añadir archivos/carpetas */}
                   <button
                     onMouseDown={(e) => {
                       e.stopPropagation();
-                      handleFolderUpload();
+                      setUploadModalOpen(true);
+                      closeContextMenu();
                     }}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
                   >
-                    <FolderUp className="w-4 h-4 text-dark-400" />
-                    {t('layout.addFolder')}
+                    <Upload className="w-4 h-4 text-dark-400" />
+                    {t('layout.addFile')}
                   </button>
-                )}
-                
-                {isFilesPage && (
-                  <>
-                    <div className="h-px bg-dark-100 dark:bg-dark-700 my-1.5" />
-                    
-                    {/* Crear archivo/carpeta */}
+                  {isFilesPage && (
                     <button
                       onMouseDown={(e) => {
                         e.stopPropagation();
-                        setCreateFileModalOpen(true);
-                        closeContextMenu();
+                        handleFolderUpload();
                       }}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
                     >
-                      <FilePlus className="w-4 h-4 text-dark-400" />
-                      {t('header.createFile')}
+                      <FolderUp className="w-4 h-4 text-dark-400" />
+                      {t('layout.addFolder')}
                     </button>
-                    <button
-                      onMouseDown={(e) => {
-                        e.stopPropagation();
-                        setCreateFolderModalOpen(true);
-                        closeContextMenu();
-                      }}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
-                    >
-                      <FolderPlus className="w-4 h-4 text-dark-400" />
-                      {t('header.createFolder')}
-                    </button>
-                    
-                    <div className="h-px bg-dark-100 dark:bg-dark-700 my-1.5" />
-                    
-                    {/* Actualizar */}
-                    <button
-                      onMouseDown={(e) => {
-                        e.stopPropagation();
-                        triggerRefresh();
-                        closeContextMenu();
-                      }}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
-                    >
-                      <RefreshCw className="w-4 h-4 text-dark-400" />
-                      {t('layout.refresh')}
-                    </button>
-                  </>
-                )}
-              </div>
+                  )}
+
+                  {isFilesPage && (
+                    <>
+                      <div className="h-px bg-dark-100 dark:bg-dark-700 my-1.5" />
+
+                      {/* Crear archivo/carpeta */}
+                      <button
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          setCreateFileModalOpen(true);
+                          closeContextMenu();
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
+                      >
+                        <FilePlus className="w-4 h-4 text-dark-400" />
+                        {t('header.createFile')}
+                      </button>
+                      <button
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          setCreateFolderModalOpen(true);
+                          closeContextMenu();
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
+                      >
+                        <FolderPlus className="w-4 h-4 text-dark-400" />
+                        {t('header.createFolder')}
+                      </button>
+
+                      <div className="h-px bg-dark-100 dark:bg-dark-700 my-1.5" />
+
+                      {/* Actualizar */}
+                      <button
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          triggerRefresh();
+                          closeContextMenu();
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
+                      >
+                        <RefreshCw className="w-4 h-4 text-dark-400" />
+                        {t('layout.refresh')}
+                      </button>
+                    </>
+                  )}
+                </div>
               );
             })()}
           </div>
@@ -1270,6 +1330,7 @@ export default function MainLayout() {
         ref={folderInputRef}
         type="file"
         className="hidden"
+        aria-label={t('layout.selectFolderToUpload')}
         // @ts-ignore - webkitdirectory is not in types but works in browsers
         webkitdirectory=""
         directory=""

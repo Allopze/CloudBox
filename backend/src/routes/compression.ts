@@ -408,6 +408,33 @@ router.get('/progress/:jobId', authenticate, async (req: Request, res: Response)
   });
 });
 
+// Get job status (polling alternative to SSE)
+router.get('/status/:jobId', authenticate, async (req: Request, res: Response) => {
+  try {
+    const { jobId } = req.params;
+    const userId = req.user!.userId;
+
+    const job = await prisma.compressionJob.findFirst({
+      where: { id: jobId, userId },
+    });
+
+    if (!job) {
+      res.status(404).json({ error: 'Job not found' });
+      return;
+    }
+
+    res.json({
+      jobId: job.id,
+      status: job.status,
+      progress: job.progress,
+      error: job.data && typeof job.data === 'object' && 'error' in job.data ? job.data.error : null,
+    });
+  } catch (error) {
+    console.error('Get job status error:', error);
+    res.status(500).json({ error: 'Failed to get job status' });
+  }
+});
+
 // Cancel job
 router.post('/cancel/:jobId', authenticate, async (req: Request, res: Response) => {
   try {

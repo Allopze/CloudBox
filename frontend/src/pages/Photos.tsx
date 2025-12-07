@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { api, getFileUrl } from '../lib/api';
 import { FileItem, Album } from '../types';
 import { useFileStore } from '../stores/fileStore';
-import { 
+import {
   Loader2, X, ChevronLeft, ChevronRight, Download, Trash2, Star, Check,
   Share2, Info, Copy, Edit3, Images, FolderPlus,
   ImagePlus, ExternalLink, Plus
@@ -16,6 +16,7 @@ import Input from '../components/ui/Input';
 import { motion, AnimatePresence } from 'framer-motion';
 import ShareModal from '../components/modals/ShareModal';
 import RenameModal from '../components/modals/RenameModal';
+import ConfirmModal from '../components/ui/ConfirmModal';
 
 type TabType = 'all' | 'favorites' | 'videos' | 'screenshots';
 
@@ -31,22 +32,23 @@ export default function Photos() {
   const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const activeTab = (searchParams.get('tab') || 'all') as TabType;
-  
+
   const [photos, setPhotos] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPhoto, setSelectedPhoto] = useState<FileItem | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState(0);
-  
+
   // Context menu state
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
-  
+
   // Modal states
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [shareModalFile, setShareModalFile] = useState<FileItem | null>(null);
   const [renameModalOpen, setRenameModalOpen] = useState(false);
   const [renameModalFile, setRenameModalFile] = useState<FileItem | null>(null);
   const [infoPhoto, setInfoPhoto] = useState<FileItem | null>(null);
-  
+  const [deleteConfirmPhoto, setDeleteConfirmPhoto] = useState<FileItem | null>(null);
+
   // Album selector state
   const [albumSelectorOpen, setAlbumSelectorOpen] = useState(false);
   const [albumSelectorPhotos, setAlbumSelectorPhotos] = useState<FileItem[]>([]);
@@ -158,6 +160,7 @@ export default function Photos() {
     try {
       await api.delete(`/files/${photo.id}`);
       toast(t('photos.movedToTrash'), 'success');
+      clearSelection();
       closeLightbox();
       loadData();
     } catch {
@@ -165,18 +168,29 @@ export default function Photos() {
     }
   };
 
+  const handleDeleteClick = (photo: FileItem) => {
+    setDeleteConfirmPhoto(photo);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (deleteConfirmPhoto) {
+      await handleDelete(deleteConfirmPhoto);
+      setDeleteConfirmPhoto(null);
+    }
+  };
+
   // Context menu handlers
   const handleContextMenu = (e: React.MouseEvent, photo: FileItem) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     // Capture selection state at the moment context menu opens
     const currentSelectedItems = useFileStore.getState().selectedItems;
     const isMultiSelect = currentSelectedItems.size > 1 && currentSelectedItems.has(photo.id);
-    
-    setContextMenu({ 
-      x: e.clientX, 
-      y: e.clientY, 
+
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
       photo,
       isMultiSelect,
       selectedIds: new Set(currentSelectedItems)
@@ -218,10 +232,10 @@ export default function Photos() {
 
   const handleAddToAlbum = async () => {
     if (!contextMenu) return;
-    
+
     // Use the selection state captured when context menu opened
     const { photo, isMultiSelect, selectedIds } = contextMenu;
-    
+
     // Determine which photos to add
     let photosToAdd: FileItem[];
     if (isMultiSelect) {
@@ -229,12 +243,12 @@ export default function Photos() {
     } else {
       photosToAdd = [photo];
     }
-    
+
     // Set photos and open selector
     setAlbumSelectorPhotos(photosToAdd);
     setAlbumSelectorOpen(true);
     loadAlbums();
-    
+
     // Close context menu last
     closeContextMenu();
   };
@@ -273,9 +287,9 @@ export default function Photos() {
     if (!newAlbumName.trim() || albumSelectorPhotos.length === 0) return;
     setCreatingAlbum(true);
     try {
-      const response = await api.post('/albums', { 
+      const response = await api.post('/albums', {
         name: newAlbumName.trim(),
-        color: newAlbumColor 
+        color: newAlbumColor
       });
       const newAlbum = response.data;
       await api.post(`/albums/${newAlbum.id}/files`, {
@@ -317,11 +331,6 @@ export default function Photos() {
     closeContextMenu();
   };
 
-  const handleDeleteFromMenu = async (photo: FileItem) => {
-    await handleDelete(photo);
-    closeContextMenu();
-  };
-
   const handleFavoriteFromMenu = async (photo: FileItem) => {
     await handleFavorite(photo);
     closeContextMenu();
@@ -348,40 +357,36 @@ export default function Photos() {
     <div>
 
       {/* Content */}
-      {loading ? (
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
-        </div>
-      ) : photos.length === 0 ? (
+      {photos.length === 0 ? (
         (() => {
           // Get icon and text based on current tab
           const getEmptyStateConfig = () => {
             switch (activeTab) {
               case 'videos':
-                return { 
-                  icon: Images, 
-                  title: t('photos.noVideos'), 
+                return {
+                  icon: Images,
+                  title: t('photos.noVideos'),
                   subtitle: t('photos.uploadVideos'),
                   color: 'text-purple-400'
                 };
               case 'screenshots':
-                return { 
-                  icon: Images, 
-                  title: t('photos.noScreenshots'), 
+                return {
+                  icon: Images,
+                  title: t('photos.noScreenshots'),
                   subtitle: t('photos.uploadScreenshots'),
                   color: 'text-cyan-400'
                 };
               case 'favorites':
-                return { 
-                  icon: Star, 
-                  title: t('photos.noFavoritePhotos'), 
+                return {
+                  icon: Star,
+                  title: t('photos.noFavoritePhotos'),
                   subtitle: t('photos.addFavoritePhotos'),
                   color: 'text-yellow-400'
                 };
               default:
-                return { 
-                  icon: Images, 
-                  title: t('photos.noPhotos'), 
+                return {
+                  icon: Images,
+                  title: t('photos.noPhotos'),
                   subtitle: t('photos.uploadPhotos'),
                   color: 'text-primary-400'
                 };
@@ -400,7 +405,7 @@ export default function Photos() {
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
           {photos.map((photo, index) => {
             const isSelected = selectedItems.has(photo.id);
-            
+
             const handleClick = (e: React.MouseEvent) => {
               // Shift+Click: Range selection
               if (e.shiftKey && lastSelectedId) {
@@ -424,7 +429,7 @@ export default function Photos() {
                 }
               }
             };
-            
+
             return (
               <motion.div
                 key={photo.id}
@@ -440,7 +445,7 @@ export default function Photos() {
                 )}
               >
                 <img
-                  src={photo.thumbnailPath ? getFileUrl(`/files/${photo.id}/thumbnail`) : getFileUrl(`/files/${photo.id}/view`)}
+                  src={photo.thumbnailPath ? getFileUrl(`/files/${photo.id}/thumbnail`, undefined, true) : getFileUrl(`/files/${photo.id}/view`, undefined, true)}
                   alt={photo.name}
                   className="w-full h-full object-cover"
                   loading="lazy"
@@ -500,7 +505,7 @@ export default function Photos() {
 
           {/* Image */}
           <img
-            src={getFileUrl(`/files/${selectedPhoto.id}/view`)}
+            src={getFileUrl(`/files/${selectedPhoto.id}/view`, undefined, true)}
             alt={selectedPhoto.name}
             className="max-w-full max-h-full object-contain"
           />
@@ -552,22 +557,22 @@ export default function Photos() {
           // Use selection state captured when context menu opened
           const { isMultiSelect, selectedIds } = contextMenu;
           const selectedCount = isMultiSelect ? selectedIds.size : 1;
-          
+
           const menuWidth = 300;
           // Calculate menu height based on items shown
           const baseHeight = isMultiSelect ? 280 : 480; // Smaller menu for multi-select
           const padding = 16;
-          
+
           // Calculate optimal position
           let left = contextMenu.x;
           let top = contextMenu.y;
-          
+
           // Calculate available space in each direction
           const spaceRight = window.innerWidth - contextMenu.x - padding;
           const spaceLeft = contextMenu.x - padding;
           const spaceBottom = window.innerHeight - contextMenu.y - padding;
           const spaceTop = contextMenu.y - padding;
-          
+
           // Horizontal positioning
           if (spaceRight >= menuWidth) {
             left = contextMenu.x;
@@ -576,7 +581,7 @@ export default function Photos() {
           } else {
             left = Math.max(padding, (window.innerWidth - menuWidth) / 2);
           }
-          
+
           // Vertical positioning
           if (spaceBottom >= baseHeight) {
             top = contextMenu.y;
@@ -585,162 +590,162 @@ export default function Photos() {
           } else {
             top = Math.max(padding, (window.innerHeight - baseHeight) / 2);
           }
-          
+
           return (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            transition={{ duration: 0.1 }}
-            className="fixed z-[100] bg-white dark:bg-dark-800 rounded-2xl shadow-xl border border-dark-200 dark:border-dark-700 py-2 min-w-72"
-            style={{ left, top }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header showing selection count for multi-select */}
-            {isMultiSelect && (
-              <>
-                <div className="px-4 py-2 text-sm font-medium text-dark-500 dark:text-dark-400">
-                  {t('photos.itemsSelected', { count: selectedCount })}
-                </div>
-                <div className="my-2 border-t border-dark-200 dark:border-dark-700" />
-              </>
-            )}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.1 }}
+              className="fixed z-[100] bg-white dark:bg-dark-800 rounded-xl shadow-lg border border-dark-200 dark:border-dark-700 py-1 min-w-[180px]"
+              style={{ left, top }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header showing selection count for multi-select */}
+              {isMultiSelect && (
+                <>
+                  <div className="px-4 py-2 text-sm font-medium text-dark-500 dark:text-dark-400">
+                    {t('photos.itemsSelected', { count: selectedCount })}
+                  </div>
+                  <div className="my-2 border-t border-dark-200 dark:border-dark-700" />
+                </>
+              )}
 
-            {/* Single item actions - only show when single selection */}
-            {!isMultiSelect && (
-              <>
-                {/* View actions */}
-                <div className="px-1.5">
-                  <button
-                    onClick={() => {
-                      const index = photos.findIndex(p => p.id === contextMenu.photo.id);
-                      openLightbox(contextMenu.photo, index);
-                      closeContextMenu();
-                    }}
-                    className="w-full flex items-center gap-3.5 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
-                  >
-                    <ImagePlus className="w-5 h-5 text-dark-400" />
-                    {t('photos.openInViewer')}
-                  </button>
-                  <button
-                    onClick={() => handleOpenInNewTab(contextMenu.photo)}
-                    className="w-full flex items-center gap-3.5 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
-                  >
-                    <ExternalLink className="w-5 h-5 text-dark-400" />
-                    {t('photos.openInNewTab')}
-                  </button>
-                </div>
+              {/* Single item actions - only show when single selection */}
+              {!isMultiSelect && (
+                <>
+                  {/* View actions */}
+                  <div className="px-1.5">
+                    <button
+                      onClick={() => {
+                        const index = photos.findIndex(p => p.id === contextMenu.photo.id);
+                        openLightbox(contextMenu.photo, index);
+                        closeContextMenu();
+                      }}
+                      className="w-full flex items-center gap-3.5 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
+                    >
+                      <ImagePlus className="w-5 h-5 text-dark-400" />
+                      {t('photos.openInViewer')}
+                    </button>
+                    <button
+                      onClick={() => handleOpenInNewTab(contextMenu.photo)}
+                      className="w-full flex items-center gap-3.5 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
+                    >
+                      <ExternalLink className="w-5 h-5 text-dark-400" />
+                      {t('photos.openInNewTab')}
+                    </button>
+                  </div>
 
-                <div className="my-2 border-t border-dark-200 dark:border-dark-700" />
+                  <div className="my-2 border-t border-dark-200 dark:border-dark-700" />
 
-                {/* File actions for single */}
-                <div className="px-1.5">
-                  <button
-                    onClick={() => handleDownload(contextMenu.photo)}
-                    className="w-full flex items-center gap-3.5 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
-                  >
-                    <Download className="w-5 h-5 text-dark-400" />
-                    {t('common.download')}
-                  </button>
-                  <button
-                    onClick={() => handleShare(contextMenu.photo)}
-                    className="w-full flex items-center gap-3.5 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
-                  >
-                    <Share2 className="w-5 h-5 text-dark-400" />
-                    {t('common.share')}
-                  </button>
-                  <button
-                    onClick={() => handleCopyLink(contextMenu.photo)}
-                    className="w-full flex items-center gap-3.5 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
-                  >
-                    <Copy className="w-5 h-5 text-dark-400" />
-                    {t('photos.copyLink')}
-                  </button>
-                </div>
+                  {/* File actions for single */}
+                  <div className="px-1.5">
+                    <button
+                      onClick={() => handleDownload(contextMenu.photo)}
+                      className="w-full flex items-center gap-3.5 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
+                    >
+                      <Download className="w-5 h-5 text-dark-400" />
+                      {t('common.download')}
+                    </button>
+                    <button
+                      onClick={() => handleShare(contextMenu.photo)}
+                      className="w-full flex items-center gap-3.5 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
+                    >
+                      <Share2 className="w-5 h-5 text-dark-400" />
+                      {t('common.share')}
+                    </button>
+                    <button
+                      onClick={() => handleCopyLink(contextMenu.photo)}
+                      className="w-full flex items-center gap-3.5 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
+                    >
+                      <Copy className="w-5 h-5 text-dark-400" />
+                      {t('photos.copyLink')}
+                    </button>
+                  </div>
 
-                <div className="my-2 border-t border-dark-200 dark:border-dark-700" />
+                  <div className="my-2 border-t border-dark-200 dark:border-dark-700" />
 
-                {/* Organization actions for single */}
-                <div className="px-1.5">
-                  <button
-                    onClick={() => handleFavoriteFromMenu(contextMenu.photo)}
-                    className="w-full flex items-center gap-3.5 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
-                  >
-                    <Star className={cn('w-5 h-5', contextMenu.photo.isFavorite ? 'text-yellow-500 fill-yellow-500' : 'text-dark-400')} />
-                    {contextMenu.photo.isFavorite ? t('photos.removeFromFavorites') : t('photos.addToFavorites')}
-                  </button>
-                  <button
-                    onClick={handleAddToAlbum}
-                    className="w-full flex items-center gap-3.5 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
-                  >
-                    <FolderPlus className="w-5 h-5 text-dark-400" />
-                    {t('photos.addToAlbum')}
-                  </button>
-                  <button
-                    onClick={() => handleRename(contextMenu.photo)}
-                    className="w-full flex items-center gap-3.5 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
-                  >
-                    <Edit3 className="w-5 h-5 text-dark-400" />
-                    {t('common.rename')}
-                  </button>
-                </div>
+                  {/* Organization actions for single */}
+                  <div className="px-1.5">
+                    <button
+                      onClick={() => handleFavoriteFromMenu(contextMenu.photo)}
+                      className="w-full flex items-center gap-3.5 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
+                    >
+                      <Star className={cn('w-5 h-5', contextMenu.photo.isFavorite ? 'text-yellow-500 fill-yellow-500' : 'text-dark-400')} />
+                      {contextMenu.photo.isFavorite ? t('photos.removeFromFavorites') : t('photos.addToFavorites')}
+                    </button>
+                    <button
+                      onClick={handleAddToAlbum}
+                      className="w-full flex items-center gap-3.5 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
+                    >
+                      <FolderPlus className="w-5 h-5 text-dark-400" />
+                      {t('photos.addToAlbum')}
+                    </button>
+                    <button
+                      onClick={() => handleRename(contextMenu.photo)}
+                      className="w-full flex items-center gap-3.5 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
+                    >
+                      <Edit3 className="w-5 h-5 text-dark-400" />
+                      {t('common.rename')}
+                    </button>
+                  </div>
 
-                <div className="my-2 border-t border-dark-200 dark:border-dark-700" />
+                  <div className="my-2 border-t border-dark-200 dark:border-dark-700" />
 
-                {/* Tools for single */}
-                <div className="px-1.5">
-                  <button
-                    onClick={() => handleShowInfo(contextMenu.photo)}
-                    className="w-full flex items-center gap-3.5 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
-                  >
-                    <Info className="w-5 h-5 text-dark-400" />
-                    {t('photos.viewInfo')}
-                  </button>
-                </div>
+                  {/* Tools for single */}
+                  <div className="px-1.5">
+                    <button
+                      onClick={() => handleShowInfo(contextMenu.photo)}
+                      className="w-full flex items-center gap-3.5 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
+                    >
+                      <Info className="w-5 h-5 text-dark-400" />
+                      {t('photos.viewInfo')}
+                    </button>
+                  </div>
 
-                <div className="my-2 border-t border-dark-200 dark:border-dark-700" />
-              </>
-            )}
+                  <div className="my-2 border-t border-dark-200 dark:border-dark-700" />
+                </>
+              )}
 
-            {/* Multi-select actions */}
-            {isMultiSelect && (
-              <>
-                <div className="px-1.5">
-                  <button
-                    onClick={handleAddToAlbum}
-                    className="w-full flex items-center gap-3.5 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
-                  >
-                    <FolderPlus className="w-5 h-5 text-dark-400" />
-                    {t('photos.addToAlbum')}
-                  </button>
-                  <button
-                    onClick={() => {
-                      // Download all selected
-                      const selected = photos.filter(p => selectedIds.has(p.id));
-                      selected.forEach(p => handleDownload(p));
-                    }}
-                    className="w-full flex items-center gap-3.5 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
-                  >
-                    <Download className="w-5 h-5 text-dark-400" />
-                    {t('photos.downloadItems', { count: selectedCount })}
-                  </button>
-                </div>
+              {/* Multi-select actions */}
+              {isMultiSelect && (
+                <>
+                  <div className="px-1.5">
+                    <button
+                      onClick={handleAddToAlbum}
+                      className="w-full flex items-center gap-3.5 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
+                    >
+                      <FolderPlus className="w-5 h-5 text-dark-400" />
+                      {t('photos.addToAlbum')}
+                    </button>
+                    <button
+                      onClick={() => {
+                        // Download all selected
+                        const selected = photos.filter(p => selectedIds.has(p.id));
+                        selected.forEach(p => handleDownload(p));
+                      }}
+                      className="w-full flex items-center gap-3.5 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
+                    >
+                      <Download className="w-5 h-5 text-dark-400" />
+                      {t('photos.downloadItems', { count: selectedCount })}
+                    </button>
+                  </div>
 
-                <div className="my-2 border-t border-dark-200 dark:border-dark-700" />
-              </>
-            )}
+                  <div className="my-2 border-t border-dark-200 dark:border-dark-700" />
+                </>
+              )}
 
-            {/* Delete - always show */}
-            <div className="px-1.5">
-              <button
-                onClick={() => handleDeleteFromMenu(contextMenu.photo)}
-                className="w-full flex items-center gap-3.5 px-4 py-2.5 text-base text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"
-              >
-                <Trash2 className="w-5 h-5" />
-                {isMultiSelect ? t('photos.deleteItems', { count: selectedCount }) : t('common.delete')}
-              </button>
-            </div>
-          </motion.div>
+              {/* Delete - always show */}
+              <div className="px-1.5">
+                <button
+                  onClick={() => handleDeleteClick(contextMenu.photo)}
+                  className="w-full flex items-center gap-3.5 px-4 py-2.5 text-base text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"
+                >
+                  <Trash2 className="w-5 h-5" />
+                  {isMultiSelect ? t('photos.deleteItems', { count: selectedCount }) : t('common.delete')}
+                </button>
+              </div>
+            </motion.div>
           );
         })()}
       </AnimatePresence>
@@ -765,16 +770,16 @@ export default function Photos() {
               {/* Preview */}
               <div className="aspect-video bg-dark-100 dark:bg-dark-900 relative">
                 <img
-                  src={infoPhoto.thumbnailPath ? getFileUrl(`/files/${infoPhoto.id}/thumbnail`) : getFileUrl(`/files/${infoPhoto.id}/view`)}
+                  src={infoPhoto.thumbnailPath ? getFileUrl(`/files/${infoPhoto.id}/thumbnail`, undefined, true) : getFileUrl(`/files/${infoPhoto.id}/view`, undefined, true)}
                   alt={infoPhoto.name}
                   className="w-full h-full object-contain"
                 />
               </div>
-              
+
               {/* Info */}
               <div className="p-4 space-y-3">
                 <h3 className="font-semibold text-dark-900 dark:text-white text-lg truncate">{infoPhoto.name}</h3>
-                
+
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-dark-500 dark:text-dark-400">{t('photos.type')}</span>
@@ -873,6 +878,8 @@ export default function Photos() {
                     setNewAlbumColor('#6366f1');
                   }}
                   className="p-2 -m-2 text-dark-500 hover:text-dark-900 dark:hover:text-white rounded-lg hover:bg-dark-100 dark:hover:bg-dark-700 transition-colors"
+                  title={t('common.close')}
+                  aria-label={t('common.close')}
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -893,6 +900,8 @@ export default function Photos() {
                     disabled={!newAlbumName.trim() || creatingAlbum}
                     loading={creatingAlbum}
                     size="sm"
+                    title={t('photos.createAlbum')}
+                    aria-label={t('photos.createAlbum')}
                   >
                     <Plus className="w-4 h-4" />
                   </Button>
@@ -911,6 +920,8 @@ export default function Photos() {
                             newAlbumColor === color ? 'ring-2 ring-offset-2 ring-dark-400 dark:ring-offset-dark-800' : 'hover:scale-110'
                           )}
                           style={{ backgroundColor: color }}
+                          title={color}
+                          aria-label={t('photos.selectColor')}
                         />
                       ))}
                     </div>
@@ -938,7 +949,7 @@ export default function Photos() {
                         onClick={() => addPhotoToAlbum(album.id)}
                         className="w-full flex items-center gap-3 px-4 py-3 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
                       >
-                        <div 
+                        <div
                           className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center"
                           style={{ backgroundColor: album.color || '#6366f1' }}
                         >
@@ -963,6 +974,18 @@ export default function Photos() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!deleteConfirmPhoto}
+        onClose={() => setDeleteConfirmPhoto(null)}
+        onConfirm={handleConfirmDelete}
+        title={t('photos.deleteConfirmTitle')}
+        message={t('photos.deleteConfirmMessage')}
+        confirmText={t('common.delete')}
+        cancelText={t('common.cancel')}
+        variant="danger"
+      />
 
     </div>
   );

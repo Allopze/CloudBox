@@ -174,6 +174,45 @@ export const adminUserSchema = z.object({
   }),
 });
 
+// ============================================================
+// Pagination Schema - Validation for paginated endpoints
+// ============================================================
+
+export const PAGINATION_LIMITS = {
+  MIN_PAGE: 1,
+  MAX_PAGE: 10000,
+  MIN_LIMIT: 1,
+  MAX_LIMIT: 100, // Maximum items per page to prevent DoS
+  DEFAULT_LIMIT: 20,
+} as const;
+
+export const paginationSchema = z.object({
+  query: z.object({
+    page: z.string()
+      .optional()
+      .default('1')
+      .transform(val => parseInt(val, 10))
+      .refine(val => !isNaN(val) && val >= PAGINATION_LIMITS.MIN_PAGE && val <= PAGINATION_LIMITS.MAX_PAGE, {
+        message: `Page must be between ${PAGINATION_LIMITS.MIN_PAGE} and ${PAGINATION_LIMITS.MAX_PAGE}`,
+      }),
+    limit: z.string()
+      .optional()
+      .default(String(PAGINATION_LIMITS.DEFAULT_LIMIT))
+      .transform(val => parseInt(val, 10))
+      .refine(val => !isNaN(val) && val >= PAGINATION_LIMITS.MIN_LIMIT && val <= PAGINATION_LIMITS.MAX_LIMIT, {
+        message: `Limit must be between ${PAGINATION_LIMITS.MIN_LIMIT} and ${PAGINATION_LIMITS.MAX_LIMIT}`,
+      }),
+    search: z.string().max(255).optional(),
+  }),
+});
+
+// Type export for pagination
+export type PaginationQuery = {
+  page: number;
+  limit: number;
+  search?: string;
+};
+
 export const smtpConfigSchema = z.object({
   body: z.object({
     host: z.string().min(1),
@@ -210,7 +249,7 @@ export const UPLOAD_LIMITS = {
   MAX_FILES_PER_REQUEST: 20,
   MAX_FILES_FOLDER_UPLOAD: 100,
   MAX_TOTAL_CHUNKS: 10000,
-  MAX_CHUNK_SIZE: 10 * 1024 * 1024, // 10MB per chunk
+  MAX_CHUNK_SIZE: 20 * 1024 * 1024, // 20MB per chunk
   MAX_FILENAME_LENGTH: 255,
   ALLOWED_MIME_PATTERNS: [
     'image/*', 'video/*', 'audio/*', 'text/*',
@@ -306,14 +345,14 @@ export const rangeHeaderSchema = z.string()
 export function parseRangeHeader(range: string, fileSize: number): { start: number; end: number } | null {
   const match = range.match(/^bytes=(\d+)-(\d*)$/);
   if (!match) return null;
-  
+
   const start = parseInt(match[1], 10);
   const end = match[2] ? parseInt(match[2], 10) : fileSize - 1;
-  
+
   // Validate range values
   if (isNaN(start) || start < 0 || start >= fileSize) return null;
   if (isNaN(end) || end < start || end >= fileSize) return null;
-  
+
   return { start, end };
 }
 

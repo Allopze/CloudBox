@@ -21,7 +21,7 @@ export const config = {
   port: parseInt(process.env.PORT || '3001'),
   nodeEnv: process.env.NODE_ENV || 'development',
   frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
-  
+
   // Database configuration
   database: {
     // Pool size (number of connections)
@@ -31,14 +31,14 @@ export const config = {
     // External pooler (e.g., 'pgbouncer')
     pooler: process.env.DATABASE_POOLER || undefined,
   },
-  
+
   jwt: {
     secret: process.env.JWT_SECRET || 'dev-secret-change-in-production',
     refreshSecret: process.env.JWT_REFRESH_SECRET || 'dev-refresh-secret-change-in-production',
     expiresIn: process.env.JWT_EXPIRES_IN || '15m',
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
   },
-  
+
   // Security: Cookie configuration for httpOnly tokens
   cookies: {
     httpOnly: true,
@@ -47,17 +47,17 @@ export const config = {
     domain: process.env.COOKIE_DOMAIN || undefined,
     path: '/',
   },
-  
+
   // Security: Signed URL configuration
   signedUrls: {
     expiresIn: parseInt(process.env.SIGNED_URL_EXPIRES_IN || '300'), // 5 minutes default
   },
-  
+
   google: {
     clientId: process.env.GOOGLE_CLIENT_ID || '',
     clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
   },
-  
+
   smtp: {
     host: process.env.SMTP_HOST || 'smtp.gmail.com',
     port: parseInt(process.env.SMTP_PORT || '587'),
@@ -66,17 +66,17 @@ export const config = {
     pass: process.env.SMTP_PASS || '',
     from: process.env.SMTP_FROM || 'CloudBox <noreply@cloudbox.com>',
   },
-  
+
   storage: {
     path: process.env.STORAGE_PATH || './data',
     maxFileSize: parseInt(process.env.MAX_FILE_SIZE || '104857600'),
     defaultQuota: BigInt(process.env.DEFAULT_QUOTA || '5368709120'),
   },
-  
+
   trash: {
     retentionDays: parseInt(process.env.TRASH_RETENTION_DAYS || '30'),
   },
-  
+
   // Security: Centralized limits for folder depth operations
   limits: {
     maxFolderDepth: parseInt(process.env.MAX_FOLDER_DEPTH || '50'),
@@ -87,6 +87,6 @@ export const config = {
     maxFilesPerRequest: parseInt(process.env.MAX_FILES_PER_REQUEST || '20'),
     maxFilesFolderUpload: parseInt(process.env.MAX_FILES_FOLDER_UPLOAD || '100'),
     maxTotalChunks: parseInt(process.env.MAX_TOTAL_CHUNKS || '10000'),
-    maxChunkSize: parseInt(process.env.MAX_CHUNK_SIZE || String(10 * 1024 * 1024)), // 10MB
+    maxChunkSize: parseInt(process.env.MAX_CHUNK_SIZE || String(20 * 1024 * 1024)), // 20MB
   },
 };

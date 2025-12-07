@@ -41,12 +41,12 @@ export default function Files() {
   const [deleteConfirmData, setDeleteConfirmData] = useState<{ files: FileItem[]; folders: Folder[] } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedFileForAction, setSelectedFileForAction] = useState<FileItem | null>(null);
-  
+
   // Workzone context menu state
   const [workzoneContextMenu, setWorkzoneContextMenu] = useState<{ x: number; y: number } | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
-  
+
   // Gallery states
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [galleryIndex, setGalleryIndex] = useState(0);
@@ -82,9 +82,9 @@ export default function Files() {
   const handleDeleteSelected = useCallback(() => {
     const { selectedFiles, selectedFolders } = getSelectedItems();
     const total = selectedFiles.length + selectedFolders.length;
-    
+
     if (total === 0) return;
-    
+
     setDeleteConfirmData({ files: selectedFiles, folders: selectedFolders });
     setDeleteConfirmOpen(true);
   }, [getSelectedItems]);
@@ -92,10 +92,10 @@ export default function Files() {
   // Perform the actual deletion after confirmation
   const performDelete = useCallback(async () => {
     if (!deleteConfirmData) return;
-    
+
     const { files: selectedFiles, folders: selectedFolders } = deleteConfirmData;
     const total = selectedFiles.length + selectedFolders.length;
-    
+
     setIsDeleting(true);
 
     const opId = addOperation({
@@ -132,7 +132,7 @@ export default function Files() {
   const handleDownloadSelected = useCallback(() => {
     const { selectedFiles } = getSelectedItems();
     selectedFiles.forEach(file => {
-      const url = getFileUrl(file.id, 'download');
+      const url = getFileUrl(file.id, 'download', true);
       window.open(url, '_blank');
     });
   }, [getSelectedItems]);
@@ -260,7 +260,7 @@ export default function Files() {
       }
     };
     const handleScroll = () => setWorkzoneContextMenu(null);
-    
+
     if (workzoneContextMenu) {
       document.addEventListener('mousedown', handleClickOutside);
       document.addEventListener('scroll', handleScroll, true);
@@ -276,7 +276,7 @@ export default function Files() {
     // Only show if clicking on the container, not on items
     const target = e.target as HTMLElement;
     const isOnItem = target.closest('[data-file-item]') || target.closest('[data-folder-item]');
-    
+
     if (!isOnItem) {
       e.preventDefault();
       setWorkzoneContextMenu({ x: e.clientX, y: e.clientY });
@@ -295,7 +295,7 @@ export default function Files() {
     if (!fileList || fileList.length === 0) return;
 
     const filesWithPaths: { file: File; path: string }[] = [];
-    
+
     for (let i = 0; i < fileList.length; i++) {
       const file = fileList[i];
       // webkitRelativePath contains the folder structure
@@ -309,7 +309,7 @@ export default function Files() {
       formData.append('files', file);
       formData.append('paths', path);
     });
-    
+
     if (folderId) {
       formData.append('folderId', folderId);
     }
@@ -345,7 +345,7 @@ export default function Files() {
   }, [imageFiles]);
 
   return (
-    <div 
+    <div
       className="min-h-[400px]"
       onContextMenu={handleWorkzoneContextMenu}
     >
@@ -359,6 +359,7 @@ export default function Files() {
         directory=""
         multiple
         onChange={handleFolderInputChange}
+        aria-label={t('files.uploadFolder')}
       />
 
       {/* Contenido */}
@@ -406,8 +407,8 @@ export default function Files() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: -10 }}
             transition={{ duration: 0.15, ease: 'easeOut' }}
-            className="fixed z-[9999] min-w-[200px] bg-white dark:bg-dark-800 rounded-xl shadow-xl border border-dark-200 dark:border-dark-700 py-2 overflow-hidden"
-            style={{ 
+            className="fixed z-[9999] min-w-[180px] bg-white dark:bg-dark-800 rounded-xl shadow-lg border border-dark-200 dark:border-dark-700 py-1 overflow-hidden"
+            style={{
               top: Math.min(workzoneContextMenu.y, window.innerHeight - 300),
               left: Math.min(workzoneContextMenu.x, window.innerWidth - 220)
             }}
@@ -428,7 +429,7 @@ export default function Files() {
                 <div className="h-px bg-dark-200 dark:bg-dark-700 my-2" />
               </>
             )}
-            
+
             <button
               onClick={() => {
                 setWorkzoneContextMenu(null);
@@ -446,9 +447,9 @@ export default function Files() {
               <FolderUp className="w-4 h-4" />
               <span>{t('layout.addFolder')}</span>
             </button>
-            
+
             <div className="h-px bg-dark-200 dark:bg-dark-700 my-2" />
-            
+
             <button
               onClick={() => {
                 setWorkzoneContextMenu(null);
@@ -469,9 +470,9 @@ export default function Files() {
               <FolderPlus className="w-4 h-4" />
               <span>{t('header.createFolder')}</span>
             </button>
-            
+
             <div className="h-px bg-dark-200 dark:bg-dark-700 my-2" />
-            
+
             <button
               onClick={() => {
                 setWorkzoneContextMenu(null);
@@ -500,7 +501,7 @@ export default function Files() {
         parentId={folderId}
         onSuccess={loadData}
       />
-      
+
       {/* Create File Modal */}
       <CreateFileModal
         isOpen={isCreateFileModalOpen}
@@ -508,7 +509,7 @@ export default function Files() {
         folderId={folderId}
         onSuccess={loadData}
       />
-      
+
       {/* Share Modal */}
       {selectedFileForAction && (
         <ShareModal
@@ -541,7 +542,7 @@ export default function Files() {
         initialIndex={galleryIndex}
         isOpen={galleryOpen}
         onClose={() => setGalleryOpen(false)}
-        onDownload={(file) => window.open(getFileUrl(file.id, 'download'), '_blank')}
+        onDownload={(file) => window.open(getFileUrl(file.id, 'download', true), '_blank')}
         onShare={(file) => {
           setSelectedFileForAction(file);
           setShareModalOpen(true);
@@ -555,7 +556,7 @@ export default function Files() {
           file={videoPreviewFile}
           isOpen={!!videoPreviewFile}
           onClose={() => setVideoPreviewFile(null)}
-          onDownload={(file) => window.open(getFileUrl(file.id, 'download'), '_blank')}
+          onDownload={(file) => window.open(getFileUrl(file.id, 'download', true), '_blank')}
           onShare={(file) => {
             setSelectedFileForAction(file);
             setShareModalOpen(true);
@@ -572,7 +573,7 @@ export default function Files() {
           onClose={() => setDocumentPreviewFile(null)}
           files={documentFiles}
           onNavigate={(file) => setDocumentPreviewFile(file)}
-          onDownload={(file) => window.open(getFileUrl(file.id, 'download'), '_blank')}
+          onDownload={(file) => window.open(getFileUrl(file.id, 'download', true), '_blank')}
           onShare={(file) => {
             setSelectedFileForAction(file);
             setShareModalOpen(true);

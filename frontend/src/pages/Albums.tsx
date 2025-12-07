@@ -424,7 +424,7 @@ export default function Albums() {
                   return photoContextMenu.y;
                 })(),
               }}
-              className="z-50 min-w-72 bg-white dark:bg-dark-800 rounded-xl shadow-2xl border border-dark-200 dark:border-dark-700 py-2 overflow-hidden"
+              className="z-50 min-w-[180px] bg-white dark:bg-dark-800 rounded-xl shadow-lg border border-dark-200 dark:border-dark-700 py-1 overflow-hidden"
             >
               {/* Ver */}
               <div className="px-2 py-1">
@@ -598,7 +598,7 @@ export default function Albums() {
       {/* Context Menu */}
       {contextMenu && (
         <div
-          className="fixed z-50 bg-white dark:bg-dark-800 rounded-xl shadow-lg border border-dark-100 dark:border-dark-700 py-1 min-w-48"
+          className="fixed z-50 bg-white dark:bg-dark-800 rounded-xl shadow-lg border border-dark-200 dark:border-dark-700 py-1 min-w-[180px]"
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onClick={(e) => e.stopPropagation()}
         >

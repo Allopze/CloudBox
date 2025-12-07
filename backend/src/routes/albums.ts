@@ -3,6 +3,8 @@ import prisma from '../lib/prisma.js';
 import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { createAlbumSchema, updateAlbumSchema, albumFilesSchema } from '../schemas/index.js';
+import * as cache from '../lib/cache.js';
+import logger from '../lib/logger.js';
 
 const router = Router();
 
@@ -25,6 +27,9 @@ router.post('/', authenticate, validate(createAlbumSchema), async (req: Request,
       data: { name, color, userId },
     });
 
+    // Invalidate albums cache
+    await cache.invalidateAfterAlbumChange(userId);
+
     res.status(201).json(album);
   } catch (error) {
     console.error('Create album error:', error);
@@ -39,6 +44,14 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
     const { page = '1', limit = '50' } = req.query;
     const pageNum = parseInt(page as string);
     const limitNum = Math.min(parseInt(limit as string), 100); // Max 100 per page
+
+    // Try cache first
+    const cachedAlbums = await cache.getAlbums(userId, pageNum);
+    if (cachedAlbums) {
+      logger.debug('Cache hit for albums list', { userId, page: pageNum });
+      res.json(cachedAlbums);
+      return;
+    }
 
     const [albums, total] = await Promise.all([
       prisma.album.findMany({
@@ -68,7 +81,7 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
       })),
     }));
 
-    res.json({
+    const response = {
       albums: albumsWithPreviews,
       pagination: {
         page: pageNum,
@@ -76,7 +89,12 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
         total,
         totalPages: Math.ceil(total / limitNum),
       },
-    });
+    };
+
+    // Cache the response
+    await cache.setAlbums(userId, pageNum, response as any);
+
+    res.json(response);
   } catch (error) {
     console.error('List albums error:', error);
     res.status(500).json({ error: 'Failed to list albums' });
@@ -88,6 +106,14 @@ router.get('/:id', authenticate, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const userId = req.user!.userId;
+
+    // Try cache first
+    const cachedAlbum = await cache.getAlbum(id);
+    if (cachedAlbum && cachedAlbum.userId === userId) {
+      logger.debug('Cache hit for album', { albumId: id });
+      res.json(cachedAlbum);
+      return;
+    }
 
     const album = await prisma.album.findFirst({
       where: { id, userId },
@@ -156,6 +182,9 @@ router.patch('/:id', authenticate, validate(updateAlbumSchema), async (req: Requ
       data: updateData,
     });
 
+    // Invalidate album cache
+    await cache.invalidateAfterAlbumChange(userId, id);
+
     res.json(updated);
   } catch (error) {
     console.error('Update album error:', error);
@@ -179,6 +208,9 @@ router.delete('/:id', authenticate, async (req: Request, res: Response) => {
     }
 
     await prisma.album.delete({ where: { id } });
+
+    // Invalidate album cache
+    await cache.invalidateAfterAlbumChange(userId, id);
 
     res.json({ message: 'Album deleted successfully' });
   } catch (error) {

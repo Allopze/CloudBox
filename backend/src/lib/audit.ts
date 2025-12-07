@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import prisma from './prisma.js';
 
-export type AuditAction = 
+export type AuditAction =
   | 'LOGIN_SUCCESS'
   | 'LOGIN_FAILED'
   | 'LOGOUT'
@@ -151,32 +151,42 @@ export function detectSuspiciousActivity(req: Request): string[] {
   const warnings: string[] = [];
   const userAgent = req.headers['user-agent'] || '';
   const path = req.path.toLowerCase();
-  
+
   // Check for common attack patterns
   if (path.includes('..')) {
     warnings.push('Path traversal attempt detected');
   }
-  
+
   if (path.includes('<script') || path.includes('javascript:')) {
     warnings.push('XSS attempt detected in path');
   }
-  
+
   // Check for SQL injection patterns
+  // Decode URL first to avoid false positives on legitimate unicode characters (e.g., Spanish accents)
+  let decodedUrl = req.url;
+  try {
+    decodedUrl = decodeURIComponent(req.url);
+  } catch {
+    // If decoding fails, check original URL
+  }
+
   const body = JSON.stringify(req.body || {});
+  // More targeted SQL injection patterns that won't trigger on legitimate content
   const sqlPatterns = [
-    /(\%27)|(\')|(\-\-)|(\%23)|(#)/i,
-    /((\%3D)|(=))[^\n]*((\%27)|(\')|(\-\-)|(\%3B)|(;))/i,
-    /\w*((\%27)|(\'))((\%6F)|o|(\%4F))((\%72)|r|(\%52))/i,
-    /((\%27)|(\'))union/i,
+    /;\s*(drop|delete|truncate|alter)\s+table/i,  // Dangerous table operations
+    /'\s*(or|and)\s+['"]?\d+['"]?\s*=\s*['"]?\d+/i, // Classic SQL injection: ' or '1'='1
+    /union\s+(all\s+)?select/i,                    // UNION injection
+    /exec\s+(xp_|sp_)/i,                           // SQL Server stored proc execution
+    /into\s+(out|dump)file/i,                      // MySQL file operations
   ];
-  
+
   for (const pattern of sqlPatterns) {
-    if (pattern.test(body) || pattern.test(req.url)) {
+    if (pattern.test(body) || pattern.test(decodedUrl)) {
       warnings.push('Potential SQL injection attempt');
       break;
     }
   }
-  
+
   // Check for known malicious user agents
   const maliciousAgents = ['sqlmap', 'nikto', 'dirbuster', 'masscan', 'nmap'];
   for (const agent of maliciousAgents) {
@@ -185,7 +195,7 @@ export function detectSuspiciousActivity(req: Request): string[] {
       break;
     }
   }
-  
+
   return warnings;
 }
 
@@ -194,7 +204,7 @@ export function detectSuspiciousActivity(req: Request): string[] {
  */
 export function suspiciousActivityDetector(req: Request, res: Response, next: NextFunction): void {
   const warnings = detectSuspiciousActivity(req);
-  
+
   if (warnings.length > 0) {
     auditLog({
       action: 'SUSPICIOUS_ACTIVITY',
@@ -208,13 +218,13 @@ export function suspiciousActivityDetector(req: Request, res: Response, next: Ne
       },
       success: false,
     });
-    
+
     // For severe threats, block the request
     if (warnings.some(w => w.includes('SQL injection') || w.includes('XSS'))) {
       res.status(403).json({ error: 'Request blocked for security reasons' });
       return;
     }
   }
-  
+
   next();
 }

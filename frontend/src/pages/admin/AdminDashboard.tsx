@@ -36,6 +36,9 @@ import Modal from '../../components/ui/Modal';
 import Dropdown, { DropdownItem, DropdownDivider } from '../../components/ui/Dropdown';
 import { useBrandingStore } from '../../stores/brandingStore';
 import { useAuthStore } from '../../stores/authStore';
+import ReactMarkdown from 'react-markdown';
+import rehypeRaw from 'rehype-raw';
+import remarkGfm from 'remark-gfm';
 
 // Helper functions for byte conversion
 const bytesToUnit = (bytes: string): { value: string; unit: string } => {
@@ -187,7 +190,7 @@ export default function AdminDashboard() {
   const { t } = useTranslation();
   const { setBranding } = useBrandingStore();
   const { user: currentUser, refreshUser } = useAuthStore();
-  
+
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -286,7 +289,7 @@ export default function AdminDashboard() {
   const [showPreview, setShowPreview] = useState(false);
   const [showNewTemplateModal, setShowNewTemplateModal] = useState(false);
   const [newTemplateName, setNewTemplateName] = useState('');
-  
+
   // Template variables state
   const [templateVariables, setTemplateVariables] = useState<TemplateVariables>({ system: [], custom: [] });
   const [showVariablesPanel, setShowVariablesPanel] = useState(false);
@@ -310,6 +313,25 @@ export default function AdminDashboard() {
   const [selectedLegalPage, setSelectedLegalPage] = useState<string | null>(null);
   const [editingLegalPage, setEditingLegalPage] = useState<LegalPage | null>(null);
   const [savingLegalPage, setSavingLegalPage] = useState(false);
+
+  // Upload limits state
+  interface UploadLimits {
+    maxFileSize: string;
+    chunkSize: string;
+    concurrentChunks: string;
+  }
+  const [uploadLimits, setUploadLimits] = useState<UploadLimits>({
+    maxFileSize: String(1024 * 1024 * 1024), // 1GB default
+    chunkSize: String(20 * 1024 * 1024), // 20MB
+    concurrentChunks: '4',
+  });
+  const [savingUploadLimits, setSavingUploadLimits] = useState(false);
+  const uploadLimitsMaxFileParsed = bytesToUnit(uploadLimits.maxFileSize);
+  const [uploadMaxValue, setUploadMaxValue] = useState(uploadLimitsMaxFileParsed.value);
+  const [uploadMaxUnit, setUploadMaxUnit] = useState(uploadLimitsMaxFileParsed.unit);
+  const uploadChunkParsed = bytesToUnit(uploadLimits.chunkSize);
+  const [uploadChunkValue, setUploadChunkValue] = useState(uploadChunkParsed.value);
+  const [uploadChunkUnit, setUploadChunkUnit] = useState(uploadChunkParsed.unit);
 
   const quotaParsed = bytesToUnit(systemSettings.defaultStorageQuota);
   const [quotaValue, setQuotaValue] = useState(quotaParsed.value);
@@ -353,13 +375,14 @@ export default function AdminDashboard() {
 
   const loadData = async () => {
     try {
-      const [statsRes, systemRes, smtpRes, brandingRes, templatesRes, legalRes] = await Promise.all([
+      const [statsRes, systemRes, smtpRes, brandingRes, templatesRes, legalRes, limitsRes] = await Promise.all([
         api.get('/admin/server-info').catch(() => ({ data: {} })),
         api.get('/admin/settings/system').catch(() => ({ data: {} })),
         api.get('/admin/settings/smtp').catch(() => ({ data: {} })),
         api.get('/admin/settings/branding').catch(() => ({ data: {} })),
         api.get('/admin/email-templates').catch(() => ({ data: [] })),
         api.get('/admin/legal').catch(() => ({ data: [] })),
+        api.get('/admin/settings/limits').catch(() => ({ data: {} })),
       ]);
 
       if (statsRes.data) {
@@ -380,7 +403,7 @@ export default function AdminDashboard() {
           if (url.startsWith('/api')) return `${API_URL.replace('/api', '')}${url}`;
           return url;
         };
-        
+
         setBrandingSettings((prev) => ({
           ...prev,
           ...brandingRes.data,
@@ -394,6 +417,15 @@ export default function AdminDashboard() {
       }
       if (legalRes.data) {
         setLegalPages(legalRes.data);
+      }
+      if (limitsRes.data && limitsRes.data.maxFileSize) {
+        setUploadLimits(limitsRes.data);
+        const maxParsed = bytesToUnit(limitsRes.data.maxFileSize);
+        setUploadMaxValue(maxParsed.value);
+        setUploadMaxUnit(maxParsed.unit);
+        const chunkParsed = bytesToUnit(limitsRes.data.chunkSize);
+        setUploadChunkValue(chunkParsed.value);
+        setUploadChunkUnit(chunkParsed.unit);
       }
     } catch (error) {
       console.error('Failed to load admin data:', error);
@@ -424,6 +456,37 @@ export default function AdminDashboard() {
       toast(t('admin.smtpSaveError'), 'error');
     } finally {
       setSavingSmtp(false);
+    }
+  };
+
+  // Upload limits handlers
+  const handleUploadMaxChange = (value: string, unit: string) => {
+    setUploadMaxValue(value);
+    setUploadMaxUnit(unit);
+    setUploadLimits(prev => ({
+      ...prev,
+      maxFileSize: unitToBytes(value, unit)
+    }));
+  };
+
+  const handleChunkSizeChange = (value: string, unit: string) => {
+    setUploadChunkValue(value);
+    setUploadChunkUnit(unit);
+    setUploadLimits(prev => ({
+      ...prev,
+      chunkSize: unitToBytes(value, unit)
+    }));
+  };
+
+  const saveUploadLimits = async () => {
+    setSavingUploadLimits(true);
+    try {
+      await api.put('/admin/settings/limits', uploadLimits);
+      toast(t('admin.limitsSaved'), 'success');
+    } catch (error: any) {
+      toast(error.response?.data?.error || t('admin.limitsSaveError'), 'error');
+    } finally {
+      setSavingUploadLimits(false);
     }
   };
 
@@ -640,7 +703,7 @@ export default function AdminDashboard() {
   const getPreviewHtml = () => {
     if (!editingTemplate) return '';
     let html = editingTemplate.body;
-    
+
     // Replace system variables with test values
     const systemTestValues: Record<string, string> = {
       name: 'Usuario de Prueba',
@@ -651,19 +714,19 @@ export default function AdminDashboard() {
       appUrl: window.location.origin,
       date: new Date().toLocaleDateString('es-ES'),
     };
-    
+
     // Replace custom variables with their default values
     for (const variable of templateVariables.custom) {
       const regex = new RegExp(`\\{\\{${variable.name}\\}\\}`, 'g');
       html = html.replace(regex, variable.defaultValue);
     }
-    
+
     // Replace system variables
     for (const [key, value] of Object.entries(systemTestValues)) {
       const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
       html = html.replace(regex, value);
     }
-    
+
     return html;
   };
 
@@ -673,7 +736,7 @@ export default function AdminDashboard() {
       toast(t('admin.variableRequired'), 'error');
       return;
     }
-    
+
     setSavingVariable(true);
     try {
       const response = await api.post(`/admin/email-templates/${editingTemplate.name}/variables`, {
@@ -681,12 +744,12 @@ export default function AdminDashboard() {
         defaultValue: newVariableValue.trim(),
         description: newVariableDescription.trim(),
       });
-      
+
       setTemplateVariables(prev => ({
         ...prev,
         custom: [...prev.custom, response.data],
       }));
-      
+
       setShowAddVariableModal(false);
       setNewVariableName('');
       setNewVariableValue('');
@@ -701,7 +764,7 @@ export default function AdminDashboard() {
 
   const updateVariable = async () => {
     if (!editingTemplate || !editingVariable) return;
-    
+
     setSavingVariable(true);
     try {
       const response = await api.put(
@@ -711,12 +774,12 @@ export default function AdminDashboard() {
           description: editingVariable.description,
         }
       );
-      
+
       setTemplateVariables(prev => ({
         ...prev,
         custom: prev.custom.map(v => v.id === editingVariable.id ? response.data : v),
       }));
-      
+
       setEditingVariable(null);
       toast(t('admin.variableUpdated'), 'success');
     } catch (error: any) {
@@ -728,15 +791,15 @@ export default function AdminDashboard() {
 
   const deleteVariable = async (variableId: string) => {
     if (!editingTemplate) return;
-    
+
     try {
       await api.delete(`/admin/email-templates/${editingTemplate.name}/variables/${variableId}`);
-      
+
       setTemplateVariables(prev => ({
         ...prev,
         custom: prev.custom.filter(v => v.id !== variableId),
       }));
-      
+
       toast(t('admin.variableDeleted'), 'success');
     } catch (error: any) {
       toast(error.response?.data?.error || t('admin.variableDeleteError'), 'error');
@@ -1074,11 +1137,13 @@ export default function AdminDashboard() {
                 onChange={(e) => handleQuotaChange(e.target.value, quotaUnit)}
                 className="w-full px-3 py-2 bg-white dark:bg-dark-800 text-dark-900 dark:text-white focus:outline-none"
                 min="1"
+                aria-label={t('admin.general.defaultQuota')}
               />
               <select
                 value={quotaUnit}
                 onChange={(e) => handleQuotaChange(quotaValue, e.target.value)}
                 className="px-2 py-2 bg-dark-100 dark:bg-dark-700 text-dark-900 dark:text-white border-l border-dark-300 dark:border-dark-600 focus:outline-none cursor-pointer"
+                aria-label={t('admin.general.quotaUnit')}
               >
                 <option value="MB">MB</option>
                 <option value="GB">GB</option>
@@ -1097,11 +1162,13 @@ export default function AdminDashboard() {
                 onChange={(e) => handleMaxFileSizeChange(e.target.value, maxFileSizeUnit)}
                 className="w-full px-3 py-2 bg-white dark:bg-dark-800 text-dark-900 dark:text-white focus:outline-none"
                 min="1"
+                aria-label={t('admin.general.maxFileSize')}
               />
               <select
                 value={maxFileSizeUnit}
                 onChange={(e) => handleMaxFileSizeChange(maxFileSizeValue, e.target.value)}
                 className="px-2 py-2 bg-dark-100 dark:bg-dark-700 text-dark-900 dark:text-white border-l border-dark-300 dark:border-dark-600 focus:outline-none cursor-pointer"
+                aria-label={t('admin.general.fileSizeUnit')}
               >
                 <option value="MB">MB</option>
                 <option value="GB">GB</option>
@@ -1120,6 +1187,95 @@ export default function AdminDashboard() {
         <div className="flex justify-end pt-4 border-t border-dark-100 dark:border-dark-700">
           <Button onClick={saveSystemSettings} loading={savingSystem} icon={<Save className="w-4 h-4" />}>
             {t('admin.general.save')}
+          </Button>
+        </div>
+      </section>
+
+      {/* Upload Limits Section */}
+      <section className="bg-white dark:bg-dark-800 rounded-2xl border border-dark-100 dark:border-dark-700 p-6 mb-6">
+        <div className="flex items-center gap-2 mb-1">
+          <Upload className="w-4 h-4 text-[#FF3B3B]" />
+          <h2 className="text-lg font-semibold text-dark-900 dark:text-white">{t('admin.limits.title')}</h2>
+        </div>
+        <p className="text-sm text-dark-500 dark:text-dark-400 mb-6">{t('admin.limits.description')}</p>
+
+        <div className="grid grid-cols-3 gap-4 mb-4">
+          {/* Max File Size */}
+          <div>
+            <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">
+              <FileType className="w-4 h-4 inline mr-1" /> {t('admin.limits.maxFileSize')}
+            </label>
+            <div className="flex rounded-xl border border-dark-300 dark:border-dark-600 focus-within:ring-2 focus-within:ring-[#FF3B3B] focus-within:border-[#FF3B3B] overflow-hidden">
+              <input
+                type="number"
+                value={uploadMaxValue}
+                onChange={(e) => handleUploadMaxChange(e.target.value, uploadMaxUnit)}
+                className="w-full px-3 py-2 bg-white dark:bg-dark-800 text-dark-900 dark:text-white focus:outline-none"
+                min="1"
+                title={t('admin.limits.maxFileSize')}
+              />
+              <select
+                value={uploadMaxUnit}
+                onChange={(e) => handleUploadMaxChange(uploadMaxValue, e.target.value)}
+                className="px-2 py-2 bg-dark-100 dark:bg-dark-700 text-dark-900 dark:text-white border-l border-dark-300 dark:border-dark-600 focus:outline-none cursor-pointer"
+                title={t('admin.limits.unit')}
+              >
+                <option value="MB">MB</option>
+                <option value="GB">GB</option>
+                <option value="TB">TB</option>
+              </select>
+            </div>
+            <p className="text-xs text-dark-400 mt-1">{t('admin.limits.maxFileSizeHint')}</p>
+          </div>
+
+          {/* Chunk Size */}
+          <div>
+            <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">
+              <HardDrive className="w-4 h-4 inline mr-1" /> {t('admin.limits.chunkSize')}
+            </label>
+            <div className="flex rounded-xl border border-dark-300 dark:border-dark-600 focus-within:ring-2 focus-within:ring-[#FF3B3B] focus-within:border-[#FF3B3B] overflow-hidden">
+              <input
+                type="number"
+                value={uploadChunkValue}
+                onChange={(e) => handleChunkSizeChange(e.target.value, uploadChunkUnit)}
+                className="w-full px-3 py-2 bg-white dark:bg-dark-800 text-dark-900 dark:text-white focus:outline-none"
+                min="1"
+                title={t('admin.limits.chunkSize')}
+              />
+              <select
+                value={uploadChunkUnit}
+                onChange={(e) => handleChunkSizeChange(uploadChunkValue, e.target.value)}
+                className="px-2 py-2 bg-dark-100 dark:bg-dark-700 text-dark-900 dark:text-white border-l border-dark-300 dark:border-dark-600 focus:outline-none cursor-pointer"
+                title={t('admin.limits.unit')}
+              >
+                <option value="MB">MB</option>
+                <option value="GB">GB</option>
+              </select>
+            </div>
+            <p className="text-xs text-dark-400 mt-1">{t('admin.limits.chunkSizeHint')}</p>
+          </div>
+
+          {/* Concurrent Chunks */}
+          <div>
+            <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">
+              <TrendingUp className="w-4 h-4 inline mr-1" /> {t('admin.limits.concurrentChunks')}
+            </label>
+            <input
+              type="number"
+              value={uploadLimits.concurrentChunks}
+              onChange={(e) => setUploadLimits({ ...uploadLimits, concurrentChunks: e.target.value })}
+              className="w-full px-3 py-2 rounded-xl border border-dark-300 dark:border-dark-600 bg-white dark:bg-dark-800 text-dark-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#FF3B3B] focus:border-[#FF3B3B]"
+              min="1"
+              max="10"
+              title={t('admin.limits.concurrentChunks')}
+            />
+            <p className="text-xs text-dark-400 mt-1">{t('admin.limits.concurrentChunksHint')}</p>
+          </div>
+        </div>
+
+        <div className="flex justify-end pt-4 border-t border-dark-100 dark:border-dark-700">
+          <Button onClick={saveUploadLimits} loading={savingUploadLimits} icon={<Save className="w-4 h-4" />}>
+            {t('admin.limits.save')}
           </Button>
         </div>
       </section>
@@ -1210,24 +1366,22 @@ export default function AdminDashboard() {
                 <button
                   key={name}
                   onClick={() => loadTemplate(name)}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-left transition-all ${
-                    selectedTemplate === name
-                      ? 'bg-[#FF3B3B] text-white'
-                      : 'bg-dark-50 dark:bg-dark-900 text-dark-700 dark:text-dark-300 hover:bg-dark-100 dark:hover:bg-dark-700'
-                  }`}
+                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-left transition-all ${selectedTemplate === name
+                    ? 'bg-[#FF3B3B] text-white'
+                    : 'bg-dark-50 dark:bg-dark-900 text-dark-700 dark:text-dark-300 hover:bg-dark-100 dark:hover:bg-dark-700'
+                    }`}
                 >
                   <span className="font-medium">{getTemplateDisplayName(name)}</span>
                   {customized && (
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${
-                      selectedTemplate === name ? 'bg-white/20' : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                    }`}>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${selectedTemplate === name ? 'bg-white/20' : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                      }`}>
                       {t('admin.templates.customized')}
                     </span>
                   )}
                 </button>
               );
             })}
-            
+
             {/* Custom templates */}
             {templates.filter(t => !DEFAULT_TEMPLATES[t.name]).length > 0 && (
               <>
@@ -1235,11 +1389,10 @@ export default function AdminDashboard() {
                 {templates.filter(t => !DEFAULT_TEMPLATES[t.name]).map((template) => (
                   <div
                     key={template.name}
-                    className={`flex items-center justify-between px-4 py-3 rounded-xl transition-all ${
-                      selectedTemplate === template.name
-                        ? 'bg-[#FF3B3B] text-white'
-                        : 'bg-dark-50 dark:bg-dark-900 text-dark-700 dark:text-dark-300 hover:bg-dark-100 dark:hover:bg-dark-700'
-                    }`}
+                    className={`flex items-center justify-between px-4 py-3 rounded-xl transition-all ${selectedTemplate === template.name
+                      ? 'bg-[#FF3B3B] text-white'
+                      : 'bg-dark-50 dark:bg-dark-900 text-dark-700 dark:text-dark-300 hover:bg-dark-100 dark:hover:bg-dark-700'
+                      }`}
                   >
                     <button
                       onClick={() => loadTemplate(template.name)}
@@ -1252,11 +1405,11 @@ export default function AdminDashboard() {
                         e.stopPropagation();
                         deleteTemplate(template.name);
                       }}
-                      className={`p-1 rounded-lg transition-colors ${
-                        selectedTemplate === template.name
-                          ? 'hover:bg-white/20'
-                          : 'hover:bg-dark-200 dark:hover:bg-dark-600'
-                      }`}
+                      className={`p-1 rounded-lg transition-colors ${selectedTemplate === template.name
+                        ? 'hover:bg-white/20'
+                        : 'hover:bg-dark-200 dark:hover:bg-dark-600'
+                        }`}
+                      aria-label={t('admin.templates.delete')}
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -1285,22 +1438,20 @@ export default function AdminDashboard() {
                   <div className="flex items-center bg-dark-100 dark:bg-dark-900 rounded-lg p-1">
                     <button
                       onClick={() => setShowPreview(false)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                        !showPreview
-                          ? 'bg-white dark:bg-dark-700 text-dark-900 dark:text-white shadow-sm'
-                          : 'text-dark-500 hover:text-dark-700 dark:hover:text-dark-300'
-                      }`}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${!showPreview
+                        ? 'bg-white dark:bg-dark-700 text-dark-900 dark:text-white shadow-sm'
+                        : 'text-dark-500 hover:text-dark-700 dark:hover:text-dark-300'
+                        }`}
                     >
                       <Code className="w-4 h-4" />
                       {t('admin.templates.editor')}
                     </button>
                     <button
                       onClick={() => setShowPreview(true)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                        showPreview
-                          ? 'bg-white dark:bg-dark-700 text-dark-900 dark:text-white shadow-sm'
-                          : 'text-dark-500 hover:text-dark-700 dark:hover:text-dark-300'
-                      }`}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${showPreview
+                        ? 'bg-white dark:bg-dark-700 text-dark-900 dark:text-white shadow-sm'
+                        : 'text-dark-500 hover:text-dark-700 dark:hover:text-dark-300'
+                        }`}
                     >
                       <Eye className="w-4 h-4" />
                       {t('admin.templates.preview')}
@@ -1332,7 +1483,7 @@ export default function AdminDashboard() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
-                  
+
                   {showVariablesPanel && (
                     <div className="p-4 space-y-4">
                       {/* System Variables */}
@@ -1352,7 +1503,7 @@ export default function AdminDashboard() {
                           ))}
                         </div>
                       </div>
-                      
+
                       {/* Custom Variables */}
                       <div>
                         <div className="flex items-center justify-between mb-2">
@@ -1365,7 +1516,7 @@ export default function AdminDashboard() {
                             {t('admin.templates.variables.add')}
                           </button>
                         </div>
-                        
+
                         {templateVariables.custom.length > 0 ? (
                           <div className="space-y-2">
                             {templateVariables.custom.map(v => (
@@ -1390,12 +1541,14 @@ export default function AdminDashboard() {
                                   <button
                                     onClick={() => setEditingVariable(v)}
                                     className="p-1 hover:bg-green-200 dark:hover:bg-green-900/40 rounded transition-colors"
+                                    aria-label={t('admin.templates.variables.edit')}
                                   >
                                     <Edit className="w-3 h-3 text-green-700 dark:text-green-400" />
                                   </button>
                                   <button
                                     onClick={() => deleteVariable(v.id!)}
                                     className="p-1 hover:bg-red-200 dark:hover:bg-red-900/40 rounded transition-colors"
+                                    aria-label={t('admin.templates.variables.delete')}
                                   >
                                     <Trash2 className="w-3 h-3 text-red-600 dark:text-red-400" />
                                   </button>
@@ -1430,6 +1583,7 @@ export default function AdminDashboard() {
                         rows={12}
                         className="w-full px-4 py-3 bg-dark-50 dark:bg-dark-900 border border-dark-200 dark:border-dark-700 rounded-xl text-sm font-mono text-dark-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#FF3B3B] focus:border-transparent resize-none"
                         spellCheck={false}
+                        aria-label={t('admin.templates.htmlContent')}
                       />
                     </div>
                   </>
@@ -1626,6 +1780,7 @@ export default function AdminDashboard() {
             value={brandingSettings.primaryColor}
             onChange={(e) => setBrandingSettings({ ...brandingSettings, primaryColor: e.target.value })}
             className="w-10 h-10 rounded-lg cursor-pointer border-0"
+            aria-label={t('admin.branding.primaryColor')}
           />
           <Input
             value={brandingSettings.primaryColor}
@@ -1767,36 +1922,56 @@ export default function AdminDashboard() {
                   />
                 </div>
 
-                {/* Content editor */}
-                <div>
-                  <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-2">
-                    {t('admin.legal.content')}
-                  </label>
-                  <textarea
-                    value={editingLegalPage.content}
-                    onChange={(e) => setEditingLegalPage({ ...editingLegalPage, content: e.target.value })}
-                    rows={15}
-                    className="input w-full font-mono text-sm resize-y"
-                    placeholder="<h2>Sección 1</h2>&#10;<p>Contenido...</p>"
-                  />
-                  <p className="text-xs text-dark-500 dark:text-dark-400 mt-1">
-                    {t('admin.legal.contentHint')}
-                  </p>
-                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[600px]">
+                  {/* Editor Column */}
+                  <div className="flex flex-col h-full bg-dark-50 dark:bg-dark-900/50 rounded-xl border border-dark-200 dark:border-dark-700 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-dark-200 dark:border-dark-700 flex items-center justify-between bg-white dark:bg-dark-800">
+                      <div className="flex items-center gap-2">
+                        <Edit className="w-4 h-4 text-primary-500" />
+                        <h3 className="font-medium text-sm text-dark-900 dark:text-white">{t('admin.legal.editor', 'HTML Editor')}</h3>
+                      </div>
+                      <div className="text-xs text-dark-400">
+                        Supports Markdown and HTML
+                      </div>
+                    </div>
+                    <textarea
+                      value={editingLegalPage.content}
+                      onChange={(e) => setEditingLegalPage({ ...editingLegalPage, content: e.target.value })}
+                      className="flex-1 w-full bg-transparent p-4 font-mono text-sm resize-none focus:outline-none dark:text-dark-200"
+                      placeholder="<h2>Section Title</h2>&#10;<p>Your content here...</p>"
+                    />
+                  </div>
 
-                {/* Preview */}
-                <div>
-                  <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-2">
-                    {t('admin.legal.preview')}
-                  </label>
-                  <div 
-                    className="p-4 bg-dark-50 dark:bg-dark-700/50 rounded-xl max-h-64 overflow-y-auto prose prose-sm dark:prose-invert max-w-none
+                  {/* Preview Column */}
+                  <div className="flex flex-col h-full bg-white dark:bg-dark-800 rounded-xl border border-dark-200 dark:border-dark-700 overflow-hidden shadow-sm">
+                    <div className="px-4 py-3 border-b border-dark-200 dark:border-dark-700 flex items-center justify-between bg-dark-50 dark:bg-dark-900/30">
+                      <div className="flex items-center gap-2">
+                        <Eye className="w-4 h-4 text-green-500" />
+                        <h3 className="font-medium text-sm text-dark-900 dark:text-white">{t('admin.legal.livePreview', 'Live Preview')}</h3>
+                      </div>
+                      <span className="text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 px-2 py-0.5 rounded-full">
+                        {t('admin.legal.previewMode', 'Preview')}
+                      </span>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-6">
+                      <div
+                        className="prose prose-sm dark:prose-invert max-w-none
                                prose-headings:text-dark-900 dark:prose-headings:text-white
-                               prose-h2:text-lg prose-h2:font-semibold prose-h2:mt-4 prose-h2:mb-2
                                prose-p:text-dark-600 dark:prose-p:text-dark-300
-                               prose-ul:text-dark-600 dark:prose-ul:text-dark-300"
-                    dangerouslySetInnerHTML={{ __html: editingLegalPage.content }}
-                  />
+                               prose-a:text-primary-600 dark:prose-a:text-primary-400
+                               prose-ul:text-dark-600 dark:prose-ul:text-dark-300
+                               prose-img:rounded-xl"
+                        dangerouslySetInnerHTML={undefined}
+                      >
+                        <ReactMarkdown
+                          rehypePlugins={[rehypeRaw]}
+                          remarkPlugins={[remarkGfm]}
+                        >
+                          {editingLegalPage.content}
+                        </ReactMarkdown>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Actions */}
@@ -1840,10 +2015,10 @@ export default function AdminDashboard() {
             )}
           </div>
         </div>
-      </section>
+      </section >
 
       {/* Users Section */}
-      <section className="bg-white dark:bg-dark-800 rounded-2xl border border-dark-100 dark:border-dark-700 p-6 mt-6">
+      < section className="bg-white dark:bg-dark-800 rounded-2xl border border-dark-100 dark:border-dark-700 p-6 mt-6" >
         <div className="flex items-center justify-between mb-1">
           <div className="flex items-center gap-2">
             <Users className="w-4 h-4 text-[#FF3B3B]" />
@@ -1866,124 +2041,130 @@ export default function AdminDashboard() {
         </div>
 
         {/* Users table */}
-        {usersLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#FF3B3B]"></div>
-          </div>
-        ) : (
-          <div className="rounded-xl border border-dark-200 dark:border-dark-700 overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-dark-50 dark:bg-dark-900">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-dark-500 uppercase tracking-wider">
-                    {t('admin.users.user')}
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-dark-500 uppercase tracking-wider">
-                    {t('admin.users.role')}
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-dark-500 uppercase tracking-wider">
-                    {t('admin.users.storage')}
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-dark-500 uppercase tracking-wider">
-                    {t('admin.users.joined')}
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-dark-500 uppercase tracking-wider">
-                    {t('admin.users.actions')}
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-dark-200 dark:divide-dark-700 bg-white dark:bg-dark-800">
-                {users.map((user) => (
-                  <tr key={user.id} className="hover:bg-dark-50 dark:hover:bg-dark-700/50">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        {user.avatar ? (
-                          <img
-                            src={user.avatar}
-                            alt={user.name}
-                            className="w-9 h-9 rounded-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-9 h-9 rounded-full bg-[#FF3B3B]/10 flex items-center justify-center">
-                            <span className="text-[#FF3B3B] font-medium text-sm">
-                              {user.name.charAt(0).toUpperCase()}
-                            </span>
-                          </div>
-                        )}
-                        <div>
-                          <p className="font-medium text-dark-900 dark:text-white text-sm">
-                            {user.name}
-                          </p>
-                          <p className="text-xs text-dark-500">{user.email}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={cn(
-                          'px-2 py-1 rounded-full text-xs font-medium',
-                          user.role === 'ADMIN'
-                            ? 'bg-[#FF3B3B]/10 text-[#FF3B3B]'
-                            : 'bg-dark-100 text-dark-700 dark:bg-dark-700 dark:text-dark-300'
-                        )}
-                      >
-                        {user.role}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div>
-                        <p className="text-sm text-dark-900 dark:text-white">
-                          {formatBytes(user.storageUsed)}
-                        </p>
-                        <p className="text-xs text-dark-500">
-                          / {formatBytes(user.storageQuota)}
-                        </p>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-dark-500">
-                      {formatDate(user.createdAt)}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <Dropdown
-                        trigger={
-                          <button className="p-2 text-dark-500 hover:text-dark-900 dark:hover:text-white rounded-lg hover:bg-dark-100 dark:hover:bg-dark-600">
-                            <MoreVertical className="w-4 h-4" />
-                          </button>
-                        }
-                        align="right"
-                      >
-                        <DropdownItem onClick={() => openEditModal(user)}>
-                          <Edit className="w-4 h-4" /> {t('admin.users.edit')}
-                        </DropdownItem>
-                        <DropdownItem onClick={() => toggleAdmin(user)}>
-                          {user.role === 'ADMIN' ? (
-                            <>
-                              <ShieldOff className="w-4 h-4" /> {t('admin.users.demoteUser')}
-                            </>
-                          ) : (
-                            <>
-                              <Shield className="w-4 h-4" /> {t('admin.users.promoteAdmin')}
-                            </>
-                          )}
-                        </DropdownItem>
-                        <DropdownDivider />
-                        <DropdownItem danger onClick={() => openDeleteModal(user)}>
-                          <Trash2 className="w-4 h-4" /> {t('admin.users.delete')}
-                        </DropdownItem>
-                      </Dropdown>
-                    </td>
+        {
+          usersLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#FF3B3B]"></div>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dark-200 dark:border-dark-700 overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-dark-50 dark:bg-dark-900">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-dark-500 uppercase tracking-wider">
+                      {t('admin.users.user')}
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-dark-500 uppercase tracking-wider">
+                      {t('admin.users.role')}
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-dark-500 uppercase tracking-wider">
+                      {t('admin.users.storage')}
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-dark-500 uppercase tracking-wider">
+                      {t('admin.users.joined')}
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-dark-500 uppercase tracking-wider">
+                      {t('admin.users.actions')}
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+                </thead>
+                <tbody className="divide-y divide-dark-200 dark:divide-dark-700 bg-white dark:bg-dark-800">
+                  {users.map((user) => (
+                    <tr key={user.id} className="hover:bg-dark-50 dark:hover:bg-dark-700/50">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          {user.avatar ? (
+                            <img
+                              src={user.avatar}
+                              alt={user.name}
+                              className="w-9 h-9 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-9 h-9 rounded-full bg-[#FF3B3B]/10 flex items-center justify-center">
+                              <span className="text-[#FF3B3B] font-medium text-sm">
+                                {user.name.charAt(0).toUpperCase()}
+                              </span>
+                            </div>
+                          )}
+                          <div>
+                            <p className="font-medium text-dark-900 dark:text-white text-sm">
+                              {user.name}
+                            </p>
+                            <p className="text-xs text-dark-500">{user.email}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={cn(
+                            'px-2 py-1 rounded-full text-xs font-medium',
+                            user.role === 'ADMIN'
+                              ? 'bg-[#FF3B3B]/10 text-[#FF3B3B]'
+                              : 'bg-dark-100 text-dark-700 dark:bg-dark-700 dark:text-dark-300'
+                          )}
+                        >
+                          {user.role}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div>
+                          <p className="text-sm text-dark-900 dark:text-white">
+                            {formatBytes(user.storageUsed)}
+                          </p>
+                          <p className="text-xs text-dark-500">
+                            / {formatBytes(user.storageQuota)}
+                          </p>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-dark-500">
+                        {formatDate(user.createdAt)}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <Dropdown
+                          trigger={
+                            <button
+                              className="p-2 text-dark-500 hover:text-dark-900 dark:hover:text-white rounded-lg hover:bg-dark-100 dark:hover:bg-dark-600"
+                              aria-label={t('admin.users.actions')}
+                            >
+                              <MoreVertical className="w-4 h-4" />
+                            </button>
+                          }
+                          align="right"
+                        >
+                          <DropdownItem onClick={() => openEditModal(user)}>
+                            <Edit className="w-4 h-4" /> {t('admin.users.edit')}
+                          </DropdownItem>
+                          <DropdownItem onClick={() => toggleAdmin(user)}>
+                            {user.role === 'ADMIN' ? (
+                              <>
+                                <ShieldOff className="w-4 h-4" /> {t('admin.users.demoteUser')}
+                              </>
+                            ) : (
+                              <>
+                                <Shield className="w-4 h-4" /> {t('admin.users.promoteAdmin')}
+                              </>
+                            )}
+                          </DropdownItem>
+                          <DropdownDivider />
+                          <DropdownItem danger onClick={() => openDeleteModal(user)}>
+                            <Trash2 className="w-4 h-4" /> {t('admin.users.delete')}
+                          </DropdownItem>
+                        </Dropdown>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+        }
+      </section >
 
       {/* Create user modal */}
-      <Modal
+      < Modal
         isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
+        onClose={() => setShowCreateModal(false)
+        }
         title={t('admin.users.createUser')}
       >
         <form onSubmit={(e) => { e.preventDefault(); createUser(); }} className="space-y-4">
@@ -2014,6 +2195,7 @@ export default function AdminDashboard() {
               value={formRole}
               onChange={(e) => setFormRole(e.target.value as 'USER' | 'ADMIN')}
               className="input"
+              aria-label={t('admin.users.role')}
             >
               <option value="USER">{t('admin.users.USER')}</option>
               <option value="ADMIN">{t('admin.users.ADMIN')}</option>
@@ -2027,6 +2209,7 @@ export default function AdminDashboard() {
               value={formStorageQuota}
               onChange={(e) => handleUserQuotaChange(e.target.value)}
               className="input"
+              aria-label={t('admin.users.storageQuota')}
             >
               {quotaOptions.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -2048,6 +2231,7 @@ export default function AdminDashboard() {
                   value={customQuotaUnit}
                   onChange={(e) => setCustomQuotaUnit(e.target.value as 'GB' | 'TB')}
                   className="input w-20"
+                  aria-label={t('admin.users.quotaUnit')}
                 >
                   <option value="GB">GB</option>
                   <option value="TB">TB</option>
@@ -2064,10 +2248,10 @@ export default function AdminDashboard() {
             </Button>
           </div>
         </form>
-      </Modal>
+      </Modal >
 
       {/* Edit user modal */}
-      <Modal
+      < Modal
         isOpen={showEditModal}
         onClose={() => setShowEditModal(false)}
         title={t('admin.users.editUser')}
@@ -2099,6 +2283,7 @@ export default function AdminDashboard() {
               value={formRole}
               onChange={(e) => setFormRole(e.target.value as 'USER' | 'ADMIN')}
               className="input"
+              aria-label={t('admin.users.role')}
             >
               <option value="USER">{t('admin.users.USER')}</option>
               <option value="ADMIN">{t('admin.users.ADMIN')}</option>
@@ -2112,6 +2297,7 @@ export default function AdminDashboard() {
               value={formStorageQuota}
               onChange={(e) => handleUserQuotaChange(e.target.value)}
               className="input"
+              aria-label={t('admin.users.storageQuota')}
             >
               {quotaOptions.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -2133,6 +2319,7 @@ export default function AdminDashboard() {
                   value={customQuotaUnit}
                   onChange={(e) => setCustomQuotaUnit(e.target.value as 'GB' | 'TB')}
                   className="input w-20"
+                  aria-label={t('admin.users.quotaUnit')}
                 >
                   <option value="GB">GB</option>
                   <option value="TB">TB</option>
@@ -2149,10 +2336,10 @@ export default function AdminDashboard() {
             </Button>
           </div>
         </form>
-      </Modal>
+      </Modal >
 
       {/* Delete confirmation modal */}
-      <Modal
+      < Modal
         isOpen={showDeleteModal}
         onClose={() => {
           setShowDeleteModal(false);
@@ -2192,7 +2379,7 @@ export default function AdminDashboard() {
             </Button>
           </div>
         </div>
-      </Modal>
-    </div>
+      </Modal >
+    </div >
   );
 }

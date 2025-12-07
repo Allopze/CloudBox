@@ -1,266 +1,121 @@
-# CloudBox
+# CloudBox ☁️📦
 
-A modern cloud storage platform inspired by Cloudreve and Google Drive, built with React, Express, TypeScript, and Prisma.
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=flat-logo=typescript&logoColor=white)
+![React](https://img.shields.io/badge/React-20232A?style=flat&logo=react&logoColor=61DAFB)
+![Node.js](https://img.shields.io/badge/Node.js-43853D?style=flat&logo=node.js&logoColor=white)
 
-## Features
+**CloudBox** is a powerful, self-hosted cloud storage solution designed to provide a secure and user-friendly alternative to commercial services like Google Drive or Dropbox. Built with performance and privacy in mind, it offers a complete suite of tools for file management, media streaming, and collaboration.
 
-- 🔐 **Authentication** - JWT with refresh tokens, OAuth2 (Google), email verification
-- 📁 **File Management** - Upload, download, preview, chunked uploads for large files
-- 📂 **Folders** - Nested folder structure with color categories
-- 🔗 **Sharing** - Public/private links with passwords and expiration
-- 🖼️ **Photos** - Gallery view with albums
-- 🎵 **Music** - Built-in music player with queue
-- 📄 **Documents** - Document viewer and organization
-- 🗑️ **Trash** - Soft delete with auto-cleanup
-- 👤 **Admin Panel** - User management, system settings, SMTP configuration
-- 🌙 **Dark Mode** - Beautiful dark theme with red accent
+---
 
-## Tech Stack
+## ✨ Features
 
-### Backend
-- Node.js + Express
-- TypeScript
-- Prisma ORM (SQLite)
-- JWT Authentication
-- Sharp (image processing)
-- Archiver (compression)
+### 📂 Advanced File Management
 
-Note: For generating document/video thumbnails and conversions, additional system packages are recommended:
+- **Chunked Uploads**: Seamlessly upload files of any size with automatic resume capability.
+- **Folder Organization**: Create unlimited nested folders to keep your data structured.
+- **Drag & Drop**: Intuitive drag-and-drop interface for files and folders.
+- **Context Menus**: Right-click actions for quick access to renaming, moving, and deleting.
 
-- LibreOffice (soffice) - used to convert Office documents (Word/Excel/PowerPoint) to PDF for thumbnail generation
-- poppler-utils (pdftoppm) - used to render first page of PDFs to images
-- ImageMagick (convert/magick) - fallback for PDF/Document conversion
-- ffmpeg - used for video frame extraction and some audio cover fallbacks
+### 🎬 Media Streaming & Preview
 
-These are OS-level dependencies and are not installed via npm. On Debian/Ubuntu you can install them with:
+- **Video Player**: Stream video files directly in the browser with adaptive transcoding.
+- **Photo Gallery**: Browse photos with a beautiful masonry grid and lightbox viewer.
+- **Music Player**: Global music player that continues playing as you navigate the app.
+- **PDF Viewer**: Preview authorized documents without downloading.
 
-```bash
-sudo apt-get install -y libreoffice poppler-utils imagemagick ffmpeg
-```
+### 🤝 Sharing & Collaboration
+
+- **Public Links**: Generate secure sharing links for anyone to access.
+- **Password Protection**: Secure your shared links with custom passwords.
+- **Expiration Dates**: Set automatic expiration for sensitive shares.
+- **Download Limits**: Control the number of times a file can be downloaded.
+
+### 🛡️ Security & Administration
+
+- **User Management**: Full admin dashboard to manage users, roles, and quotas.
+- **Storage Quotas**: Define generic or per-user storage limits.
+- **Rate Limiting**: Built-in protection against abuse.
+- **Secure Auth**: JWT-based stateless authentication with refresh token rotation.
+
+---
+
+## 🛠️ Technology Stack
+
+We use a modern, strictly-typed stack to ensure reliability and ease of maintenance.
 
 ### Frontend
-- React 18 + Vite
-- TypeScript
-- Tailwind CSS
-- Zustand (state management)
-- React Query
-- Lucide Icons
 
-## Quick Start
+- **Framework**: [React 18](https://reactjs.org/) (via [Vite](https://vitejs.dev/))
+- **State Management**: [Zustand](https://github.com/pmndrs/zustand)
+- **Styling**: [Tailwind CSS](https://tailwindcss.com/)
+- **Routing**: React Router DOM v6
+- **Data Fetching**: TanStack Query
 
-```bash
-# Install all dependencies
-npm run install:all
+### Backend
 
-# Setup database (generate, push schema, seed)
-npm run setup
+- **Runtime**: [Node.js](https://nodejs.org/)
+- **Framework**: [Express.js](https://expressjs.com/)
+- **Language**: TypeScript
+- **Database**: PostgreSQL (via [Prisma ORM](https://www.prisma.io/))
+- **Background Jobs**: Redis + Bull
 
-# Start development servers
-npm run dev
-```
+---
 
-The app will be available at:
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:4000
+## 📚 Documentation
 
-## Security Configuration
+Detailed documentation is available in the `docs/` directory to help you get started and understand the system architecture.
 
-### Production Setup
+- [**📥 Getting Started**](./docs/getting_started.md): Installation, environment setup, and running the app locally.
+- [**🏗️ Architecture**](./docs/architecture.md): Deep dive into the system design, components, and security.
+- [**🔌 API Overview**](./docs/api_overview.md): Reference for the REST API endpoints.
+- [**🗄️ Database Schema**](./docs/database_schema.md): Explanation of the data models.
+- [**🎨 Frontend Guide**](./docs/frontend_guide.md): Guide for frontend development and structure.
 
-**Important**: In production, several security measures must be configured:
+---
 
-#### Admin Account
-The seed script no longer uses hardcoded credentials. In production:
+## ⚡ Quick Start
 
-```bash
-# Set environment variables before running seed
-export NODE_ENV=production
-export ADMIN_EMAIL=your-admin@example.com
-export ADMIN_PASSWORD=your-secure-password-min-12-chars
-npm run db:seed
-```
+1. **Clone the repository**
 
-In development, a random password is generated and displayed once.
+    ```bash
+    git clone https://github.com/yourusername/cloudbox.git
+    cd cloudbox
+    ```
 
-#### JWT Secrets
-Always set strong secrets in production:
+2. **Install Dependencies**
 
-```env
-JWT_SECRET="generate-64-char-random-string"
-JWT_REFRESH_SECRET="generate-different-64-char-random-string"
-```
+    ```bash
+    npm run install:all
+    ```
 
-#### Cookie Security
-For HTTPS deployments, configure cookie settings:
+3. **Setup Environment**
+    Copy the `.env.example` files in both `backend/` and `frontend/` to `.env` and fill in your database and Redis credentials.
 
-```env
-COOKIE_DOMAIN=yourdomain.com
-```
+4. **Initialize Database**
 
-### Token Security
+    ```bash
+    npm run setup
+    ```
 
-- **Access tokens**: Short-lived (15min), stored in memory/localStorage
-- **Refresh tokens**: 
-  - Stored as httpOnly cookies (not accessible to JavaScript)
-  - Server stores only hash + jti (not plaintext)
-  - Token rotation with family tracking (detects token reuse/theft)
-  - Entire token family invalidated on suspicious activity
+5. **Run Development Servers**
 
-### File Access Security
+    ```bash
+    npm run dev
+    ```
 
-For direct file access (images, media), use signed URLs instead of query string tokens:
+    - Frontend: `http://localhost:5173`
+    - Backend: `http://localhost:3001`
 
-```javascript
-// Frontend: Request signed URL
-const { signedUrl } = await api.post(`/files/${fileId}/signed-url`, { action: 'view' });
-// Use signedUrl directly in img src, etc.
-```
+---
 
-Signed URLs expire after 5 minutes (configurable via `SIGNED_URL_EXPIRES_IN`).
+## 📄 License
 
-## Default Admin Account
+This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for details.
 
-In development, run the seed to create an admin account. The password will be randomly generated and displayed in the console. Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` environment variables to use specific credentials.
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
-## Scripts
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Start both backend and frontend in development mode |
-| `npm run dev:backend` | Start only the backend server |
-| `npm run dev:frontend` | Start only the frontend server |
-| `npm run build` | Build both projects for production |
-| `npm run install:all` | Install dependencies for root, backend, and frontend |
-| `npm run setup` | Full setup: install deps, setup database, seed data |
-| `npm run db:studio` | Open Prisma Studio to browse database |
-
-## Environment Variables
-
-Create a `.env` file in the `backend` folder:
-
-```env
-# Database - PostgreSQL (recommended for production)
-# For local development, you can use SQLite: DATABASE_URL="file:./dev.db"
-DATABASE_URL="postgresql://user:password@localhost:5432/cloudbox?schema=public"
-
-# PostgreSQL Connection Pool (optional)
-DATABASE_POOL_SIZE="10"
-DATABASE_CONNECT_TIMEOUT="10"
-# For PgBouncer or external pooler:
-# DATABASE_POOLER="pgbouncer"
-
-# JWT (REQUIRED in production - use strong random values)
-JWT_SECRET="your-jwt-secret"
-JWT_REFRESH_SECRET="your-refresh-secret"
-JWT_EXPIRES_IN="15m"
-JWT_REFRESH_EXPIRES_IN="7d"
-
-# Server
-PORT=4000
-FRONTEND_URL="http://localhost:5173"
-STORAGE_PATH="./data"
-
-# Security (production)
-# NODE_ENV=production
-# COOKIE_DOMAIN=yourdomain.com
-# SIGNED_URL_EXPIRES_IN=300
-
-# Admin seed (production only)
-# ADMIN_EMAIL=admin@example.com
-# ADMIN_PASSWORD=secure-password-min-12-chars
-
-# OAuth
-GOOGLE_CLIENT_ID=""
-GOOGLE_CLIENT_SECRET=""
-
-# Email
-SMTP_HOST=""
-SMTP_USER=""
-SMTP_PASS=""
-```
-
-### Database Setup
-
-**PostgreSQL (Production)**:
-```bash
-# Create database
-createdb cloudbox
-
-# Run migrations
-cd backend
-npx prisma migrate deploy
-
-# Generate Prisma Client
-npx prisma generate
-
-# Seed initial data
-npm run db:seed
-```
-
-**SQLite (Development only)**:
-```bash
-# For quick local development, use SQLite
-# Set in .env: DATABASE_URL="file:./dev.db"
-cd backend
-npx prisma db push
-npm run db:seed
-```
-
-**Connection Pooling**:
-
-For high-traffic production environments, configure connection pooling:
-
-1. **Prisma built-in pooling** (via connection string):
-   ```env
-   DATABASE_URL="postgresql://user:pass@host:5432/db?connection_limit=10&connect_timeout=10"
-   ```
-
-2. **External pooler (PgBouncer)**:
-   ```env
-   DATABASE_POOLER="pgbouncer"
-   DATABASE_URL="postgresql://user:pass@pgbouncer:6432/db"
-   ```
-
-3. **Serverless (Neon, Supabase, etc.)**:
-   ```env
-   DATABASE_URL="postgresql://...pooler-url..."
-   DIRECT_DATABASE_URL="postgresql://...direct-url..."
-   ```
-
-And a `.env` in `frontend`:
-
-```env
-VITE_API_URL="http://localhost:4000/api"
-VITE_GOOGLE_CLIENT_ID=""
-```
-
-## Project Structure
-
-```
-cloudbox/
-├── backend/
-│   ├── prisma/
-│   │   └── schema.prisma
-│   ├── src/
-│   │   ├── config/
-│   │   ├── lib/
-│   │   ├── middleware/
-│   │   ├── routes/
-│   │   ├── schemas/
-│   │   └── index.ts
-│   └── uploads/
-├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   ├── layouts/
-│   │   ├── lib/
-│   │   ├── pages/
-│   │   ├── stores/
-│   │   └── types/
-│   └── index.html
-└── package.json
-```
-
-## License
-
-MIT
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

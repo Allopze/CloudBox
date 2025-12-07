@@ -27,9 +27,16 @@ const QUEUE_CONFIG = {
     removeOnComplete: 100,
     removeOnFail: 50,
   },
-  concurrency: 4, // Process 4 thumbnails at a time with Redis
+  concurrency: parseInt(process.env.THUMBNAIL_CONCURRENCY || '4'), // Process N thumbnails at a time with Redis
   fallbackConcurrency: parseInt(process.env.THUMBNAIL_FALLBACK_CONCURRENCY || '2'), // Fallback concurrency
+  // Rate limiting per user
+  maxJobsPerUserPerHour: parseInt(process.env.THUMBNAIL_RATE_LIMIT_PER_HOUR || '1000'),
+  rateLimitWindowMs: parseInt(process.env.THUMBNAIL_RATE_LIMIT_WINDOW_MS || '3600000'), // 1 hour default
 };
+
+// Production mode: require Redis for worker isolation
+const isProduction = process.env.NODE_ENV === 'production';
+const requireRedis = process.env.REQUIRE_REDIS_WORKERS === 'true' || isProduction;
 
 // Bull queue instance
 let bullQueue: Queue<ThumbnailJob> | null = null;
@@ -49,16 +56,15 @@ class ThumbnailQueue {
   // p-limit for concurrency control in fallback mode
   private limiter: LimitFunction;
   
-  // Security: Per-user limits to prevent abuse
+  // Security: Per-user limits to prevent abuse (configurable via env vars)
   private userLimits = new Map<string, UserThumbnailLimit>();
-  private readonly maxJobsPerUserPerHour = 100;
-  private readonly userLimitWindowMs = 60 * 60 * 1000; // 1 hour
 
   constructor() {
     // Initialize the limiter with configured concurrency
     this.limiter = pLimit(QUEUE_CONFIG.fallbackConcurrency);
     logger.info('ThumbnailQueue initialized', { 
-      fallbackConcurrency: QUEUE_CONFIG.fallbackConcurrency 
+      fallbackConcurrency: QUEUE_CONFIG.fallbackConcurrency,
+      maxJobsPerUserPerHour: QUEUE_CONFIG.maxJobsPerUserPerHour,
     });
   }
 
@@ -71,12 +77,12 @@ class ThumbnailQueue {
     if (!limit || limit.resetAt < now) {
       this.userLimits.set(userId, {
         count: 1,
-        resetAt: now + this.userLimitWindowMs,
+        resetAt: now + QUEUE_CONFIG.rateLimitWindowMs,
       });
       return true;
     }
     
-    if (limit.count >= this.maxJobsPerUserPerHour) {
+    if (limit.count >= QUEUE_CONFIG.maxJobsPerUserPerHour) {
       logger.warn('Thumbnail rate limit exceeded', { userId });
       return false;
     }
@@ -97,7 +103,15 @@ class ThumbnailQueue {
       return true;
     }
 
-    // Fallback to in-memory queue with p-limit concurrency control
+    // Production mode: reject jobs if Redis is required but not available
+    if (requireRedis) {
+      logger.error('Thumbnail job rejected: Redis required in production but not available', { 
+        fileId: job.fileId 
+      });
+      return false;
+    }
+
+    // Fallback to in-memory queue with p-limit concurrency control (development only)
     if (this.queue.length >= this.maxQueueSize) {
       logger.warn('Thumbnail queue is full, dropping job', { fileId: job.fileId });
       return false;

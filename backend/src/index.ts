@@ -14,6 +14,7 @@ import { auditContext, suspiciousActivityDetector } from './lib/audit.js';
 import logger from './lib/logger.js';
 import { initSocketIO, getConnectedUserCount } from './lib/socket.js';
 import { initTranscodingQueue, getQueueStats, cleanupOldJobs } from './lib/transcodingQueue.js';
+import { initDocumentConversionQueue } from './lib/documentConversionQueue.js';
 import { initThumbnailQueue, getThumbnailQueueStats } from './lib/thumbnailQueue.js';
 import { initCache, getCacheStats } from './lib/cache.js';
 import { initSessionStore, getSessionStats } from './lib/sessionStore.js';
@@ -32,6 +33,7 @@ import albumRoutes from './routes/albums.js';
 import compressionRoutes from './routes/compression.js';
 import activityRoutes from './routes/activity.js';
 import adminRoutes from './routes/admin.js';
+import documentPreviewRoutes from './routes/documentPreview.js';
 
 const app = express();
 
@@ -39,23 +41,51 @@ const app = express();
 app.set('trust proxy', 1);
 
 // Security headers with Helmet
+// Production-hardened CSP and security headers
+const isProduction = config.nodeEnv === 'production';
+
+// Build CSP directives conditionally
+const cspDirectives: Record<string, string[] | null> = {
+  defaultSrc: ["'self'"],
+  // In production, avoid 'unsafe-inline' - use nonces or hashes instead
+  // For now, keeping it for backward compatibility but should be removed
+  styleSrc: isProduction ? ["'self'"] : ["'self'", "'unsafe-inline'"],
+  scriptSrc: ["'self'"],
+  imgSrc: ["'self'", "data:", "blob:"],
+  connectSrc: ["'self'"],
+  fontSrc: ["'self'"],
+  objectSrc: ["'none'"],
+  mediaSrc: ["'self'", "blob:"],
+  frameSrc: ["'self'"],
+  // Security: Only allow framing from same origin in production
+  frameAncestors: isProduction ? ["'self'"] : ["'self'", "http://localhost:*"],
+  // Security: Prevent form submissions to external URLs
+  formAction: ["'self'"],
+};
+
+// Security: Block mixed content in production only
+if (isProduction) {
+  cspDirectives.upgradeInsecureRequests = [];
+}
+
 app.use(helmet({
   contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "blob:"],
-      connectSrc: ["'self'"],
-      fontSrc: ["'self'"],
-      objectSrc: ["'none'"],
-      mediaSrc: ["'self'", "blob:"],
-      frameSrc: ["'self'"],
-      frameAncestors: ["'self'", "http://localhost:*"],
-    },
+    directives: cspDirectives,
   },
+  // Security: Enable HSTS in production (browsers will remember to use HTTPS)
+  strictTransportSecurity: isProduction ? {
+    maxAge: 31536000, // 1 year
+    includeSubDomains: true,
+    preload: true,
+  } : false,
   crossOriginEmbedderPolicy: false, // Allow loading media files
   crossOriginResourcePolicy: { policy: "cross-origin" }, // Allow cross-origin file access
+  // Security: Additional headers
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  noSniff: true, // X-Content-Type-Options: nosniff
+  // Note: xssFilter removed - deprecated in Helmet 8, X-XSS-Protection is ignored by modern browsers
+  dnsPrefetchControl: { allow: false },
+  permittedCrossDomainPolicies: { permittedPolicies: 'none' },
 }));
 
 // Compression middleware - compress responses
@@ -104,8 +134,8 @@ app.use(cors({
 }));
 
 // Body parsing with size limits
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb', parameterLimit: 10000 }));
 app.use(cookieParser());
 
 // Audit context - attach audit helper to all requests
@@ -159,6 +189,7 @@ app.use('/api/admin', adminLimiter);
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/files', documentPreviewRoutes); // Document preview routes (before main file routes)
 app.use('/api/files', fileRoutes);
 app.use('/api/folders', folderRoutes);
 app.use('/api/shares', shareRoutes);
@@ -168,10 +199,45 @@ app.use('/api/compression', compressionRoutes);
 app.use('/api/activity', activityRoutes);
 app.use('/api/admin', adminRoutes);
 
-// Health check endpoint
-app.get('/api/health', async (req, res) => {
-  const healthChecks: Record<string, { status: 'healthy' | 'unhealthy'; message?: string }> = {};
+// Public config endpoint for upload limits (no auth required for frontend to fetch)
+app.get('/api/config/upload-limits', async (req, res) => {
+  try {
+    const settings = await prisma.settings.findMany({
+      where: {
+        key: { in: ['upload_max_file_size', 'upload_chunk_size', 'upload_concurrent_chunks'] },
+      },
+    });
+
+    const limits: Record<string, string> = {};
+    settings.forEach((s: { key: string; value: string }) => {
+      limits[s.key.replace('upload_', '')] = s.value;
+    });
+
+    res.json({
+      maxFileSize: limits['max_file_size'] || String(config.storage.maxFileSize),
+      chunkSize: limits['chunk_size'] || String(20 * 1024 * 1024), // 20MB default
+      concurrentChunks: limits['concurrent_chunks'] || '4',
+    });
+  } catch (error) {
+    // Return defaults on error
+    res.json({
+      maxFileSize: String(config.storage.maxFileSize),
+      chunkSize: String(20 * 1024 * 1024),
+      concurrentChunks: '4',
+    });
+  }
+});
+
+// Public health ping (for load balancers - no details exposed)
+app.get('/api/health/ping', (req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
+
+// Detailed health check endpoint (admin only - exposes infrastructure details)
+app.get('/api/health', authenticate, requireAdmin, async (req, res) => {
+  const healthChecks: Record<string, { status: 'healthy' | 'unhealthy' | 'degraded' | 'warning'; message?: string;[key: string]: any }> = {};
   let overallHealthy = true;
+  const isProduction = config.nodeEnv === 'production';
 
   // Check database connection
   try {
@@ -181,6 +247,7 @@ app.get('/api/health', async (req, res) => {
     healthChecks.database = { status: 'unhealthy', message: 'Database connection failed' };
     overallHealthy = false;
   }
+
 
   // Check storage directory
   try {
@@ -210,13 +277,32 @@ app.get('/api/health', async (req, res) => {
   // Check Redis/transcoding queue
   try {
     const queueStats = await getQueueStats();
-    healthChecks.transcoding = {
-      status: queueStats.isRedisAvailable ? 'healthy' : 'degraded',
-      message: queueStats.isRedisAvailable 
-        ? `Redis connected, ${queueStats.active} active jobs`
-        : 'Running in fallback mode (no Redis) - CPU competes with API',
-      usingRedis: queueStats.isRedisAvailable,
-    };
+
+    if (queueStats.isRedisAvailable) {
+      healthChecks.transcoding = {
+        status: 'healthy',
+        message: `Redis connected, ${queueStats.active} active jobs`,
+        usingRedis: true,
+        workerMode: 'dedicated',
+      };
+    } else if (isProduction) {
+      // Production without Redis is unhealthy
+      healthChecks.transcoding = {
+        status: 'unhealthy',
+        message: 'CRITICAL: Redis required for transcoding in production - jobs will be rejected',
+        usingRedis: false,
+        workerMode: 'disabled',
+      };
+      overallHealthy = false;
+    } else {
+      // Development fallback warning
+      healthChecks.transcoding = {
+        status: 'warning',
+        message: 'Fallback mode (dev only) - CPU competes with API. Set up Redis for production.',
+        usingRedis: false,
+        workerMode: 'inline-fallback',
+      };
+    }
   } catch (error) {
     healthChecks.transcoding = { status: 'degraded', message: 'Queue check failed' };
   }
@@ -224,13 +310,32 @@ app.get('/api/health', async (req, res) => {
   // Check thumbnail queue
   try {
     const thumbnailStats = await getThumbnailQueueStats();
-    healthChecks.thumbnails = {
-      status: thumbnailStats.usingRedis ? 'healthy' : 'degraded',
-      message: thumbnailStats.usingRedis 
-        ? `Redis connected, ${thumbnailStats.active} active, ${thumbnailStats.waiting} waiting`
-        : `Fallback mode, ${thumbnailStats.active} active - CPU competes with API`,
-      usingRedis: thumbnailStats.usingRedis,
-    };
+
+    if (thumbnailStats.usingRedis) {
+      healthChecks.thumbnails = {
+        status: 'healthy',
+        message: `Redis connected, ${thumbnailStats.active} active, ${thumbnailStats.waiting} waiting`,
+        usingRedis: true,
+        workerMode: 'dedicated',
+      };
+    } else if (isProduction) {
+      // Production without Redis is unhealthy
+      healthChecks.thumbnails = {
+        status: 'unhealthy',
+        message: 'CRITICAL: Redis required for thumbnails in production - jobs will be rejected',
+        usingRedis: false,
+        workerMode: 'disabled',
+      };
+      overallHealthy = false;
+    } else {
+      // Development fallback warning
+      healthChecks.thumbnails = {
+        status: 'warning',
+        message: `Fallback mode (dev only), ${thumbnailStats.active} active - Set up Redis for production.`,
+        usingRedis: false,
+        workerMode: 'inline-fallback',
+      };
+    }
   } catch (error) {
     healthChecks.thumbnails = { status: 'degraded', message: 'Thumbnail queue check failed' };
   }
@@ -240,7 +345,7 @@ app.get('/api/health', async (req, res) => {
     const cacheStats = await getCacheStats();
     healthChecks.cache = {
       status: cacheStats ? 'healthy' : 'degraded',
-      message: cacheStats 
+      message: cacheStats
         ? `Redis connected, ${cacheStats.keys} keys, ${cacheStats.memory} memory`
         : 'Cache disabled - all queries hit database directly',
       usingRedis: !!cacheStats,
@@ -254,7 +359,7 @@ app.get('/api/health', async (req, res) => {
     const sessionStats = await getSessionStats();
     healthChecks.sessions = {
       status: sessionStats ? 'healthy' : 'degraded',
-      message: sessionStats 
+      message: sessionStats
         ? `Redis connected, ${sessionStats.totalSessions} active sessions`
         : 'Session store using database fallback - no instant invalidation',
       usingRedis: !!sessionStats,
@@ -268,7 +373,7 @@ app.get('/api/health', async (req, res) => {
     const rateLimitStats = getRateLimitStats();
     healthChecks.rateLimiting = {
       status: rateLimitStats.usingRedis ? 'healthy' : 'degraded',
-      message: rateLimitStats.usingRedis 
+      message: rateLimitStats.usingRedis
         ? 'Redis connected - distributed rate limiting active'
         : `In-memory fallback (single-node only), ${rateLimitStats.inMemoryEntries} tracked users`,
       usingRedis: rateLimitStats.usingRedis,
@@ -416,7 +521,7 @@ const cleanupExpiredTokens = async () => {
     const { count } = await prisma.refreshToken.deleteMany({
       where: { expiresAt: { lt: new Date() } },
     });
-    
+
     if (count > 0) {
       logger.info('Cleaned up expired refresh tokens', { count });
     }
@@ -431,19 +536,19 @@ const cleanupExpiredTokens = async () => {
 const cleanupOrphanChunks = async () => {
   const fs = await import('fs/promises');
   const path = await import('path');
-  
+
   // Simple file-based lock for single-server or when Redis is not available
   const lockPath = path.join(config.storage.path, '.chunk_cleanup_lock');
-  
+
   try {
     // Try to acquire lock (create lock file with current timestamp)
     const now = Date.now();
     const lockTimeout = 30 * 60 * 1000; // 30 minutes lock timeout
-    
+
     try {
       const lockData = await fs.readFile(lockPath, 'utf-8');
       const lockTime = parseInt(lockData, 10);
-      
+
       // If lock exists and is not stale, skip this run
       if (!isNaN(lockTime) && (now - lockTime) < lockTimeout) {
         logger.debug('Chunk cleanup skipped - another instance is running', { lockAge: now - lockTime });
@@ -452,39 +557,39 @@ const cleanupOrphanChunks = async () => {
     } catch {
       // Lock file doesn't exist, proceed
     }
-    
+
     // Write our lock
     await fs.writeFile(lockPath, now.toString());
-    
+
     const chunksDir = path.join(config.storage.path, 'chunks');
-    
+
     // Check if chunks directory exists
     try {
       await fs.access(chunksDir);
     } catch {
-      await fs.unlink(lockPath).catch(() => {});
+      await fs.unlink(lockPath).catch(() => { });
       return; // Directory doesn't exist, nothing to clean
     }
-    
+
     const uploadDirs = await fs.readdir(chunksDir);
     const MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
     let cleanedCount = 0;
-    
+
     for (const uploadId of uploadDirs) {
       const uploadPath = path.join(chunksDir, uploadId);
-      
+
       try {
         const stats = await fs.stat(uploadPath);
-        
+
         // If directory is older than 24 hours, remove it
         if (now - stats.mtimeMs > MAX_AGE_MS) {
           await fs.rm(uploadPath, { recursive: true, force: true });
-          
+
           // Also clean up any orphan fileChunk records
           await prisma.fileChunk.deleteMany({
             where: { uploadId },
-          }).catch(() => {});
-          
+          }).catch(() => { });
+
           cleanedCount++;
         }
       } catch (error) {
@@ -492,18 +597,18 @@ const cleanupOrphanChunks = async () => {
         logger.warn('Error cleaning chunk directory', { uploadId }, error instanceof Error ? error : undefined);
       }
     }
-    
+
     if (cleanedCount > 0) {
       logger.info('Cleaned up orphan chunk directories', { count: cleanedCount });
     }
-    
+
     // Release lock
-    await fs.unlink(lockPath).catch(() => {});
+    await fs.unlink(lockPath).catch(() => { });
   } catch (error) {
     logger.error('Orphan chunk cleanup error', {}, error instanceof Error ? error : new Error(String(error)));
     // Try to release lock on error
     const fs = await import('fs/promises');
-    await fs.unlink(lockPath).catch(() => {});
+    await fs.unlink(lockPath).catch(() => { });
   }
 };
 
@@ -527,6 +632,10 @@ const start = async () => {
     // Initialize thumbnail queue (Redis-based or fallback)
     await initThumbnailQueue();
     logger.info('Thumbnail queue initialized');
+
+    // Initialize document conversion queue (LibreOffice-based)
+    await initDocumentConversionQueue();
+    logger.info('Document conversion queue initialized');
 
     // Initialize cache (Redis-based)
     const cacheEnabled = await initCache();
@@ -584,23 +693,23 @@ const start = async () => {
     // Graceful shutdown handler
     const gracefulShutdown = async (signal: string) => {
       logger.info('Received shutdown signal, starting graceful shutdown...', { signal });
-      
+
       // Clear all cleanup intervals
       cleanupIntervals.forEach(interval => clearInterval(interval));
-      
+
       // Stop accepting new connections
       server.close(async () => {
         logger.info('HTTP server closed');
-        
+
         try {
           // Close Bull Board connections
           await closeBullBoard();
           logger.info('Bull Board connections closed');
-          
+
           // Disconnect from database
           await prisma.$disconnect();
           logger.info('Database disconnected');
-          
+
           logger.info('Graceful shutdown completed');
           process.exit(0);
         } catch (error) {

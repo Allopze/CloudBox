@@ -7,6 +7,7 @@ export interface User {
   emailVerified: boolean;
   storageQuota: string;
   storageUsed: string;
+  maxFileSize?: string;
   createdAt: string;
 }
 

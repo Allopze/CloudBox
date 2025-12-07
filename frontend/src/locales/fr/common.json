@@ -170,7 +170,9 @@
     "noScreenshots": "Aucune capture d'écran",
     "uploadScreenshots": "Les captures d'écran apparaîtront ici",
     "noFavoritePhotos": "Aucune photo favorite",
-    "addFavoritePhotos": "Ajoutez des photos aux favoris pour les voir ici"
+    "addFavoritePhotos": "Ajoutez des photos aux favoris pour les voir ici",
+    "deleteConfirmTitle": "Supprimer la photo",
+    "deleteConfirmMessage": "Êtes-vous sûr de vouloir envoyer cette photo à la corbeille ?"
   },
   "music": {
     "loadError": "Erreur lors du chargement de la musique",
@@ -542,7 +544,10 @@
     "noResults": "Aucun résultat",
     "required": "Requis",
     "optional": "Facultatif",
-    "create": "Créer"
+    "create": "Créer",
+    "copyLink": "Copier le lien",
+    "addToFavorites": "Ajouter aux favoris",
+    "removeFromFavorites": "Retirer des favoris"
   },
   "fileCard": {
     "download": "Télécharger",
@@ -554,6 +559,7 @@
     "share": "Partager",
     "rename": "Renommer",
     "move": "Déplacer",
+    "compress": "Compresser",
     "moveToTrash": "Déplacer vers la corbeille",
     "deletingItems": "Suppression de {{count}} élément(s)",
     "itemsMovedToTrash": "{{count}} élément(s) déplacé(s) vers la corbeille",
@@ -570,6 +576,7 @@
     "share": "Partager",
     "rename": "Renommer",
     "move": "Déplacer",
+    "compress": "Compresser",
     "moveToTrash": "Déplacer vers la corbeille",
     "deletingItems": "Suppression de {{count}} élément(s)",
     "itemsMovedToTrash": "{{count}} élément(s) déplacé(s) vers la corbeille",
@@ -584,6 +591,7 @@
     "upload": {
       "title": "Téléverser des fichiers",
       "dragDrop": "Glissez-déposez des fichiers ici",
+      "dragOrClick": "Glissez des fichiers ici ou cliquez pour sélectionner",
       "dropHere": "Déposez les fichiers ici ou cliquez pour sélectionner",
       "maxSize": "Taille maximale du fichier : {{size}}",
       "filesSelected": "{{count}} fichier(s) sélectionné(s)",
@@ -705,6 +713,25 @@
       "deleteNote": "Cette action déplacera les éléments vers la corbeille.",
       "deleteButton": "Supprimer",
       "cancelButton": "Annuler"
+    },
+    "compress": {
+      "title": "Compresser des fichiers",
+      "itemsToCompress": "Éléments à compresser",
+      "itemCount": "{{count}} éléments",
+      "outputName": "Nom de l'archive",
+      "namePlaceholder": "archive",
+      "nameRequired": "Le nom de l'archive est requis",
+      "format": "Format",
+      "formatZipDesc": "Compatible",
+      "format7zDesc": "Meilleur ratio",
+      "formatTarDesc": "Unix/Linux",
+      "compress": "Compresser",
+      "compressing": "Compression...",
+      "preparing": "Préparation...",
+      "completed": "Compression terminée",
+      "success": "Archive créée avec succès",
+      "error": "Erreur lors de la création de l'archive",
+      "connectionError": "Connexion perdue"
     }
   },
   "admin": {
@@ -906,7 +933,17 @@
     "deleteUserError": "Erreur de suppression d'utilisateur",
     "roleChangeError": "Erreur de changement de rôle",
     "promotedToAdmin": "Utilisateur promu administrateur",
-    "demotedToUser": "Utilisateur rétrogradé"
+    "demotedToUser": "Utilisateur rétrogradé",
+    "uploadLimits": {
+      "title": "Limites de Téléversement",
+      "description": "Configurer les limites de téléversement de fichiers",
+      "maxFileSize": "Taille max. du fichier",
+      "chunkSize": "Taille des fragments",
+      "concurrentChunks": "Fragments simultanés",
+      "save": "Enregistrer les limites",
+      "saved": "Limites enregistrées",
+      "saveError": "Erreur lors de l'enregistrement des limites"
+    }
   },
   "gallery": {
     "download": "Télécharger",

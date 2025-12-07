@@ -6,9 +6,9 @@ import { FileItem } from '../types';
 import { useFileStore } from '../stores/fileStore';
 import FileCard from '../components/files/FileCard';
 import DocumentThumbnail from '../components/files/DocumentThumbnail';
-import { 
+import {
   Loader2, FileText, FileSpreadsheet, File, Eye, Heart, Check,
-  Download, Share2, Trash2, Info, Copy, Star, Code, Presentation, FileType
+  Download, Share2, Trash2, Info, Copy, Star, Code, Presentation
 } from 'lucide-react';
 import { toast } from '../components/ui/Toast';
 import { cn, formatBytes, formatDate } from '../lib/utils';
@@ -27,50 +27,50 @@ interface ContextMenuState {
 // Get icon and color based on document type
 const getDocumentStyle = (mimeType: string, fileName: string) => {
   if (mimeType === 'application/pdf' || fileName.endsWith('.pdf')) {
-    return { 
-      icon: FileText, 
+    return {
+      icon: FileText,
       gradient: ['from-red-400', 'to-red-600'],
       color: 'text-red-500'
     };
   }
   if (mimeType.includes('word') || fileName.endsWith('.doc') || fileName.endsWith('.docx')) {
-    return { 
-      icon: FileText, 
+    return {
+      icon: FileText,
       gradient: ['from-blue-400', 'to-blue-600'],
       color: 'text-blue-500'
     };
   }
-  if (mimeType.includes('excel') || mimeType.includes('spreadsheet') || 
-      fileName.endsWith('.xls') || fileName.endsWith('.xlsx') || fileName.endsWith('.csv')) {
-    return { 
-      icon: FileSpreadsheet, 
+  if (mimeType.includes('excel') || mimeType.includes('spreadsheet') ||
+    fileName.endsWith('.xls') || fileName.endsWith('.xlsx') || fileName.endsWith('.csv')) {
+    return {
+      icon: FileSpreadsheet,
       gradient: ['from-green-400', 'to-green-600'],
       color: 'text-green-500'
     };
   }
   if (mimeType.includes('presentation') || fileName.endsWith('.ppt') || fileName.endsWith('.pptx')) {
-    return { 
-      icon: FileText, 
+    return {
+      icon: FileText,
       gradient: ['from-orange-400', 'to-orange-600'],
       color: 'text-orange-500'
     };
   }
   if (mimeType === 'text/plain' || fileName.endsWith('.txt')) {
-    return { 
-      icon: FileText, 
+    return {
+      icon: FileText,
       gradient: ['from-gray-400', 'to-gray-600'],
       color: 'text-gray-500'
     };
   }
   if (mimeType === 'text/markdown' || fileName.endsWith('.md')) {
-    return { 
-      icon: FileText, 
+    return {
+      icon: FileText,
       gradient: ['from-purple-400', 'to-purple-600'],
       color: 'text-purple-500'
     };
   }
-  return { 
-    icon: File, 
+  return {
+    icon: File,
     gradient: ['from-slate-400', 'to-slate-600'],
     color: 'text-slate-500'
   };
@@ -102,64 +102,64 @@ export default function Documents() {
   // Filter documents based on category tab
   const filterByCategory = useCallback((docs: FileItem[]) => {
     if (tab === 'all') return docs;
-    
+
     return docs.filter(doc => {
       const mimeType = doc.mimeType.toLowerCase();
       const fileName = doc.name.toLowerCase();
-      
+
       switch (tab) {
         case 'pdf':
           return mimeType === 'application/pdf' || fileName.endsWith('.pdf');
         case 'text':
-          return mimeType.includes('word') || 
-                 mimeType === 'text/plain' || 
-                 mimeType === 'text/markdown' ||
-                 fileName.endsWith('.doc') || 
-                 fileName.endsWith('.docx') || 
-                 fileName.endsWith('.txt') || 
-                 fileName.endsWith('.md') ||
-                 fileName.endsWith('.rtf');
+          return mimeType.includes('word') ||
+            mimeType === 'text/plain' ||
+            mimeType === 'text/markdown' ||
+            fileName.endsWith('.doc') ||
+            fileName.endsWith('.docx') ||
+            fileName.endsWith('.txt') ||
+            fileName.endsWith('.md') ||
+            fileName.endsWith('.rtf');
         case 'spreadsheet':
-          return mimeType.includes('excel') || 
-                 mimeType.includes('spreadsheet') || 
-                 fileName.endsWith('.xls') || 
-                 fileName.endsWith('.xlsx') || 
-                 fileName.endsWith('.csv');
+          return mimeType.includes('excel') ||
+            mimeType.includes('spreadsheet') ||
+            fileName.endsWith('.xls') ||
+            fileName.endsWith('.xlsx') ||
+            fileName.endsWith('.csv');
         case 'presentation':
-          return mimeType.includes('presentation') || 
-                 mimeType.includes('powerpoint') ||
-                 fileName.endsWith('.ppt') || 
-                 fileName.endsWith('.pptx');
+          return mimeType.includes('presentation') ||
+            mimeType.includes('powerpoint') ||
+            fileName.endsWith('.ppt') ||
+            fileName.endsWith('.pptx');
         case 'code':
           return mimeType.includes('javascript') ||
-                 mimeType.includes('typescript') ||
-                 mimeType.includes('json') ||
-                 mimeType.includes('xml') ||
-                 mimeType.includes('html') ||
-                 mimeType.includes('css') ||
-                 fileName.endsWith('.js') ||
-                 fileName.endsWith('.ts') ||
-                 fileName.endsWith('.jsx') ||
-                 fileName.endsWith('.tsx') ||
-                 fileName.endsWith('.json') ||
-                 fileName.endsWith('.xml') ||
-                 fileName.endsWith('.html') ||
-                 fileName.endsWith('.css') ||
-                 fileName.endsWith('.py') ||
-                 fileName.endsWith('.java') ||
-                 fileName.endsWith('.c') ||
-                 fileName.endsWith('.cpp') ||
-                 fileName.endsWith('.h') ||
-                 fileName.endsWith('.go') ||
-                 fileName.endsWith('.rs') ||
-                 fileName.endsWith('.php') ||
-                 fileName.endsWith('.rb') ||
-                 fileName.endsWith('.swift') ||
-                 fileName.endsWith('.kt') ||
-                 fileName.endsWith('.sql') ||
-                 fileName.endsWith('.sh') ||
-                 fileName.endsWith('.yaml') ||
-                 fileName.endsWith('.yml');
+            mimeType.includes('typescript') ||
+            mimeType.includes('json') ||
+            mimeType.includes('xml') ||
+            mimeType.includes('html') ||
+            mimeType.includes('css') ||
+            fileName.endsWith('.js') ||
+            fileName.endsWith('.ts') ||
+            fileName.endsWith('.jsx') ||
+            fileName.endsWith('.tsx') ||
+            fileName.endsWith('.json') ||
+            fileName.endsWith('.xml') ||
+            fileName.endsWith('.html') ||
+            fileName.endsWith('.css') ||
+            fileName.endsWith('.py') ||
+            fileName.endsWith('.java') ||
+            fileName.endsWith('.c') ||
+            fileName.endsWith('.cpp') ||
+            fileName.endsWith('.h') ||
+            fileName.endsWith('.go') ||
+            fileName.endsWith('.rs') ||
+            fileName.endsWith('.php') ||
+            fileName.endsWith('.rb') ||
+            fileName.endsWith('.swift') ||
+            fileName.endsWith('.kt') ||
+            fileName.endsWith('.sql') ||
+            fileName.endsWith('.sh') ||
+            fileName.endsWith('.yaml') ||
+            fileName.endsWith('.yml');
         default:
           return true;
       }
@@ -255,7 +255,7 @@ export default function Documents() {
   const handleFavorite = async (doc: FileItem) => {
     try {
       await api.patch(`/files/${doc.id}/favorite`);
-      setDocuments(prev => prev.map(d => 
+      setDocuments(prev => prev.map(d =>
         d.id === doc.id ? { ...d, isFavorite: !d.isFavorite } : d
       ));
       toast(doc.isFavorite ? t('documents.removedFromFavorites') : t('documents.addedToFavorites'), 'success');
@@ -269,6 +269,7 @@ export default function Documents() {
     try {
       await api.delete(`/files/${doc.id}`);
       toast(t('documents.movedToTrash'), 'success');
+      clearSelection();
       loadData();
     } catch {
       toast(t('documents.deleteError'), 'error');
@@ -280,7 +281,7 @@ export default function Documents() {
     e.stopPropagation();
     try {
       await api.patch(`/files/${doc.id}/favorite`);
-      setDocuments(prev => prev.map(d => 
+      setDocuments(prev => prev.map(d =>
         d.id === doc.id ? { ...d, isFavorite: !d.isFavorite } : d
       ));
       toast(doc.isFavorite ? t('documents.removedFromFavorites') : t('documents.addedToFavorites'), 'success');
@@ -310,7 +311,7 @@ export default function Documents() {
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3">
             {documents.map((doc) => {
               const isSelected = selectedItems.has(doc.id);
-              
+
               const handleDocClick = (e: React.MouseEvent) => {
                 // Shift+Click: Range selection
                 if (e.shiftKey && lastSelectedId) {
@@ -358,14 +359,14 @@ export default function Documents() {
                       fileName={doc.name}
                       mimeType={doc.mimeType}
                     />
-                    
+
                     {/* Selection indicator */}
                     {isSelected && (
                       <div className="absolute top-2 left-2 w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center shadow-lg z-20">
                         <Check className="w-4 h-4 text-white" />
                       </div>
                     )}
-                    
+
                     {/* Favorite button */}
                     <button
                       onClick={(e) => toggleFavorite(e, doc)}
@@ -375,10 +376,11 @@ export default function Documents() {
                           ? 'bg-red-500 text-white'
                           : 'bg-black/40 text-white opacity-0 group-hover:opacity-100 hover:bg-black/60'
                       )}
+                      aria-label={doc.isFavorite ? t('common.removeFromFavorites') : t('common.addToFavorites')}
                     >
                       <Heart className={cn('w-4 h-4', doc.isFavorite && 'fill-current')} />
                     </button>
-                    
+
                     {/* Preview overlay on hover */}
                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                       <div className="w-12 h-12 rounded-full bg-primary-500 flex items-center justify-center shadow-lg transform transition-transform group-hover:scale-110">
@@ -425,44 +427,44 @@ export default function Documents() {
           const getEmptyStateConfig = () => {
             switch (tab) {
               case 'pdf':
-                return { 
-                  icon: FileText, 
-                  title: t('documents.noPdfs'), 
+                return {
+                  icon: FileText,
+                  title: t('documents.noPdfs'),
                   subtitle: t('documents.uploadPdfs'),
                   color: 'text-red-400'
                 };
               case 'text':
-                return { 
-                  icon: FileText, 
-                  title: t('documents.noText'), 
+                return {
+                  icon: FileText,
+                  title: t('documents.noText'),
                   subtitle: t('documents.uploadText'),
                   color: 'text-blue-400'
                 };
               case 'spreadsheet':
-                return { 
-                  icon: FileSpreadsheet, 
-                  title: t('documents.noSpreadsheets'), 
+                return {
+                  icon: FileSpreadsheet,
+                  title: t('documents.noSpreadsheets'),
                   subtitle: t('documents.uploadSpreadsheets'),
                   color: 'text-green-400'
                 };
               case 'presentation':
-                return { 
-                  icon: Presentation, 
-                  title: t('documents.noPresentations'), 
+                return {
+                  icon: Presentation,
+                  title: t('documents.noPresentations'),
                   subtitle: t('documents.uploadPresentations'),
                   color: 'text-orange-400'
                 };
               case 'code':
-                return { 
-                  icon: Code, 
-                  title: t('documents.noCode'), 
+                return {
+                  icon: Code,
+                  title: t('documents.noCode'),
                   subtitle: t('documents.uploadCode'),
                   color: 'text-purple-400'
                 };
               default:
-                return { 
-                  icon: FileText, 
-                  title: t('documents.noDocuments'), 
+                return {
+                  icon: FileText,
+                  title: t('documents.noDocuments'),
                   subtitle: t('documents.uploadDocuments'),
                   color: 'text-dark-400'
                 };
@@ -486,133 +488,133 @@ export default function Documents() {
           const currentSelectedItems = useFileStore.getState().selectedItems;
           const isMultiSelect = currentSelectedItems.size > 1 && currentSelectedItems.has(contextMenu.doc.id);
           const selectedCount = isMultiSelect ? currentSelectedItems.size : 1;
-          
+
           const menuWidth = 288;
           const baseHeight = isMultiSelect ? 180 : 380;
           const padding = 20;
-          
+
           let left = contextMenu.x + menuWidth > window.innerWidth ? contextMenu.x - menuWidth : contextMenu.x;
           let top = contextMenu.y;
-          
+
           if (contextMenu.y + baseHeight > window.innerHeight - padding) {
             top = Math.max(padding, contextMenu.y - baseHeight);
           }
-          
+
           return (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            transition={{ duration: 0.1 }}
-            style={{ position: 'fixed', left, top }}
-            className="z-50 min-w-72 bg-white dark:bg-dark-800 rounded-xl shadow-2xl border border-dark-200 dark:border-dark-700 py-2 overflow-hidden"
-          >
-            {/* Header for multi-select */}
-            {isMultiSelect && (
-              <>
-                <div className="px-4 py-2 text-sm font-medium text-dark-500 dark:text-dark-400">
-                  {t('documents.selectedDocuments', { count: selectedCount })}
-                </div>
-                <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
-              </>
-            )}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.1 }}
+              style={{ position: 'fixed', left, top }}
+              className="z-50 min-w-[180px] bg-white dark:bg-dark-800 rounded-xl shadow-lg border border-dark-200 dark:border-dark-700 py-1 overflow-hidden"
+            >
+              {/* Header for multi-select */}
+              {isMultiSelect && (
+                <>
+                  <div className="px-4 py-2 text-sm font-medium text-dark-500 dark:text-dark-400">
+                    {t('documents.selectedDocuments', { count: selectedCount })}
+                  </div>
+                  <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
+                </>
+              )}
 
-            {/* Single item actions */}
-            {!isMultiSelect && (
-              <>
-                {/* Vista previa */}
-                <div className="px-2 py-1">
-                  <button
-                    onClick={() => { handlePreview(contextMenu.doc); closeContextMenu(); }}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
-                  >
-                    <Eye className="w-5 h-5" />
-                    <span>{t('documents.preview')}</span>
-                  </button>
-                </div>
-                
-                <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
-                
-                {/* Acciones de archivo */}
-                <div className="px-2 py-1">
-                  <button
-                    onClick={() => handleDownload(contextMenu.doc)}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
-                  >
-                    <Download className="w-5 h-5" />
-                    <span>{t('common.download')}</span>
-                  </button>
-                  <button
-                    onClick={() => handleShare(contextMenu.doc)}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
-                  >
-                    <Share2 className="w-5 h-5" />
-                    <span>{t('common.share')}</span>
-                  </button>
-                  <button
-                    onClick={() => handleCopyLink(contextMenu.doc)}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
-                  >
-                    <Copy className="w-5 h-5" />
-                    <span>{t('common.copyLink')}</span>
-                  </button>
-                </div>
-                
-                <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
-                
-                {/* Organización */}
-                <div className="px-2 py-1">
-                  <button
-                    onClick={() => handleFavorite(contextMenu.doc)}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
-                  >
-                    <Star className={cn('w-5 h-5', contextMenu.doc.isFavorite && 'fill-yellow-500 text-yellow-500')} />
-                    <span>{contextMenu.doc.isFavorite ? t('common.removeFromFavorites') : t('common.addToFavorites')}</span>
-                  </button>
-                  <button
-                    onClick={() => handleShowInfo(contextMenu.doc)}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
-                  >
-                    <Info className="w-5 h-5" />
-                    <span>{t('common.info')}</span>
-                  </button>
-                </div>
-                
-                <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
-              </>
-            )}
+              {/* Single item actions */}
+              {!isMultiSelect && (
+                <>
+                  {/* Vista previa */}
+                  <div className="px-2 py-1">
+                    <button
+                      onClick={() => { handlePreview(contextMenu.doc); closeContextMenu(); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
+                    >
+                      <Eye className="w-5 h-5" />
+                      <span>{t('documents.preview')}</span>
+                    </button>
+                  </div>
 
-            {/* Multi-select actions */}
-            {isMultiSelect && (
-              <>
-                <div className="px-2 py-1">
-                  <button
-                    onClick={() => {
-                      const selected = documents.filter(d => currentSelectedItems.has(d.id));
-                      selected.forEach(d => handleDownload(d));
-                    }}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
-                  >
-                    <Download className="w-5 h-5" />
-                    <span>{t('documents.downloadCount', { count: selectedCount })}</span>
-                  </button>
-                </div>
-                
-                <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
-              </>
-            )}
-            
-            {/* Eliminar - siempre visible */}
-            <div className="px-2 py-1">
-              <button
-                onClick={() => handleDelete(contextMenu.doc)}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-              >
-                <Trash2 className="w-5 h-5" />
-                <span>{isMultiSelect ? t('documents.deleteCount', { count: selectedCount }) : t('common.delete')}</span>
-              </button>
-            </div>
-          </motion.div>
+                  <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
+
+                  {/* Acciones de archivo */}
+                  <div className="px-2 py-1">
+                    <button
+                      onClick={() => handleDownload(contextMenu.doc)}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
+                    >
+                      <Download className="w-5 h-5" />
+                      <span>{t('common.download')}</span>
+                    </button>
+                    <button
+                      onClick={() => handleShare(contextMenu.doc)}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
+                    >
+                      <Share2 className="w-5 h-5" />
+                      <span>{t('common.share')}</span>
+                    </button>
+                    <button
+                      onClick={() => handleCopyLink(contextMenu.doc)}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
+                    >
+                      <Copy className="w-5 h-5" />
+                      <span>{t('common.copyLink')}</span>
+                    </button>
+                  </div>
+
+                  <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
+
+                  {/* Organización */}
+                  <div className="px-2 py-1">
+                    <button
+                      onClick={() => handleFavorite(contextMenu.doc)}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
+                    >
+                      <Star className={cn('w-5 h-5', contextMenu.doc.isFavorite && 'fill-yellow-500 text-yellow-500')} />
+                      <span>{contextMenu.doc.isFavorite ? t('common.removeFromFavorites') : t('common.addToFavorites')}</span>
+                    </button>
+                    <button
+                      onClick={() => handleShowInfo(contextMenu.doc)}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
+                    >
+                      <Info className="w-5 h-5" />
+                      <span>{t('common.info')}</span>
+                    </button>
+                  </div>
+
+                  <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
+                </>
+              )}
+
+              {/* Multi-select actions */}
+              {isMultiSelect && (
+                <>
+                  <div className="px-2 py-1">
+                    <button
+                      onClick={() => {
+                        const selected = documents.filter(d => currentSelectedItems.has(d.id));
+                        selected.forEach(d => handleDownload(d));
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
+                    >
+                      <Download className="w-5 h-5" />
+                      <span>{t('documents.downloadCount', { count: selectedCount })}</span>
+                    </button>
+                  </div>
+
+                  <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
+                </>
+              )}
+
+              {/* Eliminar - siempre visible */}
+              <div className="px-2 py-1">
+                <button
+                  onClick={() => handleDelete(contextMenu.doc)}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                >
+                  <Trash2 className="w-5 h-5" />
+                  <span>{isMultiSelect ? t('documents.deleteCount', { count: selectedCount }) : t('common.delete')}</span>
+                </button>
+              </div>
+            </motion.div>
           );
         })()}
       </AnimatePresence>
@@ -669,7 +671,7 @@ export default function Documents() {
                 <p className="text-sm text-dark-500">{infoDoc.mimeType}</p>
               </div>
             </div>
-            
+
             <div className="space-y-3 mb-6">
               <div className="flex justify-between py-2 border-b border-dark-200 dark:border-dark-700">
                 <span className="text-dark-500">{t('documents.size')}</span>
@@ -688,7 +690,7 @@ export default function Documents() {
                 <span className="text-dark-900 dark:text-white font-medium">{infoDoc.isFavorite ? t('common.yes') : t('common.no')}</span>
               </div>
             </div>
-            
+
             <div className="flex justify-end">
               <Button onClick={() => setInfoDoc(null)}>
                 {t('common.close')}

@@ -8,6 +8,9 @@
     "dev": "tsx watch --ignore './data/**' --ignore './prisma/**' src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
@@ -66,8 +69,11 @@
     "@types/nodemailer": "^6.4.16",
     "@types/unzipper": "^0.10.11",
     "@types/uuid": "^10.0.0",
+    "@types/supertest": "^6.0.2",
     "prisma": "^5.22.0",
+    "supertest": "^7.0.0",
     "tsx": "^4.19.2",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.0"
   }
 }

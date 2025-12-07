@@ -36,7 +36,7 @@ export default function Trash() {
   const [infoItem, setInfoItem] = useState<{ type: 'file' | 'folder'; item: FileItem | FolderType } | null>(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState<{ files: FileItem[]; folders: FolderType[] } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  
+
   const { addOperation, completeOperation, failOperation } = useGlobalProgressStore();
   const { selectedItems, selectSingle, toggleSelection, clearSelection } = useFileStore();
 
@@ -117,14 +117,14 @@ export default function Trash() {
   const emptyTrash = async () => {
     setEmptyingTrash(true);
     const totalItems = data.files.length + data.folders.length;
-    
+
     const opId = addOperation({
       id: `empty-trash-${Date.now()}`,
       type: 'delete',
       title: t('trash.emptyingTrash', { count: totalItems }),
       totalItems: totalItems,
     });
-    
+
     try {
       await api.delete('/trash/empty');
       completeOperation(opId);
@@ -144,10 +144,10 @@ export default function Trash() {
   const handleContextMenu = (e: React.MouseEvent, type: 'file' | 'folder', item: FileItem | FolderType) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     // Obtener el estado actual directamente del store (síncrono)
     const currentSelectedItems = useFileStore.getState().selectedItems;
-    
+
     // Si el item clickeado no está en la selección, seleccionarlo solo
     if (!currentSelectedItems.has(item.id)) {
       selectSingle(item.id);
@@ -157,7 +157,7 @@ export default function Trash() {
       // Guardar la selección actual para usar en las acciones del menú
       setContextMenuSelection(new Set(currentSelectedItems));
     }
-    
+
     setContextMenu({ x: e.clientX, y: e.clientY, type, item });
   };
 
@@ -174,12 +174,12 @@ export default function Trash() {
 
   const handleRestoreFromMenu = async () => {
     if (!contextMenu) return;
-    
+
     // Usar la selección capturada al abrir el menú
     const selectedFilesList = data.files.filter(f => contextMenuSelection.has(f.id));
     const selectedFoldersList = data.folders.filter(f => contextMenuSelection.has(f.id));
     const total = selectedFilesList.length + selectedFoldersList.length;
-    
+
     if (total === 0) {
       // Si no hay selección, restaurar solo el item del menú
       if (contextMenu.type === 'file') {
@@ -202,7 +202,7 @@ export default function Trash() {
         title: t('trash.restoringItems', { count: total }),
         totalItems: total,
       });
-      
+
       try {
         for (const file of selectedFilesList) {
           await api.post(`/trash/restore/file/${file.id}`);
@@ -219,18 +219,18 @@ export default function Trash() {
         toast(t('trash.restoreErrorGeneric'), 'error');
       }
     }
-    
+
     closeContextMenu();
   };
 
   const handleDeleteFromMenu = async () => {
     if (!contextMenu) return;
-    
+
     // Usar la selección capturada al abrir el menú
     const selectedFilesList = data.files.filter(f => contextMenuSelection.has(f.id));
     const selectedFoldersList = data.folders.filter(f => contextMenuSelection.has(f.id));
     const total = selectedFilesList.length + selectedFoldersList.length;
-    
+
     if (total === 0) {
       // Si no hay selección, eliminar solo el item del menú
       if (contextMenu.type === 'file') {
@@ -251,25 +251,25 @@ export default function Trash() {
       closeContextMenu();
       return;
     }
-    
+
     closeContextMenu();
   };
 
   const executeMultiDelete = async () => {
     if (!deleteConfirmation) return;
-    
+
     const { files, folders } = deleteConfirmation;
     const total = files.length + folders.length;
-    
+
     setIsDeleting(true);
-    
+
     const opId = addOperation({
       id: `delete-permanent-${Date.now()}`,
       type: 'delete',
       title: t('trash.deletingPermanently', { count: total }),
       totalItems: total,
     });
-    
+
     try {
       for (const file of files) {
         await api.delete(`/files/${file.id}?permanent=true`);
@@ -331,9 +331,9 @@ export default function Trash() {
                 onClick={(e) => handleItemClick(e, folder.id)}
                 onContextMenu={(e) => handleContextMenu(e, 'folder', folder)}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all cursor-pointer",
-                  isSelected 
-                    ? "bg-primary-100 dark:bg-primary-900/30 ring-2 ring-primary-500 ring-offset-2 ring-offset-white dark:ring-offset-[#121212]" 
+                  "group flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all cursor-pointer",
+                  isSelected
+                    ? "bg-primary-100 dark:bg-primary-900/30 ring-2 ring-primary-500 ring-offset-2 ring-offset-white dark:ring-offset-[#121212]"
                     : "hover:bg-dark-50 dark:hover:bg-dark-800"
                 )}
               >
@@ -350,7 +350,7 @@ export default function Trash() {
                     <span>{t('trash.deletedOn', { date: formatDate(folder.trashedAt || folder.updatedAt) })}</span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
                   <Button
                     variant="secondary"
                     size="sm"
@@ -359,21 +359,21 @@ export default function Trash() {
                     aria-label={t('trash.restoreFolder', { name: folder.name })}
                   >
                     {t('trash.restore')}
-                </Button>
-                <Button
-                  variant="danger"
-                  size="sm"
-                  onClick={() => deleteFolder(folder)}
-                  icon={<Trash2 className="w-4 h-4" />}
-                  aria-label={t('trash.deleteFolderPermanently', { name: folder.name })}
-                >
-                  {t('trash.delete')}
-                </Button>
+                  </Button>
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    onClick={() => deleteFolder(folder)}
+                    icon={<Trash2 className="w-4 h-4" />}
+                    aria-label={t('trash.deleteFolderPermanently', { name: folder.name })}
+                  >
+                    {t('trash.delete')}
+                  </Button>
+                </div>
               </div>
-            </div>
             );
           })}
-          
+
           {/* Archivos */}
           {data.files.map((file) => {
             const isSelected = selectedItems.has(file.id);
@@ -384,9 +384,9 @@ export default function Trash() {
                 onClick={(e) => handleItemClick(e, file.id)}
                 onContextMenu={(e) => handleContextMenu(e, 'file', file)}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all cursor-pointer",
-                  isSelected 
-                    ? "bg-primary-100 dark:bg-primary-900/30 ring-2 ring-primary-500 ring-offset-2 ring-offset-white dark:ring-offset-[#121212]" 
+                  "group flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all cursor-pointer",
+                  isSelected
+                    ? "bg-primary-100 dark:bg-primary-900/30 ring-2 ring-primary-500 ring-offset-2 ring-offset-white dark:ring-offset-[#121212]"
                     : "hover:bg-dark-50 dark:hover:bg-dark-800"
                 )}
               >
@@ -405,7 +405,7 @@ export default function Trash() {
                     <span>{t('trash.deletedOn', { date: formatDate(file.trashedAt || file.updatedAt) })}</span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
                   <Button
                     variant="secondary"
                     size="sm"
@@ -489,7 +489,7 @@ export default function Trash() {
                 return contextMenu.y;
               })(),
             }}
-            className="z-50 min-w-72 bg-white dark:bg-dark-800 rounded-xl shadow-2xl border border-dark-200 dark:border-dark-700 py-2 overflow-hidden"
+            className="z-50 min-w-[180px] bg-white dark:bg-dark-800 rounded-xl shadow-lg border border-dark-200 dark:border-dark-700 py-1 overflow-hidden"
           >
             {/* Restaurar */}
             <div className="px-2 py-1">
@@ -501,9 +501,9 @@ export default function Trash() {
                 <span>{t('trash.restore')}</span>
               </button>
             </div>
-            
+
             <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
-            
+
             {/* Información */}
             <div className="px-2 py-1">
               <button
@@ -514,9 +514,9 @@ export default function Trash() {
                 <span>{t('trash.info')}</span>
               </button>
             </div>
-            
+
             <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
-            
+
             {/* Eliminar permanentemente */}
             <div className="px-2 py-1">
               <button
@@ -555,7 +555,7 @@ export default function Trash() {
                 <p className="text-sm text-dark-500">{infoItem.type === 'folder' ? t('trash.folder') : t('trash.file')}</p>
               </div>
             </div>
-            
+
             <div className="space-y-3 mb-6">
               {infoItem.type === 'file' && (
                 <div className="flex justify-between py-2 border-b border-dark-200 dark:border-dark-700">
@@ -578,7 +578,7 @@ export default function Trash() {
                 </span>
               </div>
             </div>
-            
+
             <div className="flex justify-end">
               <Button onClick={() => setInfoItem(null)}>
                 {t('trash.close')}
@@ -610,12 +610,12 @@ export default function Trash() {
                 </p>
               </div>
             </div>
-            
+
             <p className="text-dark-600 dark:text-dark-300 mb-6">
               {t('trash.deleteConfirmMessage')}
               <span className="text-red-600 dark:text-red-400 font-medium"> {t('trash.emptyConfirmWarning')}</span>
             </p>
-            
+
             {/* Preview of items to delete */}
             <div className="max-h-32 overflow-y-auto mb-6 space-y-1">
               {deleteConfirmation.folders.map(folder => (
@@ -631,7 +631,7 @@ export default function Trash() {
                 </div>
               ))}
             </div>
-            
+
             <div className="flex justify-end gap-3">
               <Button
                 variant="secondary"

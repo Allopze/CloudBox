@@ -13,6 +13,7 @@
     "play": "Play",
     "pause": "Pause",
     "close": "Close player",
+    "seek": "Seek",
     "trackOf": "{{current}} of {{total}}"
   },
   "header": {
@@ -98,7 +99,10 @@
     "selectAll": "Select all",
     "addFile": "Add file",
     "addFolder": "Add folder",
-    "refresh": "Refresh"
+    "refresh": "Refresh",
+    "selectFolderToUpload": "Select folder to upload",
+    "viewGrid": "Grid view",
+    "viewList": "List view"
   },
   "files": {
     "loading": "Loading...",
@@ -113,6 +117,7 @@
     "moveToTrashWarning": "This action will move the items to trash.",
     "uploading": "Uploading {{count}} file(s)...",
     "uploadSuccess": "{{count}} file(s) uploaded successfully",
+    "uploadPartialSuccess": "{{success}} file(s) uploaded, {{failed}} failed",
     "uploadError": "Error uploading files",
     "folderUploaded": "Folder uploaded successfully",
     "folderUploadError": "Error uploading folder",
@@ -170,7 +175,9 @@
     "noScreenshots": "No screenshots",
     "uploadScreenshots": "Screenshots will appear here",
     "noFavoritePhotos": "No favorite photos",
-    "addFavoritePhotos": "Add photos to favorites to see them here"
+    "addFavoritePhotos": "Add photos to favorites to see them here",
+    "deleteConfirmTitle": "Delete photo",
+    "deleteConfirmMessage": "Are you sure you want to move this photo to trash?"
   },
   "music": {
     "loadError": "Error loading music",
@@ -372,7 +379,15 @@
       "RENAME": "Item renamed",
       "CREATE_FOLDER": "Folder created",
       "COMPRESS": "File compressed",
-      "DECOMPRESS": "File decompressed"
+      "DECOMPRESS": "File decompressed",
+      "AUDIT_LOGIN_SUCCESS": "Login successful",
+      "AUDIT_LOGIN_FAILED": "Login failed",
+      "AUDIT_FILE_UPLOAD": "File uploaded",
+      "AUDIT_FILE_DOWNLOAD": "File downloaded",
+      "AUDIT_FILE_DELETE": "File deleted",
+      "AUDIT_FILE_MOVE": "File moved",
+      "AUDIT_FILE_RENAME": "File renamed",
+      "AUDIT_FOLDER_CREATE": "Folder created"
     }
   },
   "settings": {
@@ -542,7 +557,10 @@
     "noResults": "No results",
     "required": "Required",
     "optional": "Optional",
-    "create": "Create"
+    "create": "Create",
+    "copyLink": "Copy link",
+    "addToFavorites": "Add to favorites",
+    "removeFromFavorites": "Remove from favorites"
   },
   "fileCard": {
     "download": "Download",
@@ -554,6 +572,7 @@
     "share": "Share",
     "rename": "Rename",
     "move": "Move",
+    "compress": "Compress",
     "moveToTrash": "Move to trash",
     "deletingItems": "Deleting {{count}} item(s)",
     "itemsMovedToTrash": "{{count}} item(s) moved to trash",
@@ -570,6 +589,7 @@
     "share": "Share",
     "rename": "Rename",
     "move": "Move",
+    "compress": "Compress",
     "moveToTrash": "Move to trash",
     "deletingItems": "Deleting {{count}} item(s)",
     "itemsMovedToTrash": "{{count}} item(s) moved to trash",
@@ -584,6 +604,7 @@
     "upload": {
       "title": "Upload files",
       "dragDrop": "Drag and drop files here",
+      "dragOrClick": "Drag and drop files here, or click to select",
       "dropHere": "Drop files here or click to select",
       "maxSize": "Maximum file size: {{size}}",
       "filesSelected": "{{count}} file(s) selected",
@@ -713,6 +734,25 @@
       "deleteNote": "This action will move the items to trash.",
       "deleteButton": "Delete",
       "cancelButton": "Cancel"
+    },
+    "compress": {
+      "title": "Compress files",
+      "itemsToCompress": "Items to compress",
+      "itemCount": "{{count}} items",
+      "outputName": "Archive name",
+      "namePlaceholder": "archive",
+      "nameRequired": "Archive name is required",
+      "format": "Format",
+      "formatZipDesc": "Compatible",
+      "format7zDesc": "Best ratio",
+      "formatTarDesc": "Unix/Linux",
+      "compress": "Compress",
+      "compressing": "Compressing...",
+      "preparing": "Preparing...",
+      "completed": "Compression completed",
+      "success": "Archive created successfully",
+      "error": "Error creating archive",
+      "connectionError": "Connection lost"
     }
   },
   "admin": {
@@ -733,7 +773,9 @@
       "allowRegistration": "Allow Registration",
       "allowRegistrationDesc": "New users can register",
       "defaultQuota": "Default quota",
+      "quotaUnit": "Quota unit",
       "maxFileSize": "Max file size",
+      "fileSizeUnit": "Size unit",
       "allowedTypes": "Allowed types",
       "save": "Save General"
     },
@@ -914,7 +956,21 @@
     "deleteUserError": "Error deleting user",
     "roleChangeError": "Error changing role",
     "promotedToAdmin": "User promoted to admin",
-    "demotedToUser": "User demoted to user"
+    "demotedToUser": "User demoted to user",
+    "limitsSaved": "Limits saved",
+    "limitsSaveError": "Error saving limits",
+    "limits": {
+      "title": "Upload Limits",
+      "description": "Configure size limits for uploaded files",
+      "maxFileSize": "Maximum file size",
+      "maxFileSizeHint": "Maximum allowed size per file",
+      "chunkSize": "Chunk size",
+      "chunkSizeHint": "Size of each upload fragment",
+      "concurrentChunks": "Concurrent chunks",
+      "concurrentChunksHint": "Number of simultaneous fragments (1-10)",
+      "unit": "Size unit",
+      "save": "Save limits"
+    }
   },
   "gallery": {
     "download": "Download",
@@ -932,6 +988,10 @@
     "exitFullscreen": "Exit fullscreen",
     "speed": "Speed",
     "normal": "Normal",
+    "mute": "Mute",
+    "unmute": "Unmute",
+    "volume": "Volume",
+    "settings": "Settings",
     "loadingDocument": "Loading document...",
     "loadingPdf": "Loading PDF...",
     "page": "Page",
@@ -946,6 +1006,9 @@
     "unsupportedDocument": "Document type not supported for preview.",
     "loading": "Loading document...",
     "loadError": "Error loading PDF.",
+    "conversionFailed": "Failed to convert document",
+    "convertingDocument": "Converting document to PDF...",
+    "conversionTimeout": "Document conversion took too long. Try downloading the file.",
     "closeEsc": "Close (Esc)"
   },
   "publicShare": {
@@ -1090,5 +1153,37 @@
     "completed": "{{count}} completed",
     "inProgress": "{{count}} operation(s) in progress",
     "allCompleted": "Operations completed"
+  },
+  "legal": {
+    "center": "Legal Center",
+    "mission": "Transparency and trust are core to our mission.",
+    "contact": "Contact",
+    "officialDocument": "Official Document",
+    "questions": "Have questions about these terms?",
+    "contactTeam": "Contact our legal team",
+    "print": "Print",
+    "accessAccount": "Access Account",
+    "workingHours": "Mon-Fri 9am-6pm",
+    "lastUpdated": "Last updated",
+    "privacyPolicy": "Privacy Policy",
+    "termsOfService": "Terms of Service",
+    "privacy": "Privacy",
+    "terms": "Terms",
+    "privacySections": {
+      "collection": "1. Information We Collect",
+      "usage": "2. How We Use Your Information"
+    },
+    "privacyContent": {
+      "collection": "We collect information you provide directly to us...",
+      "usage": "We use the information we collect to provide, maintain, and improve our services..."
+    },
+    "termsSections": {
+      "acceptance": "1. Acceptance of Terms",
+      "accounts": "2. User Accounts"
+    },
+    "termsContent": {
+      "acceptance": "By accessing or using our services, you agree to be bound by these Terms of Service...",
+      "accounts": "You are responsible for safeguarding the password that you use to access the service..."
+    }
   }
 }

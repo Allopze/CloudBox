@@ -14,7 +14,6 @@ import {
   validateFiles,
   UPLOAD_CONFIG,
   formatSpeed,
-  estimateRemainingTime,
   type UploadProgress,
 } from '../../lib/chunkedUpload';
 
@@ -68,7 +67,7 @@ export default function UploadModal({
   const onDrop = useCallback((acceptedFiles: File[]) => {
     // Validate files before adding
     const validation = validateFiles(acceptedFiles, userQuota);
-    
+
     // Set validation errors
     setValidationErrors(new Map(
       Array.from(validation.errors.entries()).map(([name, result]) => [
@@ -90,7 +89,7 @@ export default function UploadModal({
         errorCode: error?.errorCode,
       };
     });
-    
+
     setFiles((prev) => [...prev, ...newFiles]);
   }, [userQuota]);
 
@@ -109,15 +108,15 @@ export default function UploadModal({
       prev.map((f) =>
         f.id === fileId
           ? {
-              ...f,
-              progress: progress.progress,
-              speed: progress.speed,
-              status: progress.status === 'cancelled' ? 'error' : progress.status,
-              error: progress.error,
-              errorCode: progress.errorCode,
-              chunksTotal: progress.chunksTotal,
-              chunksUploaded: progress.chunksUploaded,
-            }
+            ...f,
+            progress: progress.progress,
+            speed: progress.speed,
+            status: progress.status === 'cancelled' ? 'error' : progress.status,
+            error: progress.error,
+            errorCode: progress.errorCode,
+            chunksTotal: progress.chunksTotal,
+            chunksUploaded: progress.chunksUploaded,
+          }
           : f
       )
     );
@@ -129,7 +128,7 @@ export default function UploadModal({
 
     setIsUploading(true);
     abortControllerRef.current = new AbortController();
-    
+
     const pendingFiles = files.filter((f) => f.status === 'pending');
     const folderId = getCurrentFolderId();
 
@@ -146,7 +145,7 @@ export default function UploadModal({
       // Start new uploads up to concurrency limit
       while (executing.length < UPLOAD_CONFIG.MAX_CONCURRENT_FILES && queue.length > 0) {
         const fileUpload = queue.shift()!;
-        
+
         const promise = chunkedUploadFile(
           fileUpload.file,
           folderId,
@@ -169,10 +168,10 @@ export default function UploadModal({
 
     setIsUploading(false);
     abortControllerRef.current = null;
-    
+
     const hasErrors = files.some((f) => f.status === 'error');
     const completedCount = files.filter((f) => f.status === 'completed').length;
-    
+
     if (completedCount > 0) {
       toast(t('modals.upload.allFilesUploaded'), 'success');
       onSuccess?.();
@@ -278,9 +277,9 @@ export default function UploadModal({
         </p>
         <p className="text-sm text-dark-500 mt-2">{t('modals.upload.maxSize')}</p>
         <p className="text-xs text-dark-400 mt-1">
-          {t('modals.upload.parallelInfo', { 
+          {t('modals.upload.parallelInfo', {
             files: UPLOAD_CONFIG.MAX_CONCURRENT_FILES,
-            chunks: UPLOAD_CONFIG.MAX_CONCURRENT_CHUNKS 
+            chunks: UPLOAD_CONFIG.MAX_CONCURRENT_CHUNKS
           })}
         </p>
       </div>
@@ -304,8 +303,8 @@ export default function UploadModal({
                 key={fileUpload.id}
                 className={cn(
                   'flex items-center gap-3 p-3 rounded-lg',
-                  fileUpload.status === 'error' 
-                    ? 'bg-red-50 dark:bg-red-900/20' 
+                  fileUpload.status === 'error'
+                    ? 'bg-red-50 dark:bg-red-900/20'
                     : 'bg-dark-50 dark:bg-dark-700'
                 )}
               >
@@ -326,9 +325,9 @@ export default function UploadModal({
                       <>
                         <span>•</span>
                         <span>
-                          {t('modals.upload.chunks', { 
-                            uploaded: fileUpload.chunksUploaded || 0, 
-                            total: fileUpload.chunksTotal 
+                          {t('modals.upload.chunks', {
+                            uploaded: fileUpload.chunksUploaded || 0,
+                            total: fileUpload.chunksTotal
                           })}
                         </span>
                       </>
@@ -351,6 +350,7 @@ export default function UploadModal({
                   <button
                     onClick={() => removeFile(fileUpload.id)}
                     className="p-1 text-dark-400 hover:text-dark-600 dark:hover:text-dark-200"
+                    aria-label={t('common.remove')}
                   >
                     <X className="w-5 h-5" />
                   </button>
@@ -364,7 +364,7 @@ export default function UploadModal({
       {/* Actions */}
       <div className="flex justify-end gap-3 mt-6">
         {isUploading ? (
-          <Button variant="outline" onClick={handleCancel}>
+          <Button variant="secondary" onClick={handleCancel}>
             {t('common.cancel')}
           </Button>
         ) : (

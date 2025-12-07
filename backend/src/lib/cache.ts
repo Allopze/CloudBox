@@ -27,6 +27,11 @@ const CACHE_CONFIG = {
     folders: 60,        // 1 minute - moderate changes
     fileMetadata: 300,  // 5 minutes - rarely changes
     quota: 60,          // 1 minute - changes with uploads
+    albums: 120,        // 2 minutes - moderate changes
+    shares: 180,        // 3 minutes - less frequent changes
+    dashboard: 60,      // 1 minute - aggregate stats
+    recent: 30,         // 30 seconds - changes with activity
+    adminStats: 300,    // 5 minutes - system-wide stats
   },
   enabled: process.env.CACHE_ENABLED !== 'false',
 };
@@ -315,6 +320,175 @@ export async function invalidateFileMetadata(fileId: string): Promise<void> {
   await del(`file:${fileId}`);
 }
 
+// ==================== Albums Cache ====================
+
+/**
+ * Get cached albums list for a user
+ */
+export async function getAlbums(userId: string, page: number = 1): Promise<any[] | null> {
+  const key = `albums:${userId}:${page}`;
+  return get<any[]>(key);
+}
+
+/**
+ * Cache albums list for a user
+ */
+export async function setAlbums(userId: string, page: number, albums: any[]): Promise<boolean> {
+  const key = `albums:${userId}:${page}`;
+  return set(key, albums, CACHE_CONFIG.ttl.albums);
+}
+
+/**
+ * Get cached single album
+ */
+export async function getAlbum(albumId: string): Promise<any | null> {
+  const key = `album:${albumId}`;
+  return get<any>(key);
+}
+
+/**
+ * Cache single album
+ */
+export async function setAlbum(albumId: string, album: any): Promise<boolean> {
+  const key = `album:${albumId}`;
+  return set(key, album, CACHE_CONFIG.ttl.albums);
+}
+
+/**
+ * Invalidate albums cache for a user
+ */
+export async function invalidateAlbums(userId: string): Promise<void> {
+  await delPattern(`albums:${userId}:*`);
+}
+
+/**
+ * Invalidate single album cache
+ */
+export async function invalidateAlbum(albumId: string): Promise<void> {
+  await del(`album:${albumId}`);
+}
+
+// ==================== Shares Cache ====================
+
+/**
+ * Get cached shares list for a user
+ */
+export async function getShares(userId: string, page: number = 1): Promise<any[] | null> {
+  const key = `shares:${userId}:${page}`;
+  return get<any[]>(key);
+}
+
+/**
+ * Cache shares list for a user
+ */
+export async function setShares(userId: string, page: number, shares: any[]): Promise<boolean> {
+  const key = `shares:${userId}:${page}`;
+  return set(key, shares, CACHE_CONFIG.ttl.shares);
+}
+
+/**
+ * Get cached public share by token
+ */
+export async function getPublicShare(shareToken: string): Promise<any | null> {
+  const key = `share:public:${shareToken}`;
+  return get<any>(key);
+}
+
+/**
+ * Cache public share by token
+ */
+export async function setPublicShare(shareToken: string, share: any): Promise<boolean> {
+  const key = `share:public:${shareToken}`;
+  return set(key, share, CACHE_CONFIG.ttl.shares);
+}
+
+/**
+ * Invalidate shares cache for a user
+ */
+export async function invalidateShares(userId: string): Promise<void> {
+  await delPattern(`shares:${userId}:*`);
+}
+
+/**
+ * Invalidate public share cache
+ */
+export async function invalidatePublicShare(shareToken: string): Promise<void> {
+  await del(`share:public:${shareToken}`);
+}
+
+// ==================== Dashboard/Stats Cache ====================
+
+/**
+ * Get cached dashboard stats for a user
+ */
+export async function getDashboardStats(userId: string): Promise<any | null> {
+  const key = `dashboard:${userId}`;
+  return get<any>(key);
+}
+
+/**
+ * Cache dashboard stats for a user
+ */
+export async function setDashboardStats(userId: string, stats: any): Promise<boolean> {
+  const key = `dashboard:${userId}`;
+  return set(key, stats, CACHE_CONFIG.ttl.dashboard);
+}
+
+/**
+ * Invalidate dashboard cache for a user
+ */
+export async function invalidateDashboard(userId: string): Promise<void> {
+  await del(`dashboard:${userId}`);
+}
+
+/**
+ * Get cached recent files for a user
+ */
+export async function getRecentFiles(userId: string, limit: number = 10): Promise<any[] | null> {
+  const key = `recent:${userId}:${limit}`;
+  return get<any[]>(key);
+}
+
+/**
+ * Cache recent files for a user
+ */
+export async function setRecentFiles(userId: string, limit: number, files: any[]): Promise<boolean> {
+  const key = `recent:${userId}:${limit}`;
+  return set(key, files, CACHE_CONFIG.ttl.recent);
+}
+
+/**
+ * Invalidate recent files cache for a user
+ */
+export async function invalidateRecentFiles(userId: string): Promise<void> {
+  await delPattern(`recent:${userId}:*`);
+}
+
+// ==================== Admin Stats Cache ====================
+
+/**
+ * Get cached admin system stats
+ */
+export async function getAdminStats(): Promise<any | null> {
+  const key = 'admin:stats';
+  return get<any>(key);
+}
+
+/**
+ * Cache admin system stats
+ */
+export async function setAdminStats(stats: any): Promise<boolean> {
+  const key = 'admin:stats';
+  return set(key, stats, CACHE_CONFIG.ttl.adminStats);
+}
+
+/**
+ * Invalidate admin stats cache
+ */
+export async function invalidateAdminStats(): Promise<void> {
+  await del('admin:stats');
+}
+
 // ==================== Bulk Invalidation ====================
 
 /**
@@ -326,6 +500,10 @@ export async function invalidateAllUserCache(userId: string): Promise<void> {
     invalidateUser(userId),
     invalidateQuota(userId),
     invalidateFolders(userId),
+    invalidateAlbums(userId),
+    invalidateShares(userId),
+    invalidateDashboard(userId),
+    invalidateRecentFiles(userId),
   ]);
 }
 
@@ -336,12 +514,36 @@ export async function invalidateAfterFileChange(userId: string, fileId?: string)
   const promises: Promise<void>[] = [
     invalidateUserFiles(userId),
     invalidateQuota(userId),
+    invalidateDashboard(userId),
+    invalidateRecentFiles(userId),
   ];
   
   if (fileId) {
     promises.push(invalidateFileMetadata(fileId));
   }
   
+  await Promise.all(promises);
+}
+
+/**
+ * Invalidate cache after album operation
+ */
+export async function invalidateAfterAlbumChange(userId: string, albumId?: string): Promise<void> {
+  const promises: Promise<void>[] = [invalidateAlbums(userId)];
+  if (albumId) {
+    promises.push(invalidateAlbum(albumId));
+  }
+  await Promise.all(promises);
+}
+
+/**
+ * Invalidate cache after share operation
+ */
+export async function invalidateAfterShareChange(userId: string, shareToken?: string): Promise<void> {
+  const promises: Promise<void>[] = [invalidateShares(userId)];
+  if (shareToken) {
+    promises.push(invalidatePublicShare(shareToken));
+  }
   await Promise.all(promises);
 }
 

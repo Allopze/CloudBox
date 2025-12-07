@@ -2,8 +2,8 @@
  * Chunked Upload System for CloudBox
  * 
  * Provides parallel chunk uploads for large files with:
- * - Configurable chunk size (default 10MB)
- * - Parallel chunk uploads (default 4 concurrent)
+ * - Configurable chunk size (loaded from server)
+ * - Parallel chunk uploads (configurable via admin panel)
  * - Automatic retry with exponential backoff
  * - Progress tracking per chunk and overall
  * - Pre-validation before upload
@@ -11,16 +11,52 @@
 
 import { api, validateUploadFiles, UploadValidationResult } from './api';
 
-// Configuration
-export const UPLOAD_CONFIG = {
-  DEFAULT_CHUNK_SIZE: 10 * 1024 * 1024, // 10MB
+// Default configuration (used as fallback if API fails)
+const DEFAULT_CONFIG = {
+  DEFAULT_CHUNK_SIZE: 20 * 1024 * 1024, // 20MB
   MAX_CONCURRENT_CHUNKS: 4,
   MAX_CONCURRENT_FILES: 3,
   MAX_RETRIES: 3,
   RETRY_BASE_DELAY: 1000, // 1 second
-  // Thresholds for chunked upload (files larger than this use chunking)
   CHUNKED_UPLOAD_THRESHOLD: 10 * 1024 * 1024, // 10MB
 };
+
+// Dynamic configuration (loaded from server)
+export let UPLOAD_CONFIG = { ...DEFAULT_CONFIG };
+
+// Promise to track config loading
+let configLoadPromise: Promise<void> | null = null;
+let configLoaded = false;
+
+// Load config from server (called once on first use)
+async function loadUploadConfig(): Promise<void> {
+  if (configLoaded) return;
+
+  try {
+    const response = await api.get('/config/upload-limits');
+    const data = response.data;
+
+    UPLOAD_CONFIG = {
+      ...DEFAULT_CONFIG,
+      DEFAULT_CHUNK_SIZE: parseInt(data.chunkSize) || DEFAULT_CONFIG.DEFAULT_CHUNK_SIZE,
+      MAX_CONCURRENT_CHUNKS: parseInt(data.concurrentChunks) || DEFAULT_CONFIG.MAX_CONCURRENT_CHUNKS,
+    };
+    configLoaded = true;
+  } catch (error) {
+    // Use defaults on error
+    console.warn('Failed to load upload config, using defaults');
+    configLoaded = true;
+  }
+}
+
+// Ensure config is loaded before using it
+export async function ensureConfigLoaded(): Promise<void> {
+  if (configLoaded) return;
+  if (!configLoadPromise) {
+    configLoadPromise = loadUploadConfig();
+  }
+  await configLoadPromise;
+}
 
 // Error codes matching backend
 export const UPLOAD_ERROR_CODES = {
@@ -340,7 +376,7 @@ export async function uploadFileChunked(
     // Progress callback for chunks
     const updateProgress = (chunkIndex: number, loaded: number) => {
       chunkProgress.set(chunkIndex, loaded);
-      
+
       // Calculate total uploaded
       let total = 0;
       for (const [idx, bytes] of chunkProgress) {
@@ -384,7 +420,7 @@ export async function uploadFileChunked(
       // Start new uploads up to concurrency limit
       while (executing.length < UPLOAD_CONFIG.MAX_CONCURRENT_CHUNKS && pendingChunks.length > 0) {
         const chunk = pendingChunks.shift()!;
-        
+
         const promise = uploadChunkWithRetry(chunk, uploadId, file, folderId, updateProgress)
           .then((res) => {
             chunk.uploaded = true;
@@ -553,6 +589,9 @@ export async function uploadFile(
   onProgress: ProgressCallback,
   abortSignal?: AbortSignal
 ): Promise<UploadResult> {
+  // Load config dynamically from server
+  await ensureConfigLoaded();
+
   if (file.size > UPLOAD_CONFIG.CHUNKED_UPLOAD_THRESHOLD) {
     return uploadFileChunked(file, folderId, onProgress, abortSignal);
   } else {

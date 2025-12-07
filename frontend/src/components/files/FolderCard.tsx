@@ -14,6 +14,7 @@ import {
   Trash2,
   Edit,
   Move,
+  FileArchive,
 } from 'lucide-react';
 import { formatDate, cn } from '../../lib/utils';
 
@@ -22,6 +23,8 @@ import { toast } from '../ui/Toast';
 import ShareModal from '../modals/ShareModal';
 import RenameModal from '../modals/RenameModal';
 import MoveModal from '../modals/MoveModal';
+import CompressModal from '../modals/CompressModal';
+import ConfirmModal from '../ui/ConfirmModal';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface FolderCardProps {
@@ -42,6 +45,8 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
   const [showShareModal, setShowShareModal] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [showMoveModal, setShowMoveModal] = useState(false);
+  const [showCompressModal, setShowCompressModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [contextMenuSelection, setContextMenuSelection] = useState<Set<string>>(new Set());
   const [isDragOver, setIsDragOver] = useState(false);
@@ -63,7 +68,7 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
     };
     const handleScroll = () => setContextMenu(null);
     const handleContextMenuGlobal = () => setContextMenu(null);
-    
+
     if (contextMenu) {
       document.addEventListener('mousedown', handleClickOutside);
       document.addEventListener('scroll', handleScroll, true);
@@ -79,10 +84,10 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     // Get fresh state from store to ensure we have the latest selection
     const currentSelectedItems = useFileStore.getState().selectedItems;
-    
+
     // If this item is not already selected, select only this item
     // If it's already selected (possibly as part of multi-select), keep the selection
     if (!currentSelectedItems.has(folder.id)) {
@@ -93,7 +98,7 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
       // Save the current multi-selection for use in context menu actions
       setContextMenuSelection(new Set(currentSelectedItems));
     }
-    
+
     setContextMenu({ x: e.clientX, y: e.clientY });
   };
 
@@ -135,31 +140,31 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
     }
   };
 
-  const handleDelete = async () => {
-    setContextMenu(null);
-    
+  const handleDeleteConfirm = async () => {
+    setShowDeleteConfirm(false);
+
     // Use the selection that was captured when the context menu was opened
     const itemsToDelete = contextMenuSelection;
     const clearSelectionFn = useFileStore.getState().clearSelection;
-    
+
     // If multiple items are selected and this folder is one of them, delete all selected
     if (itemsToDelete.size > 1 && itemsToDelete.has(folder.id)) {
       const itemIds = Array.from(itemsToDelete);
       const total = itemIds.length;
-      
+
       const opId = addOperation({
         id: `delete-context-${Date.now()}`,
         type: 'delete',
         title: t('folderCard.deletingItems', { count: total }),
         totalItems: total,
       });
-      
+
       try {
         for (const id of itemIds) {
           const fileEl = document.querySelector(`[data-file-item="${id}"]`);
           const folderEl = document.querySelector(`[data-folder-item="${id}"]`);
           const itemName = fileEl?.getAttribute('data-file-name') || folderEl?.getAttribute('data-folder-name') || id;
-          
+
           if (fileEl) {
             await api.delete(`/files/${id}`);
           } else if (folderEl) {
@@ -167,7 +172,7 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
           }
           incrementProgress(opId, itemName);
         }
-        
+
         completeOperation(opId);
         clearSelectionFn();
         toast(t('folderCard.itemsMovedToTrash', { count: total }), 'success');
@@ -197,17 +202,17 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
   // Drag and Drop handlers
   const handleDragStart = (e: React.DragEvent) => {
     e.stopPropagation();
-    
+
     const currentSelectedItems = useFileStore.getState().selectedItems;
     let itemsToDrag: DragItem[] = [];
-    
+
     // If this folder is selected and there are multiple selections, drag all selected items
     if (currentSelectedItems.has(folder.id) && currentSelectedItems.size > 1) {
       // Get all selected items from the DOM
       currentSelectedItems.forEach(id => {
         const folderEl = document.querySelector(`[data-folder-item="${id}"]`);
         const fileEl = document.querySelector(`[data-file-item="${id}"]`);
-        
+
         if (folderEl) {
           const folderData = folderEl.getAttribute('data-folder-data');
           if (folderData) {
@@ -221,19 +226,19 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
         }
       });
     }
-    
+
     // If no items collected or this folder wasn't selected, just drag this folder
     if (itemsToDrag.length === 0) {
       itemsToDrag = [{ type: 'folder', item: folder }];
       selectSingle(folder.id);
     }
-    
+
     startDrag(itemsToDrag);
-    
+
     // Set drag data for compatibility
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', JSON.stringify(itemsToDrag.map(i => ({ type: i.type, id: i.item.id }))));
-    
+
     // Hide default drag image
     const emptyImg = document.createElement('img');
     emptyImg.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
@@ -254,10 +259,10 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     // Don't allow dropping on itself
     if (isSelfDragged) return;
-    
+
     e.dataTransfer.dropEffect = 'move';
     setIsDragOver(true);
   };
@@ -272,17 +277,17 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
     e.preventDefault();
     e.stopPropagation();
     setIsDragOver(false);
-    
+
     // Don't allow dropping on itself
     if (isSelfDragged) return;
-    
+
     const items = draggedItems;
     endDrag();
-    
+
     if (items.length === 0) return;
-    
+
     const clearSelectionFn = useFileStore.getState().clearSelection;
-    
+
     try {
       for (const dragItem of items) {
         // Skip if trying to move a folder into itself
@@ -290,14 +295,14 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
         // Skip if item is already in this folder
         if (dragItem.type === 'file' && (dragItem.item as FileItem).folderId === folder.id) continue;
         if (dragItem.type === 'folder' && (dragItem.item as Folder).parentId === folder.id) continue;
-        
+
         if (dragItem.type === 'file') {
           await api.patch(`/files/${dragItem.item.id}/move`, { folderId: folder.id });
         } else {
           await api.patch(`/folders/${dragItem.item.id}/move`, { parentId: folder.id });
         }
       }
-      
+
       toast(t('folderCard.itemsMovedTo', { count: items.length, name: folder.name }), 'success');
       clearSelectionFn();
       window.dispatchEvent(new CustomEvent('workzone-refresh'));
@@ -343,9 +348,15 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
         >
           <Move className="w-4 h-4" /> {t('folderCard.move')}
         </button>
+        <button
+          onClick={() => { setContextMenu(null); setShowCompressModal(true); }}
+          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700"
+        >
+          <FileArchive className="w-4 h-4" /> {t('folderCard.compress')}
+        </button>
         <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
         <button
-          onClick={handleDelete}
+          onClick={() => { setContextMenu(null); setShowDeleteConfirm(true); }}
           className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
         >
           <Trash2 className="w-4 h-4" /> {t('folderCard.moveToTrash')}
@@ -375,6 +386,27 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
         onClose={() => setShowMoveModal(false)}
         items={[folder]}
         onSuccess={onRefresh}
+      />
+      <CompressModal
+        isOpen={showCompressModal}
+        onClose={() => setShowCompressModal(false)}
+        items={[{ id: folder.id, name: folder.name, type: 'folder' }]}
+        onSuccess={onRefresh}
+      />
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={handleDeleteConfirm}
+        title={t('modals.confirm.deleteTitle')}
+        message={
+          <div className="space-y-2">
+            <p>{t('modals.confirm.deleteMessage', { count: contextMenuSelection.size > 1 && contextMenuSelection.has(folder.id) ? contextMenuSelection.size : 1 })}</p>
+            <p className="text-sm text-dark-400">{t('modals.confirm.deleteNote')}</p>
+          </div>
+        }
+        confirmText={t('modals.confirm.deleteButton')}
+        cancelText={t('modals.confirm.cancelButton')}
+        variant="warning"
       />
     </>
   );

@@ -170,7 +170,9 @@
     "noScreenshots": "Sem capturas de tela",
     "uploadScreenshots": "Capturas de tela aparecerão aqui",
     "noFavoritePhotos": "Sem fotos favoritas",
-    "addFavoritePhotos": "Adicione fotos aos favoritos para vê-las aqui"
+    "addFavoritePhotos": "Adicione fotos aos favoritos para vê-las aqui",
+    "deleteConfirmTitle": "Excluir foto",
+    "deleteConfirmMessage": "Tem certeza que deseja mover esta foto para a lixeira?"
   },
   "music": {
     "loadError": "Erro ao carregar música",
@@ -542,7 +544,10 @@
     "noResults": "Sem resultados",
     "required": "Obrigatório",
     "optional": "Opcional",
-    "create": "Criar"
+    "create": "Criar",
+    "copyLink": "Copiar link",
+    "addToFavorites": "Adicionar aos favoritos",
+    "removeFromFavorites": "Remover dos favoritos"
   },
   "fileCard": {
     "download": "Baixar",
@@ -554,6 +559,7 @@
     "share": "Compartilhar",
     "rename": "Renomear",
     "move": "Mover",
+    "compress": "Compactar",
     "moveToTrash": "Mover para a lixeira",
     "deletingItems": "Excluindo {{count}} item(ns)",
     "itemsMovedToTrash": "{{count}} item(ns) movido(s) para a lixeira",
@@ -570,6 +576,7 @@
     "share": "Compartilhar",
     "rename": "Renomear",
     "move": "Mover",
+    "compress": "Compactar",
     "moveToTrash": "Mover para a lixeira",
     "deletingItems": "Excluindo {{count}} item(ns)",
     "itemsMovedToTrash": "{{count}} item(ns) movido(s) para a lixeira",
@@ -584,6 +591,7 @@
     "upload": {
       "title": "Enviar arquivos",
       "dragDrop": "Arraste e solte arquivos aqui",
+      "dragOrClick": "Arraste arquivos aqui ou clique para selecionar",
       "dropHere": "Solte arquivos aqui ou clique para selecionar",
       "maxSize": "Tamanho máximo do arquivo: {{size}}",
       "filesSelected": "{{count}} arquivo(s) selecionado(s)",
@@ -705,6 +713,25 @@
       "deleteNote": "Esta ação moverá os itens para a lixeira.",
       "deleteButton": "Excluir",
       "cancelButton": "Cancelar"
+    },
+    "compress": {
+      "title": "Compactar arquivos",
+      "itemsToCompress": "Itens para compactar",
+      "itemCount": "{{count}} itens",
+      "outputName": "Nome do arquivo",
+      "namePlaceholder": "arquivo",
+      "nameRequired": "O nome do arquivo é obrigatório",
+      "format": "Formato",
+      "formatZipDesc": "Compatível",
+      "format7zDesc": "Melhor taxa",
+      "formatTarDesc": "Unix/Linux",
+      "compress": "Compactar",
+      "compressing": "Compactando...",
+      "preparing": "Preparando...",
+      "completed": "Compactação concluída",
+      "success": "Arquivo criado com sucesso",
+      "error": "Erro ao criar o arquivo",
+      "connectionError": "Conexão perdida"
     }
   },
   "admin": {
@@ -906,7 +933,17 @@
     "deleteUserError": "Erro ao excluir usuário",
     "roleChangeError": "Erro ao alterar função",
     "promotedToAdmin": "Usuário promovido a administrador",
-    "demotedToUser": "Usuário rebaixado a usuário"
+    "demotedToUser": "Usuário rebaixado a usuário",
+    "uploadLimits": {
+      "title": "Limites de Upload",
+      "description": "Configurar limites de upload de arquivos",
+      "maxFileSize": "Tamanho máx. arquivo",
+      "chunkSize": "Tamanho dos fragmentos",
+      "concurrentChunks": "Fragmentos simultâneos",
+      "save": "Salvar limites",
+      "saved": "Limites salvos",
+      "saveError": "Erro ao salvar limites"
+    }
   },
   "gallery": {
     "download": "Baixar",

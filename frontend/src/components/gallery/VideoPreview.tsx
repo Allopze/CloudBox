@@ -16,7 +16,7 @@ import {
   Share2,
 } from 'lucide-react';
 import { FileItem } from '../../types';
-import { getFileUrl } from '../../lib/api';
+import { getSignedFileUrl } from '../../lib/api';
 import { cn, formatDuration } from '../../lib/utils';
 
 interface VideoPreviewProps {
@@ -53,6 +53,9 @@ export default function VideoPreview({
 
   const controlsTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // State for signed URL and loading
+  const [signedUrl, setSignedUrl] = useState<string | null>(null);
+
   // Reset state when video changes
   useEffect(() => {
     if (isOpen && videoRef.current) {
@@ -61,6 +64,13 @@ export default function VideoPreview({
       setIsPlaying(false);
       setIsLoading(true);
       setShowControls(true);
+
+      // Fetch signed URL
+      getSignedFileUrl(file.id, 'stream')
+        .then(url => setSignedUrl(url))
+        .catch(console.error);
+    } else {
+      setSignedUrl(null);
     }
   }, [isOpen, file.id]);
 
@@ -226,7 +236,7 @@ export default function VideoPreview({
   const handleTimeUpdate = () => {
     if (!videoRef.current) return;
     setCurrentTime(videoRef.current.currentTime);
-    
+
     // Update buffered
     const bufferedEnd = videoRef.current.buffered.length > 0
       ? videoRef.current.buffered.end(videoRef.current.buffered.length - 1)
@@ -247,9 +257,8 @@ export default function VideoPreview({
     setShowSettings(false);
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || !signedUrl) return null;
 
-  const videoUrl = getFileUrl(file.id, 'stream');
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return createPortal(
@@ -272,6 +281,8 @@ export default function VideoPreview({
               <button
                 onClick={() => onDownload(file)}
                 className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                title={t('common.download')}
+                aria-label={t('common.download')}
               >
                 <Download className="w-5 h-5" />
               </button>
@@ -280,6 +291,8 @@ export default function VideoPreview({
               <button
                 onClick={() => onShare(file)}
                 className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                title={t('common.share')}
+                aria-label={t('common.share')}
               >
                 <Share2 className="w-5 h-5" />
               </button>
@@ -287,6 +300,8 @@ export default function VideoPreview({
             <button
               onClick={onClose}
               className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+              title={t('common.close')}
+              aria-label={t('common.close')}
             >
               <X className="w-5 h-5" />
             </button>
@@ -306,7 +321,7 @@ export default function VideoPreview({
         )}
         <video
           ref={videoRef}
-          src={videoUrl}
+          src={signedUrl}
           className="max-w-full max-h-full"
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={handleLoadedMetadata}
@@ -362,6 +377,8 @@ export default function VideoPreview({
             <button
               onClick={togglePlay}
               className="p-2 text-white hover:bg-white/10 rounded-lg transition-colors"
+              title={isPlaying ? t('gallery.pause') : t('gallery.play')}
+              aria-label={isPlaying ? t('gallery.pause') : t('gallery.play')}
             >
               {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
             </button>
@@ -387,6 +404,8 @@ export default function VideoPreview({
               <button
                 onClick={toggleMute}
                 className="p-2 text-white hover:bg-white/10 rounded-lg transition-colors"
+                title={isMuted ? t('gallery.unmute') : t('gallery.mute')}
+                aria-label={isMuted ? t('gallery.unmute') : t('gallery.mute')}
               >
                 {isMuted || volume === 0 ? (
                   <VolumeX className="w-5 h-5" />
@@ -410,6 +429,7 @@ export default function VideoPreview({
                   }
                 }}
                 className="w-20 h-1 bg-white/30 rounded-full appearance-none cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full"
+                aria-label={t('gallery.volume')}
               />
             </div>
 
@@ -425,6 +445,8 @@ export default function VideoPreview({
               <button
                 onClick={() => setShowSettings(!showSettings)}
                 className="p-2 text-white hover:bg-white/10 rounded-lg transition-colors"
+                title={t('gallery.settings')}
+                aria-label={t('gallery.settings')}
               >
                 <Settings className="w-5 h-5" />
               </button>

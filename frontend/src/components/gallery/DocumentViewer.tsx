@@ -18,9 +18,12 @@ import { FileItem } from '../../types';
 import { getFileUrl, api } from '../../lib/api';
 import mammoth from 'mammoth';
 import { Document, Page, pdfjs } from 'react-pdf';
+import 'react-pdf/dist/Page/AnnotationLayer.css';
+import 'react-pdf/dist/Page/TextLayer.css';
 
-// Configure PDF.js worker
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+// Configure PDF.js worker using Vite's ?url import
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 // Type for spreadsheet data from backend
 interface SpreadsheetData {
@@ -134,6 +137,10 @@ export default function DocumentViewer({
     setLoading(false);
   }, [t]);
 
+  // State for tracking Word-to-PDF conversion
+  const [conversionStatus, setConversionStatus] = useState<'idle' | 'converting' | 'ready'>('idle');
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+
   useEffect(() => {
     if (!isOpen || !file) return;
 
@@ -144,11 +151,16 @@ export default function DocumentViewer({
     setZoom(100);
     setCurrentPage(1);
     setNumPages(0);
+    setConversionStatus('idle');
+    setPdfPreviewUrl(null);
+
+    let pollInterval: ReturnType<typeof setInterval> | null = null;
+    let isMounted = true;
+    const maxPollTime = 120000; // 2 minute timeout
+    const startTime = Date.now();
 
     const loadDocument = async () => {
       try {
-        const fileUrl = getFileUrl(file.id, 'view');
-
         switch (documentType) {
           case 'pdf':
             // PDF will be rendered via react-pdf
@@ -156,19 +168,108 @@ export default function DocumentViewer({
             break;
 
           case 'word':
-            // Fetch and convert Word document
-            const response = await fetch(fileUrl);
-            const arrayBuffer = await response.arrayBuffer();
-            const result = await mammoth.convertToHtml({ arrayBuffer });
-            setContent(result.value);
-            setLoading(false);
+            // Use LibreOffice PDF preview for better fidelity
+            try {
+              const previewResponse = await api.get(`/files/${file.id}/pdf-preview`, {
+                // Don't throw on 202 status
+                validateStatus: (status) => status >= 200 && status < 300
+              });
+
+              if (previewResponse.status === 202) {
+                // Conversion in progress or queued - poll for completion
+                if (!isMounted) return;
+                setConversionStatus('converting');
+                setContent(t('gallery.convertingDocument') || 'Converting document to PDF...');
+
+                pollInterval = setInterval(async () => {
+                  // Check timeout
+                  if (Date.now() - startTime > maxPollTime) {
+                    if (pollInterval) clearInterval(pollInterval);
+                    if (!isMounted) return;
+                    setError(t('gallery.conversionTimeout') || 'Conversion timed out');
+                    setLoading(false);
+                    return;
+                  }
+
+                  try {
+                    const statusResponse = await api.get(`/files/${file.id}/pdf-preview/status`);
+                    if (!isMounted) return;
+
+                    if (statusResponse.data.status === 'completed') {
+                      if (pollInterval) clearInterval(pollInterval);
+                      // Set URL to use PDF viewer for the converted document
+                      setPdfPreviewUrl(getFileUrl(file.id, 'view').replace('/view', '/pdf-preview'));
+                      setConversionStatus('ready');
+                      setContent('');
+                      // Don't set loading to false - let PDF viewer handle it
+                    } else if (statusResponse.data.status === 'failed') {
+                      if (pollInterval) clearInterval(pollInterval);
+                      // Fallback to mammoth conversion
+                      console.warn('PDF conversion failed, falling back to mammoth');
+                      try {
+                        const wordResponse = await api.get(`/files/${file.id}/view`, {
+                          responseType: 'arraybuffer',
+                        });
+                        const arrayBuffer = wordResponse.data;
+                        const result = await mammoth.convertToHtml({ arrayBuffer });
+                        if (isMounted) {
+                          setContent(result.value);
+                          setConversionStatus('idle');
+                          setLoading(false);
+                        }
+                      } catch {
+                        if (isMounted) {
+                          setError(t('gallery.errorLoading'));
+                          setLoading(false);
+                        }
+                      }
+                    }
+                  } catch {
+                    if (pollInterval) clearInterval(pollInterval);
+                    if (!isMounted) return;
+                    setError(t('gallery.errorLoading'));
+                    setLoading(false);
+                  }
+                }, 2000);
+
+                return; // Keep loading state until conversion completes
+              } else {
+                // PDF preview is ready, use it
+                if (!isMounted) return;
+                setPdfPreviewUrl(getFileUrl(file.id, 'view').replace('/view', '/pdf-preview'));
+                setConversionStatus('ready');
+                // Don't set loading to false - let PDF viewer handle it
+              }
+            } catch (err: any) {
+              // Fallback to mammoth for clients without LibreOffice
+              console.warn('PDF preview not available, using fallback:', err);
+              try {
+                const wordResponse = await api.get(`/files/${file.id}/view`, {
+                  responseType: 'arraybuffer',
+                });
+                const arrayBuffer = wordResponse.data;
+                const result = await mammoth.convertToHtml({ arrayBuffer });
+                if (isMounted) {
+                  setContent(result.value);
+                  setLoading(false);
+                }
+              } catch {
+                if (isMounted) {
+                  setError(t('gallery.errorLoading'));
+                  setLoading(false);
+                }
+              }
+            }
             break;
 
           case 'text':
           case 'code':
-            // Fetch text content
-            const textResponse = await fetch(fileUrl);
-            const text = await textResponse.text();
+            // Fetch text content with auth
+            const textResponse = await api.get(`/files/${file.id}/view`, {
+              responseType: 'text',
+            });
+            if (!isMounted) return;
+            const text = textResponse.data;
             setContent(text);
             setLoading(false);
             break;
@@ -177,8 +278,10 @@ export default function DocumentViewer({
             // Use backend to convert Excel to HTML with styles
             try {
               const response = await api.get(`/files/${file.id}/excel-html?sheet=0`);
+              if (!isMounted) return;
               setSpreadsheetData(response.data);
             } catch (err) {
+              if (!isMounted) return;
               console.error('Error loading spreadsheet:', err);
               setError(t('gallery.errorLoadingSpreadsheet'));
             }
@@ -190,6 +293,7 @@ export default function DocumentViewer({
             setLoading(false);
         }
       } catch (err) {
+        if (!isMounted) return;
         console.error('Error loading document:', err);
         setError(t('gallery.errorLoading'));
         setLoading(false);
@@ -197,7 +301,15 @@ export default function DocumentViewer({
     };
 
     loadDocument();
-  }, [isOpen, file, documentType]);
+
+    // Cleanup function
+    return () => {
+      isMounted = false;
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
+    };
+  }, [isOpen, file, documentType, t]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -261,7 +373,7 @@ export default function DocumentViewer({
 
   const switchSheet = async (sheetIndex: number) => {
     if (!spreadsheetData || !file) return;
-    
+
     try {
       setLoading(true);
       const response = await api.get(`/files/${file.id}/excel-html?sheet=${sheetIndex}`);
@@ -286,6 +398,14 @@ export default function DocumentViewer({
 
   const fileUrl = getFileUrl(file.id, 'view');
 
+  // PDF options with auth header
+  const pdfOptions = {
+    url: fileUrl,
+    httpHeaders: {
+      Authorization: `Bearer ${localStorage.getItem('accessToken') || ''}`,
+    },
+  };
+
   const renderContent = () => {
     if (error) {
       return (
@@ -304,8 +424,8 @@ export default function DocumentViewer({
       );
     }
 
-    // Show loading for non-PDF documents
-    if (loading && documentType !== 'pdf') {
+    // Show loading for non-PDF documents (but not for Word docs showing PDF conversion)
+    if (loading && documentType !== 'pdf' && conversionStatus !== 'converting') {
       return (
         <div className="flex flex-col items-center justify-center h-full gap-4">
           <Loader2 className="w-12 h-12 text-primary-500 animate-spin" />
@@ -317,12 +437,12 @@ export default function DocumentViewer({
     switch (documentType) {
       case 'pdf':
         return (
-          <div 
+          <div
             ref={pdfContainerRef}
             className="h-full overflow-auto flex flex-col items-center py-4"
           >
             <Document
-              file={fileUrl}
+              file={pdfOptions}
               onLoadSuccess={onDocumentLoadSuccess}
               onLoadError={onDocumentLoadError}
               loading={
@@ -345,6 +465,54 @@ export default function DocumentViewer({
         );
 
       case 'word':
+        // Show conversion in progress
+        if (conversionStatus === 'converting') {
+          return (
+            <div className="flex flex-col items-center justify-center h-full gap-4">
+              <Loader2 className="w-12 h-12 text-primary-500 animate-spin" />
+              <p className="text-white/60">{t('gallery.convertingDocument') || 'Converting document to PDF...'}</p>
+            </div>
+          );
+        }
+
+        // Show converted PDF
+        if (conversionStatus === 'ready' && pdfPreviewUrl) {
+          const pdfPreviewOptions = {
+            url: pdfPreviewUrl,
+            httpHeaders: {
+              Authorization: `Bearer ${localStorage.getItem('accessToken') || ''}`,
+            },
+          };
+          return (
+            <div
+              ref={pdfContainerRef}
+              className="h-full overflow-auto flex flex-col items-center py-4"
+            >
+              <Document
+                file={pdfPreviewOptions}
+                onLoadSuccess={onDocumentLoadSuccess}
+                onLoadError={onDocumentLoadError}
+                loading={
+                  <div className="flex flex-col items-center justify-center h-64 gap-4">
+                    <Loader2 className="w-12 h-12 text-primary-500 animate-spin" />
+                    <p className="text-white/60">{t('gallery.loadingPdf')}</p>
+                  </div>
+                }
+                className="flex flex-col items-center gap-4"
+              >
+                <Page
+                  pageNumber={currentPage}
+                  scale={zoom / 100}
+                  renderTextLayer={true}
+                  renderAnnotationLayer={true}
+                  className="shadow-2xl"
+                />
+              </Document>
+            </div>
+          );
+        }
+
+        // Fallback: HTML content from mammoth
         return (
           <div
             className="w-full h-full overflow-auto bg-white rounded-lg p-8"
@@ -392,11 +560,10 @@ export default function DocumentViewer({
                   <button
                     key={name}
                     onClick={() => switchSheet(index)}
-                    className={`px-3 py-1.5 text-sm rounded whitespace-nowrap transition-colors ${
-                      spreadsheetData.currentSheet === index
-                        ? 'bg-green-500 text-white'
-                        : 'bg-white text-gray-700 hover:bg-gray-200'
-                    }`}
+                    className={`px-3 py-1.5 text-sm rounded whitespace-nowrap transition-colors ${spreadsheetData.currentSheet === index
+                      ? 'bg-green-500 text-white'
+                      : 'bg-white text-gray-700 hover:bg-gray-200'
+                      }`}
                   >
                     {name}
                   </button>
@@ -404,7 +571,7 @@ export default function DocumentViewer({
               </div>
             )}
             {/* Excel HTML content */}
-            <div 
+            <div
               className="flex-1 overflow-auto p-2"
               style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top left' }}
               dangerouslySetInnerHTML={{ __html: spreadsheetData.html }}

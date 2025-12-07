@@ -103,6 +103,59 @@ export const compressToZip = async (
   });
 };
 
+/**
+ * Security: Configuration for extraction limits
+ * 
+ * NOTE: MAX_TOTAL_SIZE is set conservatively to prevent OOM attacks.
+ * Extraction uses streaming to disk, but we still limit total size
+ * to prevent disk exhaustion attacks.
+ */
+export const EXTRACTION_LIMITS = {
+  MAX_FILES: 10000, // Maximum number of files to extract
+  MAX_TOTAL_SIZE: 2 * 1024 * 1024 * 1024, // 2 GB max uncompressed size (reduced from 10GB for safety)
+  MAX_SINGLE_FILE_SIZE: 500 * 1024 * 1024, // 500 MB max per single file
+  MAX_PATH_LENGTH: 260, // Windows MAX_PATH limit
+  TIMEOUT_MS: 30 * 60 * 1000, // 30 minutes timeout
+};
+
+/**
+ * Security: Validates that a path is safe and doesn't escape the target directory (Zip Slip protection)
+ * @param targetDir The directory where files should be extracted
+ * @param entryPath The path from the archive entry
+ * @returns The safe, normalized absolute path or null if unsafe
+ */
+export const validateExtractPath = (targetDir: string, entryPath: string): string | null => {
+  // Normalize the entry path - remove any leading slashes and normalize separators
+  const normalizedEntry = entryPath
+    .replace(/^[\/\\]+/, '') // Remove leading slashes
+    .replace(/\\/g, '/'); // Normalize to forward slashes
+  
+  // Block obvious path traversal attempts
+  if (normalizedEntry.includes('../') || 
+      normalizedEntry.includes('..\\') ||
+      normalizedEntry.startsWith('..') ||
+      normalizedEntry.includes('/..') ||
+      normalizedEntry.includes('\\..')) {
+    return null;
+  }
+  
+  // Build the full path and resolve it
+  const fullPath = path.resolve(targetDir, normalizedEntry);
+  const resolvedTarget = path.resolve(targetDir);
+  
+  // Ensure the resolved path is within the target directory
+  if (!fullPath.startsWith(resolvedTarget + path.sep) && fullPath !== resolvedTarget) {
+    return null;
+  }
+  
+  // Check path length (Windows compatibility)
+  if (fullPath.length > EXTRACTION_LIMITS.MAX_PATH_LENGTH) {
+    return null;
+  }
+  
+  return fullPath;
+};
+
 export const extractZip = async (
   jobId: string,
   inputPath: string,
@@ -112,14 +165,76 @@ export const extractZip = async (
   const stat = fs.statSync(inputPath);
   const totalSize = stat.size;
   let processedSize = 0;
+  let fileCount = 0;
+  let totalUncompressedSize = 0;
 
-  await fs.promises.mkdir(outputDir, { recursive: true });
+  // Resolve the output directory to absolute path for security checks
+  const resolvedOutputDir = path.resolve(outputDir);
+  await fs.promises.mkdir(resolvedOutputDir, { recursive: true });
 
-  const stream = fs.createReadStream(inputPath)
-    .pipe(unzipper.Extract({ path: outputDir }));
+  // Use unzipper.Parse() for more control over individual entries
+  const directory = await unzipper.Open.file(inputPath);
+  
+  // Pre-validate: Check file count and total size before extraction
+  for (const file of directory.files) {
+    fileCount++;
+    totalUncompressedSize += file.uncompressedSize;
+    
+    if (fileCount > EXTRACTION_LIMITS.MAX_FILES) {
+      throw new Error(`Archive contains too many files (limit: ${EXTRACTION_LIMITS.MAX_FILES})`);
+    }
+    
+    if (totalUncompressedSize > EXTRACTION_LIMITS.MAX_TOTAL_SIZE) {
+      throw new Error(`Archive uncompressed size exceeds limit (${EXTRACTION_LIMITS.MAX_TOTAL_SIZE / (1024 * 1024 * 1024)} GB)`);
+    }
 
-  stream.on('entry', (entry: { vars: { compressedSize: number }; autodrain: () => void }) => {
-    processedSize += entry.vars.compressedSize;
+    // Security: Check individual file size to prevent memory issues during streaming
+    if (file.uncompressedSize > EXTRACTION_LIMITS.MAX_SINGLE_FILE_SIZE) {
+      throw new Error(`File too large: ${file.path} (${Math.round(file.uncompressedSize / (1024 * 1024))} MB, limit: ${EXTRACTION_LIMITS.MAX_SINGLE_FILE_SIZE / (1024 * 1024)} MB)`);
+    }
+    
+    // Security: Validate each path before extraction (Zip Slip prevention)
+    const safePath = validateExtractPath(resolvedOutputDir, file.path);
+    if (!safePath) {
+      throw new Error(`Unsafe path detected in archive: ${file.path} - possible path traversal attack`);
+    }
+  }
+
+  // Reset counters for actual extraction
+  fileCount = 0;
+  processedSize = 0;
+
+  // Extract files with path validation using STREAMING (not buffer) to avoid OOM
+  for (const file of directory.files) {
+    const safePath = validateExtractPath(resolvedOutputDir, file.path);
+    
+    // This should never happen since we pre-validated, but double-check
+    if (!safePath) {
+      throw new Error(`Unsafe path detected during extraction: ${file.path}`);
+    }
+
+    if (file.type === 'Directory') {
+      await fs.promises.mkdir(safePath, { recursive: true });
+    } else {
+      // Ensure parent directory exists
+      await fs.promises.mkdir(path.dirname(safePath), { recursive: true });
+      
+      // SECURITY FIX: Use streaming to disk instead of loading entire file into memory
+      // This prevents OOM attacks with large files inside the archive
+      await new Promise<void>((resolve, reject) => {
+        const readStream = file.stream();
+        const writeStream = fs.createWriteStream(safePath);
+        
+        writeStream.on('finish', resolve);
+        writeStream.on('error', reject);
+        readStream.on('error', reject);
+        
+        readStream.pipe(writeStream);
+      });
+    }
+
+    fileCount++;
+    processedSize += file.compressedSize;
     const percent = Math.round((processedSize / totalSize) * 100);
     
     onProgress?.({
@@ -133,14 +248,7 @@ export const extractZip = async (
       where: { id: jobId },
       data: { progress: percent },
     }).catch((err) => console.error('Failed to update extraction progress:', err));
-
-    entry.autodrain();
-  });
-
-  return new Promise((resolve, reject) => {
-    stream.on('close', resolve);
-    stream.on('error', reject);
-  });
+  }
 };
 
 export const compress7z = async (
@@ -210,14 +318,45 @@ export const extract7z = async (
   outputDir: string,
   onProgress?: ProgressCallback
 ): Promise<void> => {
+  // Resolve output directory for security validation
+  const resolvedOutputDir = path.resolve(outputDir);
+  await fs.promises.mkdir(resolvedOutputDir, { recursive: true });
+
   return new Promise((resolve, reject) => {
-    const process = spawn('7z', ['x', '-y', `-o${outputDir}`, inputPath]);
-    activeJobs.set(jobId, process);
+    // Security: Set timeout for extraction process
+    const timeoutId = setTimeout(() => {
+      const proc = activeJobs.get(jobId);
+      if (proc) {
+        proc.kill('SIGTERM');
+        activeJobs.delete(jobId);
+        reject(new Error(`Extraction timeout exceeded (${EXTRACTION_LIMITS.TIMEOUT_MS / 60000} minutes)`));
+      }
+    }, EXTRACTION_LIMITS.TIMEOUT_MS);
+
+    const proc = spawn('7z', ['x', '-y', `-o${resolvedOutputDir}`, inputPath]);
+    activeJobs.set(jobId, proc);
 
     let lastProgress = 0;
+    let fileCount = 0;
 
-    process.stdout.on('data', (data: Buffer) => {
+    proc.stdout.on('data', (data: Buffer) => {
       const output = data.toString();
+      
+      // Track file count from 7z output (lines like "- filename")
+      const fileMatches = output.match(/^- .+$/gm);
+      if (fileMatches) {
+        fileCount += fileMatches.length;
+        
+        // Security: Check file count limit
+        if (fileCount > EXTRACTION_LIMITS.MAX_FILES) {
+          clearTimeout(timeoutId);
+          proc.kill('SIGTERM');
+          activeJobs.delete(jobId);
+          reject(new Error(`Archive contains too many files (limit: ${EXTRACTION_LIMITS.MAX_FILES})`));
+          return;
+        }
+      }
+      
       const match = output.match(/(\d+)%/);
       if (match) {
         const progress = parseInt(match[1]);
@@ -238,16 +377,43 @@ export const extract7z = async (
       }
     });
 
-    process.on('close', (code) => {
+    proc.on('close', async (code) => {
+      clearTimeout(timeoutId);
       activeJobs.delete(jobId);
+      
       if (code === 0) {
-        resolve();
+        // Security: Post-extraction validation - check for path traversal in extracted files
+        try {
+          const validateExtractedFiles = async (dir: string): Promise<void> => {
+            const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+            for (const entry of entries) {
+              const fullPath = path.resolve(dir, entry.name);
+              
+              // Verify path is within output directory
+              if (!fullPath.startsWith(resolvedOutputDir + path.sep) && fullPath !== resolvedOutputDir) {
+                throw new Error(`Security violation: extracted file outside target directory: ${entry.name}`);
+              }
+              
+              if (entry.isDirectory()) {
+                await validateExtractedFiles(fullPath);
+              }
+            }
+          };
+          
+          await validateExtractedFiles(resolvedOutputDir);
+          resolve();
+        } catch (error) {
+          // Clean up on security violation
+          await fs.promises.rm(resolvedOutputDir, { recursive: true, force: true }).catch(() => {});
+          reject(error);
+        }
       } else {
         reject(new Error(`7z exited with code ${code}`));
       }
     });
 
-    process.on('error', (err) => {
+    proc.on('error', (err) => {
+      clearTimeout(timeoutId);
       activeJobs.delete(jobId);
       reject(err);
     });

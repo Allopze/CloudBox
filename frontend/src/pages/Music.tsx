@@ -122,7 +122,7 @@ export default function MusicPage() {
 
               audio.addEventListener('loadedmetadata', onLoaded, { once: true });
               audio.addEventListener('error', onError, { once: true });
-              audio.src = getFileUrl(`/files/${track.id}/stream`);
+              audio.src = getFileUrl(track.id, 'stream', true);
             });
           } catch (e) {
             console.error(`Failed to load duration for ${track.name}`, e);
@@ -181,7 +181,7 @@ export default function MusicPage() {
   // Create album function
   const handleCreateAlbum = async () => {
     if (!newAlbumName.trim()) return;
-    
+
     setCreatingAlbum(true);
     try {
       await api.post('/folders', { name: newAlbumName.trim() });
@@ -243,7 +243,7 @@ export default function MusicPage() {
   };
 
   const handleDownload = (track: FileItem) => {
-    window.open(getFileUrl(`/files/${track.id}/download`), '_blank');
+    window.open(getFileUrl(track.id, 'download', true), '_blank');
     closeContextMenu();
   };
 
@@ -255,7 +255,7 @@ export default function MusicPage() {
 
   const handleCopyLink = async (track: FileItem) => {
     try {
-      const url = `${window.location.origin}${getFileUrl(`/files/${track.id}/stream`)}`;
+      const url = `${window.location.origin}${getFileUrl(track.id, 'stream', true)}`;
       await navigator.clipboard.writeText(url);
       toast(t('music.linkCopied'), 'success');
     } catch {
@@ -382,6 +382,8 @@ export default function MusicPage() {
             <button
               onClick={() => setSelectedAlbum(null)}
               className="p-2 rounded-full hover:bg-dark-100 dark:hover:bg-dark-800 transition-colors"
+              title={t('common.back')}
+              aria-label={t('common.back')}
             >
               <ChevronLeft className="w-5 h-5 text-dark-500" />
             </button>
@@ -392,7 +394,7 @@ export default function MusicPage() {
               )}>
                 {selectedAlbumData.cover ? (
                   <img
-                    src={getFileUrl(`/files/${selectedAlbumData.cover}/thumbnail`)}
+                    src={getFileUrl(selectedAlbumData.cover, 'thumbnail', true)}
                     alt={selectedAlbumData.name}
                     className="w-full h-full object-cover"
                   />
@@ -447,7 +449,7 @@ export default function MusicPage() {
                   )}>
                     {track.thumbnailPath ? (
                       <img
-                        src={getFileUrl(`/files/${track.id}/thumbnail`)}
+                        src={getFileUrl(track.id, 'thumbnail', true)}
                         alt={track.name}
                         className="w-full h-full object-cover"
                       />
@@ -473,6 +475,8 @@ export default function MusicPage() {
                         ? 'text-red-500'
                         : 'text-dark-400 opacity-0 group-hover:opacity-100 hover:text-red-500'
                     )}
+                    title={track.isFavorite ? t('music.removeFromFavorites') : t('music.addToFavorites')}
+                    aria-label={track.isFavorite ? t('music.removeFromFavorites') : t('music.addToFavorites')}
                   >
                     <Heart className={cn('w-4 h-4', track.isFavorite && 'fill-current')} />
                   </button>
@@ -509,7 +513,7 @@ export default function MusicPage() {
                   )}>
                     {album.cover ? (
                       <img
-                        src={getFileUrl(`/files/${album.cover}/thumbnail`)}
+                        src={getFileUrl(album.cover, 'thumbnail', true)}
                         alt={album.name}
                         className="w-full h-full object-cover"
                         loading="lazy"
@@ -608,7 +612,7 @@ export default function MusicPage() {
                   {/* Cover image or fallback gradient with icon */}
                   {track.thumbnailPath ? (
                     <img
-                      src={getFileUrl(`/files/${track.id}/thumbnail`)}
+                      src={getFileUrl(track.id, 'thumbnail', true)}
                       alt={track.name}
                       className="w-full h-full object-cover"
                       loading="lazy"
@@ -635,6 +639,8 @@ export default function MusicPage() {
                         ? 'bg-red-500 text-white'
                         : 'bg-black/40 text-white opacity-0 group-hover:opacity-100 hover:bg-black/60'
                     )}
+                    title={track.isFavorite ? t('music.removeFromFavorites') : t('music.addToFavorites')}
+                    aria-label={track.isFavorite ? t('music.removeFromFavorites') : t('music.addToFavorites')}
                   >
                     <Heart className={cn('w-4 h-4', track.isFavorite && 'fill-current')} />
                   </button>
@@ -685,16 +691,16 @@ export default function MusicPage() {
           const getEmptyStateConfig = () => {
             switch (tab) {
               case 'favorites':
-                return { 
-                  icon: Star, 
-                  title: t('music.noFavoriteMusic'), 
+                return {
+                  icon: Star,
+                  title: t('music.noFavoriteMusic'),
                   subtitle: t('music.addFavoriteMusic'),
                   color: 'text-yellow-400'
                 };
               default:
-                return { 
-                  icon: Music, 
-                  title: t('music.noMusic'), 
+                return {
+                  icon: Music,
+                  title: t('music.noMusic'),
                   subtitle: t('music.uploadAudioFiles'),
                   color: 'text-primary-400'
                 };
@@ -737,7 +743,7 @@ export default function MusicPage() {
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.1 }}
               style={{ position: 'fixed', left, top }}
-              className="z-50 min-w-72 bg-white dark:bg-dark-800 rounded-xl shadow-2xl border border-dark-200 dark:border-dark-700 py-2 overflow-hidden"
+              className="z-50 min-w-[180px] bg-white dark:bg-dark-800 rounded-xl shadow-lg border border-dark-200 dark:border-dark-700 py-1 overflow-hidden"
             >
               {/* Header for multi-select */}
               {isMultiSelect && (
@@ -960,7 +966,7 @@ export default function MusicPage() {
                 <p className="text-sm text-dark-500">{t('music.createFolderForMusic')}</p>
               </div>
             </div>
-            
+
             <form onSubmit={(e) => { e.preventDefault(); handleCreateAlbum(); }}>
               <Input
                 label={t('music.albumName')}
@@ -969,17 +975,17 @@ export default function MusicPage() {
                 placeholder={t('music.myNewAlbum')}
                 autoFocus
               />
-              
+
               <div className="flex justify-end gap-3 mt-6">
-                <Button 
-                  type="button" 
-                  variant="secondary" 
+                <Button
+                  type="button"
+                  variant="secondary"
                   onClick={() => setCreateAlbumOpen(false)}
                 >
                   {t('common.cancel')}
                 </Button>
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   disabled={!newAlbumName.trim() || creatingAlbum}
                   loading={creatingAlbum}
                 >

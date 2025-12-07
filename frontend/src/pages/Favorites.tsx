@@ -138,7 +138,7 @@ export default function Favorites() {
           file={videoPreviewFile}
           isOpen={!!videoPreviewFile}
           onClose={() => setVideoPreviewFile(null)}
-          onDownload={(file) => window.open(getFileUrl(file.id, 'download'), '_blank')}
+          onDownload={(file) => window.open(getFileUrl(file.id, 'download', true), '_blank')}
           onShare={(file) => {
             setShareFile(file);
             setVideoPreviewFile(null);
@@ -152,7 +152,7 @@ export default function Favorites() {
           file={documentPreviewFile}
           isOpen={!!documentPreviewFile}
           onClose={() => setDocumentPreviewFile(null)}
-          onDownload={(file) => window.open(getFileUrl(file.id, 'download'), '_blank')}
+          onDownload={(file) => window.open(getFileUrl(file.id, 'download', true), '_blank')}
           onShare={(file) => {
             setShareFile(file);
             setDocumentPreviewFile(null);

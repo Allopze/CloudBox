@@ -19,7 +19,7 @@ export function decodeFilename(filename: string): string {
         // Continue to other methods
       }
     }
-    
+
     // Check if already valid UTF-8
     if (/[^\x00-\x7F]/.test(filename)) {
       // Test if it looks like valid UTF-8 by checking for common patterns
@@ -28,15 +28,15 @@ export function decodeFilename(filename: string): string {
         return filename;
       }
     }
-    
+
     // Try to convert from Latin-1 interpreted bytes back to UTF-8
     const decoded = Buffer.from(filename, 'latin1').toString('utf8');
-    
+
     // Verify the decoded string doesn't contain replacement characters
     if (!decoded.includes('\uFFFD') && /[^\x00-\x7F]/.test(decoded)) {
       return decoded;
     }
-    
+
     return filename;
   } catch {
     return filename;
@@ -89,6 +89,8 @@ export const uploadFile = multer({
   storage: fileStorage,
   limits: {
     fileSize: config.storage.maxFileSize,
+    fields: 200, // Allow many path fields for folder uploads
+    fieldSize: 10 * 1024 * 1024, // 10MB for path strings
   },
 });
 
@@ -119,6 +121,6 @@ export const uploadChunk = multer({
     },
   }),
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB per chunk
+    fileSize: 20 * 1024 * 1024, // 20MB per chunk
   },
 });

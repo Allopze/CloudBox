@@ -8,3 +8,9 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+// Vite ?url imports
+declare module '*?url' {
+  const src: string;
+  export default src;
+}

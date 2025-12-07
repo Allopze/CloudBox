@@ -4,7 +4,7 @@ import prisma from '../lib/prisma.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { uploadBranding } from '../middleware/upload.js';
 import { validate } from '../middleware/validate.js';
-import { adminUserSchema, smtpConfigSchema, emailTemplateSchema } from '../schemas/index.js';
+import { adminUserSchema, smtpConfigSchema, emailTemplateSchema, paginationSchema, PAGINATION_LIMITS, PaginationQuery } from '../schemas/index.js';
 import { resetTransporter, testSmtpConnection, sendEmail } from '../lib/email.js';
 import { getBrandingPath, deleteFile, fileExists } from '../lib/storage.js';
 import { encryptSecret } from '../lib/encryption.js';
@@ -19,17 +19,16 @@ const router = Router();
 // ========== Users Management ==========
 
 // List all users
-router.get('/users', authenticate, requireAdmin, async (req: Request, res: Response) => {
+router.get('/users', authenticate, requireAdmin, validate(paginationSchema), async (req: Request, res: Response) => {
   try {
-    const { page = '1', limit = '20', search } = req.query;
-    const pageNum = parseInt(page as string);
-    const limitNum = parseInt(limit as string);
+    // Pagination is now validated and parsed by schema
+    const { page, limit, search } = req.query as unknown as PaginationQuery;
 
     const where: any = {};
     if (search) {
       where.OR = [
-        { name: { contains: search as string } },
-        { email: { contains: search as string } },
+        { name: { contains: search } },
+        { email: { contains: search } },
       ];
     }
 
@@ -49,8 +48,8 @@ router.get('/users', authenticate, requireAdmin, async (req: Request, res: Respo
           createdAt: true,
           _count: { select: { files: true, folders: true } },
         },
-        skip: (pageNum - 1) * limitNum,
-        take: limitNum,
+        skip: (page - 1) * limit,
+        take: limit,
         orderBy: { createdAt: 'desc' },
       }),
       prisma.user.count({ where }),
@@ -64,10 +63,10 @@ router.get('/users', authenticate, requireAdmin, async (req: Request, res: Respo
         maxFileSize: u.maxFileSize.toString(),
       })),
       pagination: {
-        page: pageNum,
-        limit: limitNum,
+        page,
+        limit,
         total,
-        totalPages: Math.ceil(total / limitNum),
+        totalPages: Math.ceil(total / limit),
       },
     });
   } catch (error) {
@@ -161,6 +160,10 @@ router.patch('/users/:id', authenticate, requireAdmin, validate(adminUserSchema)
         maxFileSize: true,
       },
     });
+
+    // Invalidate user cache so sidebar updates with new quota
+    const cache = await import('../lib/cache.js');
+    await cache.invalidateUser(id);
 
     res.json({
       ...updated,
@@ -267,7 +270,7 @@ router.delete('/users/:id', authenticate, requireAdmin, async (req: Request, res
 router.get('/storage-requests', authenticate, requireAdmin, async (req: Request, res: Response) => {
   try {
     const { status } = req.query;
-    
+
     const where: any = {};
     if (status) {
       where.status = status;
@@ -613,6 +616,86 @@ router.post('/smtp/send-test', authenticate, requireAdmin, async (req: Request, 
   }
 });
 
+// ========== Upload Limits Configuration ==========
+
+// Get upload limits
+router.get('/settings/limits', authenticate, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const settings = await prisma.settings.findMany({
+      where: {
+        key: { in: ['upload_max_file_size', 'upload_chunk_size', 'upload_concurrent_chunks'] },
+      },
+    });
+
+    const limits: Record<string, string> = {};
+    settings.forEach((s: { key: string; value: string }) => {
+      limits[s.key.replace('upload_', '')] = s.value;
+    });
+
+    // Return defaults if not set
+    res.json({
+      maxFileSize: limits['max_file_size'] || String(config.storage.maxFileSize),
+      chunkSize: limits['chunk_size'] || String(20 * 1024 * 1024), // 20MB default
+      concurrentChunks: limits['concurrent_chunks'] || '4',
+    });
+  } catch (error) {
+    console.error('Get upload limits error:', error);
+    res.status(500).json({ error: 'Failed to get upload limits' });
+  }
+});
+
+// Save upload limits
+router.put('/settings/limits', authenticate, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { maxFileSize, chunkSize, concurrentChunks } = req.body;
+
+    // Validate values
+    const maxFileSizeNum = parseInt(maxFileSize);
+    const chunkSizeNum = parseInt(chunkSize);
+    const concurrentChunksNum = parseInt(concurrentChunks);
+
+    if (isNaN(maxFileSizeNum) || maxFileSizeNum < 1024 * 1024) { // Min 1MB
+      res.status(400).json({ error: 'Max file size must be at least 1MB' });
+      return;
+    }
+
+    if (isNaN(chunkSizeNum) || chunkSizeNum < 1024 * 1024 || chunkSizeNum > 100 * 1024 * 1024) { // 1MB - 100MB
+      res.status(400).json({ error: 'Chunk size must be between 1MB and 100MB' });
+      return;
+    }
+
+    if (isNaN(concurrentChunksNum) || concurrentChunksNum < 1 || concurrentChunksNum > 10) {
+      res.status(400).json({ error: 'Concurrent chunks must be between 1 and 10' });
+      return;
+    }
+
+    const settings = [
+      { key: 'upload_max_file_size', value: String(maxFileSizeNum) },
+      { key: 'upload_chunk_size', value: String(chunkSizeNum) },
+      { key: 'upload_concurrent_chunks', value: String(concurrentChunksNum) },
+    ];
+
+    for (const setting of settings) {
+      await prisma.settings.upsert({
+        where: { key: setting.key },
+        update: { value: setting.value },
+        create: setting,
+      });
+    }
+
+    res.json({
+      message: 'Upload limits saved successfully',
+      maxFileSize: String(maxFileSizeNum),
+      chunkSize: String(chunkSizeNum),
+      concurrentChunks: String(concurrentChunksNum),
+    });
+  } catch (error) {
+    console.error('Save upload limits error:', error);
+    res.status(500).json({ error: 'Failed to save upload limits' });
+  }
+});
+
+
 // ========== Email Templates ==========
 
 // List templates
@@ -826,7 +909,7 @@ router.post('/email-templates/:name/variables', authenticate, requireAdmin, asyn
 
     // Get or create template
     let template = await prisma.emailTemplate.findUnique({ where: { name: templateName } });
-    
+
     if (!template) {
       // Create template with default values
       const defaults: Record<string, { subject: string; body: string }> = {
@@ -1023,19 +1106,19 @@ router.get('/settings/branding', async (req: Request, res: Response) => {
     // Check if branding files exist and set URLs accordingly
     // Issue #19: Use file modification timestamp instead of Date.now()
     const brandingTypes = ['logo-light', 'logo-dark', 'favicon'] as const;
-    
+
     for (const type of brandingTypes) {
       const filePath = getBrandingPath(type);
       const pngPath = type === 'favicon' ? filePath.replace('.ico', '.png') : filePath;
       const svgPath = filePath.replace(/\.(png|ico)$/, '.svg');
-      
+
       let existingPath: string | null = null;
       if (await fileExists(svgPath)) {
         existingPath = svgPath;
       } else if (await fileExists(pngPath)) {
         existingPath = pngPath;
       }
-      
+
       if (existingPath) {
         // Get file modification time for cache-busting
         const stats = await fs.stat(existingPath);
@@ -1454,9 +1537,9 @@ router.delete('/legal/:slug', authenticate, requireAdmin, async (req: Request, r
 
     await prisma.legalPage.delete({
       where: { slug },
-    }).catch(() => {});
+    }).catch(() => { });
 
-    res.json({ 
+    res.json({
       message: 'Legal page reset to default',
       ...defaultLegalContent[slug],
       slug,

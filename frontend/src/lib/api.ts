@@ -7,6 +7,58 @@ export const api = axios.create({
   withCredentials: true, // Required for httpOnly cookies
 });
 
+/**
+ * ============================================================================
+ * SECURITY NOTE: Token Storage Strategy
+ * ============================================================================
+ * 
+ * CURRENT STATE:
+ * - Access tokens are stored in localStorage for simplicity
+ * - Refresh tokens are stored in httpOnly cookies (secure)
+ * 
+ * SECURITY CONCERN:
+ * localStorage is accessible to JavaScript, making it vulnerable to XSS attacks.
+ * If an attacker injects malicious JavaScript (XSS), they could steal the access token.
+ * 
+ * MITIGATIONS IN PLACE:
+ * 1. Access tokens are short-lived (typically 15 minutes)
+ * 2. Refresh tokens are in httpOnly cookies (not accessible to JS)
+ * 3. CSP headers restrict script sources to prevent most XSS
+ * 4. Input sanitization on user-generated content
+ * 
+ * RECOMMENDED IMPROVEMENTS FOR PRODUCTION:
+ * 
+ * Option A: Full httpOnly Cookie Approach (Recommended)
+ * - Move access token to httpOnly cookie as well
+ * - Server sets both tokens in httpOnly cookies
+ * - Frontend never handles tokens directly
+ * - Requires CSRF protection (double-submit cookie pattern)
+ * - Pros: Most secure against XSS
+ * - Cons: Requires CSRF token handling, slightly more complex
+ * 
+ * Option B: BFF (Backend For Frontend) Pattern
+ * - Create a dedicated BFF service that handles authentication
+ * - Frontend only communicates with BFF
+ * - BFF stores tokens in httpOnly cookies
+ * - Pros: Clean separation, works well with SSR
+ * - Cons: Additional service to maintain
+ * 
+ * Option C: Memory + Silent Refresh (Partial Improvement)
+ * - Store access token in memory only (not localStorage)
+ * - On page load, use refresh token cookie to get new access token
+ * - Pros: Token not persisted, slightly safer
+ * - Cons: Still vulnerable during session, requires page reload handling
+ * 
+ * ADDITIONAL SECURITY MEASURES:
+ * - Implement strict Content Security Policy (CSP) - DONE
+ * - Use SameSite=Strict for cookies - DONE (refresh token)
+ * - Enable HTTPS only in production - DONE (HSTS header)
+ * - Implement token rotation on refresh
+ * - Add device fingerprinting for suspicious activity detection
+ * 
+ * ============================================================================
+ */
+
 // Security: Generate signed URL for file access (preferred over query string tokens)
 export const getSignedFileUrl = async (fileId: string, action: 'view' | 'download' | 'stream' | 'thumbnail' = 'view'): Promise<string> => {
   try {
@@ -27,16 +79,32 @@ export const getFileUrl = (pathOrFileId: string, endpoint?: 'view' | 'stream' | 
   // Components should migrate to using getSignedFileUrl for direct browser access
 
   // Check if it's the old format (starts with /files/)
+  let url = '';
   if (pathOrFileId.startsWith('/files/')) {
-    return `${API_URL}${pathOrFileId}`;
+    url = `${API_URL}${pathOrFileId}`;
+  } else {
+    // New format: just fileId and endpoint type
+    const endpointPath = endpoint || 'view';
+    url = `${API_URL}/files/${pathOrFileId}/${endpointPath}`;
   }
-  
-  // New format: just fileId and endpoint type
-  const endpointPath = endpoint || 'view';
-  return `${API_URL}/files/${pathOrFileId}/${endpointPath}`;
+
+  if (includeToken) {
+    const token = localStorage.getItem('accessToken');
+    if (token) {
+      const separator = url.includes('?') ? '&' : '?';
+      return `${url}${separator}token=${token}`;
+    }
+  }
+
+  return url;
 };
 
-// Request interceptor for auth token
+/**
+ * Request interceptor for auth token
+ * 
+ * SECURITY: Access token is retrieved from localStorage here.
+ * See security notes above for recommended improvements.
+ */
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('accessToken');

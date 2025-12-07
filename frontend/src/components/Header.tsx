@@ -86,20 +86,20 @@ export default function Header() {
   const handleDeleteSelected = async () => {
     const itemIds = Array.from(selectedItems);
     const total = itemIds.length;
-    
+
     const opId = addOperation({
       id: `delete-header-${Date.now()}`,
       type: 'delete',
       title: t('header.deletingItems', { count: total }),
       totalItems: total,
     });
-    
+
     try {
       for (const id of itemIds) {
         const fileEl = document.querySelector(`[data-file-item="${id}"]`);
         const folderEl = document.querySelector(`[data-folder-item="${id}"]`);
         const itemName = fileEl?.getAttribute('data-file-name') || folderEl?.getAttribute('data-folder-name') || id;
-        
+
         if (fileEl) {
           await api.delete(`/files/${id}`);
         } else if (folderEl) {
@@ -107,7 +107,7 @@ export default function Header() {
         }
         incrementProgress(opId, itemName);
       }
-      
+
       completeOperation(opId);
       clearSelection();
       toast(t('header.itemsMovedToTrash', { count: total }), 'success');
@@ -123,7 +123,7 @@ export default function Header() {
     itemIds.forEach((id) => {
       const fileEl = document.querySelector(`[data-file-item="${id}"]`);
       if (fileEl) {
-        window.open(getFileUrl(`/files/${id}/download`), '_blank');
+        window.open(getFileUrl(`/files/${id}/download`, undefined, true), '_blank');
       }
     });
   };
@@ -242,16 +242,16 @@ export default function Header() {
       </AnimatePresence>
 
       {/* Upload Progress Indicator - Fixed width to prevent layout shift */}
-      <div className="w-56 flex-shrink-0">
+      <div className="w-64 flex-shrink-0">
         {isUploading && totalBytes > 0 && (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <div className="flex-1 h-2 bg-dark-200 dark:bg-dark-700 rounded-full overflow-hidden">
-              <div 
+              <div
                 className="h-full bg-primary-500 transition-all duration-300"
                 style={{ width: `${uploadProgress}%` }}
               />
             </div>
-            <span className="text-sm font-medium text-dark-600 dark:text-dark-300 tabular-nums whitespace-nowrap">
+            <span className="text-xs font-medium text-dark-600 dark:text-dark-300 tabular-nums whitespace-nowrap min-w-[90px] text-right">
               {uploadProgress}% · {formatBytes(speed)}/s
             </span>
           </div>
