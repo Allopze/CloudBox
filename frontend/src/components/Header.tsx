@@ -153,7 +153,7 @@ export default function Header() {
   };
 
   return (
-    <header className="h-14 bg-dark-100 dark:bg-[#222222] flex items-center px-4 gap-4 text-dark-900 dark:text-white">
+    <header className="h-14 bg-dark-100 dark:bg-dark-800 flex items-center px-4 gap-4 text-dark-900 dark:text-white">
       {/* Search + Nuevo */}
       <form onSubmit={handleSearch} className="flex-1 max-w-xl" role="search">
         <div className="flex items-center gap-2">
@@ -164,7 +164,7 @@ export default function Header() {
               placeholder={t('header.search')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full h-9 pl-9 pr-4 bg-white border border-dark-200 dark:border-[#2a2a2a] rounded-full text-sm text-dark-900 placeholder-dark-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              className="w-full h-9 pl-9 pr-4 bg-white border border-dark-200 dark:border-dark-700 rounded-full text-sm text-dark-900 placeholder-dark-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               aria-label={t('header.searchFilesAndFolders')}
             />
           </div>
@@ -303,9 +303,9 @@ export default function Header() {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -10, scale: 0.95 }}
                 transition={{ duration: 0.15, ease: 'easeOut' }}
-                className="absolute right-0 mt-2 w-48 bg-white dark:bg-[#121212] rounded-lg shadow-lg border border-dark-200 dark:border-[#2a2a2a] py-1 z-50 text-dark-900 dark:text-white"
+                className="absolute right-0 mt-2 w-48 bg-white dark:bg-dark-900 rounded-lg shadow-lg border border-dark-200 dark:border-dark-700 py-1 z-50 text-dark-900 dark:text-white"
               >
-                <div className="px-4 py-2 border-b border-dark-200 dark:border-[#2a2a2a]">
+                <div className="px-4 py-2 border-b border-dark-200 dark:border-dark-700">
                   <p className="font-medium text-dark-900 dark:text-white text-sm truncate">
                     {user?.name}
                   </p>
@@ -335,7 +335,7 @@ export default function Header() {
                     {t('header.admin')}
                   </button>
                 )}
-                <div className="border-t border-dark-200 dark:border-[#2a2a2a] mt-1 pt-1">
+                <div className="border-t border-dark-200 dark:border-dark-700 mt-1 pt-1">
                   <button
                     onClick={handleLogout}
                     className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"

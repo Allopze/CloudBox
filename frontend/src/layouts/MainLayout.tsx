@@ -732,7 +732,7 @@ export default function MainLayout() {
   };
 
   return (
-    <div className="flex h-screen bg-dark-100 dark:bg-[#222222]">
+    <div className="flex h-screen bg-dark-100 dark:bg-dark-800">
       {/* Sidebar */}
       <div
         className={cn(
@@ -755,7 +755,7 @@ export default function MainLayout() {
             {/* Sidebar toggle - separate circle */}
             <button
               onClick={toggleSidebar}
-              className="w-11 h-11 flex items-center justify-center bg-white dark:bg-[#222222] text-dark-500 dark:text-white/70 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/10 rounded-full border border-dark-200 dark:border-[#2a2a2a] shadow-sm transition-colors"
+              className="w-11 h-11 flex items-center justify-center bg-white dark:bg-dark-800 text-dark-500 dark:text-white/70 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/10 rounded-full border border-dark-200 dark:border-dark-700 shadow-sm transition-colors"
               title={sidebarOpen ? t('layout.hideSidebar') : t('layout.showSidebar')}
               aria-label={sidebarOpen ? t('layout.hideSidebar') : t('layout.showSidebar')}
             >
@@ -767,7 +767,7 @@ export default function MainLayout() {
             </button>
 
             {/* Breadcrumb bar */}
-            <div className="flex-1 h-11 flex items-center justify-between pl-2 pr-1 bg-white dark:bg-[#121212] rounded-full shadow-sm border border-dark-200 dark:border-[#2a2a2a]">
+            <div className="flex-1 h-11 flex items-center justify-between pl-2 pr-1 bg-white dark:bg-dark-900 rounded-full shadow-sm border border-dark-200 dark:border-dark-700">
               {/* Settings title */}
               {isSettingsPage ? (
                 <div className="flex items-center gap-2 ml-2">
@@ -1124,7 +1124,7 @@ export default function MainLayout() {
                       </Dropdown>
 
                       {/* View toggle */}
-                      <div className="flex items-center bg-dark-100 dark:bg-[#222222] border border-dark-200 dark:border-[#2a2a2a] rounded-full p-0.5">
+                      <div className="flex items-center bg-dark-100 dark:bg-dark-800 border border-dark-200 dark:border-dark-700 rounded-full p-0.5">
                         <button
                           onClick={() => setViewMode('grid')}
                           className={cn(
@@ -1162,7 +1162,7 @@ export default function MainLayout() {
           {/* Main workzone - separated */}
           <div
             className={cn(
-              "bg-white dark:bg-[#121212] rounded-2xl flex-1 flex flex-col overflow-hidden border border-dark-200 dark:border-[#2a2a2a] shadow-sm transition-opacity duration-200 relative select-none",
+              "bg-white dark:bg-dark-900 rounded-2xl flex-1 flex flex-col overflow-hidden border border-dark-200 dark:border-dark-700 shadow-sm transition-opacity duration-200 relative select-none",
               isDragging && "opacity-50"
             )}
             onContextMenu={handleContextMenu}
@@ -1316,7 +1316,7 @@ export default function MainLayout() {
       {/* Drag and Drop Overlay */}
       {isDragging && (
         <div className="fixed inset-0 z-[100] pointer-events-none flex items-end justify-center pb-8">
-          <div className="bg-dark-900/80 dark:bg-white/90 backdrop-blur-sm rounded-full px-6 py-3 shadow-lg flex items-center gap-3">
+          <div className="bg-dark-900/80 dark:bg-white/90 backdrop-blur-sm rounded-full px-6 py-3 shadow-lg flex items-center gap-3 animate-breathing">
             <Upload className="w-5 h-5 text-white dark:text-dark-900" />
             <span className="text-sm font-medium text-white dark:text-dark-900">
               {t('layout.dropToUpload')}

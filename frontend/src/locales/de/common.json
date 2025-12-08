@@ -13,7 +13,8 @@
     "play": "Abspielen",
     "pause": "Anhalten",
     "close": "Player schließen",
-    "trackOf": "{{current}} von {{total}}"
+    "trackOf": "{{current}} von {{total}}",
+    "drag": "Player ziehen"
   },
   "header": {
     "search": "Suchen...",

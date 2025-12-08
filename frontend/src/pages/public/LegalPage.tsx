@@ -1,311 +1,227 @@
-import { useEffect, useState } from 'react';
-import { useLocation, Link } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, FileText, ArrowUp, ChevronLeft, Menu, X, Globe, Clock, ChevronRight } from 'lucide-react';
-import { cn, formatDate } from '../../lib/utils';
-import { api } from '../../lib/api';
-import Button from '../../components/ui/Button';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
+import { motion } from 'framer-motion';
+import { Shield, FileText, Check } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '../../lib/api';
+import { cn } from '../../lib/utils';
+import { useMemo } from 'react';
 
-interface LegalContent {
-    slug: string;
-    title: string;
-    content: string;
-    updatedAt: string;
-}
+
+
+const slugify = (text: string) => {
+    return text
+        .toString()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, '-')
+        .replace(/[^\w-]+/g, '')
+        .replace(/--+/g, '-');
+};
+
+// Custom renderer to inject IDs into headings
+const HeadingRenderer = ({ level, children, ...props }: any) => {
+    const text = children?.[0] || '';
+    const id = typeof text === 'string' ? slugify(text) : '';
+    const Tag = `h${level}` as keyof JSX.IntrinsicElements;
+
+    return <Tag id={id} className="scroll-mt-24" {...props}>{children}</Tag>;
+};
 
 export default function LegalPage() {
     const { t } = useTranslation();
     const location = useLocation();
-    const [showScrollTop, setShowScrollTop] = useState(false);
-    const [loading, setLoading] = useState(true);
-    const [content, setContent] = useState<LegalContent | null>(null);
-    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
     const isPrivacy = location.pathname === '/privacy';
-    const currentSlug = isPrivacy ? 'privacy' : 'terms';
+    const slug = isPrivacy ? 'privacy' : 'terms';
 
-    useEffect(() => {
-        const fetchContent = async () => {
-            setLoading(true);
-            try {
-                const response = await api.get(`/admin/legal/${currentSlug}`);
-                setContent(response.data);
-            } catch (err) {
-                console.error('Failed to fetch legal content', err);
-            } finally {
-                setLoading(false);
-            }
-        };
+    const { data: legalData, isLoading, isError } = useQuery({
+        queryKey: ['legal', slug],
+        queryFn: async () => {
+            const { data } = await api.get(`/admin/legal/${slug}`);
+            return data;
+        },
+        staleTime: 5 * 60 * 1000, // 5 minutes cache to prevent 429 loops
+    });
 
-        fetchContent();
-        window.scrollTo(0, 0);
-    }, [currentSlug]);
-
-    useEffect(() => {
-        const handleScroll = () => {
-            setShowScrollTop(window.scrollY > 400);
-        };
-
-        window.addEventListener('scroll', handleScroll);
-        return () => window.removeEventListener('scroll', handleScroll);
-    }, []);
-
-    const scrollToTop = () => {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+    const cleanContent = (text: string) => {
+        return text.replace(/^[ \t]+/gm, '');
     };
 
-    // Fallback content if API fails or content is missing
-    const getFallbackContent = () => {
-        if (isPrivacy) {
-            return `
-### ${t('legal.privacySections.collection', '1. Information We Collect')}
+    const rawContent = cleanContent(legalData?.content || '');
 
-${t('legal.privacyContent.collection', 'We collect information you provide directly to us...')}
+    const displayContent = isError
+        ? (isPrivacy ? '# Error\nCould not fetch privacy policy.' : '# Error\nCould not fetch terms.')
+        : rawContent;
 
-### ${t('legal.privacySections.usage', '2. How We Use Your Information')}
+    const lastUpdated = legalData?.updatedAt
+        ? new Date(legalData.updatedAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })
+        : '';
 
-${t('legal.privacyContent.usage', 'We use the information we collect to provide, maintain, and improve our services...')}
-      `;
-        }
-        return `
-### ${t('legal.termsSections.acceptance', '1. Acceptance of Terms')}
+    // Extract TOC from content
+    const toc = useMemo(() => {
+        if (!displayContent) return [];
+        const headings = displayContent.match(/^#{1,2}\s+(.+)$/gm) || [];
+        return headings.map(heading => {
+            const level = heading.startsWith('##') ? 2 : 1;
+            const text = heading.replace(/^#{1,2}\s+/, '').trim();
+            return { id: slugify(text), text, level };
+        });
+    }, [displayContent]);
 
-${t('legal.termsContent.acceptance', 'By accessing or using our services, you agree to be bound by these Terms of Service...')}
+    const displayTitle = isPrivacy ? t('legal.privacyPolicy', 'Política de Privacidad') : t('legal.termsOfService', 'Términos y Condiciones');
+    const subtitle = isPrivacy
+        ? t('legal.privacySubtitle', 'Tu confianza es nuestro activo más valioso. Así es como protegemos tus datos.')
+        : t('legal.termsSubtitle', 'Las reglas del juego claras para todos. Por favor lee atentamente.');
 
-### ${t('legal.termsSections.accounts', '2. User Accounts')}
-
-${t('legal.termsContent.accounts', 'You are responsible for safeguarding the password that you use to access the service...')}
-    `;
-    };
-
-    const displayTitle = content?.title || (isPrivacy ? t('legal.privacyPolicy', 'Privacy Policy') : t('legal.termsOfService', 'Terms of Service'));
-    const displayContent = content?.content || getFallbackContent();
-    const lastUpdated = content?.updatedAt ? formatDate(content.updatedAt) : new Date().toLocaleDateString();
+    if (isLoading) {
+        return <div className="flex h-96 items-center justify-center text-dark-500">{t('common.loading', 'Loading...')}</div>;
+    }
 
     return (
-        <div className="min-h-screen bg-dark-50 dark:bg-dark-900 font-sans text-dark-900 dark:text-dark-100">
-            {/* Mobile Navigation Bar */}
-            <nav className="lg:hidden fixed top-0 inset-x-0 z-50 bg-white/80 dark:bg-dark-800/80 backdrop-blur-md border-b border-dark-200 dark:border-dark-700 h-16 flex items-center justify-between px-4">
-                <Link to="/" className="flex items-center gap-2 text-dark-600 dark:text-dark-300">
-                    <ChevronLeft className="w-5 h-5" />
-                    <span className="font-medium">Back</span>
-                </Link>
-                <span className="font-semibold text-dark-900 dark:text-white truncate max-w-[50%]">
-                    {isPrivacy ? t('legal.privacy', 'Privacy') : t('legal.terms', 'Terms')}
-                </span>
-                <button
-                    onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                    className="p-2 rounded-lg hover:bg-dark-100 dark:hover:bg-dark-700 transition-colors"
-                >
-                    {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-                </button>
-            </nav>
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-12 relative">
+            {/* Left Sidebar: Table of Contents */}
+            <aside className="hidden lg:block lg:col-span-1">
+                <div className="sticky top-24 space-y-8">
+                    <div>
+                        <h3 className="text-xs font-bold text-dark-400 uppercase tracking-wider mb-4">
+                            {t('legal.tableOfContents', 'Índice de Contenidos')}
+                        </h3>
+                        <nav className="space-y-1 border-l border-dark-200 dark:border-dark-700">
+                            {toc.length > 0 ? toc.map((item, index) => (
+                                <a
+                                    key={index}
+                                    href={`#${item.id}`}
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        const element = document.getElementById(item.id);
+                                        if (element) {
+                                            element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                            window.history.pushState(null, '', `#${item.id}`);
+                                        }
+                                    }}
+                                    className={cn(
+                                        "block pl-4 py-2 text-sm transition-colors border-l -ml-px hover:border-dark-400 dark:hover:border-dark-500",
+                                        "text-dark-500 dark:text-dark-400 hover:text-dark-900 dark:hover:text-dark-200"
+                                    )}
+                                >
+                                    {item.text}
+                                </a>
+                            )) : (
+                                <p className="pl-4 py-2 text-sm text-dark-400 italic">{t('legal.noToc', 'No sections found')}</p>
+                            )}
+                        </nav>
+                    </div>
 
-            {/* Mobile Menu Overlay */}
-            <AnimatePresence>
-                {mobileMenuOpen && (
-                    <motion.div
-                        initial={{ opacity: 0, y: -20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -20 }}
-                        className="fixed inset-0 z-40 bg-white dark:bg-dark-900 pt-20 px-4 lg:hidden"
-                    >
-                        <div className="space-y-4">
-                            <Link
-                                to="/privacy"
-                                onClick={() => setMobileMenuOpen(false)}
-                                className={cn(
-                                    "flex items-center justify-between p-4 rounded-xl border transition-all",
-                                    isPrivacy
-                                        ? "border-primary-500 bg-primary-50 dark:bg-primary-900/10 text-primary-600"
-                                        : "border-dark-200 dark:border-dark-700 hover:border-dark-300 dark:hover:border-dark-600"
-                                )}
-                            >
-                                <div className="flex items-center gap-3">
-                                    <Shield className="w-5 h-5" />
-                                    <span className="font-medium">{t('legal.privacyPolicy', 'Privacy Policy')}</span>
-                                </div>
-                                {isPrivacy && <ChevronRight className="w-5 h-5" />}
-                            </Link>
-                            <Link
-                                to="/terms"
-                                onClick={() => setMobileMenuOpen(false)}
-                                className={cn(
-                                    "flex items-center justify-between p-4 rounded-xl border transition-all",
-                                    !isPrivacy
-                                        ? "border-primary-500 bg-primary-50 dark:bg-primary-900/10 text-primary-600"
-                                        : "border-dark-200 dark:border-dark-700 hover:border-dark-300 dark:hover:border-dark-600"
-                                )}
-                            >
-                                <div className="flex items-center gap-3">
-                                    <FileText className="w-5 h-5" />
-                                    <span className="font-medium">{t('legal.termsOfService', 'Terms of Service')}</span>
-                                </div>
-                                {!isPrivacy && <ChevronRight className="w-5 h-5" />}
-                            </Link>
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
-            <div className="max-w-7xl mx-auto flex items-start pt-20 lg:pt-8 min-h-screen">
-                {/* Desktop Sidebar */}
-                <aside className="hidden lg:block w-80 shrink-0 sticky top-8 h-[calc(100vh-4rem)] overflow-y-auto px-6 py-8 border-r border-dark-200 dark:border-dark-800">
-                    <div className="mb-8">
-                        <Link
-                            to="/"
-                            className="inline-flex items-center gap-2 text-sm font-medium text-dark-500 hover:text-primary-600 transition-colors mb-6"
+                    <div className="pt-8 border-t border-dark-200 dark:border-dark-700">
+                        <h4 className="text-sm font-semibold text-dark-900 dark:text-white mb-2">
+                            {t('legal.questions', '¿Dudas sobre tus datos?')}
+                        </h4>
+                        <a
+                            href="#"
+                            className="flex items-center gap-2 text-primary-600 font-medium hover:text-primary-700 transition-colors"
                         >
-                            <div className="w-8 h-8 rounded-full bg-dark-100 dark:bg-dark-800 flex items-center justify-center">
-                                <ChevronLeft className="w-4 h-4" />
-                            </div>
-                            {t('common.backToHome', 'Back to Home')}
-                        </Link>
-                        <h1 className="text-2xl font-bold text-dark-900 dark:text-white mb-2">
-                            {t('legal.center', 'Legal Center')}
+                            <Shield className="w-4 h-4" />
+                            {t('legal.privacyCenter', 'Centro de Privacidad')}
+                        </a>
+                    </div>
+                </div>
+            </aside>
+
+            {/* Main Content */}
+            <div className="lg:col-span-3">
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4 }}
+                >
+                    {/* Page Header */}
+                    <div className="mb-12">
+                        <div className="flex items-center gap-2 text-xs font-bold tracking-wider text-primary-600 uppercase mb-4">
+                            <span>{t('legal.legal', 'LEGAL')}</span>
+                            <span>•</span>
+                            <span>{t('legal.updated', 'Actualizado')}: {lastUpdated}</span>
+                        </div>
+                        <h1 className="text-4xl md:text-5xl font-bold text-dark-900 dark:text-white mb-6 tracking-tight">
+                            {displayTitle}
                         </h1>
-                        <p className="text-sm text-dark-500 dark:text-dark-400">
-                            {t('legal.mission', 'Transparency and trust are core to our mission.')}
+                        <p className="text-xl text-dark-500 dark:text-dark-300 max-w-2xl leading-relaxed">
+                            {subtitle}
                         </p>
                     </div>
 
-                    <nav className="space-y-2">
-                        <Link
-                            to="/privacy"
-                            className={cn(
-                                "group flex items-center gap-3 px-4 py-3 rounded-xl transition-all",
-                                isPrivacy
-                                    ? "bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400"
-                                    : "text-dark-600 dark:text-dark-400 hover:bg-dark-100 dark:hover:bg-dark-800"
-                            )}
-                        >
-                            <Shield className={cn("w-5 h-5", isPrivacy ? "fill-primary-600/20" : "")} />
-                            <span className="font-medium">{t('legal.privacyPolicy', 'Privacy Policy')}</span>
-                        </Link>
-                        <Link
-                            to="/terms"
-                            className={cn(
-                                "group flex items-center gap-3 px-4 py-3 rounded-xl transition-all",
-                                !isPrivacy
-                                    ? "bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400"
-                                    : "text-dark-600 dark:text-dark-400 hover:bg-dark-100 dark:hover:bg-dark-800"
-                            )}
-                        >
-                            <FileText className={cn("w-5 h-5", !isPrivacy ? "fill-primary-600/20" : "")} />
-                            <span className="font-medium">{t('legal.termsOfService', 'Terms of Service')}</span>
-                        </Link>
-                    </nav>
-
-                    <div className="mt-10 pt-8 border-t border-dark-200 dark:border-dark-800">
-                        <h3 className="text-xs font-semibold text-dark-400 uppercase tracking-wider mb-4">
-                            {t('legal.contact', 'Contact')}
-                        </h3>
-                        <div className="flex items-center gap-3 text-sm text-dark-600 dark:text-dark-300 mb-2">
-                            <Globe className="w-4 h-4" />
-                            <span>www.cloudbox.lat</span>
+                    {/* TL;DR Card */}
+                    <div className="bg-dark-50 dark:bg-dark-800 rounded-2xl p-8 mb-16 border border-dark-100 dark:border-dark-700/50">
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="p-2 bg-primary-100 dark:bg-primary-900/30 rounded-lg text-primary-600">
+                                <FileText className="w-5 h-5" />
+                            </div>
+                            <h3 className="text-lg font-bold text-dark-900 dark:text-white">
+                                {t('legal.quickSummary', 'Resumen Rápido (TL;DR)')}
+                            </h3>
                         </div>
-                        <div className="flex items-center gap-3 text-sm text-dark-600 dark:text-dark-300">
-                            <Clock className="w-4 h-4" />
-                            <span>{t('legal.workingHours', 'Mon-Fri 9am-6pm')}</span>
+
+                        <div className="grid md:grid-cols-2 gap-6">
+                            {isPrivacy ? (
+                                <>
+                                    <div className="flex gap-3">
+                                        <Check className="w-5 h-5 text-primary-600 shrink-0" />
+                                        <p className="text-sm text-dark-600 dark:text-dark-300">{t('legal.privacyPoint1', 'Solo recopilamos lo esencial para que la app funcione.')}</p>
+                                    </div>
+                                    <div className="flex gap-3">
+                                        <Check className="w-5 h-5 text-primary-600 shrink-0" />
+                                        <p className="text-sm text-dark-600 dark:text-dark-300">{t('legal.privacyPoint2', 'Nunca vendemos tus datos personales a terceros.')}</p>
+                                    </div>
+                                    <div className="flex gap-3">
+                                        <Check className="w-5 h-5 text-primary-600 shrink-0" />
+                                        <p className="text-sm text-dark-600 dark:text-dark-300">{t('legal.privacyPoint3', 'Tus archivos están encriptados de extremo a extremo.')}</p>
+                                    </div>
+                                    <div className="flex gap-3">
+                                        <Check className="w-5 h-5 text-primary-600 shrink-0" />
+                                        <p className="text-sm text-dark-600 dark:text-dark-300">{t('legal.privacyPoint4', 'Puedes solicitar la eliminación de tu cuenta en cualquier momento.')}</p>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="flex gap-3">
+                                        <Check className="w-5 h-5 text-primary-600 shrink-0" />
+                                        <p className="text-sm text-dark-600 dark:text-dark-300">{t('legal.termsPoint1', 'Uso responsable de la plataforma.')}</p>
+                                    </div>
+                                    <div className="flex gap-3">
+                                        <Check className="w-5 h-5 text-primary-600 shrink-0" />
+                                        <p className="text-sm text-dark-600 dark:text-dark-300">{t('legal.termsPoint2', 'Respeto a los derechos de autor.')}</p>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
-                </aside>
 
-                {/* Main Content */}
-                <main className="flex-1 min-w-0 px-4 lg:px-12 py-8 lg:py-12">
-                    {loading ? (
-                        <div className="space-y-8 animate-pulse max-w-3xl">
-                            <div className="h-12 w-3/4 bg-dark-200 dark:bg-dark-800 rounded-lg"></div>
-                            <div className="h-4 w-1/4 bg-dark-200 dark:bg-dark-800 rounded"></div>
-                            <div className="space-y-4 pt-8">
-                                <div className="h-4 w-full bg-dark-200 dark:bg-dark-800 rounded"></div>
-                                <div className="h-4 w-full bg-dark-200 dark:bg-dark-800 rounded"></div>
-                                <div className="h-4 w-2/3 bg-dark-200 dark:bg-dark-800 rounded"></div>
-                            </div>
-                        </div>
-                    ) : (
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.4 }}
-                            className="max-w-3xl"
+                    {/* Markdown Content */}
+                    <div className="prose prose-lg dark:prose-invert max-w-none
+                        prose-headings:text-dark-900 dark:prose-headings:text-white prose-headings:font-bold prose-headings:tracking-tight
+                        prose-p:text-dark-600 dark:prose-p:text-dark-300 prose-p:leading-relaxed
+                        prose-a:text-primary-600 dark:prose-a:text-primary-500 hover:prose-a:text-primary-700
+                        prose-li:marker:text-primary-500
+                        prose-img:rounded-xl
+                        prose-hr:border-dark-100 dark:prose-hr:border-dark-700">
+                        <ReactMarkdown
+                            rehypePlugins={[rehypeRaw]}
+                            remarkPlugins={[remarkGfm]}
+                            components={{
+                                h1: (props) => <HeadingRenderer level={1} {...props} />,
+                                h2: (props) => <HeadingRenderer level={2} {...props} />,
+                                h3: (props) => <HeadingRenderer level={3} {...props} />,
+                            }}
                         >
-                            {/* Header */}
-                            <div className="mb-10 pb-10 border-b border-dark-200 dark:border-dark-800">
-                                <div className="flex items-center gap-3 mb-4 text-primary-600 dark:text-primary-400">
-                                    {isPrivacy ? <Shield className="w-8 h-8" /> : <FileText className="w-8 h-8" />}
-                                    <span className="text-sm font-semibold tracking-wider uppercase bg-primary-50 dark:bg-primary-900/30 px-3 py-1 rounded-full">
-                                        {t('legal.officialDocument', 'Official Document')}
-                                    </span>
-                                </div>
-                                <h1 className="text-4xl lg:text-5xl font-bold text-dark-900 dark:text-white mb-6">
-                                    {displayTitle}
-                                </h1>
-                                <p className="text-lg text-dark-500 dark:text-dark-400 flex items-center gap-2">
-                                    <Clock className="w-5 h-5" />
-                                    {t('legal.lastUpdated', 'Last updated')}: <span className="text-dark-900 dark:text-dark-200 font-medium">{lastUpdated}</span>
-                                </p>
-                            </div>
-
-                            {/* Content */}
-                            <div className="prose prose-lg dark:prose-invert max-w-none
-                  prose-headings:text-dark-900 dark:prose-headings:text-white
-                  prose-p:text-dark-600 dark:prose-p:text-dark-300
-                  prose-a:text-primary-600 dark:prose-a:text-primary-400 hover:prose-a:text-primary-700
-                  prose-strong:text-dark-900 dark:prose-strong:text-white
-                  prose-ul:text-dark-600 dark:prose-ul:text-dark-300
-                  prose-li:marker:text-primary-500">
-                                <ReactMarkdown
-                                    rehypePlugins={[rehypeRaw]}
-                                    remarkPlugins={[remarkGfm]}
-                                >
-                                    {displayContent}
-                                </ReactMarkdown>
-                            </div>
-
-                            {/* Footer Actions */}
-                            <div className="mt-16 pt-10 border-t border-dark-200 dark:border-dark-800 flex flex-col sm:flex-row gap-4 justify-between items-center">
-                                <p className="text-sm text-dark-500 text-center sm:text-left">
-                                    {t('legal.questions', 'Have questions about these terms?')} <br />
-                                    <a href="mailto:legal@cloudbox.lat" className="text-primary-600 hover:underline">{t('legal.contactTeam', 'Contact our legal team')}</a>
-                                </p>
-                                <div className="flex gap-4">
-                                    <Button
-                                        variant="secondary"
-                                        onClick={() => window.print()}
-                                        className="gap-2"
-                                    >
-                                        {t('legal.print', 'Print')}
-                                    </Button>
-                                    <Button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-                                        {t('legal.accessAccount', 'Access Account')}
-                                    </Button>
-                                </div>
-                            </div>
-                        </motion.div>
-                    )}
-                </main>
+                            {displayContent}
+                        </ReactMarkdown>
+                    </div>
+                </motion.div>
             </div>
-
-            {/* Scroll to top button */}
-            <AnimatePresence>
-                {showScrollTop && (
-                    <motion.button
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.8 }}
-                        onClick={scrollToTop}
-                        className="fixed bottom-8 right-8 w-12 h-12 bg-primary-600 hover:bg-primary-700 text-white rounded-full shadow-lg shadow-primary-600/30 flex items-center justify-center transition-all z-40 hover:-translate-y-1"
-                        aria-label={t('common.scrollToTop', 'Scroll to top')}
-                    >
-                        <ArrowUp className="w-6 h-6" />
-                    </motion.button>
-                )}
-            </AnimatePresence>
         </div>
     );
 }

@@ -1,6 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { createPortal } from 'react-dom';
 import { Folder, FileItem } from '../../types';
 import { useSearchParams, useLocation } from 'react-router-dom';
 import { useFileStore } from '../../stores/fileStore';
@@ -25,7 +24,8 @@ import RenameModal from '../modals/RenameModal';
 import MoveModal from '../modals/MoveModal';
 import CompressModal from '../modals/CompressModal';
 import ConfirmModal from '../ui/ConfirmModal';
-import { motion, AnimatePresence } from 'framer-motion';
+import ContextMenu, { ContextMenuItemOrDivider, ContextMenuDividerItem } from '../ui/ContextMenu';
+import { motion } from 'framer-motion';
 
 interface FolderCardProps {
   folder: Folder;
@@ -50,7 +50,6 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [contextMenuSelection, setContextMenuSelection] = useState<Set<string>>(new Set());
   const [isDragOver, setIsDragOver] = useState(false);
-  const contextMenuRef = useRef<HTMLDivElement>(null);
 
   // Check if this folder is being dragged (can't drop on itself)
   const isSelfDragged = draggedItems.some(item => item.type === 'folder' && item.item.id === folder.id);
@@ -59,27 +58,6 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
   useEffect(() => {
     setContextMenu(null);
   }, [location.pathname, location.search]);
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
-        setContextMenu(null);
-      }
-    };
-    const handleScroll = () => setContextMenu(null);
-    const handleContextMenuGlobal = () => setContextMenu(null);
-
-    if (contextMenu) {
-      document.addEventListener('mousedown', handleClickOutside);
-      document.addEventListener('scroll', handleScroll, true);
-      document.addEventListener('contextmenu', handleContextMenuGlobal, true);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-        document.removeEventListener('scroll', handleScroll, true);
-        document.removeEventListener('contextmenu', handleContextMenuGlobal, true);
-      };
-    }
-  }, [contextMenu]);
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -312,59 +290,19 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
     }
   };
 
-  const contextMenuContent = contextMenu ? createPortal(
-    <AnimatePresence>
-      <motion.div
-        ref={contextMenuRef}
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        transition={{ duration: 0.1 }}
-        className="fixed z-[9999] min-w-[180px] bg-white dark:bg-dark-800 rounded-xl shadow-lg border border-dark-200 dark:border-dark-700 py-1 overflow-hidden"
-        style={{ top: contextMenu.y, left: contextMenu.x }}
-      >
-        <button
-          onClick={handleFavorite}
-          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700"
-        >
-          <Star className="w-4 h-4" /> {folder.isFavorite ? t('folderCard.removeFromFavorites') : t('folderCard.addToFavorites')}
-        </button>
-        <button
-          onClick={() => { setContextMenu(null); setShowShareModal(true); }}
-          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700"
-        >
-          <Share2 className="w-4 h-4" /> {t('folderCard.share')}
-        </button>
-        <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
-        <button
-          onClick={() => { setContextMenu(null); setShowRenameModal(true); }}
-          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700"
-        >
-          <Edit className="w-4 h-4" /> {t('folderCard.rename')}
-        </button>
-        <button
-          onClick={() => { setContextMenu(null); setShowMoveModal(true); }}
-          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700"
-        >
-          <Move className="w-4 h-4" /> {t('folderCard.move')}
-        </button>
-        <button
-          onClick={() => { setContextMenu(null); setShowCompressModal(true); }}
-          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700"
-        >
-          <FileArchive className="w-4 h-4" /> {t('folderCard.compress')}
-        </button>
-        <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
-        <button
-          onClick={() => { setContextMenu(null); setShowDeleteConfirm(true); }}
-          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-        >
-          <Trash2 className="w-4 h-4" /> {t('folderCard.moveToTrash')}
-        </button>
-      </motion.div>
-    </AnimatePresence>,
-    document.body
-  ) : null;
+  // Context menu items configuration
+  const contextMenuItems: ContextMenuItemOrDivider[] = useMemo(() => [
+    { id: 'favorite', label: folder.isFavorite ? t('folderCard.removeFromFavorites') : t('folderCard.addToFavorites'), icon: Star, onClick: handleFavorite },
+    { id: 'share', label: t('folderCard.share'), icon: Share2, onClick: () => setShowShareModal(true) },
+    ContextMenuDividerItem(),
+    { id: 'rename', label: t('folderCard.rename'), icon: Edit, onClick: () => setShowRenameModal(true) },
+    { id: 'move', label: t('folderCard.move'), icon: Move, onClick: () => setShowMoveModal(true) },
+    { id: 'compress', label: t('folderCard.compress'), icon: FileArchive, onClick: () => setShowCompressModal(true) },
+    ContextMenuDividerItem(),
+    { id: 'delete', label: t('folderCard.moveToTrash'), icon: Trash2, onClick: () => setShowDeleteConfirm(true), danger: true },
+  ], [t, folder.isFavorite, handleFavorite]);
+
+  const closeContextMenu = () => setContextMenu(null);
 
   const modals = (
     <>
@@ -415,6 +353,8 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
     return (
       <>
         <motion.div
+          layout
+          layoutId={`folder-list-${folder.id}`}
           data-folder-item={folder.id}
           data-folder-name={folder.name}
           data-folder-data={JSON.stringify(folder)}
@@ -447,7 +387,7 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
           </div>
           {folder.isFavorite && <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />}
         </motion.div>
-        {contextMenuContent}
+        <ContextMenu items={contextMenuItems} position={contextMenu} onClose={closeContextMenu} />
         {modals}
       </>
     );
@@ -456,6 +396,8 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
   return (
     <>
       <motion.div
+        layout
+        layoutId={`folder-${folder.id}`}
         data-folder-item={folder.id}
         data-folder-name={folder.name}
         data-folder-data={JSON.stringify(folder)}
@@ -487,7 +429,7 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
           <Star className="w-4 h-4 text-yellow-500 fill-yellow-500 flex-shrink-0" />
         )}
       </motion.div>
-      {contextMenuContent}
+      <ContextMenu items={contextMenuItems} position={contextMenu} onClose={closeContextMenu} />
       {modals}
     </>
   );

@@ -14,7 +14,8 @@
     "pause": "Pause",
     "close": "Close player",
     "seek": "Seek",
-    "trackOf": "{{current}} of {{total}}"
+    "trackOf": "{{current}} of {{total}}",
+    "drag": "Drag player"
   },
   "header": {
     "search": "Search...",
@@ -600,6 +601,10 @@
     "moveError": "Error moving items",
     "itemsCount": "{{count}} items"
   },
+  "dragPreview": {
+    "itemsCount": "{{count}} items",
+    "andMore": "{{name}} and {{count}} more"
+  },
   "modals": {
     "upload": {
       "title": "Upload files",
@@ -1184,6 +1189,21 @@
     "termsContent": {
       "acceptance": "By accessing or using our services, you agree to be bound by these Terms of Service...",
       "accounts": "You are responsible for safeguarding the password that you use to access the service..."
-    }
+    },
+    "backToApp": "Back to App",
+    "privacySubtitle": "Your trust is our most valuable asset. Here is how we protect your data.",
+    "termsSubtitle": "Clear rules for everyone. Please read carefully.",
+    "tableOfContents": "Table of Contents",
+    "noToc": "No sections found",
+    "privacyCenter": "Privacy Center",
+    "legal": "LEGAL",
+    "updated": "Updated",
+    "quickSummary": "Quick Summary (TL;DR)",
+    "privacyPoint1": "We only collect what's essential for the app to work.",
+    "privacyPoint2": "We never sell your personal data to third parties.",
+    "privacyPoint3": "Your files are end-to-end encrypted.",
+    "privacyPoint4": "You can request account deletion at any time.",
+    "termsPoint1": "Responsible use of the platform.",
+    "termsPoint2": "Respect for copyright."
   }
 }

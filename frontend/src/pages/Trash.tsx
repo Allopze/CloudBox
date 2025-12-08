@@ -333,7 +333,7 @@ export default function Trash() {
                 className={cn(
                   "group flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all cursor-pointer",
                   isSelected
-                    ? "bg-primary-100 dark:bg-primary-900/30 ring-2 ring-primary-500 ring-offset-2 ring-offset-white dark:ring-offset-[#121212]"
+                    ? "bg-primary-100 dark:bg-primary-900/30 ring-2 ring-primary-500 ring-offset-2 ring-offset-white dark:ring-offset-dark-900"
                     : "hover:bg-dark-50 dark:hover:bg-dark-800"
                 )}
               >
@@ -386,7 +386,7 @@ export default function Trash() {
                 className={cn(
                   "group flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all cursor-pointer",
                   isSelected
-                    ? "bg-primary-100 dark:bg-primary-900/30 ring-2 ring-primary-500 ring-offset-2 ring-offset-white dark:ring-offset-[#121212]"
+                    ? "bg-primary-100 dark:bg-primary-900/30 ring-2 ring-primary-500 ring-offset-2 ring-offset-white dark:ring-offset-dark-900"
                     : "hover:bg-dark-50 dark:hover:bg-dark-800"
                 )}
               >

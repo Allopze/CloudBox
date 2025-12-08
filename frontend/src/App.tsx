@@ -8,6 +8,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 // Layouts
 import MainLayout from './layouts/MainLayout';
 import AuthLayout from './layouts/AuthLayout';
+import LegalLayout from './layouts/LegalLayout';
 
 // Auth pages
 import Login from './pages/auth/Login';
@@ -53,7 +54,7 @@ function App() {
     const abortController = new AbortController();
     checkAuth(abortController.signal);
     loadBranding(abortController.signal);
-    
+
     return () => {
       abortController.abort();
     };
@@ -75,8 +76,11 @@ function App() {
       <Routes>
         {/* Public routes */}
         <Route path="/share/:token" element={<PublicShare />} />
-        <Route path="/privacy" element={<LegalPage />} />
-        <Route path="/terms" element={<LegalPage />} />
+
+        <Route element={<LegalLayout />}>
+          <Route path="/privacy" element={<LegalPage />} />
+          <Route path="/terms" element={<LegalPage />} />
+        </Route>
 
         {/* Auth routes */}
         <Route element={<AuthLayout />}>
@@ -114,10 +118,10 @@ function App() {
 
       {/* Global music player */}
       <MusicPlayer />
-      
+
       {/* Global progress indicator for mass operations */}
       <GlobalProgressIndicator />
-      
+
       {/* Toast notifications */}
       <ToastContainer />
     </ErrorBoundary>

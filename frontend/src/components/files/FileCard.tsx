@@ -1,6 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { createPortal } from 'react-dom';
 import { useLocation } from 'react-router-dom';
 import { FileItem } from '../../types';
 import { useFileStore } from '../../stores/fileStore';
@@ -31,7 +30,8 @@ import RenameModal from '../modals/RenameModal';
 import MoveModal from '../modals/MoveModal';
 import CompressModal from '../modals/CompressModal';
 import ConfirmModal from '../ui/ConfirmModal';
-import { motion, AnimatePresence } from 'framer-motion';
+import ContextMenu, { ContextMenuItemOrDivider, ContextMenuDividerItem } from '../ui/ContextMenu';
+import { motion } from 'framer-motion';
 
 interface FileCardProps {
   file: FileItem;
@@ -64,33 +64,11 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [contextMenuSelection, setContextMenuSelection] = useState<Set<string>>(new Set());
-  const contextMenuRef = useRef<HTMLDivElement>(null);
 
   // Close context menu when location changes
   useEffect(() => {
     setContextMenu(null);
   }, [location.pathname, location.search]);
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
-        setContextMenu(null);
-      }
-    };
-    const handleScroll = () => setContextMenu(null);
-    const handleContextMenuGlobal = () => setContextMenu(null);
-
-    if (contextMenu) {
-      document.addEventListener('mousedown', handleClickOutside);
-      document.addEventListener('scroll', handleScroll, true);
-      document.addEventListener('contextmenu', handleContextMenuGlobal, true);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-        document.removeEventListener('scroll', handleScroll, true);
-        document.removeEventListener('contextmenu', handleContextMenuGlobal, true);
-      };
-    }
-  }, [contextMenu]);
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -295,65 +273,20 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
 
 
 
-  const contextMenuContent = contextMenu ? createPortal(
-    <AnimatePresence>
-      <motion.div
-        ref={contextMenuRef}
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        transition={{ duration: 0.1 }}
-        className="fixed z-[9999] min-w-[180px] bg-white dark:bg-dark-800 rounded-xl shadow-lg border border-dark-200 dark:border-dark-700 py-1 overflow-hidden"
-        style={{ top: contextMenu.y, left: contextMenu.x }}
-      >
-        <button
-          onClick={handleDownload}
-          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700"
-        >
-          <Download className="w-4 h-4" /> {t('fileCard.download')}
-        </button>
-        <button
-          onClick={handleFavorite}
-          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700"
-        >
-          <Star className="w-4 h-4" /> {file.isFavorite ? t('fileCard.removeFromFavorites') : t('fileCard.addToFavorites')}
-        </button>
-        <button
-          onClick={() => { setContextMenu(null); setShowShareModal(true); }}
-          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700"
-        >
-          <Share2 className="w-4 h-4" /> {t('fileCard.share')}
-        </button>
-        <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
-        <button
-          onClick={() => { setContextMenu(null); setShowRenameModal(true); }}
-          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700"
-        >
-          <Edit className="w-4 h-4" /> {t('fileCard.rename')}
-        </button>
-        <button
-          onClick={() => { setContextMenu(null); setShowMoveModal(true); }}
-          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700"
-        >
-          <Move className="w-4 h-4" /> {t('fileCard.move')}
-        </button>
-        <button
-          onClick={() => { setContextMenu(null); setShowCompressModal(true); }}
-          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700"
-        >
-          <FileArchive className="w-4 h-4" /> {t('fileCard.compress')}
-        </button>
-        <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
-        <button
-          onClick={() => { setContextMenu(null); setShowDeleteConfirm(true); }}
-          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-        >
-          <Trash2 className="w-4 h-4" /> {t('fileCard.moveToTrash')}
-        </button>
-      </motion.div>
-    </AnimatePresence>,
-    document.body
-  ) : null;
+  // Context menu items configuration
+  const contextMenuItems: ContextMenuItemOrDivider[] = useMemo(() => [
+    { id: 'download', label: t('fileCard.download'), icon: Download, onClick: handleDownload },
+    { id: 'favorite', label: file.isFavorite ? t('fileCard.removeFromFavorites') : t('fileCard.addToFavorites'), icon: Star, onClick: handleFavorite },
+    { id: 'share', label: t('fileCard.share'), icon: Share2, onClick: () => setShowShareModal(true) },
+    ContextMenuDividerItem(),
+    { id: 'rename', label: t('fileCard.rename'), icon: Edit, onClick: () => setShowRenameModal(true) },
+    { id: 'move', label: t('fileCard.move'), icon: Move, onClick: () => setShowMoveModal(true) },
+    { id: 'compress', label: t('fileCard.compress'), icon: FileArchive, onClick: () => setShowCompressModal(true) },
+    ContextMenuDividerItem(),
+    { id: 'delete', label: t('fileCard.moveToTrash'), icon: Trash2, onClick: () => setShowDeleteConfirm(true), danger: true },
+  ], [t, file.isFavorite, handleDownload, handleFavorite]);
+
+  const closeContextMenu = () => setContextMenu(null);
 
   const modals = (
     <>
@@ -404,6 +337,8 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
     return (
       <>
         <motion.div
+          layout
+          layoutId={`file-list-${file.id}`}
           data-file-item={file.id}
           data-file-name={file.name}
           data-file-data={JSON.stringify(file)}
@@ -448,7 +383,7 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
           </div>
           {file.isFavorite && <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />}
         </motion.div>
-        {contextMenuContent}
+        <ContextMenu items={contextMenuItems} position={contextMenu} onClose={closeContextMenu} />
         {modals}
       </>
     );
@@ -457,6 +392,8 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
   return (
     <>
       <motion.div
+        layout
+        layoutId={`file-${file.id}`}
         data-file-item={file.id}
         data-file-name={file.name}
         data-file-data={JSON.stringify(file)}
@@ -502,7 +439,7 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
           <Star className="w-4 h-4 text-yellow-500 fill-yellow-500 flex-shrink-0" />
         )}
       </motion.div>
-      {contextMenuContent}
+      <ContextMenu items={contextMenuItems} position={contextMenu} onClose={closeContextMenu} />
       {modals}
     </>
   );

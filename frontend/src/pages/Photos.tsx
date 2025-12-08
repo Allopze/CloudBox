@@ -17,6 +17,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ShareModal from '../components/modals/ShareModal';
 import RenameModal from '../components/modals/RenameModal';
 import ConfirmModal from '../components/ui/ConfirmModal';
+import VideoPreview from '../components/gallery/VideoPreview';
 
 type TabType = 'all' | 'favorites' | 'videos' | 'screenshots';
 
@@ -48,6 +49,7 @@ export default function Photos() {
   const [renameModalFile, setRenameModalFile] = useState<FileItem | null>(null);
   const [infoPhoto, setInfoPhoto] = useState<FileItem | null>(null);
   const [deleteConfirmPhoto, setDeleteConfirmPhoto] = useState<FileItem | null>(null);
+  const [videoPreviewFile, setVideoPreviewFile] = useState<FileItem | null>(null);
 
   // Album selector state
   const [albumSelectorOpen, setAlbumSelectorOpen] = useState(false);
@@ -117,9 +119,19 @@ export default function Photos() {
     return () => window.removeEventListener('workzone-refresh', handleRefresh);
   }, [loadData]);
 
+  // Helper to check if file is a video
+  const isVideo = (file: FileItem): boolean => {
+    return file.mimeType?.startsWith('video/') || false;
+  };
+
   const openLightbox = (photo: FileItem, index: number) => {
-    setSelectedPhoto(photo);
-    setLightboxIndex(index);
+    // If it's a video, open video preview instead
+    if (isVideo(photo)) {
+      setVideoPreviewFile(photo);
+    } else {
+      setSelectedPhoto(photo);
+      setLightboxIndex(index);
+    }
   };
 
   const closeLightbox = () => {
@@ -974,6 +986,24 @@ export default function Photos() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Video Preview */}
+      {videoPreviewFile && (
+        <VideoPreview
+          file={videoPreviewFile}
+          isOpen={true}
+          onClose={() => setVideoPreviewFile(null)}
+          onDownload={(file) => {
+            window.open(getFileUrl(`/files/${file.id}/download`), '_blank');
+            setVideoPreviewFile(null);
+          }}
+          onShare={(file) => {
+            setShareModalFile(file);
+            setShareModalOpen(true);
+            setVideoPreviewFile(null);
+          }}
+        />
+      )}
 
       {/* Delete Confirmation Modal */}
       <ConfirmModal

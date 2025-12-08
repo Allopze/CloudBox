@@ -55,7 +55,7 @@ export default function Sidebar() {
   const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
   const [fileDropTarget, setFileDropTarget] = useState<string | null>(null);
   const dragImageRef = useRef<HTMLDivElement>(null);
-  
+
   // Context menu for Trash
   const [trashContextMenu, setTrashContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [emptyingTrash, setEmptyingTrash] = useState(false);
@@ -91,8 +91,8 @@ export default function Sidebar() {
 
   const storageUsedPercent = user && parseInt(user.storageQuota) > 0
     ? Math.round(
-        (parseInt(user.storageUsed) / parseInt(user.storageQuota)) * 100
-      )
+      (parseInt(user.storageUsed) / parseInt(user.storageQuota)) * 100
+    )
     : 0;
 
   const handleDragStart = (e: React.DragEvent, item: NavItem, section: 'main' | 'bottom') => {
@@ -116,7 +116,7 @@ export default function Sidebar() {
     const rect = e.currentTarget.getBoundingClientRect();
     const midPoint = rect.top + rect.height / 2;
     const position = e.clientY < midPoint ? 'before' : 'after';
-    
+
     setDragOverIndex(index);
     setDropTargetSection(section);
     setDropPosition(position);
@@ -136,12 +136,12 @@ export default function Sidebar() {
 
     const sourceItems = dragSection === 'main' ? [...navItems] : [...bottomNavItems];
     const targetItems = targetSection === 'main' ? [...navItems] : [...bottomNavItems];
-    
+
     const sourceIndex = sourceItems.findIndex(item => item.id === draggedItem.id);
-    
+
     // Calculate actual insert index based on drop position
     let insertIndex = dropPosition === 'after' ? targetIndex + 1 : targetIndex;
-    
+
     if (dragSection === targetSection) {
       // Reorder within same section
       sourceItems.splice(sourceIndex, 1);
@@ -150,7 +150,7 @@ export default function Sidebar() {
         insertIndex--;
       }
       sourceItems.splice(insertIndex, 0, draggedItem);
-      
+
       if (targetSection === 'main') {
         setNavItems(sourceItems);
       } else {
@@ -160,7 +160,7 @@ export default function Sidebar() {
       // Move between sections
       sourceItems.splice(sourceIndex, 1);
       targetItems.splice(insertIndex, 0, draggedItem);
-      
+
       if (dragSection === 'main') {
         setNavItems(sourceItems);
         setBottomNavItems(targetItems);
@@ -176,16 +176,16 @@ export default function Sidebar() {
   // Handle file/folder drops on sidebar categories
   const handleFileDragOver = (e: React.DragEvent, path: string) => {
     if (!isFileDragging) return;
-    
+
     const category = getCategoryFromPath(path);
     if (!category) return;
-    
+
     // Check if any of the dragged items can be dropped here
     const canDrop = fileDraggedItems.some(item => {
       if (item.type === 'folder') return category === 'files'; // Only Files accepts folders
       return fileMatchesCategory(item.item as FileItem, category);
     });
-    
+
     if (canDrop) {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
@@ -200,28 +200,28 @@ export default function Sidebar() {
   const handleFileDrop = async (e: React.DragEvent, path: string) => {
     e.preventDefault();
     setFileDropTarget(null);
-    
+
     if (!isFileDragging || fileDraggedItems.length === 0) return;
-    
+
     const category = getCategoryFromPath(path);
     if (!category) return;
-    
+
     const itemsToMove = fileDraggedItems;
     endFileDrag();
-    
+
     // Filter items that match the category
     const validItems = itemsToMove.filter(item => {
       if (item.type === 'folder') return category === 'files';
       return fileMatchesCategory(item.item as FileItem, category);
     });
-    
+
     if (validItems.length === 0) {
       toast(t('sidebar.incompatibleItems'), 'error');
       return;
     }
-    
+
     const clearSelectionFn = useFileStore.getState().clearSelection;
-    
+
     try {
       // Move items to root folder (null) when dropping on category
       for (const dragItem of validItems) {
@@ -237,18 +237,18 @@ export default function Sidebar() {
           }
         }
       }
-      
+
       const categoryNames: Record<string, string> = {
         'files': t('sidebar.categories.files'),
         'photos': t('sidebar.categories.photos'),
         'music': t('sidebar.categories.music'),
         'documents': t('sidebar.categories.documents'),
       };
-      
+
       toast(t('sidebar.movedTo', { count: validItems.length, category: categoryNames[category] || category }), 'success');
       clearSelectionFn();
       window.dispatchEvent(new CustomEvent('workzone-refresh'));
-      
+
       // Navigate to the category
       navigate(path);
     } catch (error: any) {
@@ -264,7 +264,7 @@ export default function Sidebar() {
     const showDropAfter = isDropTarget && dropPosition === 'after';
     const isTrash = item.path === '/trash';
     const isFileDropTarget = fileDropTarget === item.path;
-    
+
     // Check if this nav item can accept file drops
     const category = getCategoryFromPath(item.path);
     const canAcceptFileDrop = isFileDragging && category && fileDraggedItems.some(dragItem => {
@@ -326,7 +326,7 @@ export default function Sidebar() {
               'flex items-center gap-3 px-4 py-3 rounded-full text-base font-semibold transition-colors border border-transparent',
               isActive
                 ? 'bg-primary-500/15 text-primary-600 dark:text-primary-400 border-primary-500/25'
-                : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-white dark:hover:bg-[#121212]',
+                : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-white dark:hover:bg-dark-900',
               isFileDropTarget && canAcceptFileDrop && 'bg-primary-500/20 border-primary-500 ring-2 ring-primary-500/50'
             )
           }
@@ -343,7 +343,7 @@ export default function Sidebar() {
   const renderDragPreview = () => {
     if (!draggedItem) return null;
     const IconComponent = iconMap[draggedItem.icon];
-    
+
     return createPortal(
       <div
         ref={dragImageRef}
@@ -365,7 +365,7 @@ export default function Sidebar() {
   // Trash context menu rendered via portal
   const renderTrashContextMenu = () => {
     if (!trashContextMenu) return null;
-    
+
     return createPortal(
       <AnimatePresence>
         <motion.div
@@ -397,7 +397,7 @@ export default function Sidebar() {
       {renderTrashContextMenu()}
       <aside
         className={cn(
-          'w-48 bg-dark-100 dark:bg-[#222222] text-dark-900 dark:text-white flex flex-col h-screen overflow-hidden transition-all duration-300',
+          'w-48 bg-dark-100 dark:bg-dark-800 text-dark-900 dark:text-white flex flex-col h-screen overflow-hidden transition-all duration-300',
           !sidebarOpen && 'w-0 opacity-0'
         )}
       >
@@ -412,7 +412,7 @@ export default function Sidebar() {
           ) : (
             <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center">
               <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/>
+                <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" />
               </svg>
             </div>
           )}
@@ -429,7 +429,7 @@ export default function Sidebar() {
         </div>
 
         {/* Storage info */}
-        <div className="p-4 border-t border-dark-200 dark:border-[#2a2a2a]">
+        <div className="p-4 border-t border-dark-200 dark:border-dark-700">
           <p className="text-xs text-dark-500 dark:text-white/70 mb-2">{t('sidebar.storage')}</p>
           <div className="w-full h-1.5 bg-dark-200 dark:bg-white/10 rounded-full overflow-hidden">
             <div

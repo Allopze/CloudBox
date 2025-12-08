@@ -56,14 +56,13 @@ export default function VideoPreview({
   // State for signed URL and loading
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
 
-  // Reset state when video changes
+  // Fetch signed URL when component opens or file changes
   useEffect(() => {
-    if (isOpen && videoRef.current) {
-      videoRef.current.currentTime = 0;
-      setCurrentTime(0);
-      setIsPlaying(false);
+    if (isOpen) {
       setIsLoading(true);
       setShowControls(true);
+      setCurrentTime(0);
+      setIsPlaying(false);
 
       // Fetch signed URL
       getSignedFileUrl(file.id, 'stream')
@@ -73,6 +72,13 @@ export default function VideoPreview({
       setSignedUrl(null);
     }
   }, [isOpen, file.id]);
+
+  // Reset video element when signedUrl changes
+  useEffect(() => {
+    if (signedUrl && videoRef.current) {
+      videoRef.current.currentTime = 0;
+    }
+  }, [signedUrl]);
 
   // Auto-hide controls
   const resetControlsTimeout = useCallback(() => {
@@ -257,9 +263,30 @@ export default function VideoPreview({
     setShowSettings(false);
   };
 
-  if (!isOpen || !signedUrl) return null;
+  if (!isOpen) return null;
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+
+  // Show loading state while fetching signedUrl
+  if (!signedUrl) {
+    return createPortal(
+      <div className="fixed inset-0 z-50 bg-black flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-white/30 border-t-white rounded-full animate-spin" />
+          <p className="text-white/70 text-sm">{t('gallery.loading')}</p>
+        </div>
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+          title={t('common.close')}
+          aria-label={t('common.close')}
+        >
+          <X className="w-5 h-5" />
+        </button>
+      </div>,
+      document.body
+    );
+  }
 
   return createPortal(
     <div

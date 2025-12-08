@@ -1,9 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMusicStore } from '../stores/musicStore';
 import { getFileUrl } from '../lib/api';
-import { formatDuration } from '../lib/utils';
+import { formatDuration, cn } from '../lib/utils';
 import { X, Music } from 'lucide-react';
+
+// Constants for edge magnetism
+const MAGNETISM_THRESHOLD = 50; // pixels - distance to start snapping
+const EDGE_PADDING = 24; // pixels - padding from edge when snapped
 
 // Vinyl disc component with album cover
 const VinylDisc = ({
@@ -142,8 +146,25 @@ const VinylDisc = ({
 export default function MusicPlayer() {
   const { t } = useTranslation();
   const audioRef = useRef<HTMLAudioElement>(null);
+  const playerRef = useRef<HTMLDivElement>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [showQueue, setShowQueue] = useState(false);
+
+  // Drag state
+  const [isDragging, setIsDragging] = useState(false);
+  const [position, setPosition] = useState<{ x: number; y: number }>(() => {
+    // Load saved position from localStorage
+    const saved = localStorage.getItem('musicPlayerPosition');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return { x: window.innerWidth - 200, y: window.innerHeight - 200 };
+      }
+    }
+    return { x: window.innerWidth - 200, y: window.innerHeight - 200 };
+  });
+  const dragStartRef = useRef<{ x: number; y: number; posX: number; posY: number } | null>(null);
 
   const {
     currentTrack,
@@ -165,6 +186,121 @@ export default function MusicPlayer() {
     toggleShuffle,
     play,
   } = useMusicStore();
+
+  // Apply edge magnetism to position
+  // Always use collapsed size (w-44=176px, h-20=80px) for consistent positioning
+  const applyMagnetism = useCallback((x: number, y: number): { x: number; y: number } => {
+    const playerWidth = 176; // Collapsed width (w-44)
+    const playerHeight = 80; // Collapsed height (h-20)
+    const windowWidth = window.innerWidth;
+    const windowHeight = window.innerHeight;
+
+    let newX = x;
+    let newY = y;
+
+    // Left edge magnetism
+    if (x < MAGNETISM_THRESHOLD) {
+      newX = EDGE_PADDING;
+    }
+    // Right edge magnetism
+    else if (x + playerWidth > windowWidth - MAGNETISM_THRESHOLD) {
+      newX = windowWidth - playerWidth - EDGE_PADDING;
+    }
+
+    // Top edge magnetism
+    if (y < MAGNETISM_THRESHOLD) {
+      newY = EDGE_PADDING;
+    }
+    // Bottom edge magnetism
+    else if (y + playerHeight > windowHeight - MAGNETISM_THRESHOLD) {
+      newY = windowHeight - playerHeight - EDGE_PADDING;
+    }
+
+    return { x: newX, y: newY };
+  }, []);
+
+  // Handle drag start
+  const handleDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+    dragStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      posX: position.x,
+      posY: position.y,
+    };
+  }, [position]);
+
+  // Handle drag move
+  const handleDragMove = useCallback((e: MouseEvent) => {
+    if (!isDragging || !dragStartRef.current) return;
+
+    const deltaX = e.clientX - dragStartRef.current.x;
+    const deltaY = e.clientY - dragStartRef.current.y;
+
+    let newX = dragStartRef.current.posX + deltaX;
+    let newY = dragStartRef.current.posY + deltaY;
+
+    // Constrain to viewport - use collapsed size for consistent positioning
+    const playerWidth = 176; // Collapsed width
+    const playerHeight = 80; // Collapsed height
+
+    newX = Math.max(0, Math.min(newX, window.innerWidth - playerWidth));
+    newY = Math.max(0, Math.min(newY, window.innerHeight - playerHeight));
+
+    setPosition({ x: newX, y: newY });
+  }, [isDragging]);
+
+  // Handle drag end
+  const handleDragEnd = useCallback(() => {
+    if (isDragging) {
+      // Apply magnetism on drop
+      const magnetizedPos = applyMagnetism(position.x, position.y);
+      setPosition(magnetizedPos);
+      // Save position to localStorage
+      localStorage.setItem('musicPlayerPosition', JSON.stringify(magnetizedPos));
+    }
+    setIsDragging(false);
+    dragStartRef.current = null;
+  }, [isDragging, position, applyMagnetism]);
+
+  // Add/remove mouse event listeners for dragging
+  useEffect(() => {
+    if (isDragging) {
+      window.addEventListener('mousemove', handleDragMove);
+      window.addEventListener('mouseup', handleDragEnd);
+      document.body.style.userSelect = 'none';
+      document.body.style.cursor = 'grabbing';
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', handleDragMove);
+      window.removeEventListener('mouseup', handleDragEnd);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+    };
+  }, [isDragging, handleDragMove, handleDragEnd]);
+
+  // Handle window resize to keep player in bounds
+  useEffect(() => {
+    const handleResize = () => {
+      setPosition(prev => {
+        const playerWidth = playerRef.current?.offsetWidth || 288;
+        const playerHeight = playerRef.current?.offsetHeight || 160;
+
+        const newX = Math.max(0, Math.min(prev.x, window.innerWidth - playerWidth));
+        const newY = Math.max(0, Math.min(prev.y, window.innerHeight - playerHeight));
+
+        const magnetized = applyMagnetism(newX, newY);
+        localStorage.setItem('musicPlayerPosition', JSON.stringify(magnetized));
+        return magnetized;
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [applyMagnetism]);
 
   useEffect(() => {
     if (!audioRef.current || !currentTrack) return;
@@ -242,11 +378,25 @@ export default function MusicPlayer() {
       />
 
       {/* Floating player */}
-      <div className="fixed bottom-6 right-6 z-50 select-none">
+      <div
+        ref={playerRef}
+        className="fixed z-50 select-none"
+        style={{
+          left: position.x,
+          top: position.y,
+          transition: isDragging ? 'none' : 'left 0.2s ease-out, top 0.2s ease-out',
+        }}
+      >
         <div
           className="flex flex-col items-center group/player"
           onMouseEnter={() => setIsExpanded(true)}
-          onMouseLeave={() => { setIsExpanded(false); setShowQueue(false); }}
+          onMouseLeave={() => {
+            // Don't collapse while dragging
+            if (!isDragging) {
+              setIsExpanded(false);
+              setShowQueue(false);
+            }
+          }}
         >
           {/* Queue list */}
           {showQueue && isExpanded && (
@@ -315,6 +465,41 @@ export default function MusicPlayer() {
           {/* Main player card */}
           <div className={`relative z-30 flex flex-col bg-white dark:bg-dark-800 shadow-xl rounded-2xl transition-all duration-300 ${isExpanded ? 'w-72 h-40' : 'w-44 h-20'
             }`}>
+            {/* Drag handle - entire card when collapsed, iOS-style drag bar when expanded */}
+            {!isExpanded ? (
+              <div
+                onMouseDown={handleDragStart}
+                className={cn(
+                  "absolute inset-0 cursor-grab active:cursor-grabbing z-40 rounded-2xl",
+                  isDragging && "cursor-grabbing"
+                )}
+                title={t('player.drag')}
+                aria-label={t('player.drag')}
+              />
+            ) : (
+              <>
+                {/* iOS-style drag bar at top */}
+                <div
+                  onMouseDown={handleDragStart}
+                  className={cn(
+                    "absolute -top-3 left-1/2 -translate-x-1/2 w-14 h-1.5 bg-dark-300 dark:bg-dark-500 rounded-full cursor-grab active:cursor-grabbing z-50 hover:bg-dark-400 dark:hover:bg-dark-400 transition-colors shadow-sm",
+                    isDragging && "cursor-grabbing bg-dark-400 dark:bg-dark-400"
+                  )}
+                  title={t('player.drag')}
+                  aria-label={t('player.drag')}
+                />
+                {/* Extended drag area behind the bar for easier grabbing */}
+                <div
+                  onMouseDown={handleDragStart}
+                  className={cn(
+                    "absolute -top-4 left-1/4 right-1/4 h-6 cursor-grab active:cursor-grabbing z-40",
+                    isDragging && "cursor-grabbing"
+                  )}
+                  title={t('player.drag')}
+                  aria-label={t('player.drag')}
+                />
+              </>
+            )}
             {/* Expanded header with vinyl */}
             <div className={`flex flex-row w-full transition-all duration-300 ${isExpanded ? 'h-20' : 'h-0 overflow-hidden'}`}>
               <div className={`absolute flex items-center justify-center transition-all duration-300 ${isExpanded ? '-top-6 -left-4 opacity-100' : '-top-6 -left-4 opacity-0 pointer-events-none'
@@ -334,7 +519,7 @@ export default function MusicPlayer() {
                   e.stopPropagation();
                   clearQueue();
                 }}
-                className={`absolute top-2 right-2 p-1.5 text-zinc-400 hover:text-white hover:bg-red-500 rounded-full transition-all active:scale-90 ${isExpanded ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                className={`absolute top-2 right-2 p-1.5 text-zinc-400 hover:text-white hover:bg-red-500 rounded-full transition-all active:scale-90 z-50 ${isExpanded ? 'opacity-100' : 'opacity-0 pointer-events-none'
                   }`}
                 title={t('common.close')}
                 aria-label={t('common.close')}
@@ -344,7 +529,7 @@ export default function MusicPlayer() {
             </div>
 
             {/* Progress bar */}
-            <div className={`flex flex-row items-center mx-3 bg-primary-100 dark:bg-primary-900/30 rounded-md min-h-4 transition-all ${isExpanded ? 'mt-0' : 'mt-3'
+            <div className={`flex flex-row items-center mx-3 bg-primary-100 dark:bg-primary-900/30 rounded-md min-h-4 transition-all relative z-50 ${isExpanded ? 'mt-0' : 'mt-3'
               }`}>
               <span className={`pl-3 text-sm text-zinc-500 dark:text-zinc-400 transition-all ${isExpanded ? 'inline-block' : 'hidden'}`}>
                 {formatDuration(progress)}
@@ -379,7 +564,7 @@ export default function MusicPlayer() {
             </div>
 
             {/* Controls */}
-            <div className="flex flex-row items-center justify-center flex-grow mx-3 space-x-5">
+            <div className="flex flex-row items-center justify-center flex-grow mx-3 space-x-5 relative z-50">
               {/* Repeat/Shuffle button */}
               <button
                 onClick={toggleShuffle}

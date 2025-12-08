@@ -4,11 +4,17 @@ import { cn } from '../../lib/utils';
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
 
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 interface Toast {
   id: string;
   type: ToastType;
   message: string;
   duration?: number;
+  action?: ToastAction;
 }
 
 interface ToastStore {
@@ -38,8 +44,19 @@ export const useToastStore = create<ToastStore>((set) => ({
     })),
 }));
 
+// Original simple toast function (backwards compatible)
 export function toast(message: string, type: ToastType = 'info', duration?: number) {
   useToastStore.getState().addToast({ message, type, duration });
+}
+
+// Enhanced toast function with action support
+export function toastWithAction(
+  message: string,
+  type: ToastType,
+  action: ToastAction,
+  duration: number = 8000 // Longer duration for action toasts
+) {
+  useToastStore.getState().addToast({ message, type, action, duration });
 }
 
 const icons = {
@@ -56,9 +73,21 @@ const styles = {
   info: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-200',
 };
 
+const actionStyles = {
+  success: 'text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-800/30',
+  error: 'text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-800/30',
+  warning: 'text-yellow-700 dark:text-yellow-300 hover:bg-yellow-100 dark:hover:bg-yellow-800/30',
+  info: 'text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-800/30',
+};
+
 function ToastItem({ toast }: { toast: Toast }) {
   const { removeToast } = useToastStore();
   const Icon = icons[toast.type];
+
+  const handleAction = () => {
+    toast.action?.onClick();
+    removeToast(toast.id);
+  };
 
   return (
     <div
@@ -69,9 +98,21 @@ function ToastItem({ toast }: { toast: Toast }) {
     >
       <Icon className="w-5 h-5 flex-shrink-0" />
       <p className="flex-1 text-sm font-medium">{toast.message}</p>
+      {toast.action && (
+        <button
+          onClick={handleAction}
+          className={cn(
+            'px-3 py-1 text-sm font-semibold rounded-md transition-colors',
+            actionStyles[toast.type]
+          )}
+        >
+          {toast.action.label}
+        </button>
+      )}
       <button
         onClick={() => removeToast(toast.id)}
         className="p-1 -m-1 rounded hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+        aria-label="Dismiss"
       >
         <X className="w-4 h-4" />
       </button>
@@ -92,3 +133,4 @@ export function ToastContainer() {
     </div>
   );
 }
+

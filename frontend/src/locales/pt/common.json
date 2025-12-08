@@ -13,7 +13,8 @@
     "play": "Reproduzir",
     "pause": "Pausar",
     "close": "Fechar reprodutor",
-    "trackOf": "{{current}} de {{total}}"
+    "trackOf": "{{current}} de {{total}}",
+    "drag": "Arrastar reprodutor"
   },
   "header": {
     "search": "Pesquisar...",

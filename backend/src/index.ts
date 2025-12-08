@@ -181,7 +181,7 @@ app.use('/api/auth/verify-email', sensitiveAuthLimiter);
 // Issue #22: Rate limiting for admin endpoints
 const adminLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // 100 requests per window for admin operations
+  max: 1000, // 1000 requests per window for admin operations (investigate reduced limit for prod)
   message: { error: 'Too many admin requests, please try again later' },
 });
 app.use('/api/admin', adminLimiter);

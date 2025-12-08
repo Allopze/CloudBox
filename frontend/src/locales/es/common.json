@@ -14,7 +14,8 @@
     "pause": "Pausar",
     "close": "Cerrar reproductor",
     "seek": "Búsqueda",
-    "trackOf": "{{current}} de {{total}}"
+    "trackOf": "{{current}} de {{total}}",
+    "drag": "Arrastrar reproductor"
   },
   "header": {
     "search": "Buscar...",
@@ -642,6 +643,10 @@
     "moveError": "Error al mover elementos",
     "itemsCount": "{{count}} elementos"
   },
+  "dragPreview": {
+    "itemsCount": "{{count}} elementos",
+    "andMore": "{{name}} y {{count}} más"
+  },
   "modals": {
     "upload": {
       "title": "Subir archivos",
@@ -1173,7 +1178,7 @@
     "workingHours": "Lun-Vie 9am-6pm",
     "lastUpdated": "Última actualización",
     "privacyPolicy": "Política de Privacidad",
-    "termsOfService": "Términos de Servicio",
+    "termsOfService": "Términos y Condiciones",
     "privacy": "Privacidad",
     "terms": "Términos",
     "privacySections": {
@@ -1191,6 +1196,21 @@
     "termsContent": {
       "acceptance": "Al acceder o utilizar nuestros servicios, aceptas estar sujeto a estos Términos de servicio...",
       "accounts": "Eres responsable de proteger la contraseña que utilizas para acceder al servicio..."
-    }
+    },
+    "backToApp": "Volver a la App",
+    "privacySubtitle": "Tu confianza es nuestro activo más valioso. Así es como protegemos tus datos.",
+    "termsSubtitle": "Las reglas del juego claras para todos. Por favor lee atentamente.",
+    "tableOfContents": "Índice de Contenidos",
+    "noToc": "No se encontraron secciones",
+    "privacyCenter": "Centro de Privacidad",
+    "legal": "LEGAL",
+    "updated": "Actualizado",
+    "quickSummary": "Resumen Rápido (TL;DR)",
+    "privacyPoint1": "Solo recopilamos lo esencial para que la app funcione.",
+    "privacyPoint2": "Nunca vendemos tus datos personales a terceros.",
+    "privacyPoint3": "Tus archivos están encriptados de extremo a extremo.",
+    "privacyPoint4": "Puedes solicitar la eliminación de tu cuenta en cualquier momento.",
+    "termsPoint1": "Uso responsable de la plataforma.",
+    "termsPoint2": "Respeto a los derechos de autor."
   }
 }

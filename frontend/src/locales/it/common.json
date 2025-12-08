@@ -13,7 +13,8 @@
     "play": "Riproduci",
     "pause": "Pausa",
     "close": "Chiudi lettore",
-    "trackOf": "{{current}} di {{total}}"
+    "trackOf": "{{current}} di {{total}}",
+    "drag": "Trascina lettore"
   },
   "header": {
     "search": "Cerca...",
