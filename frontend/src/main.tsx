@@ -9,6 +9,10 @@ import './index.css';
 // Initialize i18n
 import './i18n';
 
+// Initialize error tracking (GlitchTip/Sentry)
+import { initSentry } from './lib/sentry';
+initSentry();
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

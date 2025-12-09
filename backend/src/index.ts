@@ -11,7 +11,7 @@ import { errorHandler } from './middleware/error.js';
 import { initStorage, getStoragePath } from './lib/storage.js';
 import prisma, { updateParentFolderSizes } from './lib/prisma.js';
 import { auditContext, suspiciousActivityDetector } from './lib/audit.js';
-import logger from './lib/logger.js';
+import { logger } from './lib/logger.js';
 import { initSocketIO, getConnectedUserCount } from './lib/socket.js';
 import { initTranscodingQueue, getQueueStats, cleanupOldJobs } from './lib/transcodingQueue.js';
 import { initDocumentConversionQueue } from './lib/documentConversionQueue.js';
@@ -147,7 +147,7 @@ app.use(suspiciousActivityDetector);
 // Global rate limiting - more generous
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000, // limit each IP to 1000 requests per windowMs
+  max: 10000, // limit each IP to 10000 requests per windowMs
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests, please try again later' },

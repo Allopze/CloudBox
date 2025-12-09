@@ -252,7 +252,7 @@ export default function Header() {
               />
             </div>
             <span className="text-xs font-medium text-dark-600 dark:text-dark-300 tabular-nums whitespace-nowrap min-w-[90px] text-right">
-              {uploadProgress}% · {formatBytes(speed)}/s
+              {t('header.uploadProgress', { percent: uploadProgress, speed: formatBytes(speed) })}
             </span>
           </div>
         )}

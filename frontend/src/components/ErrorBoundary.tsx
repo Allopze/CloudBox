@@ -1,6 +1,7 @@
 import React, { Component, ReactNode } from 'react';
 import { withTranslation, WithTranslation } from 'react-i18next';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
+import { captureError } from '../lib/sentry';
 
 interface Props extends WithTranslation {
   children: ReactNode;
@@ -29,15 +30,15 @@ class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     this.setState({ errorInfo });
-    
+
     // Log error to console in development
     console.error('ErrorBoundary caught an error:', error);
     console.error('Component stack:', errorInfo.componentStack);
-    
-    // TODO: In production, send to error tracking service (e.g., Sentry)
-    // if (process.env.NODE_ENV === 'production') {
-    //   sendToErrorTracking(error, errorInfo);
-    // }
+
+    // Send to GlitchTip/Sentry
+    captureError(error, {
+      componentStack: errorInfo.componentStack,
+    });
   }
 
   handleReset = () => {
@@ -54,7 +55,7 @@ class ErrorBoundary extends Component<Props, State> {
 
   render() {
     const { t } = this.props;
-    
+
     if (this.state.hasError) {
       if (this.props.fallback) {
         return this.props.fallback;
@@ -66,11 +67,11 @@ class ErrorBoundary extends Component<Props, State> {
             <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
               <AlertTriangle className="w-8 h-8 text-red-600 dark:text-red-400" />
             </div>
-            
+
             <h1 className="text-2xl font-bold text-dark-900 dark:text-white mb-2">
               {t('errorBoundary.title')}
             </h1>
-            
+
             <p className="text-dark-500 dark:text-dark-400 mb-6">
               {t('errorBoundary.description')}
             </p>
@@ -101,7 +102,7 @@ class ErrorBoundary extends Component<Props, State> {
                 <RefreshCw className="w-4 h-4" />
                 {t('errorBoundary.reload')}
               </button>
-              
+
               <button
                 onClick={this.handleGoHome}
                 className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-dark-100 dark:bg-dark-700 hover:bg-dark-200 dark:hover:bg-dark-600 text-dark-700 dark:text-dark-200 font-medium rounded-lg transition-colors"

@@ -134,7 +134,7 @@ export default function Documents() {
           return mimeType.includes('javascript') ||
             mimeType.includes('typescript') ||
             mimeType.includes('json') ||
-            mimeType.includes('xml') ||
+            (mimeType.includes('xml') && !mimeType.includes('openxmlformats')) ||
             mimeType.includes('html') ||
             mimeType.includes('css') ||
             fileName.endsWith('.js') ||

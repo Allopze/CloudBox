@@ -17,6 +17,7 @@ import { useBrandingStore } from '../stores/brandingStore';
 import { useGlobalProgressStore } from '../stores/globalProgressStore';
 import { useAuthStore } from '../stores/authStore';
 import { cn } from '../lib/utils';
+import { uploadFile } from '../lib/chunkedUpload';
 import { PanelLeftClose, PanelLeft, Grid, List, SortAsc, SortDesc, Check, Link as LinkIcon, Users, Image, Star, Video, Camera, FolderOpen, Settings, ShieldCheck, Upload, FolderPlus, Trash2, Music, Disc, Plus, ArrowLeft, FilePlus, FolderUp, CheckSquare, RefreshCw, FileText, FileSpreadsheet, Presentation, FileCode } from 'lucide-react';
 import { Album } from '../types';
 import Dropdown, { DropdownItem, DropdownDivider } from '../components/ui/Dropdown';
@@ -236,9 +237,6 @@ export default function MainLayout() {
     let lastSpeedUpdate = Date.now();
     let lastUploadedTotal = 0;
     let currentSpeed = 0;
-
-    // Import chunked upload dynamically to avoid circular deps
-    const { uploadFile } = await import('../lib/chunkedUpload');
 
     // Show initial progress
     setGlobalProgress(0, totalSize, 0);
@@ -867,7 +865,7 @@ export default function MainLayout() {
                           ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
                           : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
                       )}
-                      aria-label="Ver toda la música"
+                      aria-label={t('layout.viewAllMusic')}
                     >
                       <Music className="w-5 h-5" />
                       {t('layout.all')}
@@ -880,7 +878,7 @@ export default function MainLayout() {
                           ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
                           : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
                       )}
-                      aria-label="Ver música favorita"
+                      aria-label={t('layout.viewFavoriteMusic')}
                     >
                       <Star className="w-5 h-5" />
                       {t('layout.favorites')}
@@ -893,7 +891,7 @@ export default function MainLayout() {
                           ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
                           : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
                       )}
-                      aria-label="Ver álbumes de música"
+                      aria-label={t('layout.viewMusicAlbums')}
                     >
                       <Disc className="w-5 h-5" />
                       {t('layout.albums')}
@@ -919,7 +917,7 @@ export default function MainLayout() {
                         ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
                         : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
                     )}
-                    aria-label="Ver todos los documentos"
+                    aria-label={t('layout.viewAllDocuments')}
                   >
                     <FileText className="w-5 h-5" />
                     {t('layout.all')}
@@ -932,8 +930,9 @@ export default function MainLayout() {
                         ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
                         : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
                     )}
-                    aria-label="Ver PDFs"
+                    aria-label={t('layout.viewPDFs')}
                   >
+                    <FileText className="w-5 h-5" />
                     {t('layout.pdfs')}
                   </button>
                   <button
@@ -944,8 +943,9 @@ export default function MainLayout() {
                         ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
                         : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
                     )}
-                    aria-label="Ver documentos de texto"
+                    aria-label={t('layout.viewTextDocs')}
                   >
+                    <FileText className="w-5 h-5" />
                     {t('layout.text')}
                   </button>
                   <button
@@ -956,7 +956,7 @@ export default function MainLayout() {
                         ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
                         : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
                     )}
-                    aria-label="Ver hojas de cálculo"
+                    aria-label={t('layout.viewSpreadsheets')}
                   >
                     <FileSpreadsheet className="w-5 h-5" />
                     {t('layout.spreadsheet')}
@@ -969,7 +969,7 @@ export default function MainLayout() {
                         ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
                         : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
                     )}
-                    aria-label="Ver presentaciones"
+                    aria-label={t('layout.viewPresentations')}
                   >
                     <Presentation className="w-5 h-5" />
                     {t('layout.presentations')}
@@ -982,7 +982,7 @@ export default function MainLayout() {
                         ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
                         : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
                     )}
-                    aria-label="Ver archivos de código"
+                    aria-label={t('layout.viewCode')}
                   >
                     <FileCode className="w-5 h-5" />
                     {t('layout.code')}
@@ -999,7 +999,7 @@ export default function MainLayout() {
                           ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
                           : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
                       )}
-                      aria-label="Ver todas las fotos"
+                      aria-label={t('layout.viewAllPhotos')}
                     >
                       <Image className="w-5 h-5" />
                       {t('layout.all')}
@@ -1012,7 +1012,7 @@ export default function MainLayout() {
                           ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
                           : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
                       )}
-                      aria-label="Ver fotos favoritas"
+                      aria-label={t('layout.viewFavoritePhotos')}
                     >
                       <Star className="w-5 h-5" />
                       {t('layout.favorites')}
@@ -1025,7 +1025,7 @@ export default function MainLayout() {
                           ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
                           : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
                       )}
-                      aria-label="Ver videos"
+                      aria-label={t('layout.viewVideos')}
                     >
                       <Video className="w-5 h-5" />
                       {t('layout.videos')}
@@ -1038,7 +1038,7 @@ export default function MainLayout() {
                           ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
                           : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
                       )}
-                      aria-label="Ver capturas de pantalla"
+                      aria-label={t('layout.viewScreenshots')}
                     >
                       <Camera className="w-5 h-5" />
                       {t('layout.screenshots')}
@@ -1051,7 +1051,7 @@ export default function MainLayout() {
                           ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
                           : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
                       )}
-                      aria-label="Ver álbumes"
+                      aria-label={t('layout.viewAlbums')}
                     >
                       <FolderOpen className="w-5 h-5" />
                       {t('layout.albums')}

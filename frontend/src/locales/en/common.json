@@ -35,6 +35,7 @@
     "deletingItems": "Deleting {{count}} item(s)",
     "itemsMovedToTrash": "{{count}} item(s) moved to trash",
     "deleteError": "Error deleting items",
+    "uploadProgress": "{{percent}}% · {{speed}}/s",
     "lightMode": "Light mode",
     "darkMode": "Dark mode",
     "settings": "Settings",
@@ -103,7 +104,21 @@
     "refresh": "Refresh",
     "selectFolderToUpload": "Select folder to upload",
     "viewGrid": "Grid view",
-    "viewList": "List view"
+    "viewList": "List view",
+    "viewAllMusic": "View all music",
+    "viewFavoriteMusic": "View favorite music",
+    "viewMusicAlbums": "View music albums",
+    "viewAlbums": "View albums",
+    "viewAllDocuments": "View all documents",
+    "viewPDFs": "View PDFs",
+    "viewTextDocs": "View text documents",
+    "viewSpreadsheets": "View spreadsheets",
+    "viewPresentations": "View presentations",
+    "viewCode": "View code files",
+    "viewAllPhotos": "View all photos",
+    "viewFavoritePhotos": "View favorite photos",
+    "viewVideos": "View videos",
+    "viewScreenshots": "View screenshots"
   },
   "files": {
     "loading": "Loading...",
@@ -1157,7 +1172,11 @@
     "clearCompleted": "Clear completed",
     "completed": "{{count}} completed",
     "inProgress": "{{count}} operation(s) in progress",
-    "allCompleted": "Operations completed"
+    "allCompleted": "Operations completed",
+    "itemsProgress": "{{completed}} of {{total}} items",
+    "completedIn": "Completed in {{duration}}",
+    "unknownError": "Unknown error",
+    "cancelled": "Cancelled"
   },
   "legal": {
     "center": "Legal Center",

@@ -1,0 +1,214 @@
+# ================================
+# CloudBox - Docker Compose for Production
+# ================================
+# Optimized for Cloudflare Tunnels (no reverse proxy needed)
+# ================================
+# Usage: docker-compose -f docker-compose.prod.yml up -d
+# ================================
+# Prerequisites:
+# 1. Copy .env.production.example to .env and configure all values
+# 2. Set up Cloudflare Tunnel pointing to http://localhost:3001 (API) 
+#    and http://localhost:8080 (Frontend)
+# 3. Configure backup strategy for volumes
+# ================================
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: cloudbox-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-cloudbox}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-cloudbox}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - cloudbox-internal
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cloudbox} -d ${POSTGRES_DB:-cloudbox}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Redis Cache & Queue
+  redis:
+    image: redis:7-alpine
+    container_name: cloudbox-redis
+    restart: always
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
+    volumes:
+      - redis_data:/data
+    networks:
+      - cloudbox-internal
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API
+  backend:
+    image: ${REGISTRY:-}cloudbox-backend:${VERSION:-latest}
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cloudbox-backend
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: postgresql://${POSTGRES_USER:-cloudbox}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-cloudbox}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET is required}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+      FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL is required}
+      STORAGE_PATH: /app/data
+      MAX_FILE_SIZE: ${MAX_FILE_SIZE:-104857600}
+      DEFAULT_QUOTA: ${DEFAULT_QUOTA:-5368709120}
+      TRASH_RETENTION_DAYS: ${TRASH_RETENTION_DAYS:-30}
+      # Error tracking (GlitchTip - self-hosted Sentry)
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      # SMTP (optional)
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+    volumes:
+      - cloudbox_data:/app/data
+    ports:
+      # Exposed for Cloudflare Tunnel
+      - "3001:3001"
+    networks:
+      - cloudbox-internal
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "--spider", "http://localhost:3001/api/health/ping" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Frontend (NGINX)
+  frontend:
+    image: ${REGISTRY:-}cloudbox-frontend:${VERSION:-latest}
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_SENTRY_DSN: ${SENTRY_DSN:-}
+    container_name: cloudbox-frontend
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      # Exposed for Cloudflare Tunnel
+      - "8080:8080"
+    networks:
+      - cloudbox-internal
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "--spider", "http://localhost:8080/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ================================
+  # GlitchTip - Self-hosted Error Tracking
+  # ================================
+  # Access at http://localhost:8000
+  # Create organization and project, then copy DSN to SENTRY_DSN env var
+  # ================================
+
+  # GlitchTip PostgreSQL (separate from main app)
+  glitchtip-postgres:
+    image: postgres:16-alpine
+    container_name: cloudbox-glitchtip-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: glitchtip
+      POSTGRES_PASSWORD: ${GLITCHTIP_DB_PASSWORD:-glitchtip_secret}
+      POSTGRES_DB: glitchtip
+    volumes:
+      - glitchtip_postgres:/var/lib/postgresql/data
+    networks:
+      - cloudbox-internal
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U glitchtip -d glitchtip" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # GlitchTip Web
+  glitchtip:
+    image: glitchtip/glitchtip:latest
+    container_name: cloudbox-glitchtip
+    restart: always
+    depends_on:
+      glitchtip-postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://glitchtip:${GLITCHTIP_DB_PASSWORD:-glitchtip_secret}@glitchtip-postgres:5432/glitchtip
+      REDIS_URL: redis://:${REDIS_PASSWORD:-}@redis:6379/1
+      SECRET_KEY: ${GLITCHTIP_SECRET_KEY:-change-me-in-production}
+      PORT: 8000
+      EMAIL_URL: ${GLITCHTIP_EMAIL_URL:-consolemail://}
+      GLITCHTIP_DOMAIN: ${GLITCHTIP_DOMAIN:-http://localhost:8000}
+      DEFAULT_FROM_EMAIL: ${GLITCHTIP_FROM_EMAIL:-noreply@localhost}
+      CELERY_WORKER_AUTOSCALE: "1,3"
+      CELERY_WORKER_MAX_TASKS_PER_CHILD: "10000"
+    ports:
+      - "8000:8000"
+    networks:
+      - cloudbox-internal
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "--spider", "http://localhost:8000/_health/" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # GlitchTip Worker (processes events)
+  glitchtip-worker:
+    image: glitchtip/glitchtip:latest
+    container_name: cloudbox-glitchtip-worker
+    restart: always
+    command: ./bin/run-celery-with-beat.sh
+    depends_on:
+      glitchtip-postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://glitchtip:${GLITCHTIP_DB_PASSWORD:-glitchtip_secret}@glitchtip-postgres:5432/glitchtip
+      REDIS_URL: redis://:${REDIS_PASSWORD:-}@redis:6379/1
+      SECRET_KEY: ${GLITCHTIP_SECRET_KEY:-change-me-in-production}
+    networks:
+      - cloudbox-internal
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  cloudbox_data:
+    driver: local
+  glitchtip_postgres:
+    driver: local
+
+networks:
+  cloudbox-internal:
+    driver: bridge

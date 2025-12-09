@@ -90,10 +90,10 @@ export default function CompressModal({ isOpen, onClose, items, onSuccess }: Com
       const pollProgress = async () => {
         try {
           const statusResponse = await api.get(`/compression/status/${jobId}`);
-          const { progress, status, error } = statusResponse.data;
+          const { progress, status, error, currentFile } = statusResponse.data;
           
           if (status === 'COMPLETED') {
-            setProgressState(prev => ({ ...prev, status: 'completed', progress: 100 }));
+            setProgressState(prev => ({ ...prev, status: 'completed', progress: 100, currentFile: '' }));
             toast(t('modals.compress.success'), 'success');
             onSuccess?.();
             setTimeout(() => {
@@ -107,14 +107,16 @@ export default function CompressModal({ isOpen, onClose, items, onSuccess }: Com
               ...prev,
               status: 'error',
               error: error || t('modals.compress.error'),
+              currentFile: '',
             }));
             return;
           }
           
-          // Update progress and continue polling
+          // Update progress and currentFile, then continue polling
           setProgressState(prev => ({
             ...prev,
             progress: progress || prev.progress,
+            currentFile: currentFile || prev.currentFile,
           }));
           
           // Continue polling if still processing
@@ -126,6 +128,7 @@ export default function CompressModal({ isOpen, onClose, items, onSuccess }: Com
             ...prev,
             status: 'error',
             error: t('modals.compress.connectionError'),
+            currentFile: '',
           }));
         }
       };
@@ -145,7 +148,7 @@ export default function CompressModal({ isOpen, onClose, items, onSuccess }: Com
   const handleCancel = async () => {
     if (progressState.jobId && progressState.status === 'compressing') {
       try {
-        await api.delete(`/compression/job/${progressState.jobId}`);
+        await api.post(`/compression/cancel/${progressState.jobId}`);
       } catch {
         // Ignore cancel errors
       }

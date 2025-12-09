@@ -43,7 +43,8 @@ export default function MusicPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [tracks, setTracks] = useState<FileItem[]>([]);
-  const [folders, setFolders] = useState<Record<string, string>>({});
+  // Store full folder objects
+  const [folders, setFolders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [trackDurations, setTrackDurations] = useState<Record<string, number>>({});
   const [selectedAlbum, setSelectedAlbum] = useState<string | null>(null);
@@ -93,13 +94,9 @@ export default function MusicPage() {
       setTracks(audioFiles);
       setQueue(audioFiles);
 
-      // Create folder name lookup - folders API returns array directly
-      const folderMap: Record<string, string> = {};
+      // Store all folders
       const foldersData = Array.isArray(foldersRes.data) ? foldersRes.data : (foldersRes.data.folders || []);
-      foldersData.forEach((folder: { id: string; name: string }) => {
-        folderMap[folder.id] = folder.name;
-      });
-      setFolders(folderMap);
+      setFolders(foldersData);
 
       // Load durations for all tracks
       // Load durations sequentially to avoid memory leaks
@@ -159,9 +156,22 @@ export default function MusicPage() {
     clearSelection();
   }, [tab, clearSelection]);
 
-  // Reset selected album when changing tabs
+  // Sync selectedAlbum with URL folder param
+  const folderId = searchParams.get('folder');
+
   useEffect(() => {
-    setSelectedAlbum(null);
+    // Only update if on albums tab to avoid conflicts
+    if (tab === 'albums') {
+      setSelectedAlbum(folderId || null);
+    }
+  }, [folderId, tab]);
+
+  // Reset selected album (and URL) when changing tabs
+  useEffect(() => {
+    if (tab !== 'albums' && selectedAlbum) {
+      setSelectedAlbum(null);
+      // Clean up URL if needed, but usually tab change handles it
+    }
   }, [tab]);
 
   // Listen for workzone refresh event from MainLayout context menu
@@ -184,15 +194,21 @@ export default function MusicPage() {
 
     setCreatingAlbum(true);
     try {
-      await api.post('/folders', { name: newAlbumName.trim() });
+      await api.post('/folders', { name: newAlbumName.trim(), category: 'music' });
       toast(t('music.albumCreated'), 'success');
       setNewAlbumName('');
       setCreateAlbumOpen(false);
       loadData(undefined);
       // Navigate to albums tab to see the new album
       navigate('/music?tab=albums');
-    } catch (error) {
-      toast(t('music.albumCreateError'), 'error');
+    } catch (error: any) {
+      console.error('Create album error:', error);
+      // Show specific validation error if available
+      const message = error.response?.data?.details?.[0]?.message
+        ? `Error: ${error.response.data.details[0].message} (${error.response.data.details[0].path})`
+        : error.response?.data?.error || t('music.albumCreateError');
+
+      toast(message, 'error');
     } finally {
       setCreatingAlbum(false);
     }
@@ -331,10 +347,17 @@ export default function MusicPage() {
   // Group tracks by folder for albums view. Must stay before early returns so hook order stays stable.
   const albumGroups = useMemo(() => {
     const groups: Record<string, { name: string; tracks: FileItem[]; cover: string | null }> = {};
+    const folderMap: Record<string, any> = {};
 
+    // Create lookup for folders
+    folders.forEach(f => {
+      folderMap[f.id] = f;
+    });
+
+    // Populate groups from tracks
     tracks.forEach(track => {
       const folderId = track.folderId || 'no-folder';
-      const folderName = folders[folderId] || t('music.noAlbum');
+      const folderName = folderMap[folderId]?.name || t('music.noAlbum');
 
       if (!groups[folderId]) {
         groups[folderId] = {
@@ -347,6 +370,17 @@ export default function MusicPage() {
       // Use first track with thumbnail as cover
       if (!groups[folderId].cover && track.thumbnailPath) {
         groups[folderId].cover = track.id;
+      }
+    });
+
+    // Add empty root folders as albums ONLY if they are explicitly music category
+    folders.forEach(folder => {
+      if (!folder.parentId && !groups[folder.id] && folder.category === 'music') {
+        groups[folder.id] = {
+          name: folder.name,
+          tracks: [],
+          cover: null
+        };
       }
     });
 
@@ -380,7 +414,10 @@ export default function MusicPage() {
           {/* Back button and album info */}
           <div className="flex items-center gap-4 mb-6">
             <button
-              onClick={() => setSelectedAlbum(null)}
+              onClick={() => {
+                // Update URL to remove folder
+                setSearchParams({ tab: 'albums' });
+              }}
               className="p-2 rounded-full hover:bg-dark-100 dark:hover:bg-dark-800 transition-colors"
               title={t('common.back')}
               aria-label={t('common.back')}
@@ -504,7 +541,10 @@ export default function MusicPage() {
               return (
                 <div
                   key={album.id}
-                  onClick={() => setSelectedAlbum(album.id)}
+                  onClick={() => {
+                    // Update URL to include folder ID, enabling drag-and-drop globally
+                    setSearchParams({ tab: 'albums', folder: album.id });
+                  }}
                   className="group cursor-pointer rounded-xl transition-all duration-200 hover:bg-dark-100 dark:hover:bg-dark-800 p-2"
                 >
                   <div className={cn(

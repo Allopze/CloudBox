@@ -16,6 +16,7 @@ interface CompressionProgress {
   jobId: string;
   progress: number;
   status: CompressionStatusType;
+  currentFile?: string;
   error?: string;
 }
 
@@ -35,6 +36,7 @@ export const compressToZip = async (
 
     let totalSize = 0;
     let processedSize = 0;
+    let currentFile = '';
 
     // Calculate total size
     inputPaths.forEach((p) => {
@@ -69,6 +71,11 @@ export const compressToZip = async (
       reject(err);
     });
 
+    // Track current file being processed
+    archive.on('entry', (entry) => {
+      currentFile = entry.name;
+    });
+
     archive.on('progress', (progress) => {
       processedSize = progress.fs.processedBytes;
       const percent = totalSize > 0 ? Math.round((processedSize / totalSize) * 100) : 0;
@@ -77,12 +84,13 @@ export const compressToZip = async (
         jobId,
         progress: percent,
         status: 'PROCESSING',
+        currentFile,
       });
 
       // Fire and forget but log errors
       prisma.compressionJob.update({
         where: { id: jobId },
-        data: { progress: percent },
+        data: { progress: percent, currentFile },
       }).catch((err) => console.error('Failed to update compression progress:', err));
     });
 
@@ -237,16 +245,20 @@ export const extractZip = async (
     processedSize += file.compressedSize;
     const percent = Math.round((processedSize / totalSize) * 100);
     
+    // Get just the filename for display
+    const currentFile = path.basename(file.path);
+    
     onProgress?.({
       jobId,
       progress: percent,
       status: 'PROCESSING',
+      currentFile,
     });
 
     // Fire and forget but log errors
     prisma.compressionJob.update({
       where: { id: jobId },
-      data: { progress: percent },
+      data: { progress: percent, currentFile },
     }).catch((err) => console.error('Failed to update extraction progress:', err));
   }
 };
@@ -273,9 +285,17 @@ export const compress7z = async (
     activeJobs.set(jobId, process);
 
     let lastProgress = 0;
+    let currentFile = '';
 
     process.stdout.on('data', (data: Buffer) => {
       const output = data.toString();
+      
+      // Parse current file from 7z output (lines like "Compressing  filename" or "+ filename")
+      const fileMatch = output.match(/(?:Compressing\s+|^\+\s+)(.+?)(?:\r?\n|$)/m);
+      if (fileMatch) {
+        currentFile = fileMatch[1].trim();
+      }
+      
       const match = output.match(/(\d+)%/);
       if (match) {
         const progress = parseInt(match[1]);
@@ -285,12 +305,13 @@ export const compress7z = async (
             jobId,
             progress,
             status: 'PROCESSING',
+            currentFile,
           });
 
           // Fire and forget but log errors
           prisma.compressionJob.update({
             where: { id: jobId },
-            data: { progress },
+            data: { progress, currentFile },
           }).catch((err) => console.error('Failed to update 7z compression progress:', err));
         }
       }
@@ -357,6 +378,10 @@ export const extract7z = async (
         }
       }
       
+      // Parse current file from 7z output (lines like "- filename" or "Extracting  filename")
+      const fileMatch = output.match(/(?:^-\s+|Extracting\s+)(.+?)(?:\r?\n|$)/m);
+      const currentFile = fileMatch ? path.basename(fileMatch[1].trim()) : '';
+      
       const match = output.match(/(\d+)%/);
       if (match) {
         const progress = parseInt(match[1]);
@@ -366,12 +391,13 @@ export const extract7z = async (
             jobId,
             progress,
             status: 'PROCESSING',
+            currentFile,
           });
 
           // Fire and forget but log errors
           prisma.compressionJob.update({
             where: { id: jobId },
-            data: { progress },
+            data: { progress, ...(currentFile && { currentFile }) },
           }).catch((err) => console.error('Failed to update 7z extraction progress:', err));
         }
       }

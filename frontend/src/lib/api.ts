@@ -22,7 +22,7 @@ export const api = axios.create({
  * 
  * MITIGATIONS IN PLACE:
  * 1. Access tokens are short-lived (typically 15 minutes)
- * 2. Refresh tokens are in httpOnly cookies (not accessible to JS)
+ * 2. Refresh tokens are stored in httpOnly cookies (not accessible to JS)
  * 3. CSP headers restrict script sources to prevent most XSS
  * 4. Input sanitization on user-generated content
  * 
@@ -222,3 +222,4 @@ export const validateUploadFiles = async (
 };
 
 export default api;
+

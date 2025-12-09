@@ -15,10 +15,10 @@ export default function LegalLayout() {
     const isPrivacy = location.pathname === '/privacy';
 
     return (
-        <div className="min-h-screen bg-white dark:bg-dark-900 font-sans text-dark-900 dark:text-dark-100 transition-colors duration-300">
+        <div className="min-h-screen bg-dark-50 dark:bg-dark-900 font-sans text-dark-900 dark:text-dark-100 transition-colors duration-300">
             {/* Top Navigation Bar */}
             <header className="fixed top-0 inset-x-0 z-50 h-16 bg-white/80 dark:bg-dark-900/80 backdrop-blur-md border-b border-dark-200 dark:border-dark-800">
-                <div className="h-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
+                <div className="h-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
                     {/* Left: Logo */}
                     <div className="flex items-center gap-4">
                         <Link to="/" className="flex items-center gap-2">
@@ -88,7 +88,7 @@ export default function LegalLayout() {
 
             {/* Main Content Area */}
             <main className="pt-24 pb-16 min-h-screen">
-                <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
                     <Outlet />
                 </div>
             </main>

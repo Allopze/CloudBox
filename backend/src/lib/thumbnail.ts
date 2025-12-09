@@ -15,7 +15,7 @@ const THUMBNAIL_SIZE = 300;
 export const generateImageThumbnail = async (inputPath: string, fileId: string): Promise<string | null> => {
   try {
     const outputPath = getThumbnailPath(fileId);
-    
+
     await sharp(inputPath)
       .resize(THUMBNAIL_SIZE, THUMBNAIL_SIZE, {
         fit: 'cover',
@@ -23,7 +23,7 @@ export const generateImageThumbnail = async (inputPath: string, fileId: string):
       })
       .webp({ quality: 80 })
       .toFile(outputPath);
-    
+
     return outputPath;
   } catch (error) {
     console.error('Error generating image thumbnail:', error);
@@ -40,19 +40,19 @@ const FFMPEG_OPTIONS = {
 export const generateVideoThumbnail = async (inputPath: string, fileId: string): Promise<string | null> => {
   const outputPath = getThumbnailPath(fileId);
   const tempPath = outputPath.replace('.webp', '_temp.jpg');
-  
+
   if (!ffmpegPath) {
     console.error('ffmpeg-static binary not found');
     return null;
   }
-  
+
   try {
     // Extract frame at 1 second using ffmpeg with timeout and buffer limits
     await execAsync(
       `"${ffmpegPath}" -i "${inputPath}" -ss 00:00:01 -vframes 1 -y "${tempPath}"`,
       FFMPEG_OPTIONS
     );
-    
+
     // Convert to webp thumbnail
     await sharp(tempPath)
       .resize(THUMBNAIL_SIZE, THUMBNAIL_SIZE, {
@@ -61,14 +61,14 @@ export const generateVideoThumbnail = async (inputPath: string, fileId: string):
       })
       .webp({ quality: 80 })
       .toFile(outputPath);
-    
-    await fs.unlink(tempPath).catch(() => {});
-    
+
+    await fs.unlink(tempPath).catch(() => { });
+
     return outputPath;
   } catch (error) {
     console.error('Error generating video thumbnail:', error);
     // Clean up temp file on error
-    await fs.unlink(tempPath).catch(() => {});
+    await fs.unlink(tempPath).catch(() => { });
     return null;
   }
 };
@@ -76,11 +76,11 @@ export const generateVideoThumbnail = async (inputPath: string, fileId: string):
 export const generateAudioCover = async (inputPath: string, fileId: string): Promise<string | null> => {
   try {
     const outputPath = getThumbnailPath(fileId);
-    
+
     // Try to extract cover art using music-metadata
     const metadata = await mm.parseFile(inputPath);
     const picture = metadata.common.picture?.[0];
-    
+
     if (picture && picture.data) {
       // Convert embedded cover art to thumbnail
       const buffer = Buffer.from(picture.data);
@@ -91,10 +91,10 @@ export const generateAudioCover = async (inputPath: string, fileId: string): Pro
         })
         .webp({ quality: 80 })
         .toFile(outputPath);
-      
+
       return outputPath;
     }
-    
+
     // Fallback: try with ffmpeg
     const tempPath = outputPath.replace('.webp', '_temp.jpg');
     if (ffmpegPath) {
@@ -103,7 +103,7 @@ export const generateAudioCover = async (inputPath: string, fileId: string): Pro
           `"${ffmpegPath}" -i "${inputPath}" -an -vcodec copy -y "${tempPath}"`,
           FFMPEG_OPTIONS
         );
-        
+
         if (await fileExists(tempPath)) {
           await sharp(tempPath)
             .resize(THUMBNAIL_SIZE, THUMBNAIL_SIZE, {
@@ -112,16 +112,16 @@ export const generateAudioCover = async (inputPath: string, fileId: string): Pro
             })
             .webp({ quality: 80 })
             .toFile(outputPath);
-          
-          await fs.unlink(tempPath).catch(() => {});
+
+          await fs.unlink(tempPath).catch(() => { });
           return outputPath;
         }
       } catch {
         // ffmpeg fallback failed, that's ok
-        await fs.unlink(tempPath).catch(() => {});
+        await fs.unlink(tempPath).catch(() => { });
       }
     }
-    
+
     return null;
   } catch (error) {
     // Audio might not have cover art
@@ -134,14 +134,14 @@ export const generatePdfThumbnail = async (inputPath: string, fileId: string): P
   try {
     const outputPath = getThumbnailPath(fileId);
     const tempPath = getStoragePath('temp', `${fileId}_pdf.png`);
-    
+
     // Use pdftoppm (from poppler-utils) or ImageMagick to convert first page
     // Try pdftoppm first (better quality)
     try {
       await execAsync(
         `pdftoppm -png -f 1 -l 1 -scale-to ${THUMBNAIL_SIZE * 2} "${inputPath}" "${tempPath.replace('.png', '')}"`
       );
-      
+
       // pdftoppm adds -1 suffix
       const pdfTempPath = tempPath.replace('.png', '-1.png');
       if (await fileExists(pdfTempPath)) {
@@ -152,20 +152,20 @@ export const generatePdfThumbnail = async (inputPath: string, fileId: string): P
           })
           .webp({ quality: 80 })
           .toFile(outputPath);
-        
-        await fs.unlink(pdfTempPath).catch(() => {});
+
+        await fs.unlink(pdfTempPath).catch(() => { });
         return outputPath;
       }
     } catch {
       // pdftoppm not available, try ImageMagick
     }
-    
+
     // Fallback to ImageMagick/GraphicsMagick
     try {
       await execAsync(
         `magick convert -density 150 "${inputPath}[0]" -resize ${THUMBNAIL_SIZE * 2}x${THUMBNAIL_SIZE * 2} "${tempPath}"`
       );
-      
+
       if (await fileExists(tempPath)) {
         await sharp(tempPath)
           .resize(THUMBNAIL_SIZE, THUMBNAIL_SIZE, {
@@ -174,20 +174,20 @@ export const generatePdfThumbnail = async (inputPath: string, fileId: string): P
           })
           .webp({ quality: 80 })
           .toFile(outputPath);
-        
-        await fs.unlink(tempPath).catch(() => {});
+
+        await fs.unlink(tempPath).catch(() => { });
         return outputPath;
       }
     } catch {
       // ImageMagick not available
     }
-    
+
     // Try with convert command (older ImageMagick)
     try {
       await execAsync(
         `convert -density 150 "${inputPath}[0]" -resize ${THUMBNAIL_SIZE * 2}x${THUMBNAIL_SIZE * 2} "${tempPath}"`
       );
-      
+
       if (await fileExists(tempPath)) {
         await sharp(tempPath)
           .resize(THUMBNAIL_SIZE, THUMBNAIL_SIZE, {
@@ -196,14 +196,14 @@ export const generatePdfThumbnail = async (inputPath: string, fileId: string): P
           })
           .webp({ quality: 80 })
           .toFile(outputPath);
-        
-        await fs.unlink(tempPath).catch(() => {});
+
+        await fs.unlink(tempPath).catch(() => { });
         return outputPath;
       }
     } catch {
       // convert not available either
     }
-    
+
     return null;
   } catch (error) {
     console.error('Error generating PDF thumbnail:', error);
@@ -214,11 +214,11 @@ export const generatePdfThumbnail = async (inputPath: string, fileId: string): P
 export const generateSpreadsheetThumbnail = async (inputPath: string, fileId: string): Promise<string | null> => {
   try {
     const outputPath = getThumbnailPath(fileId);
-    
+
     // Use ExcelJS to read the spreadsheet and render it as an HTML table, then convert to image
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.readFile(inputPath);
-    
+
     const worksheet = workbook.worksheets[0];
     if (!worksheet) {
       return generateExcelThumbnail(fileId);
@@ -231,7 +231,7 @@ export const generateSpreadsheetThumbnail = async (inputPath: string, fileId: st
     const cellHeight = 24;
     const headerHeight = 28;
     const padding = 10;
-    
+
     const svgWidth = THUMBNAIL_SIZE;
     const svgHeight = THUMBNAIL_SIZE;
     const tableWidth = maxCols * cellWidth;
@@ -241,96 +241,98 @@ export const generateSpreadsheetThumbnail = async (inputPath: string, fileId: st
 
     let svgContent = `
       <svg width="${svgWidth}" height="${svgHeight}" viewBox="0 0 ${svgWidth} ${svgHeight}" xmlns="http://www.w3.org/2000/svg">
-        <rect width="${svgWidth}" height="${svgHeight}" fill="#f5f5f4"/>
-        <!-- Table background -->
-        <rect x="${startX}" y="${startY}" width="${tableWidth}" height="${tableHeight}" fill="white" stroke="#78716c" stroke-width="2" rx="4"/>
-        <!-- Header row -->
-        <rect x="${startX}" y="${startY}" width="${tableWidth}" height="${headerHeight}" fill="#78716c" rx="4"/>
-        <rect x="${startX}" y="${startY + headerHeight - 4}" width="${tableWidth}" height="4" fill="#78716c"/>
+        <rect width="${svgWidth}" height="${svgHeight}" fill="#fff"/>
+        
+        <!-- Excel Green Header Bar -->
+        <rect x="0" y="0" width="${svgWidth}" height="8" fill="#107C41"/>
+        
+        <!-- Column Headers Background -->
+        <rect x="${startX}" y="${startY}" width="${tableWidth}" height="${headerHeight}" fill="#f3f4f6" stroke="#e5e7eb" stroke-width="1"/>
+        
+        <!-- Row Headers Background (Left vertical) -->
+        <rect x="${startX}" y="${startY + headerHeight}" width="${cellWidth}" height="${maxRows * cellHeight}" fill="#f3f4f6" stroke="#e5e7eb" stroke-width="1"/>
     `;
 
-    // Draw column headers (A, B, C, D, E)
-    for (let col = 0; col < maxCols; col++) {
+    // Draw column headers (A, B, C...)
+    for (let col = 1; col < maxCols; col++) {
       const x = startX + col * cellWidth + cellWidth / 2;
       const y = startY + headerHeight / 2 + 4;
-      const letter = String.fromCharCode(65 + col);
-      svgContent += `<text x="${x}" y="${y}" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="11" font-weight="bold">${letter}</text>`;
-      
+      const letter = String.fromCharCode(64 + col);
+      svgContent += `<text x="${x}" y="${y}" text-anchor="middle" fill="#6b7280" font-family="Arial, sans-serif" font-size="10" font-weight="600">${letter}</text>`;
+
       // Vertical grid lines
-      if (col > 0) {
-        svgContent += `<line x1="${startX + col * cellWidth}" y1="${startY + headerHeight}" x2="${startX + col * cellWidth}" y2="${startY + tableHeight}" stroke="#e5e7eb" stroke-width="1"/>`;
-      }
+      svgContent += `<line x1="${startX + col * cellWidth}" y1="${startY}" x2="${startX + col * cellWidth}" y2="${startY + tableHeight}" stroke="#e5e7eb" stroke-width="1"/>`;
     }
 
-    // Draw cells with actual data from the spreadsheet
+    // Draw cells with actual data
     let rowIndex = 0;
     worksheet.eachRow({ includeEmpty: false }, (row, rowNum) => {
       if (rowIndex >= maxRows) return;
-      
+
       const y = startY + headerHeight + rowIndex * cellHeight;
-      
+      const textY = y + cellHeight / 2 + 4;
+
+      // Row number
+      const rowNumX = startX + cellWidth / 2;
+      svgContent += `<text x="${rowNumX}" y="${textY}" text-anchor="middle" fill="#6b7280" font-family="Arial, sans-serif" font-size="10" font-weight="600">${rowNum}</text>`;
+
       // Horizontal grid line
       if (rowIndex > 0) {
         svgContent += `<line x1="${startX}" y1="${y}" x2="${startX + tableWidth}" y2="${y}" stroke="#e5e7eb" stroke-width="1"/>`;
       }
 
-      // Draw cells
-      for (let col = 0; col < maxCols; col++) {
-        const cell = row.getCell(col + 1);
+      // Draw cell values
+      for (let col = 1; col < maxCols; col++) {
+        const cell = row.getCell(col + 1); // Start from column B (index 2) as A is row numbers in our visual
         let value = '';
-        
+
         if (cell.value !== null && cell.value !== undefined) {
           if (typeof cell.value === 'object') {
             if ('richText' in cell.value) {
-              value = (cell.value as ExcelJS.CellRichTextValue).richText.map(rt => rt.text).join('');
-            } else if ('result' in cell.value) {
-              value = String((cell.value as ExcelJS.CellFormulaValue).result || '');
+              value = (cell.value as ExcelJS.CellRichTextValue).richText.map(rt => rt.text).join('').trim();
+            } else if ('result' in (cell.value as any)) {
+              value = String((cell.value as any).result || '').trim();
             } else if (cell.value instanceof Date) {
               value = cell.value.toLocaleDateString();
             } else {
-              value = String(cell.value);
+              value = String(cell.value).trim();
             }
           } else {
-            value = String(cell.value);
+            value = String(cell.value).trim();
           }
         }
-        
-        // Truncate long values
-        if (value.length > 8) {
-          value = value.substring(0, 7) + '…';
-        }
-        
-        // Escape XML special characters
-        value = value
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;')
-          .replace(/"/g, '&quot;');
 
-        const x = startX + col * cellWidth + 4;
-        const textY = y + cellHeight / 2 + 4;
-        
-        // Background for first column (row numbers feel)
-        if (col === 0 && value) {
-          svgContent += `<rect x="${startX}" y="${y}" width="${cellWidth}" height="${cellHeight}" fill="#fafaf9"/>`;
+        if (value) {
+          // Truncate long values
+          if (value.length > 8) {
+            value = value.substring(0, 7) + '…';
+          }
+          // Escape XML
+          value = value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+          const x = startX + col * cellWidth + 6;
+
+          // Text color based on content (simple heuristic)
+          const textColor = isNaN(Number(value)) ? '#374151' : '#2563eb'; // Blue for numbers
+
+          svgContent += `<text x="${x}" y="${textY}" fill="${textColor}" font-family="Arial, sans-serif" font-size="9">${value}</text>`;
         }
-        
-        const fontSize = value.length > 6 ? 9 : 10;
-        svgContent += `<text x="${x}" y="${textY}" fill="#374151" font-family="Arial, sans-serif" font-size="${fontSize}">${value}</text>`;
       }
-      
+
       rowIndex++;
     });
 
-    // If no data, show empty grid
-    if (rowIndex === 0) {
-      for (let r = 0; r < maxRows; r++) {
-        const y = startY + headerHeight + r * cellHeight;
-        if (r > 0) {
-          svgContent += `<line x1="${startX}" y1="${y}" x2="${startX + tableWidth}" y2="${y}" stroke="#e5e7eb" stroke-width="1"/>`;
-        }
-      }
+    // Fill empty rows grid
+    for (let r = rowIndex; r < maxRows; r++) {
+      const y = startY + headerHeight + r * cellHeight;
+      const textY = y + cellHeight / 2 + 4;
+      const rowNumX = startX + cellWidth / 2;
+      svgContent += `<text x="${rowNumX}" y="${textY}" text-anchor="middle" fill="#6b7280" font-family="Arial, sans-serif" font-size="10" font-weight="600">${r + 1}</text>`;
+      svgContent += `<line x1="${startX}" y1="${y}" x2="${startX + tableWidth}" y2="${y}" stroke="#e5e7eb" stroke-width="1"/>`;
     }
+
+    // Outer border
+    svgContent += `<rect x="${startX}" y="${startY}" width="${tableWidth}" height="${tableHeight}" fill="none" stroke="#d1d5db" stroke-width="1"/>`;
 
     svgContent += '</svg>';
 
@@ -350,7 +352,7 @@ export const generateSpreadsheetThumbnail = async (inputPath: string, fileId: st
 
 export const generateExcelThumbnail = async (fileId: string): Promise<string | null> => {
   const outputPath = getThumbnailPath(fileId);
-  
+
   try {
     // Create Excel-specific thumbnail with muted colors
     const svgIcon = `
@@ -383,12 +385,12 @@ export const generateExcelThumbnail = async (fileId: string): Promise<string | n
         <rect x="191" y="205" width="50" height="20" rx="2" fill="#f5f5f4"/>
       </svg>
     `;
-    
+
     await sharp(Buffer.from(svgIcon))
       .resize(THUMBNAIL_SIZE, THUMBNAIL_SIZE)
       .webp({ quality: 80 })
       .toFile(outputPath);
-    
+
     return outputPath;
   } catch (error) {
     console.error('Error generating Excel thumbnail:', error);
@@ -400,7 +402,7 @@ export const generateDocumentThumbnail = async (inputPath: string, fileId: strin
   // For now, we'll create a simple placeholder thumbnail for documents
   // In production, you might want to use LibreOffice headless or similar
   const outputPath = getThumbnailPath(fileId);
-  
+
   try {
     // Create a simple document icon thumbnail using sharp
     // This is a placeholder - you can enhance this with actual document conversion
@@ -415,12 +417,12 @@ export const generateDocumentThumbnail = async (inputPath: string, fileId: strin
         <rect x="80" y="200" width="130" height="12" rx="2" fill="#d1d5db"/>
       </svg>
     `;
-    
+
     await sharp(Buffer.from(svgIcon))
       .resize(THUMBNAIL_SIZE, THUMBNAIL_SIZE)
       .webp({ quality: 80 })
       .toFile(outputPath);
-    
+
     return outputPath;
   } catch (error) {
     console.error('Error generating document thumbnail:', error);
@@ -436,19 +438,19 @@ export const generateThumbnail = async (
   if (mimeType.startsWith('image/')) {
     return generateImageThumbnail(inputPath, fileId);
   }
-  
+
   if (mimeType.startsWith('video/')) {
     return generateVideoThumbnail(inputPath, fileId);
   }
-  
+
   if (mimeType.startsWith('audio/')) {
     return generateAudioCover(inputPath, fileId);
   }
-  
+
   if (mimeType === 'application/pdf') {
     return generatePdfThumbnail(inputPath, fileId);
   }
-  
+
   // Office documents
   if (
     mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
@@ -464,7 +466,7 @@ export const generateThumbnail = async (
     }
     return generateDocumentThumbnail(inputPath, fileId, mimeType);
   }
-  
+
   return null;
 };
 

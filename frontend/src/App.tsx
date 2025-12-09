@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import { useAuthStore } from './stores/authStore';
 import { useThemeStore } from './stores/themeStore';
 import { useBrandingStore } from './stores/brandingStore';
@@ -10,40 +10,52 @@ import MainLayout from './layouts/MainLayout';
 import AuthLayout from './layouts/AuthLayout';
 import LegalLayout from './layouts/LegalLayout';
 
-// Auth pages
-import Login from './pages/auth/Login';
-import Register from './pages/auth/Register';
-import ForgotPassword from './pages/auth/ForgotPassword';
-import ResetPassword from './pages/auth/ResetPassword';
-import VerifyEmail from './pages/auth/VerifyEmail';
+// Auth pages (can be lazy since not needed immediately for logged-in users)
+const Login = lazy(() => import('./pages/auth/Login'));
+const Register = lazy(() => import('./pages/auth/Register'));
+const ForgotPassword = lazy(() => import('./pages/auth/ForgotPassword'));
+const ResetPassword = lazy(() => import('./pages/auth/ResetPassword'));
+const VerifyEmail = lazy(() => import('./pages/auth/VerifyEmail'));
 
-// Main pages
+// Main pages - Dashboard and Files are loaded eagerly (most used)
 import Dashboard from './pages/Dashboard';
 import Files from './pages/Files';
-import Favorites from './pages/Favorites';
-import Shared from './pages/Shared';
-import Trash from './pages/Trash';
-import Photos from './pages/Photos';
-import Albums from './pages/Albums';
-import Music from './pages/Music';
-import Documents from './pages/Documents';
-import Settings from './pages/Settings';
 
+// Secondary pages (lazy-loaded)
+const Favorites = lazy(() => import('./pages/Favorites'));
+const Shared = lazy(() => import('./pages/Shared'));
+const Trash = lazy(() => import('./pages/Trash'));
+const Documents = lazy(() => import('./pages/Documents'));
+const Settings = lazy(() => import('./pages/Settings'));
 
-// Admin pages
-import AdminDashboard from './pages/admin/AdminDashboard';
-import AdminUsers from './pages/admin/AdminUsers';
+// Heavy pages (lazy-loaded)
+const Photos = lazy(() => import('./pages/Photos'));
+const Albums = lazy(() => import('./pages/Albums'));
+const Music = lazy(() => import('./pages/Music'));
 
-// Public pages
-import PublicShare from './pages/public/PublicShare';
-import LegalPage from './pages/public/LegalPage';
+// Admin pages (lazy-loaded)
+const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
+const AdminUsers = lazy(() => import('./pages/admin/AdminUsers'));
+
+// Public pages (lazy since not part of main app flow)
+const PublicShare = lazy(() => import('./pages/public/PublicShare'));
+const LegalPage = lazy(() => import('./pages/public/LegalPage'));
 
 // Components
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
-import MusicPlayer from './components/MusicPlayer';
 import GlobalProgressIndicator from './components/ui/GlobalProgressIndicator';
 import { ToastContainer } from './components/ui/Toast';
+
+// Heavy components (lazy-loaded)
+const MusicPlayer = lazy(() => import('./components/MusicPlayer'));
+
+// Loading fallback for lazy components
+const PageLoader = () => (
+  <div className="flex items-center justify-center h-full min-h-[200px]">
+    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+  </div>
+);
 
 function App() {
   const { checkAuth, isAuthenticated, isLoading } = useAuthStore();
@@ -84,11 +96,11 @@ function App() {
 
         {/* Auth routes */}
         <Route element={<AuthLayout />}>
-          <Route path="/login" element={shouldRedirectFromAuth ? <Navigate to="/" replace /> : <Login />} />
-          <Route path="/register" element={shouldRedirectFromAuth ? <Navigate to="/" replace /> : <Register />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password/:token" element={<ResetPassword />} />
-          <Route path="/verify-email/:token" element={<VerifyEmail />} />
+          <Route path="/login" element={shouldRedirectFromAuth ? <Navigate to="/" replace /> : <Suspense fallback={<PageLoader />}><Login /></Suspense>} />
+          <Route path="/register" element={shouldRedirectFromAuth ? <Navigate to="/" replace /> : <Suspense fallback={<PageLoader />}><Register /></Suspense>} />
+          <Route path="/forgot-password" element={<Suspense fallback={<PageLoader />}><ForgotPassword /></Suspense>} />
+          <Route path="/reset-password/:token" element={<Suspense fallback={<PageLoader />}><ResetPassword /></Suspense>} />
+          <Route path="/verify-email/:token" element={<Suspense fallback={<PageLoader />}><VerifyEmail /></Suspense>} />
         </Route>
 
         {/* Protected routes */}
@@ -96,28 +108,30 @@ function App() {
           <Route index element={<Dashboard />} />
           <Route path="files" element={<Files />} />
           <Route path="files/:folderId" element={<Files />} />
-          <Route path="favorites" element={<Favorites />} />
-          <Route path="shared" element={<Shared />} />
-          <Route path="trash" element={<Trash />} />
-          <Route path="photos" element={<Photos />} />
-          <Route path="albums" element={<Albums />} />
-          <Route path="albums/:albumId" element={<Albums />} />
-          <Route path="music" element={<Music />} />
-          <Route path="documents" element={<Documents />} />
+          <Route path="favorites" element={<Suspense fallback={<PageLoader />}><Favorites /></Suspense>} />
+          <Route path="shared" element={<Suspense fallback={<PageLoader />}><Shared /></Suspense>} />
+          <Route path="trash" element={<Suspense fallback={<PageLoader />}><Trash /></Suspense>} />
+          <Route path="photos" element={<Suspense fallback={<PageLoader />}><Photos /></Suspense>} />
+          <Route path="albums" element={<Suspense fallback={<PageLoader />}><Albums /></Suspense>} />
+          <Route path="albums/:albumId" element={<Suspense fallback={<PageLoader />}><Albums /></Suspense>} />
+          <Route path="music" element={<Suspense fallback={<PageLoader />}><Music /></Suspense>} />
+          <Route path="documents" element={<Suspense fallback={<PageLoader />}><Documents /></Suspense>} />
 
-          <Route path="settings" element={<Settings />} />
+          <Route path="settings" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
 
           {/* Admin routes */}
-          <Route path="admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
-          <Route path="admin/users" element={<AdminRoute><AdminUsers /></AdminRoute>} />
+          <Route path="admin" element={<AdminRoute><Suspense fallback={<PageLoader />}><AdminDashboard /></Suspense></AdminRoute>} />
+          <Route path="admin/users" element={<AdminRoute><Suspense fallback={<PageLoader />}><AdminUsers /></Suspense></AdminRoute>} />
         </Route>
 
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 
-      {/* Global music player */}
-      <MusicPlayer />
+      {/* Global music player (lazy-loaded) */}
+      <Suspense fallback={null}>
+        <MusicPlayer />
+      </Suspense>
 
       {/* Global progress indicator for mass operations */}
       <GlobalProgressIndicator />

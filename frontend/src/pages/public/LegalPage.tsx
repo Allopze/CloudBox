@@ -83,9 +83,9 @@ export default function LegalPage() {
     }
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-12 relative">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 relative">
             {/* Left Sidebar: Table of Contents */}
-            <aside className="hidden lg:block lg:col-span-1">
+            <aside className="hidden lg:block lg:col-span-2">
                 <div className="sticky top-24 space-y-8">
                     <div>
                         <h3 className="text-xs font-bold text-dark-400 uppercase tracking-wider mb-4">
@@ -133,7 +133,7 @@ export default function LegalPage() {
             </aside>
 
             {/* Main Content */}
-            <div className="lg:col-span-3">
+            <div className="lg:col-span-10">
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -155,7 +155,7 @@ export default function LegalPage() {
                     </div>
 
                     {/* TL;DR Card */}
-                    <div className="bg-dark-50 dark:bg-dark-800 rounded-2xl p-8 mb-16 border border-dark-100 dark:border-dark-700/50">
+                    <div className="bg-white dark:bg-dark-800 rounded-2xl p-8 mb-16 border border-dark-100 dark:border-dark-700/50 shadow-sm">
                         <div className="flex items-center gap-3 mb-6">
                             <div className="p-2 bg-primary-100 dark:bg-primary-900/30 rounded-lg text-primary-600">
                                 <FileText className="w-5 h-5" />

@@ -121,7 +121,7 @@ router.post('/compress', authenticate, validate(compressionSchema), async (req: 
     // Start compression in background
     (async () => {
       try {
-        const onProgress = (progress: { jobId: string; progress: number }) => {
+        const onProgress = (progress: { jobId: string; progress: number; currentFile?: string }) => {
           const client = sseClients.get(jobId);
           if (client) {
             client.res.write(`data: ${JSON.stringify(progress)}\n\n`);
@@ -272,7 +272,7 @@ router.post('/decompress', authenticate, validate(decompressSchema), async (req:
     // Start decompression in background
     (async () => {
       try {
-        const onProgress = (progress: { jobId: string; progress: number }) => {
+        const onProgress = (progress: { jobId: string; progress: number; currentFile?: string }) => {
           const client = sseClients.get(jobId);
           if (client) {
             client.res.write(`data: ${JSON.stringify(progress)}\n\n`);
@@ -427,7 +427,9 @@ router.get('/status/:jobId', authenticate, async (req: Request, res: Response) =
       jobId: job.id,
       status: job.status,
       progress: job.progress,
-      error: job.data && typeof job.data === 'object' && 'error' in job.data ? job.data.error : null,
+      currentFile: job.currentFile,
+      // Use the dedicated error column from the compressionJob record
+      error: job.error,
     });
   } catch (error) {
     console.error('Get job status error:', error);

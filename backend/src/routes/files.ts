@@ -8,9 +8,9 @@ import { authenticate } from '../middleware/auth.js';
 import { authOptional } from '../middleware/authOptional.js';
 import { uploadFile, uploadChunk, decodeFilename } from '../middleware/upload.js';
 import { validate } from '../middleware/validate.js';
-import { 
-  renameFileSchema, 
-  moveFileSchema, 
+import {
+  renameFileSchema,
+  moveFileSchema,
   uploadFilesSchema,
   uploadWithFoldersSchema,
   uploadInitSchema,
@@ -21,10 +21,10 @@ import {
   UPLOAD_LIMITS,
   UPLOAD_ERROR_CODES,
 } from '../schemas/index.js';
-import { 
-  getUserFilePath, 
-  ensureUserDir, 
-  deleteFile, 
+import {
+  getUserFilePath,
+  ensureUserDir,
+  deleteFile,
   fileExists,
   getStoragePath,
   moveFile as moveFileStorage,
@@ -49,16 +49,16 @@ async function cleanupChunks(uploadId: string, userId: string, totalSize: number
   try {
     // Delete chunk records from database
     await prisma.fileChunk.deleteMany({ where: { uploadId } });
-    
+
     // Delete chunk directory
     await deleteDirectory(getStoragePath('chunks', uploadId));
-    
+
     // Release reserved tempStorage
     await prisma.user.update({
       where: { id: userId },
       data: { tempStorage: { decrement: totalSize } },
-    }).catch(() => {});
-    
+    }).catch(() => { });
+
     logger.info('Cleaned up failed upload chunks', { uploadId, userId });
   } catch (error) {
     logger.error('Failed to cleanup chunks', { uploadId, userId }, error instanceof Error ? error : undefined);
@@ -68,12 +68,12 @@ async function cleanupChunks(uploadId: string, userId: string, totalSize: number
 // Helper function to validate folderId belongs to user
 async function validateFolderOwnership(folderId: string | null, userId: string): Promise<boolean> {
   if (!folderId) return true;
-  
+
   // Validate UUID format
   if (!isValidUUID(folderId)) {
     return false;
   }
-  
+
   const folder = await prisma.folder.findFirst({ where: { id: folderId, userId } });
   return !!folder;
 }
@@ -92,7 +92,7 @@ router.post('/upload', authenticate, uploadFile.array('files', UPLOAD_LIMITS.MAX
 
     // Validate file count limit
     if (files.length > UPLOAD_LIMITS.MAX_FILES_PER_REQUEST) {
-      res.status(400).json({ 
+      res.status(400).json({
         error: `Maximum ${UPLOAD_LIMITS.MAX_FILES_PER_REQUEST} files allowed per request`,
         code: UPLOAD_ERROR_CODES.MAX_FILES_EXCEEDED,
       });
@@ -106,7 +106,7 @@ router.post('/upload', authenticate, uploadFile.array('files', UPLOAD_LIMITS.MAX
     }
 
     // Rate limiting per user for uploads
-    const rateLimit = checkUserRateLimit(userId, 50, 60000); // 50 uploads per minute
+    const rateLimit = checkUserRateLimit(userId, 300, 60000); // 300 uploads per minute
     if (!rateLimit.allowed) {
       await auditLog({
         action: 'FILE_UPLOAD',
@@ -157,9 +157,9 @@ router.post('/upload', authenticate, uploadFile.array('files', UPLOAD_LIMITS.MAX
           throw new Error(`File ${decodeFilename(file.originalname)} exceeds maximum size limit`);
         }
       }
-      
+
       await ensureUserDir(userId);
-      
+
       const resultFiles = [];
 
       for (const file of files) {
@@ -167,7 +167,7 @@ router.post('/upload', authenticate, uploadFile.array('files', UPLOAD_LIMITS.MAX
         const rawName = decodeFilename(file.originalname);
         const originalName = sanitizeFilename(rawName);
         const ext = path.extname(originalName);
-        
+
         // Check for dangerous extensions
         if (isDangerousExtension(originalName)) {
           await auditLog({
@@ -272,13 +272,13 @@ router.post('/upload', authenticate, uploadFile.array('files', UPLOAD_LIMITS.MAX
         await deleteFile(file.path);
       }
     }
-    
+
     logger.error('Upload error', { userId: req.user?.userId, error: error.message }, error instanceof Error ? error : undefined);
-    if (error.message === 'Storage quota exceeded' || 
-        error.message.includes('exceeds maximum size limit') ||
-        error.message.includes('exceeds maximum limit') ||
-        error.message.includes('File type not allowed') ||
-        error.message.includes('Invalid file type')) {
+    if (error.message === 'Storage quota exceeded' ||
+      error.message.includes('exceeds maximum size limit') ||
+      error.message.includes('exceeds maximum limit') ||
+      error.message.includes('File type not allowed') ||
+      error.message.includes('Invalid file type')) {
       res.status(400).json({ error: error.message, code: UPLOAD_ERROR_CODES.QUOTA_EXCEEDED });
     } else {
       res.status(500).json({ error: 'Failed to upload files' });
@@ -301,7 +301,7 @@ router.post('/upload-with-folders', authenticate, uploadFile.array('files', UPLO
 
     // Validate file count limit
     if (files.length > UPLOAD_LIMITS.MAX_FILES_FOLDER_UPLOAD) {
-      res.status(400).json({ 
+      res.status(400).json({
         error: `Maximum ${UPLOAD_LIMITS.MAX_FILES_FOLDER_UPLOAD} files allowed per folder upload`,
         code: UPLOAD_ERROR_CODES.MAX_FILES_EXCEEDED,
       });
@@ -315,7 +315,7 @@ router.post('/upload-with-folders', authenticate, uploadFile.array('files', UPLO
     }
 
     // Rate limiting per user for uploads
-    const rateLimit = checkUserRateLimit(userId, 50, 60000);
+    const rateLimit = checkUserRateLimit(userId, 300, 60000); // 300 uploads per minute for folder uploads
     if (!rateLimit.allowed) {
       await auditLog({
         action: 'FILE_UPLOAD',
@@ -366,7 +366,7 @@ router.post('/upload-with-folders', authenticate, uploadFile.array('files', UPLO
       // Helper to get or create folder by path
       const getOrCreateFolder = async (folderPath: string, parentId: string | null): Promise<string> => {
         if (!folderPath) return parentId || '';
-        
+
         const cacheKey = `${parentId || 'root'}:${folderPath}`;
         if (folderCache.has(cacheKey)) {
           return folderCache.get(cacheKey)!;
@@ -379,7 +379,7 @@ router.post('/upload-with-folders', authenticate, uploadFile.array('files', UPLO
           // Sanitize folder name
           const sanitizedFolderName = sanitizeFilename(folderName);
           const partCacheKey = `${currentParentId || 'root'}:${sanitizedFolderName}`;
-          
+
           if (folderCache.has(partCacheKey)) {
             currentParentId = folderCache.get(partCacheKey)!;
             continue;
@@ -420,7 +420,7 @@ router.post('/upload-with-folders', authenticate, uploadFile.array('files', UPLO
         const file = files[i];
         const decodedOriginalname = decodeFilename(file.originalname);
         const relativePath = decodeFilename(relativePaths[i] || decodedOriginalname);
-        
+
         // Parse folder path from relative path
         const pathParts = relativePath.split('/');
         const rawFileName = pathParts.pop() || decodedOriginalname;
@@ -481,9 +481,9 @@ router.post('/upload-with-folders', authenticate, uploadFile.array('files', UPLO
             userId,
           },
         });
-        
+
         await updateParentFolderSizes(targetFolderId, file.size, tx, 'increment');
-        
+
         accumulatedSize += file.size;
 
         resultFiles.push({
@@ -491,7 +491,7 @@ router.post('/upload-with-folders', authenticate, uploadFile.array('files', UPLO
           size: dbFile.size.toString(),
         });
       }
-      
+
       // Update storage used once at the end
       await tx.user.update({
         where: { id: userId },
@@ -529,7 +529,7 @@ router.post('/upload-with-folders', authenticate, uploadFile.array('files', UPLO
         await deleteFile(file.path);
       }
     }
-    
+
     logger.error('Upload with folders error', { userId: req.user?.userId, error: error.message }, error instanceof Error ? error : undefined);
     if (error.message === 'Storage quota exceeded') {
       res.status(400).json({ error: error.message, code: UPLOAD_ERROR_CODES.QUOTA_EXCEEDED });
@@ -586,7 +586,7 @@ router.post('/upload/validate', authenticate, async (req: Request, res: Response
 
     for (const file of files) {
       const sanitizedName = sanitizeFilename(file.name);
-      
+
       // Check dangerous extensions
       if (isDangerousExtension(sanitizedName)) {
         validationResults.push({
@@ -656,7 +656,7 @@ router.post('/upload/init', authenticate, validate(uploadInitSchema), async (req
 
     // Validate chunk count
     if (totalChunks > UPLOAD_LIMITS.MAX_TOTAL_CHUNKS) {
-      res.status(400).json({ 
+      res.status(400).json({
         error: `Cannot exceed ${UPLOAD_LIMITS.MAX_TOTAL_CHUNKS} chunks`,
         code: UPLOAD_ERROR_CODES.INVALID_CHUNK,
       });
@@ -736,7 +736,7 @@ router.post('/upload/chunk', authenticate, uploadChunk.single('chunk'), async (r
     // Validate chunk index
     const chunkIdx = parseInt(chunkIndex, 10);
     const totalChunksNum = parseInt(totalChunks, 10);
-    
+
     if (isNaN(chunkIdx) || chunkIdx < 0 || isNaN(totalChunksNum) || totalChunksNum <= 0) {
       res.status(400).json({ error: 'Invalid chunk parameters', code: UPLOAD_ERROR_CODES.INVALID_CHUNK });
       return;
@@ -755,7 +755,7 @@ router.post('/upload/chunk', authenticate, uploadChunk.single('chunk'), async (r
     // Validate chunk size
     if (req.file.size > UPLOAD_LIMITS.MAX_CHUNK_SIZE) {
       await deleteFile(req.file.path);
-      res.status(400).json({ 
+      res.status(400).json({
         error: `Chunk size exceeds maximum of ${UPLOAD_LIMITS.MAX_CHUNK_SIZE / 1024 / 1024}MB`,
         code: UPLOAD_ERROR_CODES.FILE_TOO_LARGE,
       });
@@ -841,7 +841,7 @@ router.post('/upload/chunk', authenticate, uploadChunk.single('chunk'), async (r
           if (!user) {
             throw new Error('User not found');
           }
-          
+
           const remainingQuota = Number(user.storageQuota) - Number(user.storageUsed);
           if (parseInt(totalSize) > remainingQuota) {
             throw new Error('Storage quota exceeded');
@@ -899,7 +899,7 @@ router.post('/upload/chunk', authenticate, uploadChunk.single('chunk'), async (r
         });
 
         // Clean up chunk directory (outside transaction, non-critical)
-        await deleteDirectory(getStoragePath('chunks', uploadId)).catch(() => {});
+        await deleteDirectory(getStoragePath('chunks', uploadId)).catch(() => { });
 
         // Generate thumbnail asynchronously (non-blocking)
         generateThumbnail(filePath, fileId, mimeType)
@@ -908,10 +908,10 @@ router.post('/upload/chunk', authenticate, uploadChunk.single('chunk'), async (r
               await prisma.file.update({
                 where: { id: fileId },
                 data: { thumbnailPath },
-              }).catch(() => {});
+              }).catch(() => { });
             }
           })
-          .catch(() => {});
+          .catch(() => { });
 
         res.json({
           completed: true,
@@ -922,7 +922,7 @@ router.post('/upload/chunk', authenticate, uploadChunk.single('chunk'), async (r
         });
       } catch (error) {
         // Clean up temp file on error
-        await deleteFile(tempFilePath).catch(() => {});
+        await deleteFile(tempFilePath).catch(() => { });
         // Transactional cleanup of chunks and reserved storage
         await cleanupChunks(uploadId, userId, parseInt(totalSize, 10));
         throw error;
@@ -944,9 +944,9 @@ router.post('/upload/chunk', authenticate, uploadChunk.single('chunk'), async (r
 router.get('/', authenticate, async (req: Request, res: Response) => {
   try {
     const userId = req.user!.userId;
-    const { 
-      folderId, 
-      page = '1', 
+    const {
+      folderId,
+      page = '1',
       limit = '50',
       search,
       type,
@@ -958,10 +958,10 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
     const pageNum = parseInt(page as string);
     const limitNum = parseInt(limit as string);
     const folderIdStr = folderId === 'null' || folderId === '' ? null : (folderId as string) || null;
-    
+
     // Build cache key based on query params (only for non-search queries)
     const canUseCache = !search && !favorite;
-    
+
     if (canUseCache) {
       // Try to get from cache first
       const cachedFiles = await cache.getFiles(userId, folderIdStr, pageNum, type as string);
@@ -1164,7 +1164,7 @@ router.patch('/:id/move', authenticate, validate(moveFileSchema), async (req: Re
       if (folderId) {
         await updateParentFolderSizes(folderId, fileToMove.size, tx, 'increment');
       }
-      
+
       return fileToMove;
     });
 
@@ -1324,7 +1324,7 @@ router.get('/:id/download', authOptional, async (req: Request, res: Response) =>
     if (range) {
       // Validate and parse Range header
       const parsedRange = parseRangeHeader(range, Number(stat.size));
-      
+
       if (!parsedRange) {
         logger.warn('Invalid Range header in download', { fileId: id, range });
         res.status(416).json({ error: 'Invalid Range header' });
@@ -1366,7 +1366,7 @@ const findFile = async (id: string, userId?: string, sharePassword?: string) => 
   // First try to find file owned by user
   if (userId) {
     const file = await prisma.file.findFirst({
-      where: { 
+      where: {
         id,
         isTrash: false,
         userId,
@@ -1392,7 +1392,7 @@ const findFile = async (id: string, userId?: string, sharePassword?: string) => 
     if (share.downloadLimit && share.downloadCount >= share.downloadLimit) {
       return { file: null, requiresPassword: false, error: 'download_limit_reached' };
     }
-    
+
     // Security: Validate password for password-protected shares
     if (share.password) {
       if (!sharePassword) {
@@ -1403,7 +1403,7 @@ const findFile = async (id: string, userId?: string, sharePassword?: string) => 
         return { file: null, requiresPassword: true, error: 'invalid_password' };
       }
     }
-    
+
     const file = await prisma.file.findFirst({
       where: { id, isTrash: false }
     });
@@ -1462,11 +1462,11 @@ router.get('/:id/stream', authOptional, async (req: Request, res: Response) => {
       // TODO: Move transcoding to a worker queue for scalability
       // For now, stream directly but log the operation
       logger.info('Video transcoding requested', { fileId: id, mimeType: file.mimeType });
-      
+
       const { spawn } = await import('child_process');
-      
+
       res.setHeader('Content-Type', 'video/mp4');
-      
+
       const ffmpeg = spawn('ffmpeg', [
         '-i', file.path,
         '-c:v', 'libx264',
@@ -1478,7 +1478,7 @@ router.get('/:id/stream', authOptional, async (req: Request, res: Response) => {
       ]);
 
       ffmpeg.stdout.pipe(res);
-      ffmpeg.stderr.on('data', () => {}); // Suppress ffmpeg logs
+      ffmpeg.stderr.on('data', () => { }); // Suppress ffmpeg logs
 
       req.on('close', () => {
         ffmpeg.kill('SIGTERM');
@@ -1503,7 +1503,7 @@ router.get('/:id/excel-html', authOptional, async (req: Request, res: Response) 
     const sharePassword = req.query.password as string | undefined;
 
     const result = await findFile(id, userId, sharePassword);
-    
+
     if (result.error === 'invalid_id') {
       res.status(400).json({ error: 'Invalid file ID format' });
       return;
@@ -1522,11 +1522,11 @@ router.get('/:id/excel-html', authOptional, async (req: Request, res: Response) 
     const file = result.file;
 
     // Check if it's an Excel file
-    const isExcel = file.mimeType.includes('spreadsheet') || 
-                    file.mimeType.includes('excel') ||
-                    file.name.endsWith('.xlsx') || 
-                    file.name.endsWith('.xls');
-    
+    const isExcel = file.mimeType.includes('spreadsheet') ||
+      file.mimeType.includes('excel') ||
+      file.name.endsWith('.xlsx') ||
+      file.name.endsWith('.xls');
+
     if (!isExcel) {
       res.status(400).json({ error: 'File is not an Excel spreadsheet' });
       return;
@@ -1542,7 +1542,7 @@ router.get('/:id/excel-html', authOptional, async (req: Request, res: Response) 
 
     const sheetNames = workbook.worksheets.map(ws => ws.name);
     const worksheet = workbook.worksheets[sheetIndex] || workbook.worksheets[0];
-    
+
     if (!worksheet) {
       res.status(400).json({ error: 'No worksheets found' });
       return;
@@ -1616,11 +1616,11 @@ router.get('/:id/excel-html', authOptional, async (req: Request, res: Response) 
 
     // Build HTML table
     let html = '<table style="border-collapse: collapse; font-family: Calibri, Arial, sans-serif; font-size: 11pt;">';
-    
+
     // Track merged cells
     const mergedCells = new Map<string, { rowSpan: number; colSpan: number }>();
     const skipCells = new Set<string>();
-    
+
     worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
       // Check for merged cells
       // ExcelJS merged cells are in worksheet.model.merges
@@ -1633,17 +1633,17 @@ router.get('/:id/excel-html', authOptional, async (req: Request, res: Response) 
         const [start, end] = merge.split(':');
         const startCell = worksheet.getCell(start);
         const endCell = worksheet.getCell(end);
-        
+
         const startRow = Number(startCell.row);
         const startCol = Number(startCell.col);
         const endRow = Number(endCell.row);
         const endCol = Number(endCell.col);
-        
+
         mergedCells.set(`${startRow}-${startCol}`, {
           rowSpan: endRow - startRow + 1,
           colSpan: endCol - startCol + 1
         });
-        
+
         // Mark cells to skip
         for (let r = startRow; r <= endRow; r++) {
           for (let c = startCol; c <= endCol; c++) {
@@ -1664,24 +1664,24 @@ router.get('/:id/excel-html', authOptional, async (req: Request, res: Response) 
     worksheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {
       const rowHeight = row.height || 15;
       html += `<tr style="height: ${rowHeight}px;">`;
-      
+
       row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
         const cellKey = `${rowNumber}-${colNumber}`;
-        
+
         // Skip merged cells (not the first one)
         if (skipCells.has(cellKey)) return;
-        
+
         const merge = mergedCells.get(cellKey);
         const rowSpan = merge?.rowSpan || 1;
         const colSpan = merge?.colSpan || 1;
-        
+
         // Build cell styles
         const styles: string[] = [];
-        
+
         // Background color
         const bgColor = getCellBgColor(cell);
         if (bgColor) styles.push(`background-color: ${bgColor}`);
-        
+
         // Font styles
         const font = cell.font;
         if (font) {
@@ -1694,7 +1694,7 @@ router.get('/:id/excel-html', authOptional, async (req: Request, res: Response) 
           const fontColor = getFontColor(cell);
           if (fontColor) styles.push(`color: ${fontColor}`);
         }
-        
+
         // Alignment
         const alignment = cell.alignment;
         if (alignment) {
@@ -1709,7 +1709,7 @@ router.get('/:id/excel-html', authOptional, async (req: Request, res: Response) 
             styles.push('white-space: pre-wrap');
           }
         }
-        
+
         // Borders
         const border = cell.border;
         if (border) {
@@ -1718,14 +1718,14 @@ router.get('/:id/excel-html', authOptional, async (req: Request, res: Response) 
           if (border.bottom) styles.push(`border-bottom: ${getBorderStyle(border.bottom)}`);
           if (border.left) styles.push(`border-left: ${getBorderStyle(border.left)}`);
         }
-        
+
         // Width
         const width = colWidths[colNumber - 1];
         if (width) styles.push(`min-width: ${width}px`);
-        
+
         // Padding
         styles.push('padding: 2px 4px');
-        
+
         // Get cell value
         let value = '';
         if (cell.value !== null && cell.value !== undefined) {
@@ -1751,24 +1751,24 @@ router.get('/:id/excel-html', authOptional, async (req: Request, res: Response) 
             value = String(cell.value);
           }
         }
-        
+
         // Escape HTML
         value = value
           .replace(/&/g, '&amp;')
           .replace(/</g, '&lt;')
           .replace(/>/g, '&gt;')
           .replace(/\n/g, '<br>');
-        
+
         const spanAttrs = [];
         if (rowSpan > 1) spanAttrs.push(`rowspan="${rowSpan}"`);
         if (colSpan > 1) spanAttrs.push(`colspan="${colSpan}"`);
-        
+
         html += `<td ${spanAttrs.join(' ')} style="${styles.join('; ')}">${value}</td>`;
       });
-      
+
       html += '</tr>';
     });
-    
+
     html += '</table>';
 
     res.json({
@@ -1791,7 +1791,7 @@ router.get('/:id/view', authOptional, async (req: Request, res: Response) => {
     const sharePassword = req.query.password as string | undefined;
 
     const result = await findFile(id, userId, sharePassword);
-    
+
     if (result.error === 'invalid_id') {
       res.status(400).json({ error: 'Invalid file ID format' });
       return;
@@ -1977,7 +1977,7 @@ router.post('/:id/signed-url', authenticate, async (req: Request, res: Response)
     // Clean up expired signed URLs (async, don't wait)
     prisma.signedUrl.deleteMany({
       where: { expiresAt: { lt: new Date() } },
-    }).catch(() => {});
+    }).catch(() => { });
 
     res.json({
       signedUrl: `${config.frontendUrl.replace(/\/$/, '')}/api/files/${id}/${action}?sig=${token}`,

@@ -29,6 +29,7 @@ const operationIcons: Record<GlobalOperation['type'], React.ElementType> = {
 };
 
 function OperationItem({ operation }: { operation: GlobalOperation }) {
+  const { t } = useTranslation();
   const { removeOperation, cancelOperation } = useGlobalProgressStore();
   const Icon = operationIcons[operation.type];
   const progress = operation.totalItems > 0
@@ -90,27 +91,27 @@ function OperationItem({ operation }: { operation: GlobalOperation }) {
             <>
               <Progress value={progress} size="sm" className="mt-2" />
               <p className="text-xs text-dark-500 dark:text-dark-400 mt-1 truncate">
-                {operation.currentItem || `${operation.completedItems} de ${operation.totalItems} elementos`}
+                {operation.currentItem || t('progress.itemsProgress', { completed: operation.completedItems, total: operation.totalItems })}
               </p>
             </>
           )}
 
           {operation.status === 'completed' && (
             <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-              Completado en {formatDuration(elapsed / 1000)}
+              {t('progress.completedIn', { duration: formatDuration(elapsed / 1000) })}
             </p>
           )}
 
           {operation.status === 'error' && (
             <div className="flex items-center gap-1 text-xs text-red-600 dark:text-red-400 mt-1">
               <AlertCircle className="w-3 h-3" />
-              {operation.error || 'Error desconocido'}
+              {operation.error || t('progress.unknownError')}
             </div>
           )}
 
           {operation.status === 'cancelled' && (
             <p className="text-xs text-dark-500 dark:text-dark-400 mt-1">
-              Cancelado
+              {t('progress.cancelled')}
             </p>
           )}
         </div>
