@@ -1,10 +1,11 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Folder, FileItem } from '../../types';
 import { useSearchParams, useLocation } from 'react-router-dom';
+import { useDraggable, useDroppable } from '@dnd-kit/core';
+import { Folder } from '../../types';
 import { useFileStore } from '../../stores/fileStore';
 import { useGlobalProgressStore } from '../../stores/globalProgressStore';
-import { useDragDropStore, DragItem, updateDragPosition } from '../../stores/dragDropStore';
+import { useDragDropStore } from '../../stores/dragDropStore';
 import { useAuthStore } from '../../stores/authStore';
 import {
   FolderIcon,
@@ -41,7 +42,7 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
   const location = useLocation();
   const { selectedItems, addToSelection, removeFromSelection, selectRange, selectSingle, lastSelectedId } = useFileStore();
   const { addOperation, incrementProgress, completeOperation, failOperation } = useGlobalProgressStore();
-  const { draggedItems, startDrag, endDrag } = useDragDropStore();
+  const { draggedItems } = useDragDropStore();
   const { refreshUser } = useAuthStore();
   const isSelected = selectedItems.has(folder.id);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -52,13 +53,45 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [contextMenuSelection, setContextMenuSelection] = useState<Set<string>>(new Set());
-  const [isDragOver, setIsDragOver] = useState(false);
 
   // Check if this folder is being dragged (can't drop on itself)
   const isSelfDragged = draggedItems.some(item => item.type === 'folder' && item.item.id === folder.id);
 
-  // Check if any drag operation is in progress
-  const { isDragging: isAnyDragActive } = useDragDropStore();
+  // dnd-kit draggable hook
+  const {
+    attributes,
+    listeners,
+    setNodeRef: setDraggableRef,
+    transform,
+    isDragging,
+  } = useDraggable({
+    id: folder.id,
+    data: { type: 'folder', item: folder },
+  });
+
+  // dnd-kit droppable hook
+  const { setNodeRef: setDroppableRef, isOver } = useDroppable({
+    id: folder.id,
+    data: { type: 'folder', item: folder },
+    disabled: isSelfDragged,
+  });
+
+  // Combine refs for both draggable and droppable
+  const setNodeRef = (node: HTMLElement | null) => {
+    setDraggableRef(node);
+    setDroppableRef(node);
+  };
+
+  // Apply transform style when dragging - completely hide from view
+  const dragStyle: React.CSSProperties | undefined = isDragging ? {
+    visibility: 'hidden',
+    position: 'fixed',
+    top: -9999,
+    left: -9999,
+    pointerEvents: 'none',
+  } : transform ? {
+    transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+  } : undefined;
 
   // Close context menu when location changes
   useEffect(() => {
@@ -87,6 +120,9 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
   };
 
   const handleClick = (e: React.MouseEvent) => {
+    // Don't handle click if we're dragging
+    if (isDragging) return;
+
     // Shift+Click: Range selection
     if (e.shiftKey && lastSelectedId) {
       // Get all file items in the DOM to determine range
@@ -113,7 +149,7 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
     setSearchParams({ folder: folder.id });
   };
 
-  const handleFavorite = async () => {
+  const handleFavorite = useCallback(async () => {
     setContextMenu(null);
     try {
       await api.patch(`/folders/${folder.id}/favorite`);
@@ -122,7 +158,7 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
     } catch {
       toast(t('folderCard.favoriteError'), 'error');
     }
-  };
+  }, [folder.id, folder.isFavorite, t, onRefresh]);
 
   const handleDeleteConfirm = async () => {
     setShowDeleteConfirm(false);
@@ -180,119 +216,6 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
       } catch {
         toast(t('folderCard.deleteFolderError'), 'error');
       }
-    }
-  };
-
-  // Drag and Drop handlers
-  const handleDragStart = (e: React.DragEvent) => {
-    e.stopPropagation();
-
-    const currentSelectedItems = useFileStore.getState().selectedItems;
-    let itemsToDrag: DragItem[] = [];
-
-    // If this folder is selected and there are multiple selections, drag all selected items
-    if (currentSelectedItems.has(folder.id) && currentSelectedItems.size > 1) {
-      // Get all selected items from the DOM
-      currentSelectedItems.forEach(id => {
-        const folderEl = document.querySelector(`[data-folder-item="${id}"]`);
-        const fileEl = document.querySelector(`[data-file-item="${id}"]`);
-
-        if (folderEl) {
-          const folderData = folderEl.getAttribute('data-folder-data');
-          if (folderData) {
-            itemsToDrag.push({ type: 'folder', item: JSON.parse(folderData) });
-          }
-        } else if (fileEl) {
-          const fileData = fileEl.getAttribute('data-file-data');
-          if (fileData) {
-            itemsToDrag.push({ type: 'file', item: JSON.parse(fileData) });
-          }
-        }
-      });
-    }
-
-    // If no items collected or this folder wasn't selected, just drag this folder
-    if (itemsToDrag.length === 0) {
-      itemsToDrag = [{ type: 'folder', item: folder }];
-      selectSingle(folder.id);
-    }
-
-    startDrag(itemsToDrag);
-
-    // Set drag data for compatibility
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', JSON.stringify(itemsToDrag.map(i => ({ type: i.type, id: i.item.id }))));
-
-    // Hide default drag image
-    const emptyImg = document.createElement('img');
-    emptyImg.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-    e.dataTransfer.setDragImage(emptyImg, 0, 0);
-  };
-
-  const handleDrag = (e: React.DragEvent) => {
-    if (e.clientX !== 0 || e.clientY !== 0) {
-      updateDragPosition(e.clientX, e.clientY);
-    }
-  };
-
-  const handleDragEnd = () => {
-    endDrag();
-    setIsDragOver(false);
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    // Don't allow dropping on itself
-    if (isSelfDragged) return;
-
-    e.dataTransfer.dropEffect = 'move';
-    setIsDragOver(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOver(false);
-  };
-
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOver(false);
-
-    // Don't allow dropping on itself
-    if (isSelfDragged) return;
-
-    const items = draggedItems;
-    endDrag();
-
-    if (items.length === 0) return;
-
-    const clearSelectionFn = useFileStore.getState().clearSelection;
-
-    try {
-      for (const dragItem of items) {
-        // Skip if trying to move a folder into itself
-        if (dragItem.type === 'folder' && dragItem.item.id === folder.id) continue;
-        // Skip if item is already in this folder
-        if (dragItem.type === 'file' && (dragItem.item as FileItem).folderId === folder.id) continue;
-        if (dragItem.type === 'folder' && (dragItem.item as Folder).parentId === folder.id) continue;
-
-        if (dragItem.type === 'file') {
-          await api.patch(`/files/${dragItem.item.id}/move`, { folderId: folder.id });
-        } else {
-          await api.patch(`/folders/${dragItem.item.id}/move`, { parentId: folder.id });
-        }
-      }
-
-      toast(t('folderCard.itemsMovedTo', { count: items.length, name: folder.name }), 'success');
-      clearSelectionFn();
-      window.dispatchEvent(new CustomEvent('workzone-refresh'));
-      onRefresh?.();
-    } catch (error: any) {
-      toast(error.response?.data?.error || t('folderCard.moveError'), 'error');
     }
   };
 
@@ -362,34 +285,38 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
     </>
   );
 
+  // Calculate drop target styling
+  const isDropTarget = isOver && !isSelfDragged;
+
   if (view === 'list') {
     return (
       <>
         <motion.div
-          layoutId={isAnyDragActive ? undefined : `folder-${folder.id}`}
-          layout={!isAnyDragActive}
+          ref={setNodeRef}
+          layout
+          layoutId={`folder-${folder.id}-${view}`}
           initial={false}
+          style={{
+            ...dragStyle,
+            transform: dragStyle?.transform || (isSelected ? 'scale(0.98)' : 'scale(1)'),
+          }}
+          {...attributes}
+          {...listeners}
           data-folder-item={folder.id}
           data-folder-name={folder.name}
           data-folder-data={JSON.stringify(folder)}
-          draggable
-          onDragStart={handleDragStart as any}
-          onDrag={handleDrag as any}
-          onDragEnd={handleDragEnd as any}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
           onClick={handleClick}
           onDoubleClick={handleDoubleClick}
           onContextMenu={handleContextMenu}
-          animate={isSelected ? { scale: 0.98 } : { scale: 1 }}
-          transition={{ duration: 0.15, ease: [0.25, 0.1, 0.25, 1] }}
+          transition={{
+            layout: { type: 'spring', stiffness: 280, damping: 26, mass: 0.55 },
+          }}
           className={cn(
-            'flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer transition-colors',
+            'flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer transition-all duration-100 touch-none',
             isSelected
               ? 'bg-primary-50 dark:bg-primary-900/20 ring-2 ring-primary-500/50 ring-offset-1 ring-offset-white dark:ring-offset-dark-900'
               : 'hover:bg-dark-50 dark:hover:bg-dark-800',
-            isDragOver && !isSelfDragged && 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/30'
+            isDropTarget && 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/30'
           )}
         >
           <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center">
@@ -410,30 +337,31 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
   return (
     <>
       <motion.div
-        layoutId={isAnyDragActive ? undefined : `folder-${folder.id}`}
-        layout={!isAnyDragActive}
+        ref={setNodeRef}
+        layout
+        layoutId={`folder-${folder.id}-${view}`}
         initial={false}
+        style={{
+          ...dragStyle,
+          transform: dragStyle?.transform || (isSelected ? 'scale(0.97)' : 'scale(1)'),
+        }}
+        {...attributes}
+        {...listeners}
         data-folder-item={folder.id}
         data-folder-name={folder.name}
         data-folder-data={JSON.stringify(folder)}
-        draggable
-        onDragStart={handleDragStart as any}
-        onDrag={handleDrag as any}
-        onDragEnd={handleDragEnd as any}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
         onContextMenu={handleContextMenu}
-        animate={isSelected ? { scale: 0.97 } : { scale: 1 }}
-        transition={{ duration: 0.15, ease: [0.25, 0.1, 0.25, 1] }}
+        transition={{
+          layout: { type: 'spring', stiffness: 280, damping: 26, mass: 0.55 },
+        }}
         className={cn(
-          'group relative flex items-center gap-3 px-3 py-2.5 rounded-2xl cursor-pointer transition-all border',
+          'group relative flex items-center gap-3 px-3 py-2.5 rounded-2xl cursor-pointer transition-all duration-100 border touch-none',
           isSelected
             ? 'bg-primary-50 dark:bg-primary-900/20 border-primary-300 dark:border-primary-700 ring-2 ring-primary-500/40 ring-offset-1 ring-offset-white dark:ring-offset-dark-900'
             : 'bg-white dark:bg-dark-800 border-dark-100 dark:border-dark-700 hover:border-dark-200 dark:hover:border-dark-600',
-          isDragOver && !isSelfDragged && 'ring-2 ring-primary-500 border-primary-500 bg-primary-50 dark:bg-primary-900/30'
+          isDropTarget && 'ring-2 ring-primary-500 border-primary-500 bg-primary-50 dark:bg-primary-900/30'
         )}
       >
         <FolderIcon className="w-6 h-6 text-primary-500 flex-shrink-0" />

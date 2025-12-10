@@ -1,13 +1,9 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useDroppable } from '@dnd-kit/core';
 import { ChevronRight, Home } from 'lucide-react';
 import { useDragDropStore } from '../../stores/dragDropStore';
-import { useFileStore } from '../../stores/fileStore';
-import { api } from '../../lib/api';
-import { toast } from '../ui/Toast';
 import { cn } from '../../lib/utils';
-import { FileItem, Folder } from '../../types';
 
 interface BreadcrumbItem {
   id: string;
@@ -20,83 +16,60 @@ interface BreadcrumbsProps {
   onRefresh?: () => void;
 }
 
-export default function Breadcrumbs({ items = [], basePath = '/files', onRefresh }: BreadcrumbsProps) {
-  const { t } = useTranslation();
-  const { isDragging, draggedItems, endDrag } = useDragDropStore();
-  const [dragOverId, setDragOverId] = useState<string | null>(null);
-
-  const handleDragOver = (e: React.DragEvent, id: string | null) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!isDragging) return;
-    e.dataTransfer.dropEffect = 'move';
-    setDragOverId(id);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragOverId(null);
-  };
-
-  const handleDrop = async (e: React.DragEvent, targetFolderId: string | null) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragOverId(null);
-    
-    const itemsToMove = draggedItems;
-    endDrag();
-    
-    if (itemsToMove.length === 0) return;
-    
-    const clearSelectionFn = useFileStore.getState().clearSelection;
-    
-    try {
-      for (const dragItem of itemsToMove) {
-        // Skip if trying to move to same location
-        if (dragItem.type === 'file' && (dragItem.item as FileItem).folderId === targetFolderId) continue;
-        if (dragItem.type === 'folder') {
-          const folder = dragItem.item as Folder;
-          if (folder.parentId === targetFolderId) continue;
-          // Can't move folder into itself
-          if (folder.id === targetFolderId) continue;
-        }
-        
-        if (dragItem.type === 'file') {
-          await api.patch(`/files/${dragItem.item.id}/move`, { folderId: targetFolderId });
-        } else {
-          await api.patch(`/folders/${dragItem.item.id}/move`, { parentId: targetFolderId });
-        }
-      }
-      
-      const targetName = targetFolderId 
-        ? items.find(i => i.id === targetFolderId)?.name || t('breadcrumbs.folder')
-        : t('breadcrumbs.home');
-      toast(t('files.itemsMovedTo', { count: itemsToMove.length, name: targetName }), 'success');
-      clearSelectionFn();
-      window.dispatchEvent(new CustomEvent('workzone-refresh'));
-      onRefresh?.();
-    } catch (error: any) {
-      toast(error.response?.data?.error || t('files.moveError'), 'error');
-    }
-  };
+// Droppable breadcrumb item for intermediate folders
+function DroppableBreadcrumbItem({ item, basePath }: { item: BreadcrumbItem; basePath: string }) {
+  const { isDragging } = useDragDropStore();
+  
+  const { setNodeRef, isOver } = useDroppable({
+    id: `breadcrumb-${item.id}`,
+    data: { type: 'breadcrumb', folderId: item.id, name: item.name },
+  });
 
   return (
+    <Link
+      ref={setNodeRef}
+      to={`${basePath}?folder=${item.id}`}
+      className={cn(
+        'text-dark-500 hover:text-dark-900 dark:hover:text-white transition-colors px-2 py-1 rounded-lg',
+        isDragging && 'hover:bg-primary-100 dark:hover:bg-primary-900/30',
+        isOver && 'bg-primary-100 dark:bg-primary-900/30 ring-2 ring-primary-500'
+      )}
+    >
+      {item.name}
+    </Link>
+  );
+}
+
+// Droppable home breadcrumb
+function DroppableHomeBreadcrumb({ basePath }: { basePath: string }) {
+  const { t } = useTranslation();
+  const { isDragging } = useDragDropStore();
+  
+  const { setNodeRef, isOver } = useDroppable({
+    id: 'breadcrumb-root',
+    data: { type: 'breadcrumb', folderId: null, name: 'Home' },
+  });
+
+  return (
+    <Link
+      ref={setNodeRef}
+      to={basePath}
+      className={cn(
+        'flex items-center gap-1 text-dark-500 hover:text-dark-900 dark:hover:text-white transition-colors px-2 py-1 rounded-lg',
+        isDragging && 'hover:bg-primary-100 dark:hover:bg-primary-900/30',
+        isOver && 'bg-primary-100 dark:bg-primary-900/30 ring-2 ring-primary-500'
+      )}
+    >
+      <Home className="w-4 h-4" />
+      <span>{t('breadcrumbs.home')}</span>
+    </Link>
+  );
+}
+
+export default function Breadcrumbs({ items = [], basePath = '/files' }: BreadcrumbsProps) {
+  return (
     <nav className="flex items-center gap-1 text-sm">
-      <Link
-        to={basePath}
-        onDragOver={(e) => handleDragOver(e, null)}
-        onDragLeave={handleDragLeave}
-        onDrop={(e) => handleDrop(e, null)}
-        className={cn(
-          'flex items-center gap-1 text-dark-500 hover:text-dark-900 dark:hover:text-white transition-colors px-2 py-1 rounded-lg',
-          isDragging && 'hover:bg-primary-100 dark:hover:bg-primary-900/30',
-          dragOverId === null && isDragging && 'bg-primary-100 dark:bg-primary-900/30 ring-2 ring-primary-500'
-        )}
-      >
-        <Home className="w-4 h-4" />
-        <span>{t('breadcrumbs.home')}</span>
-      </Link>
+      <DroppableHomeBreadcrumb basePath={basePath} />
 
       {items.map((item, index) => (
         <div key={item.id} className="flex items-center gap-1">
@@ -106,19 +79,7 @@ export default function Breadcrumbs({ items = [], basePath = '/files', onRefresh
               {item.name}
             </span>
           ) : (
-            <Link
-              to={`${basePath}?folder=${item.id}`}
-              onDragOver={(e) => handleDragOver(e, item.id)}
-              onDragLeave={handleDragLeave}
-              onDrop={(e) => handleDrop(e, item.id)}
-              className={cn(
-                'text-dark-500 hover:text-dark-900 dark:hover:text-white transition-colors px-2 py-1 rounded-lg',
-                isDragging && 'hover:bg-primary-100 dark:hover:bg-primary-900/30',
-                dragOverId === item.id && 'bg-primary-100 dark:bg-primary-900/30 ring-2 ring-primary-500'
-              )}
-            >
-              {item.name}
-            </Link>
+            <DroppableBreadcrumbItem item={item} basePath={basePath} />
           )}
         </div>
       ))}

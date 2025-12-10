@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
+import { useDroppable } from '@dnd-kit/core';
 import { useAuthStore } from '../stores/authStore';
 import { useUIStore } from '../stores/uiStore';
 import { useThemeStore } from '../stores/themeStore';
@@ -36,6 +37,16 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Trash2,
   Settings,
 };
+
+// DnD droppable wrapper for the Trash nav item
+function TrashDroppable({ children }: { children: (state: { setNodeRef: (node: HTMLElement | null) => void; isOver: boolean }) => React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: 'sidebar-trash',
+    data: { type: 'trash' },
+  });
+
+  return <>{children({ setNodeRef, isOver })}</>;
+}
 
 export default function Sidebar() {
   const { t } = useTranslation();
@@ -263,14 +274,17 @@ export default function Sidebar() {
     const showDropBefore = isDropTarget && dropPosition === 'before';
     const showDropAfter = isDropTarget && dropPosition === 'after';
     const isTrash = item.path === '/trash';
-    const isFileDropTarget = fileDropTarget === item.path;
+    const baseFileDropTarget = fileDropTarget === item.path;
 
     // Check if this nav item can accept file drops
     const category = getCategoryFromPath(item.path);
-    const canAcceptFileDrop = isFileDragging && category && fileDraggedItems.some(dragItem => {
-      if (dragItem.type === 'folder') return category === 'files';
-      return fileMatchesCategory(dragItem.item as FileItem, category);
-    });
+    const canAcceptFileDrop = isFileDragging && (
+      isTrash ||
+      (category && fileDraggedItems.some(dragItem => {
+        if (dragItem.type === 'folder') return category === 'files';
+        return fileMatchesCategory(dragItem.item as FileItem, category);
+      }))
+    );
 
     const handleContextMenu = (e: React.MouseEvent) => {
       if (isTrash) {
@@ -279,64 +293,80 @@ export default function Sidebar() {
       }
     };
 
-    return (
-      <div
-        key={item.id}
-        draggable={!isFileDragging}
-        onDragStart={(e) => !isFileDragging && handleDragStart(e, item, section)}
-        onDrag={(e) => !isFileDragging && handleDrag(e)}
-        onDragOver={(e) => {
-          if (isFileDragging) {
-            handleFileDragOver(e, item.path);
-          } else {
-            handleDragOver(e, index, section);
-          }
-        }}
-        onDragLeave={() => {
-          if (isFileDragging) {
-            handleFileDragLeave();
-          }
-        }}
-        onDragEnd={() => !isFileDragging && handleDragEnd()}
-        onDrop={(e) => {
-          if (isFileDragging) {
-            handleFileDrop(e, item.path);
-          } else {
-            handleDrop(e, index, section);
-          }
-        }}
-        onContextMenu={handleContextMenu}
-        className={cn(
-          'relative group',
-          isDragging && 'opacity-30'
-        )}
-      >
-        {showDropBefore && !isFileDragging && (
-          <div className="absolute inset-x-2 -top-0.5 h-0.5 bg-primary-500 rounded-full z-10" />
-        )}
-        {showDropAfter && !isFileDragging && (
-          <div className="absolute inset-x-2 -bottom-0.5 h-0.5 bg-primary-500 rounded-full z-10" />
-        )}
-        <NavLink
-          to={item.path}
-          draggable={false}
-          onClick={(e) => draggedItem && e.preventDefault()}
-          className={({ isActive }) =>
-            cn(
-              'flex items-center gap-3 px-4 py-3 rounded-full text-base font-semibold transition-colors border border-transparent',
-              isActive
-                ? 'bg-primary-500/15 text-primary-600 dark:text-primary-400 border-primary-500/25'
-                : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-white dark:hover:bg-dark-900',
-              isFileDropTarget && canAcceptFileDrop && 'bg-primary-500/20 border-primary-500 ring-2 ring-primary-500/50'
-            )
-          }
-          end={item.path === '/'}
+    const renderContent = (droppableRef?: (node: HTMLElement | null) => void, isOverDroppable = false) => {
+      const fileDropActive = baseFileDropTarget || (isTrash && isOverDroppable);
+
+      return (
+        <div
+          key={item.id}
+          ref={droppableRef}
+          draggable={!isFileDragging}
+          onDragStart={(e) => !isFileDragging && handleDragStart(e, item, section)}
+          onDrag={(e) => !isFileDragging && handleDrag(e)}
+          onDragOver={(e) => {
+            if (isFileDragging) {
+              handleFileDragOver(e, item.path);
+            } else {
+              handleDragOver(e, index, section);
+            }
+          }}
+          onDragLeave={() => {
+            if (isFileDragging) {
+              handleFileDragLeave();
+            }
+          }}
+          onDragEnd={() => !isFileDragging && handleDragEnd()}
+          onDrop={(e) => {
+            if (isFileDragging) {
+              handleFileDrop(e, item.path);
+            } else {
+              handleDrop(e, index, section);
+            }
+          }}
+          onContextMenu={handleContextMenu}
+          className={cn(
+            'relative group',
+            isDragging && 'opacity-30',
+            fileDropActive && canAcceptFileDrop && isFileDragging && 'ring-2 ring-primary-500/50 rounded-xl'
+          )}
         >
-          {IconComponent && <IconComponent className="w-5 h-5 flex-shrink-0" />}
-          <span>{t(item.labelKey)}</span>
-        </NavLink>
-      </div>
-    );
+          {showDropBefore && !isFileDragging && (
+            <div className="absolute inset-x-2 -top-0.5 h-0.5 bg-primary-500 rounded-full z-10" />
+          )}
+          {showDropAfter && !isFileDragging && (
+            <div className="absolute inset-x-2 -bottom-0.5 h-0.5 bg-primary-500 rounded-full z-10" />
+          )}
+          <NavLink
+            to={item.path}
+            draggable={false}
+            onClick={(e) => draggedItem && e.preventDefault()}
+            className={({ isActive }) =>
+              cn(
+                'flex items-center gap-3 px-4 py-3 rounded-full text-base font-semibold transition-colors border border-transparent',
+                isActive
+                  ? 'bg-primary-500/15 text-primary-600 dark:text-primary-400 border-primary-500/25'
+                  : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-white dark:hover:bg-dark-900',
+                fileDropActive && canAcceptFileDrop && 'bg-primary-500/20 border-primary-500 ring-2 ring-primary-500/50'
+              )
+            }
+            end={item.path === '/'}
+          >
+            {IconComponent && <IconComponent className="w-5 h-5 flex-shrink-0" />}
+            <span>{t(item.labelKey)}</span>
+          </NavLink>
+        </div>
+      );
+    };
+
+    if (isTrash) {
+      return (
+        <TrashDroppable key={item.id}>
+          {({ setNodeRef, isOver }) => renderContent(setNodeRef, isOver)}
+        </TrashDroppable>
+      );
+    }
+
+    return renderContent();
   };
 
   // Drag preview card rendered via portal

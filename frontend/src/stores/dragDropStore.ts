@@ -9,45 +9,23 @@ export type DragItem = {
 interface DragDropState {
   isDragging: boolean;
   draggedItems: DragItem[];
+  activeId: string | null;
 
-  startDrag: (items: DragItem[]) => void;
+  startDrag: (items: DragItem[], activeId: string) => void;
   endDrag: () => void;
-}
-
-// Store position outside of React state to avoid re-renders
-// This is accessed directly by the DragPreview component via ref
-let dragPositionRef = { x: 0, y: 0 };
-let dragPreviewElement: HTMLElement | null = null;
-
-export function setDragPreviewRef(element: HTMLElement | null) {
-  dragPreviewElement = element;
-}
-
-export function updateDragPosition(x: number, y: number) {
-  dragPositionRef.x = x;
-  dragPositionRef.y = y;
-
-  // Directly update DOM transform - no React re-render needed
-  if (dragPreviewElement) {
-    dragPreviewElement.style.transform = `translate(${x + 12}px, ${y + 12}px)`;
-  }
-}
-
-export function getDragPosition() {
-  return dragPositionRef;
 }
 
 export const useDragDropStore = create<DragDropState>((set) => ({
   isDragging: false,
   draggedItems: [],
+  activeId: null,
 
-  startDrag: (items) => {
-    set({ isDragging: true, draggedItems: items });
+  startDrag: (items, activeId) => {
+    set({ isDragging: true, draggedItems: items, activeId });
   },
 
   endDrag: () => {
-    dragPositionRef = { x: 0, y: 0 };
-    set({ isDragging: false, draggedItems: [] });
+    set({ isDragging: false, draggedItems: [], activeId: null });
   },
 }));
 

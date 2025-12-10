@@ -7,7 +7,7 @@ import UploadProgress from '../components/UploadProgress';
 import UploadModal from '../components/modals/UploadModal';
 import CreateFolderModal from '../components/modals/CreateFolderModal';
 import CreateFileModal from '../components/modals/CreateFileModal';
-import DragPreview from '../components/files/DragPreview';
+import DndContextProvider from '../components/dnd/DndContextProvider';
 import Breadcrumbs from '../components/files/Breadcrumbs';
 import { useUIStore } from '../stores/uiStore';
 import { useFileStore } from '../stores/fileStore';
@@ -81,7 +81,7 @@ export default function MainLayout() {
   const { t } = useTranslation();
   const { sidebarOpen, toggleSidebar } = useUIStore();
   const { viewMode, setViewMode, sortBy, sortOrder, setSortBy, setSortOrder, breadcrumbs, selectAll, clearSelection, selectedItems } = useFileStore();
-  const { isDragging: isInternalDragging, endDrag } = useDragDropStore();
+  const { isDragging: isInternalDragging } = useDragDropStore();
   const { setGlobalProgress, resetGlobalProgress } = useUploadStore();
   const { branding } = useBrandingStore();
   const { addOperation, incrementProgress, completeOperation, failOperation } = useGlobalProgressStore();
@@ -140,7 +140,7 @@ export default function MainLayout() {
   const mousePositionRef = useRef({ x: 0, y: 0 });
   const [isMarqueeActive, setIsMarqueeActive] = useState(false);
   const [marqueeStart, setMarqueeStart] = useState({ x: 0, y: 0 });
-  const [marqueeEnd, setMarqueeEnd] = useState({ x: 0, y: 0 });
+  const marqueeBoxRef = useRef<HTMLDivElement>(null);
 
   // Get accent color with fallback
   const accentColor = branding.primaryColor || '#dc2626';
@@ -363,18 +363,6 @@ export default function MainLayout() {
     };
   }, [handleDragEnter, handleDragLeave, handleDragOver, handleDrop]);
 
-  // Clean up internal drag state if drag ends without dropping on a valid target
-  useEffect(() => {
-    const handleGlobalDragEnd = () => {
-      if (isInternalDragging) {
-        endDrag();
-      }
-    };
-
-    window.addEventListener('dragend', handleGlobalDragEnd);
-    return () => window.removeEventListener('dragend', handleGlobalDragEnd);
-  }, [isInternalDragging, endDrag]);
-
   // Close context menu on any click outside
   useEffect(() => {
     const handleClickOutside = () => setContextMenu(null);
@@ -458,14 +446,38 @@ export default function MainLayout() {
     };
   }, [selectAll, clearSelection, selectedItems, addOperation, incrementProgress, completeOperation, failOperation, refreshUser, t]);
 
+  // Cache for element positions (populated on marquee start for performance)
+  const elementPositionsCacheRef = useRef<Array<{ id: string; x: number; y: number; right: number; bottom: number }>>([]);
+
+  // Helper function to cache all element positions at marquee start
+  const cacheElementPositions = useCallback(() => {
+    if (!workzoneRef.current) return;
+    const rect = workzoneRef.current.getBoundingClientRect();
+    const items = workzoneRef.current.querySelectorAll("[data-file-item], [data-folder-item]");
+    const positions: Array<{ id: string; x: number; y: number; right: number; bottom: number }> = [];
+    
+    items.forEach((item) => {
+      const itemRect = item.getBoundingClientRect();
+      const id = item.getAttribute("data-file-item") || item.getAttribute("data-folder-item");
+      if (id) {
+        positions.push({
+          id,
+          x: itemRect.left - rect.left + workzoneRef.current!.scrollLeft,
+          y: itemRect.top - rect.top + workzoneRef.current!.scrollTop,
+          right: itemRect.left - rect.left + workzoneRef.current!.scrollLeft + itemRect.width,
+          bottom: itemRect.top - rect.top + workzoneRef.current!.scrollTop + itemRect.height,
+        });
+      }
+    });
+    
+    elementPositionsCacheRef.current = positions;
+  }, []);
+
   // Helper function to update selection based on marquee bounds
   // Track previous selection to avoid unnecessary re-renders
   const previousMarqueeSelectionRef = useRef<string[]>([]);
 
   const updateMarqueeSelection = useCallback((startX: number, startY: number, endX: number, endY: number) => {
-    if (!workzoneRef.current) return;
-
-    const rect = workzoneRef.current.getBoundingClientRect();
     const minX = Math.min(startX, endX);
     const maxX = Math.max(startX, endX);
     const minY = Math.min(startY, endY);
@@ -475,21 +487,13 @@ export default function MainLayout() {
     const marqueeHeight = maxY - minY;
     if (marqueeWidth < 5 || marqueeHeight < 5) return;
 
-    const items = workzoneRef.current.querySelectorAll('[data-file-item], [data-folder-item]');
+    // Use cached positions for fast collision detection (no DOM queries)
     const selectedIds: string[] = [];
-
-    items.forEach((item) => {
-      const itemRect = item.getBoundingClientRect();
-      const itemX = itemRect.left - rect.left + workzoneRef.current!.scrollLeft;
-      const itemY = itemRect.top - rect.top + workzoneRef.current!.scrollTop;
-      const itemRight = itemX + itemRect.width;
-      const itemBottom = itemY + itemRect.height;
-
-      if (itemX < maxX && itemRight > minX && itemY < maxY && itemBottom > minY) {
-        const id = item.getAttribute('data-file-item') || item.getAttribute('data-folder-item');
-        if (id) selectedIds.push(id);
+    for (const item of elementPositionsCacheRef.current) {
+      if (item.x < maxX && item.right > minX && item.y < maxY && item.bottom > minY) {
+        selectedIds.push(item.id);
       }
-    });
+    }
 
     // Only update if selection actually changed (reduces re-renders significantly)
     const prev = previousMarqueeSelectionRef.current;
@@ -515,20 +519,22 @@ export default function MainLayout() {
         const x = e.clientX - rect.left + (workzoneRef.current?.scrollLeft || 0);
         const y = e.clientY - rect.top + (workzoneRef.current?.scrollTop || 0);
         setMarqueeStart({ x, y });
-        setMarqueeEnd({ x, y });
+        marqueeEndRef.current = { x, y };
         setIsMarqueeActive(true);
         clearSelection();
+        // Cache element positions for fast collision detection
+        cacheElementPositions();
       }
     }
   }, [clearSelection, isInternalDragging, isAdminPage]);
 
   // Store marquee state in refs for auto-scroll access
   const marqueeStartRef = useRef(marqueeStart);
-  const marqueeEndRef = useRef(marqueeEnd);
+  const marqueeEndRef = useRef({ x: 0, y: 0 });
   useEffect(() => { marqueeStartRef.current = marqueeStart; }, [marqueeStart]);
-  useEffect(() => { marqueeEndRef.current = marqueeEnd; }, [marqueeEnd]);
+  // marqueeEndRef is updated directly in mouse move handler
 
-  // Throttle ref for selection updates
+  // Throttle ref for selection updates (32ms = ~30fps balance)
   const lastSelectionUpdateRef = useRef(0);
 
   const handleMarqueeMouseMove = useCallback((e: React.MouseEvent) => {
@@ -541,13 +547,23 @@ export default function MainLayout() {
     const x = e.clientX - rect.left + workzoneRef.current.scrollLeft;
     const y = e.clientY - rect.top + workzoneRef.current.scrollTop;
 
-    // Update marquee visual immediately via ref
+    // Update marquee visual immediately via DOM (no React re-render)
     marqueeEndRef.current = { x, y };
-    setMarqueeEnd({ x, y });
+    if (marqueeBoxRef.current) {
+      const left = Math.min(marqueeStart.x, x);
+      const top = Math.min(marqueeStart.y, y);
+      const width = Math.abs(x - marqueeStart.x);
+      const height = Math.abs(y - marqueeStart.y);
+      marqueeBoxRef.current.style.left = left + "px";
+      marqueeBoxRef.current.style.top = top + "px";
+      marqueeBoxRef.current.style.width = width + "px";
+      marqueeBoxRef.current.style.height = height + "px";
+      marqueeBoxRef.current.style.display = width > 5 && height > 5 ? "block" : "none";
+    }
 
-    // Throttle selection updates to every 50ms (~20fps) to reduce lag
+    // Throttle selection updates to 32ms (~30fps) for balanced performance
     const now = performance.now();
-    if (now - lastSelectionUpdateRef.current > 50) {
+    if (now - lastSelectionUpdateRef.current > 32) {
       lastSelectionUpdateRef.current = now;
       updateMarqueeSelection(marqueeStart.x, marqueeStart.y, x, y);
     }
@@ -557,6 +573,10 @@ export default function MainLayout() {
     // Final selection update on mouse up to ensure accuracy
     if (isMarqueeActive && workzoneRef.current) {
       updateMarqueeSelection(marqueeStart.x, marqueeStart.y, marqueeEndRef.current.x, marqueeEndRef.current.y);
+    }
+    // Hide marquee box
+    if (marqueeBoxRef.current) {
+      marqueeBoxRef.current.style.display = "none";
     }
     setIsMarqueeActive(false);
     if (scrollIntervalRef.current) {
@@ -569,6 +589,10 @@ export default function MainLayout() {
   useEffect(() => {
     if (isMarqueeActive) {
       const handleGlobalMouseUp = () => {
+        // Hide marquee box
+        if (marqueeBoxRef.current) {
+          marqueeBoxRef.current.style.display = "none";
+        }
         setIsMarqueeActive(false);
         if (scrollIntervalRef.current) {
           cancelAnimationFrame(scrollIntervalRef.current);
@@ -634,7 +658,17 @@ export default function MainLayout() {
       if (scrolledY !== 0) {
         const newEndY = marqueeEndRef.current.y + scrolledY;
         marqueeEndRef.current = { x: marqueeEndRef.current.x, y: newEndY };
-        setMarqueeEnd({ x: marqueeEndRef.current.x, y: newEndY });
+        // Update DOM directly for performance
+        if (marqueeBoxRef.current) {
+          const left = Math.min(marqueeStartRef.current.x, marqueeEndRef.current.x);
+          const top = Math.min(marqueeStartRef.current.y, newEndY);
+          const width = Math.abs(marqueeEndRef.current.x - marqueeStartRef.current.x);
+          const height = Math.abs(newEndY - marqueeStartRef.current.y);
+          marqueeBoxRef.current.style.left = left + "px";
+          marqueeBoxRef.current.style.top = top + "px";
+          marqueeBoxRef.current.style.width = width + "px";
+          marqueeBoxRef.current.style.height = height + "px";
+        }
         updateMarqueeSelection(marqueeStartRef.current.x, marqueeStartRef.current.y, marqueeEndRef.current.x, newEndY);
       }
 
@@ -651,13 +685,7 @@ export default function MainLayout() {
     };
   }, [isMarqueeActive, updateMarqueeSelection]);
 
-  // Calculate marquee rectangle
-  const marqueeRect = isMarqueeActive ? {
-    left: Math.min(marqueeStart.x, marqueeEnd.x),
-    top: Math.min(marqueeStart.y, marqueeEnd.y),
-    width: Math.abs(marqueeEnd.x - marqueeStart.x),
-    height: Math.abs(marqueeEnd.y - marqueeStart.y),
-  } : null;
+  // marqueeRect is now calculated directly in the DOM via marqueeBoxRef
 
   // Load album details when viewing album detail
   useEffect(() => {
@@ -739,7 +767,8 @@ export default function MainLayout() {
   };
 
   return (
-    <div className="flex h-screen bg-dark-100 dark:bg-dark-800">
+    <DndContextProvider onRefresh={triggerRefresh}>
+      <div className="flex h-screen bg-dark-100 dark:bg-dark-800">
       {/* Sidebar */}
       <div
         className={cn(
@@ -1169,155 +1198,151 @@ export default function MainLayout() {
             </div>
           </div>
 
-          {/* Main workzone - separated */}
+          {/* Main workzone */}
           <div
             className={cn(
               "bg-white dark:bg-dark-900 rounded-2xl flex-1 flex flex-col overflow-hidden border border-dark-200 dark:border-dark-700 shadow-sm transition-opacity duration-200 relative select-none",
               isDragging && "opacity-50"
             )}
             onContextMenu={handleContextMenu}
-            onClick={closeContextMenu}
-          >
-            <main
-              ref={workzoneRef}
-              className="flex-1 overflow-y-auto overflow-x-hidden p-4 relative"
-              onMouseDown={handleMarqueeMouseDown}
-              onMouseMove={handleMarqueeMouseMove}
-              onMouseUp={handleMarqueeMouseUp}
+              onClick={closeContextMenu}
             >
-              <Outlet />
+              <main
+                ref={workzoneRef}
+                className="flex-1 overflow-y-auto overflow-x-hidden p-4 relative"
+                onMouseDown={handleMarqueeMouseDown}
+                onMouseMove={handleMarqueeMouseMove}
+                onMouseUp={handleMarqueeMouseUp}
+              >
+                <Outlet />
 
-              {/* Marquee selection rectangle */}
-              {marqueeRect && marqueeRect.width > 5 && marqueeRect.height > 5 && (
+                {/* Marquee selection rectangle - DOM controlled for performance */}
                 <div
+                  ref={marqueeBoxRef}
                   className="absolute pointer-events-none z-40 border-2 rounded-lg"
                   style={{
-                    left: marqueeRect.left,
-                    top: marqueeRect.top,
-                    width: marqueeRect.width,
-                    height: marqueeRect.height,
+                    display: "none",
                     backgroundColor: hexToRgba(accentColor, 0.15),
                     borderColor: hexToRgba(accentColor, 0.5),
                   }}
                 />
-              )}
-            </main>
+              </main>
 
-            {/* Context Menu */}
-            {contextMenu && (() => {
-              const menuWidth = 220;
-              const menuHeight = 280;
-              const padding = 16;
+              {/* Context Menu */}
+              {contextMenu && (() => {
+                const menuWidth = 220;
+                const menuHeight = 280;
+                const padding = 16;
 
-              let left = contextMenu.x;
-              let top = contextMenu.y;
+                let left = contextMenu.x;
+                let top = contextMenu.y;
 
-              if (left + menuWidth > window.innerWidth - padding) {
-                left = contextMenu.x - menuWidth;
-              }
-              if (top + menuHeight > window.innerHeight - padding) {
-                top = contextMenu.y - menuHeight;
-              }
-              if (left < padding) left = padding;
-              if (top < padding) top = padding;
+                if (left + menuWidth > window.innerWidth - padding) {
+                  left = contextMenu.x - menuWidth;
+                }
+                if (top + menuHeight > window.innerHeight - padding) {
+                  top = contextMenu.y - menuHeight;
+                }
+                if (left < padding) left = padding;
+                if (top < padding) top = padding;
 
-              return (
-                <div
-                  className="fixed z-50 bg-white dark:bg-dark-800 rounded-xl shadow-lg border border-dark-200 dark:border-dark-700 py-1 min-w-[180px]"
-                  style={{ left, top }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {/* Seleccionar todo */}
-                  {isFilesPage && (
-                    <>
-                      <button
-                        onMouseDown={(e) => {
-                          e.stopPropagation();
-                          // Dispatch event to select all in Files page
-                          window.dispatchEvent(new CustomEvent('workzone-select-all'));
-                          closeContextMenu();
-                        }}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
-                      >
-                        <CheckSquare className="w-4 h-4 text-dark-400" />
-                        {t('layout.selectAll')}
-                      </button>
-                      <div className="h-px bg-dark-100 dark:bg-dark-700 my-1.5" />
-                    </>
-                  )}
-
-                  {/* Añadir archivos/carpetas */}
-                  <button
-                    onMouseDown={(e) => {
-                      e.stopPropagation();
-                      setUploadModalOpen(true);
-                      closeContextMenu();
-                    }}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
+                return (
+                  <div
+                    className="fixed z-50 bg-white dark:bg-dark-800 rounded-xl shadow-lg border border-dark-200 dark:border-dark-700 py-1 min-w-[180px]"
+                    style={{ left, top }}
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    <Upload className="w-4 h-4 text-dark-400" />
-                    {t('layout.addFile')}
-                  </button>
-                  {isFilesPage && (
+                    {/* Seleccionar todo */}
+                    {isFilesPage && (
+                      <>
+                        <button
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            // Dispatch event to select all in Files page
+                            window.dispatchEvent(new CustomEvent('workzone-select-all'));
+                            closeContextMenu();
+                          }}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
+                        >
+                          <CheckSquare className="w-4 h-4 text-dark-400" />
+                          {t('layout.selectAll')}
+                        </button>
+                        <div className="h-px bg-dark-100 dark:bg-dark-700 my-1.5" />
+                      </>
+                    )}
+
+                    {/* Añadir archivos/carpetas */}
                     <button
                       onMouseDown={(e) => {
                         e.stopPropagation();
-                        handleFolderUpload();
+                        setUploadModalOpen(true);
+                        closeContextMenu();
                       }}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
                     >
-                      <FolderUp className="w-4 h-4 text-dark-400" />
-                      {t('layout.addFolder')}
+                      <Upload className="w-4 h-4 text-dark-400" />
+                      {t('layout.addFile')}
                     </button>
-                  )}
-
-                  {isFilesPage && (
-                    <>
-                      <div className="h-px bg-dark-100 dark:bg-dark-700 my-1.5" />
-
-                      {/* Crear archivo/carpeta */}
+                    {isFilesPage && (
                       <button
                         onMouseDown={(e) => {
                           e.stopPropagation();
-                          setCreateFileModalOpen(true);
-                          closeContextMenu();
+                          handleFolderUpload();
                         }}
                         className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
                       >
-                        <FilePlus className="w-4 h-4 text-dark-400" />
-                        {t('header.createFile')}
+                        <FolderUp className="w-4 h-4 text-dark-400" />
+                        {t('layout.addFolder')}
                       </button>
-                      <button
-                        onMouseDown={(e) => {
-                          e.stopPropagation();
-                          setCreateFolderModalOpen(true);
-                          closeContextMenu();
-                        }}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
-                      >
-                        <FolderPlus className="w-4 h-4 text-dark-400" />
-                        {t('header.createFolder')}
-                      </button>
+                    )}
 
-                      <div className="h-px bg-dark-100 dark:bg-dark-700 my-1.5" />
+                    {isFilesPage && (
+                      <>
+                        <div className="h-px bg-dark-100 dark:bg-dark-700 my-1.5" />
 
-                      {/* Actualizar */}
-                      <button
-                        onMouseDown={(e) => {
-                          e.stopPropagation();
-                          triggerRefresh();
-                          closeContextMenu();
-                        }}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
-                      >
-                        <RefreshCw className="w-4 h-4 text-dark-400" />
-                        {t('layout.refresh')}
-                      </button>
-                    </>
-                  )}
-                </div>
-              );
-            })()}
+                        {/* Crear archivo/carpeta */}
+                        <button
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            setCreateFileModalOpen(true);
+                            closeContextMenu();
+                          }}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
+                        >
+                          <FilePlus className="w-4 h-4 text-dark-400" />
+                          {t('header.createFile')}
+                        </button>
+                        <button
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            setCreateFolderModalOpen(true);
+                            closeContextMenu();
+                          }}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
+                        >
+                          <FolderPlus className="w-4 h-4 text-dark-400" />
+                          {t('header.createFolder')}
+                        </button>
+
+                        <div className="h-px bg-dark-100 dark:bg-dark-700 my-1.5" />
+
+                        {/* Actualizar */}
+                        <button
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            triggerRefresh();
+                            closeContextMenu();
+                          }}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
+                        >
+                          <RefreshCw className="w-4 h-4 text-dark-400" />
+                          {t('layout.refresh')}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
           </div>
         </div>
       </div>
@@ -1368,8 +1393,7 @@ export default function MainLayout() {
         onSuccess={triggerRefresh}
       />
 
-      {/* Drag Preview for file/folder drag and drop */}
-      <DragPreview />
-    </div>
+      </div>
+    </DndContextProvider>
   );
 }
