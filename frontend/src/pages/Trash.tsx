@@ -51,7 +51,7 @@ export default function Trash() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     loadData();
@@ -77,7 +77,7 @@ export default function Trash() {
       await api.post(`/trash/restore/file/${file.id}`);
       toast(t('trash.restored', { type: t('trash.file') }), 'success');
       loadData();
-    } catch (error) {
+    } catch {
       toast(t('trash.restoreError', { type: t('trash.file') }), 'error');
     }
   };
@@ -87,7 +87,7 @@ export default function Trash() {
       await api.post(`/trash/restore/folder/${folder.id}`);
       toast(t('trash.restored', { type: t('trash.folder') }), 'success');
       loadData();
-    } catch (error) {
+    } catch {
       toast(t('trash.restoreError', { type: t('trash.folder') }), 'error');
     }
   };
@@ -98,7 +98,7 @@ export default function Trash() {
       toast(t('trash.deleted', { type: t('trash.file') }), 'success');
       loadData();
       refreshUser(); // Update storage info in sidebar
-    } catch (error) {
+    } catch {
       toast(t('trash.deleteError', { type: t('trash.file') }), 'error');
     }
   };
@@ -109,7 +109,7 @@ export default function Trash() {
       toast(t('trash.deleted', { type: t('trash.folder') }), 'success');
       loadData();
       refreshUser(); // Update storage info in sidebar
-    } catch (error) {
+    } catch {
       toast(t('trash.deleteError', { type: t('trash.folder') }), 'error');
     }
   };
@@ -132,7 +132,7 @@ export default function Trash() {
       setShowEmptyModal(false);
       loadData();
       refreshUser(); // Update storage info in sidebar
-    } catch (error) {
+    } catch {
       failOperation(opId, t('sidebar.trashEmptyError'));
       toast(t('sidebar.trashEmptyError'), 'error');
     } finally {
@@ -214,7 +214,7 @@ export default function Trash() {
         toast(t('trash.itemsRestored', { count: total }), 'success');
         clearSelection();
         loadData();
-      } catch (error) {
+      } catch {
         failOperation(opId, t('trash.restoreErrorGeneric'));
         toast(t('trash.restoreErrorGeneric'), 'error');
       }
@@ -282,7 +282,7 @@ export default function Trash() {
       clearSelection();
       loadData();
       refreshUser(); // Update storage info in sidebar
-    } catch (error) {
+    } catch {
       failOperation(opId, t('trash.deleteErrorGeneric'));
       toast(t('trash.deleteErrorGeneric'), 'error');
     } finally {

@@ -4,7 +4,7 @@ import { Folder, FileItem } from '../../types';
 import { useSearchParams, useLocation } from 'react-router-dom';
 import { useFileStore } from '../../stores/fileStore';
 import { useGlobalProgressStore } from '../../stores/globalProgressStore';
-import { useDragDropStore, DragItem } from '../../stores/dragDropStore';
+import { useDragDropStore, DragItem, updateDragPosition } from '../../stores/dragDropStore';
 import { useAuthStore } from '../../stores/authStore';
 import {
   FolderIcon,
@@ -14,6 +14,7 @@ import {
   Edit,
   Move,
   FileArchive,
+  Info,
 } from 'lucide-react';
 import { formatDate, cn } from '../../lib/utils';
 
@@ -23,6 +24,7 @@ import ShareModal from '../modals/ShareModal';
 import RenameModal from '../modals/RenameModal';
 import MoveModal from '../modals/MoveModal';
 import CompressModal from '../modals/CompressModal';
+import InfoModal from '../modals/InfoModal';
 import ConfirmModal from '../ui/ConfirmModal';
 import ContextMenu, { ContextMenuItemOrDivider, ContextMenuDividerItem } from '../ui/ContextMenu';
 import { motion } from 'framer-motion';
@@ -39,13 +41,14 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
   const location = useLocation();
   const { selectedItems, addToSelection, removeFromSelection, selectRange, selectSingle, lastSelectedId } = useFileStore();
   const { addOperation, incrementProgress, completeOperation, failOperation } = useGlobalProgressStore();
-  const { draggedItems, startDrag, updatePosition, endDrag } = useDragDropStore();
+  const { draggedItems, startDrag, endDrag } = useDragDropStore();
   const { refreshUser } = useAuthStore();
   const isSelected = selectedItems.has(folder.id);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [showCompressModal, setShowCompressModal] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [contextMenuSelection, setContextMenuSelection] = useState<Set<string>>(new Set());
@@ -53,6 +56,9 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
 
   // Check if this folder is being dragged (can't drop on itself)
   const isSelfDragged = draggedItems.some(item => item.type === 'folder' && item.item.id === folder.id);
+
+  // Check if any drag operation is in progress
+  const { isDragging: isAnyDragActive } = useDragDropStore();
 
   // Close context menu when location changes
   useEffect(() => {
@@ -225,7 +231,7 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
 
   const handleDrag = (e: React.DragEvent) => {
     if (e.clientX !== 0 || e.clientY !== 0) {
-      updatePosition(e.clientX, e.clientY);
+      updateDragPosition(e.clientX, e.clientY);
     }
   };
 
@@ -299,6 +305,7 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
     { id: 'move', label: t('folderCard.move'), icon: Move, onClick: () => setShowMoveModal(true) },
     { id: 'compress', label: t('folderCard.compress'), icon: FileArchive, onClick: () => setShowCompressModal(true) },
     ContextMenuDividerItem(),
+    { id: 'info', label: t('common.info'), icon: Info, onClick: () => setShowInfoModal(true) },
     { id: 'delete', label: t('folderCard.moveToTrash'), icon: Trash2, onClick: () => setShowDeleteConfirm(true), danger: true },
   ], [t, folder.isFavorite, handleFavorite]);
 
@@ -346,6 +353,12 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
         cancelText={t('modals.confirm.cancelButton')}
         variant="warning"
       />
+      <InfoModal
+        isOpen={showInfoModal}
+        onClose={() => setShowInfoModal(false)}
+        item={folder}
+        type="folder"
+      />
     </>
   );
 
@@ -353,8 +366,9 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
     return (
       <>
         <motion.div
-          layout
-          layoutId={`folder-list-${folder.id}`}
+          layoutId={isAnyDragActive ? undefined : `folder-${folder.id}`}
+          layout={!isAnyDragActive}
+          initial={false}
           data-folder-item={folder.id}
           data-folder-name={folder.name}
           data-folder-data={JSON.stringify(folder)}
@@ -369,7 +383,7 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
           onDoubleClick={handleDoubleClick}
           onContextMenu={handleContextMenu}
           animate={isSelected ? { scale: 0.98 } : { scale: 1 }}
-          transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+          transition={{ duration: 0.15, ease: [0.25, 0.1, 0.25, 1] }}
           className={cn(
             'flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer transition-colors',
             isSelected
@@ -396,8 +410,9 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
   return (
     <>
       <motion.div
-        layout
-        layoutId={`folder-${folder.id}`}
+        layoutId={isAnyDragActive ? undefined : `folder-${folder.id}`}
+        layout={!isAnyDragActive}
+        initial={false}
         data-folder-item={folder.id}
         data-folder-name={folder.name}
         data-folder-data={JSON.stringify(folder)}
@@ -412,7 +427,7 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
         onDoubleClick={handleDoubleClick}
         onContextMenu={handleContextMenu}
         animate={isSelected ? { scale: 0.97 } : { scale: 1 }}
-        transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+        transition={{ duration: 0.15, ease: [0.25, 0.1, 0.25, 1] }}
         className={cn(
           'group relative flex items-center gap-3 px-3 py-2.5 rounded-2xl cursor-pointer transition-all border',
           isSelected

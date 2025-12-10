@@ -40,7 +40,7 @@ const getGradientColors = (name: string) => {
 
 export default function MusicPage() {
   const { t } = useTranslation();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const [tracks, setTracks] = useState<FileItem[]>([]);
   // Store full folder objects

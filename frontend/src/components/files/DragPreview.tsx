@@ -1,6 +1,7 @@
+import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { useDragDropStore } from '../../stores/dragDropStore';
+import { useDragDropStore, setDragPreviewRef, getDragPosition } from '../../stores/dragDropStore';
 import { File, Folder as FolderIcon, Image, Video, Music, FileText, Archive } from 'lucide-react';
 import { FileItem } from '../../types';
 
@@ -20,7 +21,22 @@ function getFileIcon(mimeType: string) {
 
 export default function DragPreview() {
   const { t } = useTranslation();
-  const { isDragging, draggedItems, dragPosition } = useDragDropStore();
+  const { isDragging, draggedItems } = useDragDropStore();
+  const previewRef = useRef<HTMLDivElement>(null);
+
+  // Register the preview element for direct DOM updates
+  useEffect(() => {
+    if (isDragging && previewRef.current) {
+      const pos = getDragPosition();
+      // Set initial position
+      previewRef.current.style.transform = `translate(${pos.x + 12}px, ${pos.y + 12}px)`;
+      setDragPreviewRef(previewRef.current);
+    }
+
+    return () => {
+      setDragPreviewRef(null);
+    };
+  }, [isDragging]);
 
   if (!isDragging || draggedItems.length === 0) return null;
 
@@ -32,11 +48,9 @@ export default function DragPreview() {
 
   return createPortal(
     <div
-      className="fixed pointer-events-none z-[9999] transition-none"
-      style={{
-        left: dragPosition.x + 12,
-        top: dragPosition.y + 12,
-      }}
+      ref={previewRef}
+      className="fixed top-0 left-0 pointer-events-none z-[9999]"
+      style={{ willChange: 'transform' }}
     >
       <div className="relative flex items-center gap-3 px-4 py-3 rounded-xl bg-white dark:bg-dark-800 shadow-xl border border-dark-200 dark:border-dark-700 min-w-40 max-w-64">
         {/* Count badge */}
@@ -68,4 +82,3 @@ export default function DragPreview() {
     document.body
   );
 }
-

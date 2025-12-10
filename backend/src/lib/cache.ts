@@ -146,13 +146,13 @@ export async function delPattern(pattern: string): Promise<number> {
     let deletedCount = 0;
     let cursor = '0';
     const fullPattern = `${CACHE_CONFIG.redis.keyPrefix}${pattern}`;
-    
+
     // Use SCAN to iterate through keys without blocking Redis
     do {
       // SCAN returns [cursor, keys] - scan with COUNT hint for batch size
       const [nextCursor, keys] = await redis!.scan(cursor, 'MATCH', fullPattern, 'COUNT', 100);
       cursor = nextCursor;
-      
+
       if (keys.length > 0) {
         // Remove the prefix for deletion (ioredis adds it back)
         const keysWithoutPrefix = keys.map((k: string) => k.replace(CACHE_CONFIG.redis.keyPrefix, ''));
@@ -161,7 +161,7 @@ export async function delPattern(pattern: string): Promise<number> {
         deletedCount += keys.length;
       }
     } while (cursor !== '0');
-    
+
     return deletedCount;
   } catch (error) {
     logger.debug('Cache delPattern error', { pattern, error: error instanceof Error ? error.message : 'Unknown' });
@@ -178,9 +178,11 @@ export async function getFiles(
   userId: string,
   folderId: string | null,
   page: number = 1,
-  category?: string
+  category?: string,
+  sortBy?: string,
+  sortOrder?: string
 ): Promise<any[] | null> {
-  const key = `files:${userId}:${folderId || 'root'}:${page}:${category || 'all'}`;
+  const key = `files:${userId}:${folderId || 'root'}:${page}:${category || 'all'}:${sortBy || 'createdAt'}:${sortOrder || 'desc'}`;
   return get<any[]>(key);
 }
 
@@ -192,9 +194,11 @@ export async function setFiles(
   folderId: string | null,
   page: number,
   category: string | undefined,
-  files: any[]
+  files: any[],
+  sortBy?: string,
+  sortOrder?: string
 ): Promise<boolean> {
-  const key = `files:${userId}:${folderId || 'root'}:${page}:${category || 'all'}`;
+  const key = `files:${userId}:${folderId || 'root'}:${page}:${category || 'all'}:${sortBy || 'createdAt'}:${sortOrder || 'desc'}`;
   return set(key, files, CACHE_CONFIG.ttl.files);
 }
 
@@ -517,11 +521,11 @@ export async function invalidateAfterFileChange(userId: string, fileId?: string)
     invalidateDashboard(userId),
     invalidateRecentFiles(userId),
   ];
-  
+
   if (fileId) {
     promises.push(invalidateFileMetadata(fileId));
   }
-  
+
   await Promise.all(promises);
 }
 
@@ -572,7 +576,7 @@ export async function getCacheStats(): Promise<{
   try {
     const info = await redis!.info('memory');
     const dbSize = await redis!.dbsize();
-    
+
     const memoryMatch = info.match(/used_memory_human:(\S+)/);
     const memory = memoryMatch ? memoryMatch[1] : 'unknown';
 

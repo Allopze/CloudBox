@@ -84,7 +84,7 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
 
     // Try cache for non-filtered requests (root folders without favorites filter)
     const canUseCache = !favorites && (parentId === 'null' || parentId === '' || !parentId);
-    
+
     if (canUseCache) {
       const cachedFolders = await cache.getFolders(userId);
       if (cachedFolders) {
@@ -154,7 +154,7 @@ router.get('/:id', authenticate, async (req: Request, res: Response) => {
     const breadcrumb = [];
     let currentFolder = folder;
     let depth = 0;
-    
+
     while (currentFolder && depth < config.limits.maxBreadcrumbDepth) {
       breadcrumb.unshift({ id: currentFolder.id, name: currentFolder.name });
       if (currentFolder.parentId) {
@@ -292,8 +292,9 @@ router.patch('/:id/move', authenticate, validate(moveFolderSchema), async (req: 
       });
 
       // Get folder with size using raw query to get the size field
-      const folderWithSize = await tx.$queryRaw<Array<{size: bigint}>>`
-        SELECT size FROM folders WHERE id = ${id}
+      // Cast the id to UUID for PostgreSQL compatibility
+      const folderWithSize = await tx.$queryRaw<Array<{ size: bigint }>>`
+        SELECT size FROM folders WHERE id = ${id}::uuid
       `;
 
       const folderSize = folderWithSize[0]?.size ?? BigInt(0);
@@ -352,7 +353,7 @@ router.delete('/:id', authenticate, async (req: Request, res: Response) => {
         console.error(`Maximum folder depth (${config.limits.maxFolderDepth}) exceeded during deletion`);
         return;
       }
-      
+
       const folderToDelete = await prisma.folder.findUnique({ where: { id: folderId } });
       if (!folderToDelete) return;
 
@@ -368,7 +369,7 @@ router.delete('/:id', authenticate, async (req: Request, res: Response) => {
             await deleteStorageFile(file.thumbnailPath);
           }
           await prisma.file.delete({ where: { id: file.id } });
-          
+
           // Update storage
           await prisma.user.update({
             where: { id: userId },
@@ -434,10 +435,11 @@ router.get('/:id/size', authenticate, async (req: Request, res: Response) => {
     }
 
     // Get size using raw query since Prisma client might not be regenerated
-    const sizeResult = await prisma.$queryRaw<Array<{size: bigint}>>`
-      SELECT size FROM folders WHERE id = ${id}
+    // Cast the id to UUID for PostgreSQL compatibility
+    const sizeResult = await prisma.$queryRaw<Array<{ size: bigint }>>`
+      SELECT size FROM folders WHERE id = ${id}::uuid
     `;
-    
+
     res.json({ size: (sizeResult[0]?.size ?? BigInt(0)).toString() });
   } catch (error) {
     console.error('Get folder size error:', error);
@@ -493,32 +495,32 @@ router.get('/:id/download', authenticate, async (req: Request, res: Response) =>
     // Calculate total folder size before creating ZIP
     const calculateFolderSize = async (folderId: string): Promise<bigint> => {
       let totalSize = BigInt(0);
-      
+
       const files = await prisma.file.findMany({
         where: { folderId, isTrash: false },
         select: { size: true },
       });
-      
+
       for (const file of files) {
         totalSize += file.size;
       }
-      
+
       const subfolders = await prisma.folder.findMany({
         where: { parentId: folderId, isTrash: false },
         select: { id: true },
       });
-      
+
       for (const subfolder of subfolders) {
         totalSize += await calculateFolderSize(subfolder.id);
       }
-      
+
       return totalSize;
     };
 
     const totalSize = await calculateFolderSize(id);
     if (totalSize > BigInt(config.limits.maxZipSize)) {
-      res.status(400).json({ 
-        error: 'Folder too large for ZIP download', 
+      res.status(400).json({
+        error: 'Folder too large for ZIP download',
         maxSize: config.limits.maxZipSize,
         folderSize: totalSize.toString(),
       });

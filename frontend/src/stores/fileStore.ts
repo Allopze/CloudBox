@@ -5,7 +5,7 @@ interface FileState {
   selectedItems: Set<string>;
   lastSelectedId: string | null;
   viewMode: 'grid' | 'list';
-  sortBy: 'name' | 'date' | 'size' | 'type';
+  sortBy: 'name' | 'date' | 'size' | 'type' | 'createdAt' | 'updatedAt';
   sortOrder: 'asc' | 'desc';
   clipboard: {
     items: (FileItem | Folder)[];
@@ -23,7 +23,7 @@ interface FileState {
   selectAll: (ids: string[]) => void;
   clearSelection: () => void;
   setViewMode: (mode: 'grid' | 'list') => void;
-  setSortBy: (sort: 'name' | 'date' | 'size' | 'type') => void;
+  setSortBy: (sort: 'name' | 'date' | 'size' | 'type' | 'createdAt' | 'updatedAt') => void;
   setSortOrder: (order: 'asc' | 'desc') => void;
   setBreadcrumbs: (crumbs: { id: string; name: string }[]) => void;
   setActiveTab: (tab: 'all' | 'favorites' | 'videos' | 'screenshots' | 'albums') => void;
@@ -79,21 +79,21 @@ export const useFileStore = create<FileState>((set) => ({
       if (!lastId) {
         return { selectedItems: new Set([targetId]), lastSelectedId: targetId };
       }
-      
+
       const lastIndex = ids.indexOf(lastId);
       const targetIndex = ids.indexOf(targetId);
-      
+
       if (lastIndex === -1 || targetIndex === -1) {
         return { selectedItems: new Set([targetId]), lastSelectedId: targetId };
       }
-      
+
       const start = Math.min(lastIndex, targetIndex);
       const end = Math.max(lastIndex, targetIndex);
       const rangeIds = ids.slice(start, end + 1);
-      
+
       const newSelection = new Set(state.selectedItems);
       rangeIds.forEach(id => newSelection.add(id));
-      
+
       return { selectedItems: newSelection, lastSelectedId: targetId };
     });
   },

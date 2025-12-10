@@ -964,7 +964,7 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
 
     if (canUseCache) {
       // Try to get from cache first
-      const cachedFiles = await cache.getFiles(userId, folderIdStr, pageNum, type as string);
+      const cachedFiles = await cache.getFiles(userId, folderIdStr, pageNum, type as string, sortBy as string, sortOrder as string);
       if (cachedFiles) {
         logger.debug('Cache hit for files list', { userId, folderId: folderIdStr, page: pageNum });
         res.json(cachedFiles);
@@ -1044,7 +1044,7 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
 
     // Cache the result if it's a cacheable query
     if (canUseCache) {
-      await cache.setFiles(userId, folderIdStr, pageNum, type as string, response as any);
+      await cache.setFiles(userId, folderIdStr, pageNum, type as string, response as any, sortBy as string, sortOrder as string);
     }
 
     res.json(response);

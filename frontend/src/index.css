@@ -179,3 +179,13 @@
 .toast-error {
   @apply !bg-red-500;
 }
+
+/* Document Viewer Zoom Helpers */
+.preview-zoom-text {
+  font-size: var(--preview-zoom, 100%);
+}
+
+.preview-zoom-transform {
+  transform: scale(var(--preview-scale, 1));
+  transform-origin: top left;
+}

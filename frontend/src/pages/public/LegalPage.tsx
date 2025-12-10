@@ -24,10 +24,22 @@ const slugify = (text: string) => {
         .replace(/--+/g, '-');
 };
 
+// Helper to recursively extract text from React children
+const extractText = (children: any): string => {
+    if (!children) return '';
+    if (typeof children === 'string') return children;
+    if (Array.isArray(children)) return children.map(extractText).join('');
+    if (typeof children === 'object' && children?.props?.children) return extractText(children.props.children);
+    // Handle specific cases or fallback
+    if (typeof children === 'object' && children.type) return ''; // Skip unknown elements without children?
+    return '';
+};
+
 // Custom renderer to inject IDs into headings
 const HeadingRenderer = ({ level, children, ...props }: any) => {
-    const text = children?.[0] || '';
-    const id = typeof text === 'string' ? slugify(text) : '';
+    // Extract plain text from children for ID generation
+    const text = extractText(children);
+    const id = text ? slugify(text) : '';
     const Tag = `h${level}` as keyof JSX.IntrinsicElements;
 
     return <Tag id={id} className="scroll-mt-24" {...props}>{children}</Tag>;

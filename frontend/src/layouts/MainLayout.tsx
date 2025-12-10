@@ -37,6 +37,46 @@ const pagesWithViewControls = ['/files', '/documents', '/trash', '/favorites'];
 // Pages that show breadcrumbs
 const pagesWithBreadcrumbs = ['/files'];
 
+// Helper to read all files from a directory entry recursively
+const readDirectoryEntries = async (
+  dirEntry: FileSystemDirectoryEntry,
+  basePath: string
+): Promise<{ file: File; relativePath: string }[]> => {
+  const results: { file: File; relativePath: string }[] = [];
+  const reader = dirEntry.createReader();
+
+  const readEntries = (): Promise<FileSystemEntry[]> => {
+    return new Promise((resolve, reject) => {
+      reader.readEntries(resolve, reject);
+    });
+  };
+
+  // Read all entries (readEntries may not return all at once)
+  let entries: FileSystemEntry[] = [];
+  let batch: FileSystemEntry[];
+  do {
+    batch = await readEntries();
+    entries = entries.concat(batch);
+  } while (batch.length > 0);
+
+  for (const entry of entries) {
+    if (entry.isFile) {
+      const fileEntry = entry as FileSystemFileEntry;
+      const file = await new Promise<File>((resolve, reject) => {
+        fileEntry.file(resolve, reject);
+      });
+      results.push({ file, relativePath: `${basePath}/${entry.name}` });
+    } else if (entry.isDirectory) {
+      const subResults = await readDirectoryEntries(
+        entry as FileSystemDirectoryEntry,
+        `${basePath}/${entry.name}`
+      );
+      results.push(...subResults);
+    }
+  }
+  return results;
+};
+
 export default function MainLayout() {
   const { t } = useTranslation();
   const { sidebarOpen, toggleSidebar } = useUIStore();
@@ -50,6 +90,34 @@ export default function MainLayout() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { albumId } = useParams<{ albumId: string }>();
+
+  // Page detection
+  const isAdminPage = location.pathname.startsWith('/admin');
+  const isFilesPage = location.pathname === '/files';
+  const isDocumentsPage = location.pathname === '/documents';
+  const isPhotosPage = location.pathname === '/photos';
+  const isMusicPage = location.pathname === '/music';
+  const isSharedPage = location.pathname === '/shared';
+  const isAlbumsPage = location.pathname.startsWith('/albums');
+  const isSettingsPage = location.pathname === '/settings';
+  const isTrashPage = location.pathname === '/trash';
+  const isFavoritesPage = location.pathname === '/favorites';
+  const isAlbumDetailPage = !!albumId && location.pathname.startsWith('/albums/');
+  const isGalleryPage = isPhotosPage || isAlbumsPage;
+
+  const showViewControls = pagesWithViewControls.includes(location.pathname);
+  const showBreadcrumbs = pagesWithBreadcrumbs.some(p => location.pathname.startsWith(p));
+
+  const currentSort = sortOptions.find((s) => s.value === sortBy);
+  const currentSortLabel = currentSort ? t(currentSort.labelKey) : t('layout.sort');
+
+  const sharedTab = searchParams.get('tab') || 'my-shares';
+  const photosTab = searchParams.get('tab') || 'all';
+  const musicTab = searchParams.get('tab') || 'all';
+  const documentsTab = searchParams.get('tab') || 'all';
+
+  // Get current folder ID from search params
+  const currentFolderId = searchParams.get('folder');
 
   // Album detail state
   const [currentAlbum, setCurrentAlbum] = useState<Album | null>(null);
@@ -129,45 +197,7 @@ export default function MainLayout() {
     e.stopPropagation();
   }, [isInternalDragging]);
 
-  // Helper to read all files from a directory entry recursively
-  const readDirectoryEntries = async (
-    dirEntry: FileSystemDirectoryEntry,
-    basePath: string
-  ): Promise<{ file: File; relativePath: string }[]> => {
-    const results: { file: File; relativePath: string }[] = [];
-    const reader = dirEntry.createReader();
 
-    const readEntries = (): Promise<FileSystemEntry[]> => {
-      return new Promise((resolve, reject) => {
-        reader.readEntries(resolve, reject);
-      });
-    };
-
-    // Read all entries (readEntries may not return all at once)
-    let entries: FileSystemEntry[] = [];
-    let batch: FileSystemEntry[];
-    do {
-      batch = await readEntries();
-      entries = entries.concat(batch);
-    } while (batch.length > 0);
-
-    for (const entry of entries) {
-      if (entry.isFile) {
-        const fileEntry = entry as FileSystemFileEntry;
-        const file = await new Promise<File>((resolve, reject) => {
-          fileEntry.file(resolve, reject);
-        });
-        results.push({ file, relativePath: `${basePath}/${entry.name}` });
-      } else if (entry.isDirectory) {
-        const subResults = await readDirectoryEntries(
-          entry as FileSystemDirectoryEntry,
-          `${basePath}/${entry.name}`
-        );
-        results.push(...subResults);
-      }
-    }
-    return results;
-  };
 
   const handleDrop = useCallback(async (e: DragEvent) => {
     // Ignore internal drags (handled by individual components)
@@ -297,7 +327,7 @@ export default function MainLayout() {
 
         uploadedTotal += file.size;
         successCount++;
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error(`Failed to upload ${relativePath}:`, error);
         errorCount++;
         uploadedTotal += file.size; // Still advance progress
@@ -426,7 +456,7 @@ export default function MainLayout() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [selectAll, clearSelection, selectedItems, addOperation, incrementProgress, completeOperation, failOperation, refreshUser]);
+  }, [selectAll, clearSelection, selectedItems, addOperation, incrementProgress, completeOperation, failOperation, refreshUser, t]);
 
   // Helper function to update selection based on marquee bounds
   // Track previous selection to avoid unnecessary re-renders
@@ -471,8 +501,8 @@ export default function MainLayout() {
 
   // Marquee selection handlers
   const handleMarqueeMouseDown = useCallback((e: React.MouseEvent) => {
-    // Don't start marquee if internal drag is active
-    if (isInternalDragging) return;
+    // Don't start marquee if internal drag is active or on admin page
+    if (isInternalDragging || isAdminPage) return;
 
     // Only start marquee on left click and if clicking on the workzone background (not on items)
     if (e.button !== 0) return;
@@ -490,7 +520,7 @@ export default function MainLayout() {
         clearSelection();
       }
     }
-  }, [clearSelection, isInternalDragging]);
+  }, [clearSelection, isInternalDragging, isAdminPage]);
 
   // Store marquee state in refs for auto-scroll access
   const marqueeStartRef = useRef(marqueeStart);
@@ -644,29 +674,7 @@ export default function MainLayout() {
     }
   }, [albumId]);
 
-  const showViewControls = pagesWithViewControls.includes(location.pathname);
-  const showBreadcrumbs = pagesWithBreadcrumbs.some(p => location.pathname.startsWith(p));
-  const currentSort = sortOptions.find((s) => s.value === sortBy);
-  const currentSortLabel = currentSort ? t(currentSort.labelKey) : t('layout.sort');
-  const isSharedPage = location.pathname === '/shared';
-  const isAlbumDetailPage = !!albumId && location.pathname.startsWith('/albums/');
-  const isPhotosPage = location.pathname === '/photos';
-  const isAlbumsPage = location.pathname.startsWith('/albums');
-  const isSettingsPage = location.pathname === '/settings';
-  const isAdminPage = location.pathname.startsWith('/admin');
-  const isFilesPage = location.pathname === '/files';
-  const isDocumentsPage = location.pathname === '/documents';
-  const isMusicPage = location.pathname === '/music';
-  const isTrashPage = location.pathname === '/trash';
-  const isFavoritesPage = location.pathname === '/favorites';
-  const isGalleryPage = isPhotosPage || isAlbumsPage;
-  const sharedTab = searchParams.get('tab') || 'my-shares';
-  const photosTab = searchParams.get('tab') || 'all';
-  const musicTab = searchParams.get('tab') || 'all';
-  const documentsTab = searchParams.get('tab') || 'all';
 
-  // Get current folder ID from search params
-  const currentFolderId = searchParams.get('folder');
 
   // Pages where context menu with upload/create options should appear
   const showContextMenu = isFilesPage || isDocumentsPage || isPhotosPage || isMusicPage;
@@ -695,7 +703,7 @@ export default function MainLayout() {
 
     for (let i = 0; i < fileList.length; i++) {
       const file = fileList[i];
-      const path = (file as any).webkitRelativePath || file.name;
+      const path = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
       filesWithPaths.push({ file, path });
     }
 
@@ -717,12 +725,13 @@ export default function MainLayout() {
       toast(t('files.folderUploaded'), 'success');
       triggerRefresh();
       refreshUser(); // Update storage info in sidebar
-    } catch (error: any) {
-      toast(error.response?.data?.error || t('files.folderUploadError'), 'error');
+    } catch (error: unknown) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      toast((error as any).response?.data?.error || t('files.folderUploadError'), 'error');
     }
 
     e.target.value = '';
-  }, [currentFolderId]);
+  }, [currentFolderId, t, refreshUser]);
 
   // Event to trigger refresh in child components
   const triggerRefresh = () => {
@@ -1073,88 +1082,89 @@ export default function MainLayout() {
                   basePath="/files"
                   onRefresh={triggerRefresh}
                 />
-              ) : (
-                showViewControls ? (
-                  <>
-                    <div className="flex-1" />
-                    <div className="flex items-center gap-1">
-                      {/* Sort dropdown */}
-                      <Dropdown
-                        trigger={
-                          <button
-                            className="h-7 flex items-center justify-center gap-2 px-3 text-sm font-medium text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5 rounded-full transition-colors border border-transparent"
-                            aria-label={t('layout.sort')}
-                          >
-                            {sortOrder === 'asc' ? (
-                              <SortAsc className="w-4 h-4" />
-                            ) : (
-                              <SortDesc className="w-4 h-4" />
-                            )}
-                            <span className="hidden sm:inline">{currentSortLabel}</span>
-                          </button>
-                        }
-                        align="right"
-                      >
-                        <div>
-                          {sortOptions.map((option) => (
-                            <DropdownItem
-                              key={option.value}
-                              onClick={() => setSortBy(option.value as any)}
-                            >
-                              {t(option.labelKey)}
-                              {sortBy === option.value && (
-                                <Check className="w-4 h-4 ml-auto text-primary-600" />
-                              )}
-                            </DropdownItem>
-                          ))}
-                          <DropdownDivider />
-                          <DropdownItem onClick={() => setSortOrder('asc')}>
-                            <SortAsc className="w-4 h-4" /> {t('layout.ascending')}
-                            {sortOrder === 'asc' && (
-                              <Check className="w-4 h-4 ml-auto text-primary-600" />
-                            )}
-                          </DropdownItem>
-                          <DropdownItem onClick={() => setSortOrder('desc')}>
-                            <SortDesc className="w-4 h-4" /> {t('layout.descending')}
-                            {sortOrder === 'desc' && (
-                              <Check className="w-4 h-4 ml-auto text-primary-600" />
-                            )}
-                          </DropdownItem>
-                        </div>
-                      </Dropdown>
+              ) : null}
 
-                      {/* View toggle */}
-                      <div className="flex items-center bg-dark-100 dark:bg-dark-800 border border-dark-200 dark:border-dark-700 rounded-full p-0.5">
-                        <button
-                          onClick={() => setViewMode('grid')}
-                          className={cn(
-                            'p-1.5 rounded-full transition-colors flex items-center justify-center',
-                            viewMode === 'grid'
-                              ? 'bg-white dark:bg-white/10 text-dark-900 dark:text-white shadow-sm'
-                              : 'text-dark-500 dark:text-white/70 hover:text-dark-900 dark:hover:text-white hover:bg-dark-200 dark:hover:bg-white/5'
-                          )}
-                          aria-label={t('layout.viewGrid')}
-                          aria-pressed={viewMode === 'grid' ? "true" : "false"}
+              <div className="flex-1" />
+
+              {(showViewControls || isMusicPage || isDocumentsPage || isGalleryPage || isSharedPage || isAlbumDetailPage) && (
+                <div className="flex items-center gap-1">
+                  {/* Sort dropdown */}
+                  <Dropdown
+                    trigger={
+                      <button
+                        className="h-7 flex items-center justify-center gap-2 px-3 text-sm font-medium text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5 rounded-full transition-colors border border-transparent"
+                        aria-label={t('layout.sort')}
+                      >
+                        {sortOrder === 'asc' ? (
+                          <SortAsc className="w-4 h-4" />
+                        ) : (
+                          <SortDesc className="w-4 h-4" />
+                        )}
+                        <span className="hidden sm:inline">{currentSortLabel}</span>
+                      </button>
+                    }
+                    align="right"
+                  >
+                    <div>
+                      {sortOptions.map((option) => (
+                        <DropdownItem
+                          key={option.value}
+                          onClick={() => {
+                            setSortBy(option.value as 'name' | 'size' | 'createdAt' | 'updatedAt');
+                          }}
                         >
-                          <Grid className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => setViewMode('list')}
-                          className={cn(
-                            'p-1.5 rounded-full transition-colors flex items-center justify-center',
-                            viewMode === 'list'
-                              ? 'bg-white dark:bg-white/10 text-dark-900 dark:text-white shadow-sm'
-                              : 'text-dark-500 dark:text-white/70 hover:text-dark-900 dark:hover:text-white hover:bg-dark-200 dark:hover:bg-white/5'
+                          {t(option.labelKey)}
+                          {sortBy === option.value && (
+                            <Check className="w-4 h-4 ml-auto text-primary-600" />
                           )}
-                          aria-label={t('layout.viewList')}
-                          aria-pressed={viewMode === 'list' ? "true" : "false"}
-                        >
-                          <List className="w-4 h-4" />
-                        </button>
-                      </div>
+                        </DropdownItem>
+                      ))}
+                      <DropdownDivider />
+                      <DropdownItem onClick={() => setSortOrder('asc')}>
+                        <SortAsc className="w-4 h-4" /> {t('layout.ascending')}
+                        {sortOrder === 'asc' && (
+                          <Check className="w-4 h-4 ml-auto text-primary-600" />
+                        )}
+                      </DropdownItem>
+                      <DropdownItem onClick={() => setSortOrder('desc')}>
+                        <SortDesc className="w-4 h-4" /> {t('layout.descending')}
+                        {sortOrder === 'desc' && (
+                          <Check className="w-4 h-4 ml-auto text-primary-600" />
+                        )}
+                      </DropdownItem>
                     </div>
-                  </>
-                ) : null
+                  </Dropdown>
+
+                  {/* View toggle */}
+                  <div className="flex items-center bg-dark-100 dark:bg-dark-800 border border-dark-200 dark:border-dark-700 rounded-full p-0.5">
+                    <button
+                      onClick={() => setViewMode('grid')}
+                      className={cn(
+                        'p-1.5 rounded-full transition-colors flex items-center justify-center',
+                        viewMode === 'grid'
+                          ? 'bg-white dark:bg-white/10 text-dark-900 dark:text-white shadow-sm'
+                          : 'text-dark-500 dark:text-white/70 hover:text-dark-900 dark:hover:text-white hover:bg-dark-200 dark:hover:bg-white/5'
+                      )}
+                      aria-label={t('layout.viewGrid')}
+                      aria-pressed={viewMode === 'grid' ? "true" : "false"}
+                    >
+                      <Grid className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setViewMode('list')}
+                      className={cn(
+                        'p-1.5 rounded-full transition-colors flex items-center justify-center',
+                        viewMode === 'list'
+                          ? 'bg-white dark:bg-white/10 text-dark-900 dark:text-white shadow-sm'
+                          : 'text-dark-500 dark:text-white/70 hover:text-dark-900 dark:hover:text-white hover:bg-dark-200 dark:hover:bg-white/5'
+                      )}
+                      aria-label={t('layout.viewList')}
+                      aria-pressed={viewMode === 'list'}
+                    >
+                      <List className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
           </div>

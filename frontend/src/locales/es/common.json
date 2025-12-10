@@ -1141,7 +1141,8 @@
     "description": "Ha ocurrido un error inesperado. Por favor, intenta recargar la página.",
     "showDetails": "Ver detalles del error",
     "reload": "Recargar página",
-    "goHome": "Ir al inicio"
+    "goHome": "Ir al inicio",
+    "contactAdmin": "Reportar problema"
   },
   "verifyEmail": {
     "verifying": "Verificando tu correo...",
@@ -1232,5 +1233,17 @@
     "privacyPoint4": "Puedes solicitar la eliminación de tu cuenta en cualquier momento.",
     "termsPoint1": "Uso responsable de la plataforma.",
     "termsPoint2": "Respeto a los derechos de autor."
+  },
+  "infoModal": {
+    "title": "Información",
+    "name": "Nombre",
+    "type": "Tipo",
+    "size": "Tamaño",
+    "created": "Creado",
+    "modified": "Modificado",
+    "id": "ID",
+    "favorite": "Favorito",
+    "inTrash": "En papelera",
+    "files": "Archivos"
   }
 }

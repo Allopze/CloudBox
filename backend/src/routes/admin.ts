@@ -1077,7 +1077,7 @@ router.get('/settings/branding', async (req: Request, res: Response) => {
   try {
     const settings = await prisma.settings.findMany({
       where: {
-        key: { in: ['branding_primary_color', 'branding_logo_url', 'branding_logo_light_url', 'branding_logo_dark_url', 'branding_favicon_url'] },
+        key: { in: ['branding_primary_color', 'branding_logo_url', 'branding_logo_light_url', 'branding_logo_dark_url', 'branding_favicon_url', 'site_name'] },
       },
     });
 
@@ -1087,6 +1087,7 @@ router.get('/settings/branding', async (req: Request, res: Response) => {
       logoLightUrl: '',
       logoDarkUrl: '',
       faviconUrl: '',
+      siteName: 'CloudBox',
     };
 
     settings.forEach((s: { key: string; value: string }) => {
@@ -1096,6 +1097,7 @@ router.get('/settings/branding', async (req: Request, res: Response) => {
         'branding_logo_light_url': 'logoLightUrl',
         'branding_logo_dark_url': 'logoDarkUrl',
         'branding_favicon_url': 'faviconUrl',
+        'site_name': 'siteName',
       };
       const mappedKey = keyMap[s.key];
       if (mappedKey) {

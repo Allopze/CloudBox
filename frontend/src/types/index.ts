@@ -44,6 +44,7 @@ export interface Folder {
   trashedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  size?: string;
   _count?: { files: number };
 }
 

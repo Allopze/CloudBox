@@ -7,6 +7,7 @@ export interface BrandingSettings {
   logoLightUrl?: string;
   logoDarkUrl?: string;
   faviconUrl?: string;
+  siteName?: string;
 }
 
 interface BrandingState {
@@ -22,14 +23,15 @@ const defaultBranding: BrandingSettings = {
   logoLightUrl: '',
   logoDarkUrl: '',
   faviconUrl: '',
+  siteName: 'CloudBox',
 };
 
 const applyFavicon = (faviconUrl?: string) => {
   if (!faviconUrl) return;
-  
+
   // Construct full URL if it's a relative path
   const fullUrl = faviconUrl.startsWith('/') ? `${API_URL.replace('/api', '')}${faviconUrl}` : faviconUrl;
-  
+
   let link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']");
   if (!link) {
     link = document.createElement('link');
@@ -37,6 +39,12 @@ const applyFavicon = (faviconUrl?: string) => {
     document.head.appendChild(link);
   }
   link.href = fullUrl;
+};
+
+const applyTitle = (siteName?: string) => {
+  if (siteName) {
+    document.title = siteName;
+  }
 };
 
 const getFullUrl = (url: string | undefined): string => {
@@ -68,11 +76,13 @@ export const useBrandingStore = create<BrandingState>((set) => ({
           logoLightUrl: getFullUrl(payload.logoLightUrl || payload.logoUrl),
           logoDarkUrl: getFullUrl(payload.logoDarkUrl || payload.logoUrl),
           faviconUrl: getFullUrl(payload.faviconUrl),
+          siteName: payload.siteName || defaultBranding.siteName,
         };
         set({ branding, loading: false });
         if (branding.faviconUrl) {
           applyFavicon(branding.faviconUrl);
         }
+        applyTitle(branding.siteName);
       } else {
         set({ branding: defaultBranding, loading: false });
       }
@@ -88,5 +98,7 @@ export const useBrandingStore = create<BrandingState>((set) => ({
     if (branding.faviconUrl) {
       applyFavicon(branding.faviconUrl);
     }
+    applyTitle(branding.siteName);
   },
 }));
+

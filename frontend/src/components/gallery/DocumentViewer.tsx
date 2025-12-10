@@ -240,7 +240,7 @@ export default function DocumentViewer({
                 setConversionStatus('ready');
                 // Don't set loading to false - let PDF viewer handle it
               }
-            } catch (err: any) {
+            } catch (err: unknown) {
               // Fallback to mammoth for clients without LibreOffice
               console.warn('PDF preview not available, using fallback:', err);
               try {
@@ -263,7 +263,7 @@ export default function DocumentViewer({
             break;
 
           case 'text':
-          case 'code':
+          case 'code': {
             // Fetch text content with auth
             const textResponse = await api.get(`/files/${file.id}/view`, {
               responseType: 'text',
@@ -273,6 +273,7 @@ export default function DocumentViewer({
             setContent(text);
             setLoading(false);
             break;
+          }
 
           case 'spreadsheet':
             // Use backend to convert Excel to HTML with styles
@@ -515,8 +516,8 @@ export default function DocumentViewer({
         // Fallback: HTML content from mammoth
         return (
           <div
-            className="w-full h-full overflow-auto bg-white rounded-lg p-8"
-            style={{ fontSize: `${zoom}%` }}
+            className="w-full h-full overflow-auto bg-white rounded-lg p-8 preview-zoom-text"
+            style={{ '--preview-zoom': `${zoom}%` } as React.CSSProperties}
           >
             <div
               className="prose prose-sm max-w-none"
@@ -528,8 +529,8 @@ export default function DocumentViewer({
       case 'text':
         return (
           <div
-            className="w-full h-full overflow-auto bg-white dark:bg-dark-900 rounded-lg p-6"
-            style={{ fontSize: `${zoom}%` }}
+            className="w-full h-full overflow-auto bg-white dark:bg-dark-900 rounded-lg p-6 preview-zoom-text"
+            style={{ '--preview-zoom': `${zoom}%` } as React.CSSProperties}
           >
             <pre className="whitespace-pre-wrap font-sans text-dark-900 dark:text-white">
               {content}
@@ -540,8 +541,8 @@ export default function DocumentViewer({
       case 'code':
         return (
           <div
-            className="w-full h-full overflow-auto bg-dark-900 rounded-lg p-6"
-            style={{ fontSize: `${zoom}%` }}
+            className="w-full h-full overflow-auto bg-dark-900 rounded-lg p-6 preview-zoom-text"
+            style={{ '--preview-zoom': `${zoom}%` } as React.CSSProperties}
           >
             <pre className="whitespace-pre-wrap font-mono text-sm text-green-400">
               {content}
@@ -572,8 +573,8 @@ export default function DocumentViewer({
             )}
             {/* Excel HTML content */}
             <div
-              className="flex-1 overflow-auto p-2"
-              style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top left' }}
+              className="flex-1 overflow-auto p-2 preview-zoom-transform"
+              style={{ '--preview-scale': zoom / 100 } as React.CSSProperties}
               dangerouslySetInnerHTML={{ __html: spreadsheetData.html }}
             />
           </div>

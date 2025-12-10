@@ -1,6 +1,6 @@
 import React, { Component, ReactNode } from 'react';
 import { withTranslation, WithTranslation } from 'react-i18next';
-import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
+import { AlertTriangle, RefreshCw, Home, Mail } from 'lucide-react';
 import { captureError } from '../lib/sentry';
 
 interface Props extends WithTranslation {
@@ -51,6 +51,15 @@ class ErrorBoundary extends Component<Props, State> {
 
   handleGoHome = () => {
     window.location.href = '/';
+  };
+
+  handleContactAdmin = () => {
+    const subject = encodeURIComponent('Error Report - CloudBox');
+    const errorDetails = this.state.error
+      ? `\n\nError Details:\n${this.state.error.toString()}\n\nStack:\n${this.state.errorInfo?.componentStack || 'No stack available'}`
+      : '';
+    const body = encodeURIComponent(`Hello,\n\nI encountered an error while using CloudBox.\n\nPage: ${window.location.href}\nDate: ${new Date().toISOString()}${errorDetails}\n\nPlease look into this issue.\n\nThank you.`);
+    window.location.href = `mailto:soporte@cloudbox.lat?subject=${subject}&body=${body}`;
   };
 
   render() {
@@ -109,6 +118,17 @@ class ErrorBoundary extends Component<Props, State> {
               >
                 <Home className="w-4 h-4" />
                 {t('errorBoundary.goHome')}
+              </button>
+            </div>
+
+            {/* Contact Admin Button */}
+            <div className="mt-4 pt-4 border-t border-dark-100 dark:border-dark-700">
+              <button
+                onClick={this.handleContactAdmin}
+                className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm text-dark-500 dark:text-dark-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+              >
+                <Mail className="w-4 h-4" />
+                {t('errorBoundary.contactAdmin')}
               </button>
             </div>
           </div>

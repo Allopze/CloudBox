@@ -1133,7 +1133,8 @@
     "description": "An unexpected error occurred. Please try reloading the page.",
     "showDetails": "Show error details",
     "reload": "Reload page",
-    "goHome": "Go to home"
+    "goHome": "Go to home",
+    "contactAdmin": "Report issue"
   },
   "verifyEmail": {
     "verifying": "Verifying your email...",
@@ -1224,5 +1225,17 @@
     "privacyPoint4": "You can request account deletion at any time.",
     "termsPoint1": "Responsible use of the platform.",
     "termsPoint2": "Respect for copyright."
+  },
+  "infoModal": {
+    "title": "Information",
+    "name": "Name",
+    "type": "Type",
+    "size": "Size",
+    "created": "Created",
+    "modified": "Modified",
+    "id": "ID",
+    "favorite": "Favorite",
+    "inTrash": "In trash",
+    "files": "Files"
   }
 }
