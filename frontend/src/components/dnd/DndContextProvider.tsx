@@ -58,7 +58,7 @@ interface DndContextProviderProps {
 export default function DndContextProvider({ children, onRefresh }: DndContextProviderProps) {
     const { t } = useTranslation();
     const { startDrag, endDrag, draggedItems, isDragging } = useDragDropStore();
-    const { selectedItems, selectSingle, clearSelection } = useFileStore();
+    const { selectSingle, clearSelection } = useFileStore.getState();
 
     // Configure pointer sensor with distance constraint to allow clicks
     const sensors = useSensors(
@@ -76,6 +76,7 @@ export default function DndContextProvider({ children, onRefresh }: DndContextPr
         if (!activeData) return;
 
         let itemsToDrag: DragItem[] = [];
+        const selectedItems = useFileStore.getState().selectedItems;
 
         // If this item is selected and there are multiple selections, drag all
         if (selectedItems.has(active.id as string) && selectedItems.size > 1) {
@@ -105,7 +106,7 @@ export default function DndContextProvider({ children, onRefresh }: DndContextPr
         }
 
         startDrag(itemsToDrag, active.id as string);
-    }, [selectedItems, selectSingle, startDrag]);
+    }, [selectSingle, startDrag]);
 
     const handleDragEnd = useCallback(async (event: DragEndEvent) => {
         const { active, over } = event;

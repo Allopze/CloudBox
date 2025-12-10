@@ -1,11 +1,9 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router-dom';
 import { useDraggable } from '@dnd-kit/core';
 import { FileItem } from '../../types';
 import { useFileStore } from '../../stores/fileStore';
-import { useGlobalProgressStore } from '../../stores/globalProgressStore';
-import { useAuthStore } from '../../stores/authStore';
 import {
   File,
   Image,
@@ -31,7 +29,6 @@ import RenameModal from '../modals/RenameModal';
 import MoveModal from '../modals/MoveModal';
 import CompressModal from '../modals/CompressModal';
 import InfoModal from '../modals/InfoModal';
-import ConfirmModal from '../ui/ConfirmModal';
 import ContextMenu, { ContextMenuItemOrDivider, ContextMenuDividerItem } from '../ui/ContextMenu';
 import { motion } from 'framer-motion';
 
@@ -54,16 +51,16 @@ const fileIcons: Record<string, typeof File> = {
 export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: FileCardProps) {
   const { t } = useTranslation();
   const location = useLocation();
-  const { selectedItems, addToSelection, removeFromSelection, selectRange, selectSingle, lastSelectedId } = useFileStore();
-  const { addOperation, incrementProgress, completeOperation, failOperation } = useGlobalProgressStore();
-  const { refreshUser } = useAuthStore();
-  const isSelected = selectedItems.has(file.id);
+  const isSelected = useFileStore(useCallback((state) => state.selectedItems.has(file.id), [file.id]));
+  const addToSelection = useFileStore((state) => state.addToSelection);
+  const removeFromSelection = useFileStore((state) => state.removeFromSelection);
+  const selectRange = useFileStore((state) => state.selectRange);
+  const selectSingle = useFileStore((state) => state.selectSingle);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [showCompressModal, setShowCompressModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [contextMenuSelection, setContextMenuSelection] = useState<Set<string>>(new Set());
 
@@ -118,10 +115,13 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
 
   const Icon = getFileIcon();
   const hasThumbnail = Boolean(file.thumbnailPath);
+  const dragData = useMemo(() => JSON.stringify(file), [file]);
 
   const handleClick = (e: React.MouseEvent) => {
     // Don't handle click if we're dragging
     if (isDragging) return;
+
+    const { selectedItems, lastSelectedId } = useFileStore.getState();
 
     // Shift+Click: Range selection
     if (e.shiftKey && lastSelectedId) {
@@ -178,65 +178,6 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
     }
   };
 
-  const handleDeleteConfirm = async () => {
-    setShowDeleteConfirm(false);
-
-    // Use the selection that was captured when the context menu was opened
-    const itemsToDelete = contextMenuSelection;
-    const clearSelectionFn = useFileStore.getState().clearSelection;
-
-    // If multiple items are selected and this file is one of them, delete all selected
-    if (itemsToDelete.size > 1 && itemsToDelete.has(file.id)) {
-      const itemIds = Array.from(itemsToDelete);
-      const total = itemIds.length;
-
-      const opId = addOperation({
-        id: `delete-context-${Date.now()}`,
-        type: 'delete',
-        title: t('fileCard.deletingItems', { count: total }),
-        totalItems: total,
-      });
-
-      try {
-        for (const id of itemIds) {
-          const fileEl = document.querySelector(`[data-file-item="${id}"]`);
-          const folderEl = document.querySelector(`[data-folder-item="${id}"]`);
-          const itemName = fileEl?.getAttribute('data-file-name') || folderEl?.getAttribute('data-folder-name') || id;
-
-          if (fileEl) {
-            await api.delete(`/files/${id}`);
-          } else if (folderEl) {
-            await api.delete(`/folders/${id}`);
-          }
-          incrementProgress(opId, itemName);
-        }
-
-        completeOperation(opId);
-        clearSelectionFn();
-        toast(t('fileCard.itemsMovedToTrash', { count: total }), 'success');
-        // Trigger refresh event and call onRefresh
-        window.dispatchEvent(new CustomEvent('workzone-refresh'));
-        onRefresh?.();
-        refreshUser(); // Update storage info in sidebar
-      } catch {
-        failOperation(opId, t('fileCard.deleteError'));
-        toast(t('fileCard.deleteError'), 'error');
-      }
-    } else {
-      // Single item delete
-      try {
-        await api.delete(`/files/${file.id}`);
-        toast(t('fileCard.fileMovedToTrash'), 'success');
-        // Trigger refresh event and call onRefresh
-        window.dispatchEvent(new CustomEvent('workzone-refresh'));
-        onRefresh?.();
-        refreshUser(); // Update storage info in sidebar
-      } catch {
-        toast(t('fileCard.deleteFileError'), 'error');
-      }
-    }
-  };
-
   // Context menu items configuration
   const contextMenuItems: ContextMenuItemOrDivider[] = useMemo(() => [
     { id: 'download', label: t('fileCard.download'), icon: Download, onClick: handleDownload },
@@ -248,8 +189,21 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
     { id: 'compress', label: t('fileCard.compress'), icon: FileArchive, onClick: () => setShowCompressModal(true) },
     ContextMenuDividerItem(),
     { id: 'info', label: t('common.info'), icon: Info, onClick: () => setShowInfoModal(true) },
-    { id: 'delete', label: t('fileCard.moveToTrash'), icon: Trash2, onClick: () => setShowDeleteConfirm(true), danger: true },
-  ], [t, file.isFavorite, handleDownload, handleFavorite]);
+    {
+      id: 'delete',
+      label: t('fileCard.moveToTrash'),
+      icon: Trash2,
+      onClick: () => {
+        // Determine which ids to delete (respect multi-selection captured on context menu open)
+        const ids = contextMenuSelection.size > 1 && contextMenuSelection.has(file.id)
+          ? Array.from(contextMenuSelection)
+          : [file.id];
+        window.dispatchEvent(new CustomEvent('file-delete-request', { detail: { ids } }));
+        setContextMenu(null);
+      },
+      danger: true,
+    },
+  ], [t, file.isFavorite, handleDownload, handleFavorite, contextMenuSelection, file.id]);
 
   const closeContextMenu = () => setContextMenu(null);
 
@@ -280,21 +234,6 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
         items={[{ id: file.id, name: file.name, type: 'file' }]}
         onSuccess={onRefresh}
       />
-      <ConfirmModal
-        isOpen={showDeleteConfirm}
-        onClose={() => setShowDeleteConfirm(false)}
-        onConfirm={handleDeleteConfirm}
-        title={t('modals.confirm.deleteTitle')}
-        message={
-          <div className="space-y-2">
-            <p>{t('modals.confirm.deleteMessage', { count: contextMenuSelection.size > 1 && contextMenuSelection.has(file.id) ? contextMenuSelection.size : 1 })}</p>
-            <p className="text-sm text-dark-400">{t('modals.confirm.deleteNote')}</p>
-          </div>
-        }
-        confirmText={t('modals.confirm.deleteButton')}
-        cancelText={t('modals.confirm.cancelButton')}
-        variant="warning"
-      />
       <InfoModal
         isOpen={showInfoModal}
         onClose={() => setShowInfoModal(false)}
@@ -307,30 +246,24 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
   if (view === 'list') {
     return (
       <>
-        <motion.div
-          ref={setNodeRef}
-          layout
-          layoutId={`file-${file.id}-${view}`}
-          initial={false}
-          style={{
-            ...dragStyle,
-            transform: dragStyle?.transform || (isSelected ? 'scale(0.98)' : 'scale(1)'),
-          }}
-          {...attributes}
+      <motion.div
+        ref={setNodeRef}
+        style={{
+          ...dragStyle,
+          transform: dragStyle?.transform || (isSelected ? 'scale(0.98)' : 'scale(1)'),
+        }}
+        {...attributes}
           {...listeners}
           data-file-item={file.id}
           data-file-name={file.name}
-          data-file-data={JSON.stringify(file)}
+          data-file-data={dragData}
           onClick={handleClick}
           onDoubleClick={handleDoubleClick}
           onContextMenu={handleContextMenu}
-          transition={{
-            layout: { type: 'spring', stiffness: 280, damping: 26, mass: 0.55 },
-          }}
-          className={cn(
-            'flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer transition-all duration-100 touch-none',
-            isSelected
-              ? 'bg-primary-50 dark:bg-primary-900/20 ring-2 ring-primary-500/50 ring-offset-1 ring-offset-white dark:ring-offset-dark-900'
+        className={cn(
+          'flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer transition-all duration-100 touch-none',
+          isSelected
+            ? 'bg-primary-50 dark:bg-primary-900/20 ring-2 ring-primary-500/50 ring-offset-1 ring-offset-white dark:ring-offset-dark-900'
               : 'hover:bg-dark-50 dark:hover:bg-dark-800'
           )}
         >
@@ -355,7 +288,7 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
           </div>
           <div className="flex-1 min-w-0">
             <p className="font-medium text-dark-900 dark:text-white truncate">{file.name}</p>
-            <p className="text-sm text-dark-500">{formatBytes(file.size)} • {formatDate(file.createdAt)}</p>
+            <p className="text-sm text-dark-500">{formatBytes(file.size)} - {formatDate(file.createdAt)}</p>
           </div>
           {file.isFavorite && <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />}
         </motion.div>
@@ -369,9 +302,6 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
     <>
       <motion.div
         ref={setNodeRef}
-        layout
-        layoutId={`file-${file.id}-${view}`}
-        initial={false}
         style={{
           ...dragStyle,
           transform: dragStyle?.transform || (isSelected ? 'scale(0.97)' : 'scale(1)'),
@@ -380,13 +310,10 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
         {...listeners}
         data-file-item={file.id}
         data-file-name={file.name}
-        data-file-data={JSON.stringify(file)}
+        data-file-data={dragData}
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
         onContextMenu={handleContextMenu}
-        transition={{
-          layout: { type: 'spring', stiffness: 280, damping: 26, mass: 0.55 },
-        }}
         className={cn(
           'group relative flex items-center gap-3 px-3 py-2.5 rounded-2xl cursor-pointer transition-all duration-100 border touch-none',
           isSelected

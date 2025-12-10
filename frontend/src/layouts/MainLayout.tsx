@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import type { MouseEvent as ReactMouseEvent } from 'react';
 import { Outlet, useLocation, useNavigate, useSearchParams, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import Sidebar from '../components/Sidebar';
@@ -78,9 +79,31 @@ const readDirectoryEntries = async (
 };
 
 export default function MainLayout() {
+  // Marquee selection handlers (defined early so effects can reference them safely)
+  const handleMarqueeMouseDown = useRef<(e: { button?: number; clientX: number; clientY: number; target?: EventTarget | null }) => void>();
+  const handleMarqueeMouseMove = useRef<(e: { clientX: number; clientY: number }) => void>();
+  const handleMarqueeMouseUp = useRef<() => void>();
+  const onMarqueeMouseDown = useCallback((e: AnyMouseEvent) => {
+    handleMarqueeMouseDown.current?.(e);
+  }, []);
+  const onMarqueeMouseMove = useCallback((e: AnyMouseEvent) => {
+    handleMarqueeMouseMove.current?.(e);
+  }, []);
+  const onMarqueeMouseUp = useCallback(() => {
+    handleMarqueeMouseUp.current?.();
+  }, []);
+
   const { t } = useTranslation();
   const { sidebarOpen, toggleSidebar } = useUIStore();
-  const { viewMode, setViewMode, sortBy, sortOrder, setSortBy, setSortOrder, breadcrumbs, selectAll, clearSelection, selectedItems } = useFileStore();
+  const viewMode = useFileStore((state) => state.viewMode);
+  const setViewMode = useFileStore((state) => state.setViewMode);
+  const sortBy = useFileStore((state) => state.sortBy);
+  const sortOrder = useFileStore((state) => state.sortOrder);
+  const setSortBy = useFileStore((state) => state.setSortBy);
+  const setSortOrder = useFileStore((state) => state.setSortOrder);
+  const breadcrumbs = useFileStore((state) => state.breadcrumbs);
+  const selectAll = useFileStore((state) => state.selectAll);
+  const clearSelection = useFileStore((state) => state.clearSelection);
   const { isDragging: isInternalDragging } = useDragDropStore();
   const { setGlobalProgress, resetGlobalProgress } = useUploadStore();
   const { branding } = useBrandingStore();
@@ -348,20 +371,22 @@ export default function MainLayout() {
     refreshUser(); // Update storage info in sidebar
   }, [setGlobalProgress, resetGlobalProgress, isInternalDragging, refreshUser, t]);
 
-  // Set up global drag and drop listeners
+  // Set up global drag/drop listeners and global marquee start
   useEffect(() => {
     window.addEventListener('dragenter', handleDragEnter);
     window.addEventListener('dragleave', handleDragLeave);
     window.addEventListener('dragover', handleDragOver);
     window.addEventListener('drop', handleDrop);
+    window.addEventListener('mousedown', onMarqueeMouseDown as EventListener);
 
     return () => {
       window.removeEventListener('dragenter', handleDragEnter);
       window.removeEventListener('dragleave', handleDragLeave);
       window.removeEventListener('dragover', handleDragOver);
       window.removeEventListener('drop', handleDrop);
+      window.removeEventListener('mousedown', onMarqueeMouseDown as EventListener);
     };
-  }, [handleDragEnter, handleDragLeave, handleDragOver, handleDrop]);
+  }, [handleDragEnter, handleDragLeave, handleDragOver, handleDrop, onMarqueeMouseDown]);
 
   // Close context menu on any click outside
   useEffect(() => {
@@ -400,7 +425,10 @@ export default function MainLayout() {
       }
 
       // Delete: Move selected items to trash
-      if (e.key === 'Delete' && selectedItems.size > 0) {
+      if (e.key === 'Delete') {
+        const selectedItems = useFileStore.getState().selectedItems;
+        if (selectedItems.size === 0) return;
+
         e.preventDefault();
         const itemIds = Array.from(selectedItems);
         const total = itemIds.length;
@@ -444,7 +472,7 @@ export default function MainLayout() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [selectAll, clearSelection, selectedItems, addOperation, incrementProgress, completeOperation, failOperation, refreshUser, t]);
+  }, [selectAll, clearSelection, addOperation, incrementProgress, completeOperation, failOperation, refreshUser, t]);
 
   // Cache for element positions (populated on marquee start for performance)
   const elementPositionsCacheRef = useRef<Array<{ id: string; x: number; y: number; right: number; bottom: number }>>([]);
@@ -504,29 +532,35 @@ export default function MainLayout() {
   }, [selectAll]);
 
   // Marquee selection handlers
-  const handleMarqueeMouseDown = useCallback((e: React.MouseEvent) => {
+  handleMarqueeMouseDown.current = useCallback((e: { button?: number; clientX: number; clientY: number; target?: EventTarget | null }) => {
     // Don't start marquee if internal drag is active or on admin page
     if (isInternalDragging || isAdminPage) return;
 
-    // Only start marquee on left click and if clicking on the workzone background (not on items)
-    if (e.button !== 0) return;
-    const target = e.target as HTMLElement;
+    // Only start on left click
+    if (e.button !== undefined && e.button !== 0) return;
 
-    // Check if clicking on the main element or its direct scrollable child
-    if (!target.closest('[data-file-item]') && !target.closest('[data-folder-item]')) {
-      const rect = workzoneRef.current?.getBoundingClientRect();
-      if (rect) {
-        const x = e.clientX - rect.left + (workzoneRef.current?.scrollLeft || 0);
-        const y = e.clientY - rect.top + (workzoneRef.current?.scrollTop || 0);
-        setMarqueeStart({ x, y });
-        marqueeEndRef.current = { x, y };
-        setIsMarqueeActive(true);
-        clearSelection();
-        // Cache element positions for fast collision detection
-        cacheElementPositions();
-      }
+    // Avoid starting from obvious form controls to not break UI usage
+    const target = e.target as HTMLElement | null;
+    if (target && (target.closest('input, textarea, select, button, [role="button"], a, [contenteditable="true"]'))) {
+      return;
     }
-  }, [clearSelection, isInternalDragging, isAdminPage]);
+
+    const rect = workzoneRef.current?.getBoundingClientRect();
+    if (rect) {
+      // Allow starting from anywhere in the viewport; clamp to workzone bounds
+      const rawX = e.clientX - rect.left + (workzoneRef.current?.scrollLeft || 0);
+      const rawY = e.clientY - rect.top + (workzoneRef.current?.scrollTop || 0);
+      const x = Math.max(0, Math.min(rect.width + (workzoneRef.current?.scrollLeft || 0), rawX));
+      const y = Math.max(0, Math.min(rect.height + (workzoneRef.current?.scrollTop || 0), rawY));
+
+      setMarqueeStart({ x, y });
+      marqueeEndRef.current = { x, y };
+      setIsMarqueeActive(true);
+      clearSelection();
+      // Cache element positions for fast collision detection
+      cacheElementPositions();
+    }
+  }, [clearSelection, isInternalDragging, isAdminPage, cacheElementPositions]);
 
   // Store marquee state in refs for auto-scroll access
   const marqueeStartRef = useRef(marqueeStart);
@@ -537,7 +571,7 @@ export default function MainLayout() {
   // Throttle ref for selection updates (32ms = ~30fps balance)
   const lastSelectionUpdateRef = useRef(0);
 
-  const handleMarqueeMouseMove = useCallback((e: React.MouseEvent) => {
+  handleMarqueeMouseMove.current = useCallback((e: { clientX: number; clientY: number }) => {
     if (!isMarqueeActive || !workzoneRef.current) return;
 
     // Store current mouse position in ref for auto-scroll
@@ -569,7 +603,7 @@ export default function MainLayout() {
     }
   }, [isMarqueeActive, marqueeStart, updateMarqueeSelection]);
 
-  const handleMarqueeMouseUp = useCallback(() => {
+  handleMarqueeMouseUp.current = useCallback(() => {
     // Final selection update on mouse up to ensure accuracy
     if (isMarqueeActive && workzoneRef.current) {
       updateMarqueeSelection(marqueeStart.x, marqueeStart.y, marqueeEndRef.current.x, marqueeEndRef.current.y);
@@ -677,13 +711,20 @@ export default function MainLayout() {
 
     scrollIntervalRef.current = requestAnimationFrame(autoScroll);
 
+    const handleMouseMove = (event: MouseEvent) => {
+      onMarqueeMouseMove(event);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+
     return () => {
       if (scrollIntervalRef.current) {
         cancelAnimationFrame(scrollIntervalRef.current);
         scrollIntervalRef.current = null;
       }
+      window.removeEventListener('mousemove', handleMouseMove);
     };
-  }, [isMarqueeActive, updateMarqueeSelection]);
+  }, [isMarqueeActive, updateMarqueeSelection, onMarqueeMouseMove]);
 
   // marqueeRect is now calculated directly in the DOM via marqueeBoxRef
 
@@ -1210,9 +1251,9 @@ export default function MainLayout() {
               <main
                 ref={workzoneRef}
                 className="flex-1 overflow-y-auto overflow-x-hidden p-4 relative"
-                onMouseDown={handleMarqueeMouseDown}
-                onMouseMove={handleMarqueeMouseMove}
-                onMouseUp={handleMarqueeMouseUp}
+                onMouseDown={onMarqueeMouseDown}
+                onMouseMove={onMarqueeMouseMove}
+                onMouseUp={onMarqueeMouseUp}
               >
                 <Outlet />
 
@@ -1397,3 +1438,4 @@ export default function MainLayout() {
     </DndContextProvider>
   );
 }
+type AnyMouseEvent = MouseEvent | ReactMouseEvent;

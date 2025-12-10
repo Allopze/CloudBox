@@ -4,9 +4,7 @@ import { useSearchParams, useLocation } from 'react-router-dom';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { Folder } from '../../types';
 import { useFileStore } from '../../stores/fileStore';
-import { useGlobalProgressStore } from '../../stores/globalProgressStore';
 import { useDragDropStore } from '../../stores/dragDropStore';
-import { useAuthStore } from '../../stores/authStore';
 import {
   FolderIcon,
   Star,
@@ -26,7 +24,6 @@ import RenameModal from '../modals/RenameModal';
 import MoveModal from '../modals/MoveModal';
 import CompressModal from '../modals/CompressModal';
 import InfoModal from '../modals/InfoModal';
-import ConfirmModal from '../ui/ConfirmModal';
 import ContextMenu, { ContextMenuItemOrDivider, ContextMenuDividerItem } from '../ui/ContextMenu';
 import { motion } from 'framer-motion';
 
@@ -40,19 +37,20 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
   const { t } = useTranslation();
   const [, setSearchParams] = useSearchParams();
   const location = useLocation();
-  const { selectedItems, addToSelection, removeFromSelection, selectRange, selectSingle, lastSelectedId } = useFileStore();
-  const { addOperation, incrementProgress, completeOperation, failOperation } = useGlobalProgressStore();
+  const isSelected = useFileStore(useCallback((state) => state.selectedItems.has(folder.id), [folder.id]));
+  const addToSelection = useFileStore((state) => state.addToSelection);
+  const removeFromSelection = useFileStore((state) => state.removeFromSelection);
+  const selectRange = useFileStore((state) => state.selectRange);
+  const selectSingle = useFileStore((state) => state.selectSingle);
   const { draggedItems } = useDragDropStore();
-  const { refreshUser } = useAuthStore();
-  const isSelected = selectedItems.has(folder.id);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [showCompressModal, setShowCompressModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [contextMenuSelection, setContextMenuSelection] = useState<Set<string>>(new Set());
+  const dragData = useMemo(() => JSON.stringify(folder), [folder]);
 
   // Check if this folder is being dragged (can't drop on itself)
   const isSelfDragged = draggedItems.some(item => item.type === 'folder' && item.item.id === folder.id);
@@ -123,6 +121,8 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
     // Don't handle click if we're dragging
     if (isDragging) return;
 
+    const { selectedItems, lastSelectedId } = useFileStore.getState();
+
     // Shift+Click: Range selection
     if (e.shiftKey && lastSelectedId) {
       // Get all file items in the DOM to determine range
@@ -160,65 +160,6 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
     }
   }, [folder.id, folder.isFavorite, t, onRefresh]);
 
-  const handleDeleteConfirm = async () => {
-    setShowDeleteConfirm(false);
-
-    // Use the selection that was captured when the context menu was opened
-    const itemsToDelete = contextMenuSelection;
-    const clearSelectionFn = useFileStore.getState().clearSelection;
-
-    // If multiple items are selected and this folder is one of them, delete all selected
-    if (itemsToDelete.size > 1 && itemsToDelete.has(folder.id)) {
-      const itemIds = Array.from(itemsToDelete);
-      const total = itemIds.length;
-
-      const opId = addOperation({
-        id: `delete-context-${Date.now()}`,
-        type: 'delete',
-        title: t('folderCard.deletingItems', { count: total }),
-        totalItems: total,
-      });
-
-      try {
-        for (const id of itemIds) {
-          const fileEl = document.querySelector(`[data-file-item="${id}"]`);
-          const folderEl = document.querySelector(`[data-folder-item="${id}"]`);
-          const itemName = fileEl?.getAttribute('data-file-name') || folderEl?.getAttribute('data-folder-name') || id;
-
-          if (fileEl) {
-            await api.delete(`/files/${id}`);
-          } else if (folderEl) {
-            await api.delete(`/folders/${id}`);
-          }
-          incrementProgress(opId, itemName);
-        }
-
-        completeOperation(opId);
-        clearSelectionFn();
-        toast(t('folderCard.itemsMovedToTrash', { count: total }), 'success');
-        // Trigger refresh event and call onRefresh
-        window.dispatchEvent(new CustomEvent('workzone-refresh'));
-        onRefresh?.();
-        refreshUser(); // Update storage info in sidebar
-      } catch {
-        failOperation(opId, t('folderCard.deleteError'));
-        toast(t('folderCard.deleteError'), 'error');
-      }
-    } else {
-      // Single item delete
-      try {
-        await api.delete(`/folders/${folder.id}`);
-        toast(t('folderCard.folderMovedToTrash'), 'success');
-        // Trigger refresh event and call onRefresh
-        window.dispatchEvent(new CustomEvent('workzone-refresh'));
-        onRefresh?.();
-        refreshUser(); // Update storage info in sidebar
-      } catch {
-        toast(t('folderCard.deleteFolderError'), 'error');
-      }
-    }
-  };
-
   // Context menu items configuration
   const contextMenuItems: ContextMenuItemOrDivider[] = useMemo(() => [
     { id: 'favorite', label: folder.isFavorite ? t('folderCard.removeFromFavorites') : t('folderCard.addToFavorites'), icon: Star, onClick: handleFavorite },
@@ -229,8 +170,20 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
     { id: 'compress', label: t('folderCard.compress'), icon: FileArchive, onClick: () => setShowCompressModal(true) },
     ContextMenuDividerItem(),
     { id: 'info', label: t('common.info'), icon: Info, onClick: () => setShowInfoModal(true) },
-    { id: 'delete', label: t('folderCard.moveToTrash'), icon: Trash2, onClick: () => setShowDeleteConfirm(true), danger: true },
-  ], [t, folder.isFavorite, handleFavorite]);
+    {
+      id: 'delete',
+      label: t('folderCard.moveToTrash'),
+      icon: Trash2,
+      onClick: () => {
+        const ids = contextMenuSelection.size > 1 && contextMenuSelection.has(folder.id)
+          ? Array.from(contextMenuSelection)
+          : [folder.id];
+        window.dispatchEvent(new CustomEvent('file-delete-request', { detail: { ids } }));
+        setContextMenu(null);
+      },
+      danger: true,
+    },
+  ], [t, folder.isFavorite, handleFavorite, contextMenuSelection, folder.id]);
 
   const closeContextMenu = () => setContextMenu(null);
 
@@ -261,21 +214,6 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
         items={[{ id: folder.id, name: folder.name, type: 'folder' }]}
         onSuccess={onRefresh}
       />
-      <ConfirmModal
-        isOpen={showDeleteConfirm}
-        onClose={() => setShowDeleteConfirm(false)}
-        onConfirm={handleDeleteConfirm}
-        title={t('modals.confirm.deleteTitle')}
-        message={
-          <div className="space-y-2">
-            <p>{t('modals.confirm.deleteMessage', { count: contextMenuSelection.size > 1 && contextMenuSelection.has(folder.id) ? contextMenuSelection.size : 1 })}</p>
-            <p className="text-sm text-dark-400">{t('modals.confirm.deleteNote')}</p>
-          </div>
-        }
-        confirmText={t('modals.confirm.deleteButton')}
-        cancelText={t('modals.confirm.cancelButton')}
-        variant="warning"
-      />
       <InfoModal
         isOpen={showInfoModal}
         onClose={() => setShowInfoModal(false)}
@@ -291,30 +229,24 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
   if (view === 'list') {
     return (
       <>
-        <motion.div
-          ref={setNodeRef}
-          layout
-          layoutId={`folder-${folder.id}-${view}`}
-          initial={false}
-          style={{
-            ...dragStyle,
-            transform: dragStyle?.transform || (isSelected ? 'scale(0.98)' : 'scale(1)'),
-          }}
-          {...attributes}
+      <motion.div
+        ref={setNodeRef}
+        style={{
+          ...dragStyle,
+          transform: dragStyle?.transform || (isSelected ? 'scale(0.98)' : 'scale(1)'),
+        }}
+        {...attributes}
           {...listeners}
           data-folder-item={folder.id}
           data-folder-name={folder.name}
-          data-folder-data={JSON.stringify(folder)}
+          data-folder-data={dragData}
           onClick={handleClick}
           onDoubleClick={handleDoubleClick}
           onContextMenu={handleContextMenu}
-          transition={{
-            layout: { type: 'spring', stiffness: 280, damping: 26, mass: 0.55 },
-          }}
-          className={cn(
-            'flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer transition-all duration-100 touch-none',
-            isSelected
-              ? 'bg-primary-50 dark:bg-primary-900/20 ring-2 ring-primary-500/50 ring-offset-1 ring-offset-white dark:ring-offset-dark-900'
+        className={cn(
+          'flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer transition-all duration-100 touch-none',
+          isSelected
+            ? 'bg-primary-50 dark:bg-primary-900/20 ring-2 ring-primary-500/50 ring-offset-1 ring-offset-white dark:ring-offset-dark-900'
               : 'hover:bg-dark-50 dark:hover:bg-dark-800',
             isDropTarget && 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/30'
           )}
@@ -324,7 +256,7 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
           </div>
           <div className="flex-1 min-w-0">
             <p className="font-medium text-dark-900 dark:text-white truncate">{folder.name}</p>
-            <p className="text-sm text-dark-500">{t('folderCard.itemsCount', { count: folder._count?.files ?? 0 })} • {formatDate(folder.createdAt)}</p>
+            <p className="text-sm text-dark-500">{t('folderCard.itemsCount', { count: folder._count?.files ?? 0 })} - {formatDate(folder.createdAt)}</p>
           </div>
           {folder.isFavorite && <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />}
         </motion.div>
@@ -338,9 +270,6 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
     <>
       <motion.div
         ref={setNodeRef}
-        layout
-        layoutId={`folder-${folder.id}-${view}`}
-        initial={false}
         style={{
           ...dragStyle,
           transform: dragStyle?.transform || (isSelected ? 'scale(0.97)' : 'scale(1)'),
@@ -349,13 +278,10 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
         {...listeners}
         data-folder-item={folder.id}
         data-folder-name={folder.name}
-        data-folder-data={JSON.stringify(folder)}
+        data-folder-data={dragData}
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
         onContextMenu={handleContextMenu}
-        transition={{
-          layout: { type: 'spring', stiffness: 280, damping: 26, mass: 0.55 },
-        }}
         className={cn(
           'group relative flex items-center gap-3 px-3 py-2.5 rounded-2xl cursor-pointer transition-all duration-100 border touch-none',
           isSelected

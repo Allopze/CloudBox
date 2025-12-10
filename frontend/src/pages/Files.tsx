@@ -53,7 +53,12 @@ export default function Files() {
   const [videoPreviewFile, setVideoPreviewFile] = useState<FileItem | null>(null);
   const [documentPreviewFile, setDocumentPreviewFile] = useState<FileItem | null>(null);
 
-  const { viewMode, sortBy, sortOrder, selectedItems, clearSelection, setBreadcrumbs, selectAll } = useFileStore();
+  const viewMode = useFileStore((state) => state.viewMode);
+  const sortBy = useFileStore((state) => state.sortBy);
+  const sortOrder = useFileStore((state) => state.sortOrder);
+  const clearSelection = useFileStore((state) => state.clearSelection);
+  const setBreadcrumbs = useFileStore((state) => state.setBreadcrumbs);
+  const selectAll = useFileStore((state) => state.selectAll);
   const { addOperation, incrementProgress, completeOperation, failOperation } = useGlobalProgressStore();
 
   // Get all item IDs for keyboard shortcuts
@@ -73,10 +78,11 @@ export default function Files() {
 
   // Get selected items
   const getSelectedItems = useCallback(() => {
-    const selectedFiles = files.filter(f => selectedItems.has(f.id));
-    const selectedFolders = folders.filter(f => selectedItems.has(f.id));
+    const selectedIds = useFileStore.getState().selectedItems;
+    const selectedFiles = files.filter(f => selectedIds.has(f.id));
+    const selectedFolders = folders.filter(f => selectedIds.has(f.id));
     return { selectedFiles, selectedFolders };
-  }, [files, folders, selectedItems]);
+  }, [files, folders]);
 
   // Delete selected items - show confirmation modal
   const handleDeleteSelected = useCallback(() => {
@@ -88,6 +94,17 @@ export default function Files() {
     setDeleteConfirmData({ files: selectedFiles, folders: selectedFolders });
     setDeleteConfirmOpen(true);
   }, [getSelectedItems]);
+
+  // Open delete confirmation for a provided list of ids (used by card context menus)
+  const openDeleteConfirmForIds = useCallback((ids: string[]) => {
+    if (!ids || ids.length === 0) return;
+    const selectedFiles = files.filter(f => ids.includes(f.id));
+    const selectedFolders = folders.filter(f => ids.includes(f.id));
+    const total = selectedFiles.length + selectedFolders.length;
+    if (total === 0) return;
+    setDeleteConfirmData({ files: selectedFiles, folders: selectedFolders });
+    setDeleteConfirmOpen(true);
+  }, [files, folders]);
 
   // Perform the actual deletion after confirmation
   const performDelete = useCallback(async () => {
@@ -233,6 +250,17 @@ export default function Files() {
     loadData();
     clearSelection();
   }, [loadData, clearSelection]);
+
+  // Listen for delete requests from cards (to avoid duplicate confirm modals)
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const custom = event as CustomEvent<{ ids?: string[] }>;
+      const ids = custom.detail?.ids || [];
+      openDeleteConfirmForIds(ids);
+    };
+    window.addEventListener('file-delete-request', handler as EventListener);
+    return () => window.removeEventListener('file-delete-request', handler as EventListener);
+  }, [openDeleteConfirmForIds]);
 
   // Listen for workzone refresh event from MainLayout context menu
   useEffect(() => {
