@@ -326,8 +326,7 @@ export default function Sidebar() {
           onContextMenu={handleContextMenu}
           className={cn(
             'relative group',
-            isDragging && 'opacity-30',
-            fileDropActive && canAcceptFileDrop && isFileDragging && 'ring-2 ring-primary-500/50 rounded-xl'
+            isDragging && 'opacity-30'
           )}
         >
           {showDropBefore && !isFileDragging && (

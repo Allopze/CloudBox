@@ -42,6 +42,7 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
   const removeFromSelection = useFileStore((state) => state.removeFromSelection);
   const selectRange = useFileStore((state) => state.selectRange);
   const selectSingle = useFileStore((state) => state.selectSingle);
+  const clearSelection = useFileStore((state) => state.clearSelection);
   const { draggedItems } = useDragDropStore();
   const [showShareModal, setShowShareModal] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
@@ -121,7 +122,7 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
     // Don't handle click if we're dragging
     if (isDragging) return;
 
-    const { selectedItems, lastSelectedId } = useFileStore.getState();
+    const { selectedItems: _selectedItems, lastSelectedId } = useFileStore.getState();
 
     // Shift+Click: Range selection
     if (e.shiftKey && lastSelectedId) {
@@ -146,6 +147,7 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
 
   // Double click to navigate into folder
   const handleDoubleClick = () => {
+    clearSelection();
     setSearchParams({ folder: folder.id });
   };
 
@@ -229,13 +231,15 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
   if (view === 'list') {
     return (
       <>
-      <motion.div
-        ref={setNodeRef}
-        style={{
-          ...dragStyle,
-          transform: dragStyle?.transform || (isSelected ? 'scale(0.98)' : 'scale(1)'),
-        }}
-        {...attributes}
+        <motion.div
+          layout
+          transition={{ layout: { duration: 0.2, ease: 'easeOut' } }}
+          ref={setNodeRef}
+          style={{
+            ...dragStyle,
+            transform: dragStyle?.transform || (isSelected ? 'scale(0.98)' : 'scale(1)'),
+          }}
+          {...attributes}
           {...listeners}
           data-folder-item={folder.id}
           data-folder-name={folder.name}
@@ -243,10 +247,10 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
           onClick={handleClick}
           onDoubleClick={handleDoubleClick}
           onContextMenu={handleContextMenu}
-        className={cn(
-          'flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer transition-all duration-100 touch-none',
-          isSelected
-            ? 'bg-primary-50 dark:bg-primary-900/20 ring-2 ring-primary-500/50 ring-offset-1 ring-offset-white dark:ring-offset-dark-900'
+          className={cn(
+            'flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer transition-all duration-100 touch-none',
+            isSelected
+              ? 'bg-primary-50 dark:bg-primary-900/20 ring-2 ring-primary-500/50 ring-offset-1 ring-offset-white dark:ring-offset-dark-900'
               : 'hover:bg-dark-50 dark:hover:bg-dark-800',
             isDropTarget && 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/30'
           )}
@@ -269,6 +273,8 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
   return (
     <>
       <motion.div
+        layout
+        transition={{ layout: { duration: 0.2, ease: 'easeOut' } }}
         ref={setNodeRef}
         style={{
           ...dragStyle,

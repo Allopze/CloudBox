@@ -6,6 +6,7 @@ import { authenticate, optionalAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { createShareSchema, addCollaboratorSchema, publicLinkPasswordSchema } from '../schemas/index.js';
 import { fileExists, isValidUUID } from '../lib/storage.js';
+import { shareRateLimiter } from '../middleware/shareRateLimiter.js';
 import archiver from 'archiver';
 import { config } from '../config/index.js';
 import logger from '../lib/logger.js';
@@ -332,8 +333,8 @@ router.post('/bulk-delete', authenticate, async (req: Request, res: Response) =>
   }
 });
 
-// Get public share info
-router.get('/public/:token', optionalAuth, async (req: Request, res: Response) => {
+// Get public share info - RATE LIMITED to prevent password brute-force
+router.get('/public/:token', shareRateLimiter(), optionalAuth, async (req: Request, res: Response) => {
   try {
     const { token } = req.params;
 
@@ -373,9 +374,13 @@ router.get('/public/:token', optionalAuth, async (req: Request, res: Response) =
 
       const valid = await bcrypt.compare(password, share.password);
       if (!valid) {
+        // SECURITY FIX: Record failed password attempt for rate limiting
+        res.locals.recordPasswordFailure?.();
         res.status(401).json({ error: 'Invalid password', hasPassword: true });
         return;
       }
+      // SECURITY FIX: Clear rate limit on successful password
+      res.locals.recordPasswordSuccess?.();
     }
 
     let files: any[] = [];
@@ -415,8 +420,8 @@ router.get('/public/:token', optionalAuth, async (req: Request, res: Response) =
   }
 });
 
-// Verify public share password
-router.post('/public/:token/verify', validate(publicLinkPasswordSchema), async (req: Request, res: Response) => {
+// Verify public share password - RATE LIMITED to prevent brute-force
+router.post('/public/:token/verify', shareRateLimiter(), validate(publicLinkPasswordSchema), async (req: Request, res: Response) => {
   try {
     const { token } = req.params;
     const { password } = req.body;
@@ -432,10 +437,14 @@ router.post('/public/:token/verify', validate(publicLinkPasswordSchema), async (
 
     const valid = await bcrypt.compare(password, share.password);
     if (!valid) {
+      // SECURITY FIX: Record failed password attempt for rate limiting
+      res.locals.recordPasswordFailure?.();
       res.status(401).json({ error: 'Invalid password' });
       return;
     }
 
+    // SECURITY FIX: Clear rate limit on successful password
+    res.locals.recordPasswordSuccess?.();
     res.json({ verified: true });
   } catch (error) {
     logger.error('Verify password error', {}, error instanceof Error ? error : undefined);
@@ -443,8 +452,8 @@ router.post('/public/:token/verify', validate(publicLinkPasswordSchema), async (
   }
 });
 
-// Download public file
-router.get('/public/:token/download', async (req: Request, res: Response) => {
+// Download public file - RATE LIMITED to prevent password brute-force
+router.get('/public/:token/download', shareRateLimiter(), async (req: Request, res: Response) => {
   try {
     const { token } = req.params;
     const { password } = req.query;
@@ -480,9 +489,13 @@ router.get('/public/:token/download', async (req: Request, res: Response) => {
 
       const valid = await bcrypt.compare(password, share.password);
       if (!valid) {
+        // SECURITY FIX: Record failed password attempt for rate limiting
+        res.locals.recordPasswordFailure?.();
         res.status(401).json({ error: 'Invalid password' });
         return;
       }
+      // SECURITY FIX: Clear rate limit on successful password
+      res.locals.recordPasswordSuccess?.();
     }
 
     // Update download count atomically (prevent race condition)
@@ -551,8 +564,8 @@ router.get('/public/:token/download', async (req: Request, res: Response) => {
   }
 });
 
-// Download individual file from shared folder
-router.get('/public/:token/files/:fileId/download', async (req: Request, res: Response) => {
+// Download individual file from shared folder - RATE LIMITED to prevent password brute-force
+router.get('/public/:token/files/:fileId/download', shareRateLimiter(), async (req: Request, res: Response) => {
   try {
     const { token, fileId } = req.params;
     const { password } = req.query;
@@ -588,9 +601,13 @@ router.get('/public/:token/files/:fileId/download', async (req: Request, res: Re
 
       const valid = await bcrypt.compare(password, share.password);
       if (!valid) {
+        // SECURITY FIX: Record failed password attempt for rate limiting
+        res.locals.recordPasswordFailure?.();
         res.status(401).json({ error: 'Invalid password' });
         return;
       }
+      // SECURITY FIX: Clear rate limit on successful password
+      res.locals.recordPasswordSuccess?.();
     }
 
     // Verify file belongs to shared folder (recursively)

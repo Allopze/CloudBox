@@ -385,12 +385,13 @@ router.post('/upload-with-folders', authenticate, uploadFile.array('files', UPLO
             continue;
           }
 
-          // Check if folder exists
+          // Check if folder exists (exclude trashed folders)
           let folder = await tx.folder.findFirst({
             where: {
               name: sanitizedFolderName,
               parentId: currentParentId,
               userId,
+              isTrash: false,
             },
           });
 
@@ -834,6 +835,28 @@ router.post('/upload/chunk', authenticate, uploadChunk.single('chunk'), async (r
           await writeStream.close();
         }
 
+        // SECURITY FIX: Verify actual file size matches declared totalSize
+        const mergedStats = await fs.stat(tempFilePath);
+        const actualSize = Number(mergedStats.size);
+        const declaredSize = parseInt(totalSize, 10);
+
+        if (actualSize !== declaredSize) {
+          await deleteFile(tempFilePath);
+          await cleanupChunks(uploadId, userId, declaredSize);
+          logger.warn('Chunked upload size mismatch', {
+            uploadId,
+            userId,
+            declaredSize,
+            actualSize,
+            difference: actualSize - declaredSize,
+          });
+          res.status(400).json({
+            error: 'File size mismatch: declared size does not match actual merged file size',
+            code: UPLOAD_ERROR_CODES.INVALID_CHUNK,
+          });
+          return;
+        }
+
         // Use transaction for database operations
         const dbFile = await prisma.$transaction(async (tx) => {
           // Verify quota again inside transaction (prevent race condition - Issue #2)
@@ -842,8 +865,9 @@ router.post('/upload/chunk', authenticate, uploadChunk.single('chunk'), async (r
             throw new Error('User not found');
           }
 
+          // Use VERIFIED actualSize for quota check
           const remainingQuota = Number(user.storageQuota) - Number(user.storageUsed);
-          if (parseInt(totalSize) > remainingQuota) {
+          if (actualSize > remainingQuota) {
             throw new Error('Storage quota exceeded');
           }
 
@@ -858,14 +882,14 @@ router.post('/upload/chunk', authenticate, uploadChunk.single('chunk'), async (r
           // Delete chunk records
           await tx.fileChunk.deleteMany({ where: { uploadId } });
 
-          // Create file record
+          // Create file record - USE VERIFIED SIZE
           const file = await tx.file.create({
             data: {
               id: fileId,
               name: filename,
               originalName: filename,
               mimeType,
-              size: BigInt(totalSize),
+              size: BigInt(actualSize),
               path: filePath,
               thumbnailPath: null,
               folderId: folderId || null,
@@ -873,25 +897,25 @@ router.post('/upload/chunk', authenticate, uploadChunk.single('chunk'), async (r
             },
           });
 
-          // Update folder sizes
-          await updateParentFolderSizes(folderId || null, parseInt(totalSize), tx, 'increment');
+          // Update folder sizes - USE VERIFIED SIZE
+          await updateParentFolderSizes(folderId || null, actualSize, tx, 'increment');
 
-          // Update storage used and release tempStorage
+          // Update storage used and release tempStorage - USE VERIFIED SIZE
           await tx.user.update({
             where: { id: userId },
             data: {
-              storageUsed: { increment: parseInt(totalSize) },
-              tempStorage: { decrement: parseInt(totalSize) }, // Release reserved space
+              storageUsed: { increment: actualSize },
+              tempStorage: { decrement: actualSize }, // Release reserved space
             },
           });
 
-          // Log activity
+          // Log activity - USE VERIFIED SIZE
           await tx.activity.create({
             data: {
               type: 'UPLOAD',
               userId,
               fileId: file.id,
-              details: JSON.stringify({ name: filename, size: totalSize }),
+              details: JSON.stringify({ name: filename, size: actualSize }),
             },
           });
 

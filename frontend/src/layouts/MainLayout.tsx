@@ -457,7 +457,7 @@ export default function MainLayout() {
 
           completeOperation(opId);
           clearSelection();
-          toast(t('files.deleted', { count: total }), 'success');
+          // Note: No toast here - GlobalProgressIndicator already shows completion
           // Trigger a refresh by dispatching a custom event
           window.dispatchEvent(new CustomEvent('workzone-refresh'));
           refreshUser(); // Update storage info in sidebar
@@ -483,7 +483,7 @@ export default function MainLayout() {
     const rect = workzoneRef.current.getBoundingClientRect();
     const items = workzoneRef.current.querySelectorAll("[data-file-item], [data-folder-item]");
     const positions: Array<{ id: string; x: number; y: number; right: number; bottom: number }> = [];
-    
+
     items.forEach((item) => {
       const itemRect = item.getBoundingClientRect();
       const id = item.getAttribute("data-file-item") || item.getAttribute("data-folder-item");
@@ -497,7 +497,7 @@ export default function MainLayout() {
         });
       }
     });
-    
+
     elementPositionsCacheRef.current = positions;
   }, []);
 
@@ -810,442 +810,442 @@ export default function MainLayout() {
   return (
     <DndContextProvider onRefresh={triggerRefresh}>
       <div className="flex h-screen bg-dark-100 dark:bg-dark-800">
-      {/* Sidebar */}
-      <div
-        className={cn(
-          'transition-all duration-300 ease-in-out',
-          sidebarOpen ? 'w-48' : 'w-0'
-        )}
-      >
-        <Sidebar />
-      </div>
+        {/* Sidebar */}
+        <div
+          className={cn(
+            'transition-all duration-300 ease-in-out',
+            sidebarOpen ? 'w-48' : 'w-0'
+          )}
+        >
+          <Sidebar />
+        </div>
 
-      {/* Main content area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <Header />
+        {/* Main content area */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Header */}
+          <Header />
 
-        {/* Content area */}
-        <div className="flex-1 flex flex-col overflow-hidden p-3 pt-0 gap-3">
-          {/* Top bar: Toggle + Breadcrumb */}
-          <div className="flex items-center gap-3">
-            {/* Sidebar toggle - separate circle */}
-            <button
-              onClick={toggleSidebar}
-              className="w-11 h-11 flex items-center justify-center bg-white dark:bg-dark-800 text-dark-500 dark:text-white/70 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/10 rounded-full border border-dark-200 dark:border-dark-700 shadow-sm transition-colors"
-              title={sidebarOpen ? t('layout.hideSidebar') : t('layout.showSidebar')}
-              aria-label={sidebarOpen ? t('layout.hideSidebar') : t('layout.showSidebar')}
-            >
-              {sidebarOpen ? (
-                <PanelLeftClose className="w-5 h-5" />
-              ) : (
-                <PanelLeft className="w-5 h-5" />
-              )}
-            </button>
+          {/* Content area */}
+          <div className="flex-1 flex flex-col overflow-hidden p-3 pt-0 gap-3">
+            {/* Top bar: Toggle + Breadcrumb */}
+            <div className="flex items-center gap-3">
+              {/* Sidebar toggle - separate circle */}
+              <button
+                onClick={toggleSidebar}
+                className="w-11 h-11 flex items-center justify-center bg-white dark:bg-dark-800 text-dark-500 dark:text-white/70 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/10 rounded-full border border-dark-200 dark:border-dark-700 shadow-sm transition-colors"
+                title={sidebarOpen ? t('layout.hideSidebar') : t('layout.showSidebar')}
+                aria-label={sidebarOpen ? t('layout.hideSidebar') : t('layout.showSidebar')}
+              >
+                {sidebarOpen ? (
+                  <PanelLeftClose className="w-5 h-5" />
+                ) : (
+                  <PanelLeft className="w-5 h-5" />
+                )}
+              </button>
 
-            {/* Breadcrumb bar */}
-            <div className="flex-1 h-11 flex items-center justify-between pl-2 pr-1 bg-white dark:bg-dark-900 rounded-full shadow-sm border border-dark-200 dark:border-dark-700">
-              {/* Settings title */}
-              {isSettingsPage ? (
-                <div className="flex items-center gap-2 ml-2">
-                  <Settings className="w-5 h-5 text-[#FF3B3B]" />
-                  <span className="text-base font-semibold text-dark-900 dark:text-white">{t('layout.settings')}</span>
-                </div>
-              ) : isAdminPage ? (
-                <div className="flex items-center gap-2 ml-2">
-                  <ShieldCheck className="w-5 h-5 text-[#FF3B3B]" />
-                  <span className="text-base font-semibold text-dark-900 dark:text-white">{t('layout.administration')}</span>
-                </div>
-              ) : isSharedPage ? (
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => setSearchParams({ tab: 'my-shares' })}
-                    className={cn(
-                      'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                      sharedTab === 'my-shares'
-                        ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
-                        : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
-                    )}
-                  >
-                    <LinkIcon className="w-5 h-5" />
-                    {t('layout.myShares')}
-                  </button>
-                  <button
-                    onClick={() => setSearchParams({ tab: 'shared-with-me' })}
-                    className={cn(
-                      'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                      sharedTab === 'shared-with-me'
-                        ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
-                        : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
-                    )}
-                  >
-                    <Users className="w-5 h-5" />
-                    {t('layout.sharedWithMe')}
-                  </button>
-                </div>
-              ) : isTrashPage ? (
-                <>
+              {/* Breadcrumb bar */}
+              <div className="flex-1 h-11 flex items-center justify-between pl-2 pr-1 bg-white dark:bg-dark-900 rounded-full shadow-sm border border-dark-200 dark:border-dark-700">
+                {/* Settings title */}
+                {isSettingsPage ? (
                   <div className="flex items-center gap-2 ml-2">
-                    <Trash2 className="w-5 h-5 text-red-500" />
-                    <span className="text-base font-semibold text-dark-900 dark:text-white">{t('layout.trash')}</span>
+                    <Settings className="w-5 h-5 text-[#FF3B3B]" />
+                    <span className="text-base font-semibold text-dark-900 dark:text-white">{t('layout.settings')}</span>
                   </div>
-                  <button
-                    onClick={() => window.dispatchEvent(new CustomEvent('empty-trash'))}
-                    className="h-7 px-3 mr-1 flex items-center gap-2 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    {t('layout.emptyTrash')}
-                  </button>
-                </>
-              ) : isFavoritesPage ? (
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => navigate('/files')}
-                    className="p-1.5 rounded-full hover:bg-dark-100 dark:hover:bg-white/10 transition-colors"
-                    aria-label={t('layout.backToFiles')}
-                  >
-                    <ArrowLeft className="w-5 h-5 text-dark-500" />
-                  </button>
-                  <Star className="w-5 h-5 text-yellow-500" />
-                  <span className="text-base font-semibold text-dark-900 dark:text-white">{t('layout.favorites')}</span>
-                </div>
-              ) : isAlbumDetailPage && currentAlbum ? (
-                <>
+                ) : isAdminPage ? (
+                  <div className="flex items-center gap-2 ml-2">
+                    <ShieldCheck className="w-5 h-5 text-[#FF3B3B]" />
+                    <span className="text-base font-semibold text-dark-900 dark:text-white">{t('layout.administration')}</span>
+                  </div>
+                ) : isSharedPage ? (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setSearchParams({ tab: 'my-shares' })}
+                      className={cn(
+                        'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
+                        sharedTab === 'my-shares'
+                          ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                          : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                      )}
+                    >
+                      <LinkIcon className="w-5 h-5" />
+                      {t('layout.myShares')}
+                    </button>
+                    <button
+                      onClick={() => setSearchParams({ tab: 'shared-with-me' })}
+                      className={cn(
+                        'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
+                        sharedTab === 'shared-with-me'
+                          ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                          : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                      )}
+                    >
+                      <Users className="w-5 h-5" />
+                      {t('layout.sharedWithMe')}
+                    </button>
+                  </div>
+                ) : isTrashPage ? (
+                  <>
+                    <div className="flex items-center gap-2 ml-2">
+                      <Trash2 className="w-5 h-5 text-red-500" />
+                      <span className="text-base font-semibold text-dark-900 dark:text-white">{t('layout.trash')}</span>
+                    </div>
+                    <button
+                      onClick={() => window.dispatchEvent(new CustomEvent('empty-trash'))}
+                      className="h-7 px-3 mr-1 flex items-center gap-2 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      {t('layout.emptyTrash')}
+                    </button>
+                  </>
+                ) : isFavoritesPage ? (
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => navigate('/albums')}
+                      onClick={() => navigate('/files')}
                       className="p-1.5 rounded-full hover:bg-dark-100 dark:hover:bg-white/10 transition-colors"
-                      aria-label={t('layout.backToAlbums')}
+                      aria-label={t('layout.backToFiles')}
                     >
                       <ArrowLeft className="w-5 h-5 text-dark-500" />
                     </button>
+                    <Star className="w-5 h-5 text-yellow-500" />
+                    <span className="text-base font-semibold text-dark-900 dark:text-white">{t('layout.favorites')}</span>
+                  </div>
+                ) : isAlbumDetailPage && currentAlbum ? (
+                  <>
                     <div className="flex items-center gap-2">
-                      <FolderOpen className="w-5 h-5 text-primary-500" />
-                      <span className="text-base font-semibold text-dark-900 dark:text-white">{currentAlbum.name}</span>
-                      <span className="text-sm text-dark-500">• {albumPhotoCount} {t('layout.photos')}</span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => window.dispatchEvent(new CustomEvent('add-photos-to-album'))}
-                    className="h-7 px-3 mr-1 flex items-center gap-2 text-sm font-medium text-primary-600 hover:text-primary-700 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-full transition-colors"
-                  >
-                    <Plus className="w-4 h-4" />
-                    {t('layout.addPhotos')}
-                  </button>
-                </>
-              ) : isMusicPage ? (
-                <>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => navigate('/music?tab=all')}
-                      className={cn(
-                        'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                        musicTab === 'all'
-                          ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
-                          : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
-                      )}
-                      aria-label={t('layout.viewAllMusic')}
-                    >
-                      <Music className="w-5 h-5" />
-                      {t('layout.all')}
-                    </button>
-                    <button
-                      onClick={() => navigate('/music?tab=favorites')}
-                      className={cn(
-                        'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                        musicTab === 'favorites'
-                          ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
-                          : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
-                      )}
-                      aria-label={t('layout.viewFavoriteMusic')}
-                    >
-                      <Star className="w-5 h-5" />
-                      {t('layout.favorites')}
-                    </button>
-                    <button
-                      onClick={() => navigate('/music?tab=albums')}
-                      className={cn(
-                        'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                        musicTab === 'albums'
-                          ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
-                          : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
-                      )}
-                      aria-label={t('layout.viewMusicAlbums')}
-                    >
-                      <Disc className="w-5 h-5" />
-                      {t('layout.albums')}
-                    </button>
-                  </div>
-                  {(musicTab === 'all' || musicTab === 'albums') && (
-                    <button
-                      onClick={() => window.dispatchEvent(new CustomEvent('create-music-album'))}
-                      className="h-7 px-3 mr-1 flex items-center gap-2 text-sm font-medium text-primary-600 hover:text-primary-700 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-full transition-colors"
-                    >
-                      <Plus className="w-4 h-4" />
-                      {t('layout.newAlbum')}
-                    </button>
-                  )}
-                </>
-              ) : isDocumentsPage ? (
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => navigate('/documents?tab=all')}
-                    className={cn(
-                      'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                      documentsTab === 'all'
-                        ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
-                        : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
-                    )}
-                    aria-label={t('layout.viewAllDocuments')}
-                  >
-                    <FileText className="w-5 h-5" />
-                    {t('layout.all')}
-                  </button>
-                  <button
-                    onClick={() => navigate('/documents?tab=pdf')}
-                    className={cn(
-                      'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                      documentsTab === 'pdf'
-                        ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
-                        : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
-                    )}
-                    aria-label={t('layout.viewPDFs')}
-                  >
-                    <FileText className="w-5 h-5" />
-                    {t('layout.pdfs')}
-                  </button>
-                  <button
-                    onClick={() => navigate('/documents?tab=text')}
-                    className={cn(
-                      'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                      documentsTab === 'text'
-                        ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
-                        : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
-                    )}
-                    aria-label={t('layout.viewTextDocs')}
-                  >
-                    <FileText className="w-5 h-5" />
-                    {t('layout.text')}
-                  </button>
-                  <button
-                    onClick={() => navigate('/documents?tab=spreadsheet')}
-                    className={cn(
-                      'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                      documentsTab === 'spreadsheet'
-                        ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
-                        : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
-                    )}
-                    aria-label={t('layout.viewSpreadsheets')}
-                  >
-                    <FileSpreadsheet className="w-5 h-5" />
-                    {t('layout.spreadsheet')}
-                  </button>
-                  <button
-                    onClick={() => navigate('/documents?tab=presentation')}
-                    className={cn(
-                      'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                      documentsTab === 'presentation'
-                        ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
-                        : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
-                    )}
-                    aria-label={t('layout.viewPresentations')}
-                  >
-                    <Presentation className="w-5 h-5" />
-                    {t('layout.presentations')}
-                  </button>
-                  <button
-                    onClick={() => navigate('/documents?tab=code')}
-                    className={cn(
-                      'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                      documentsTab === 'code'
-                        ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
-                        : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
-                    )}
-                    aria-label={t('layout.viewCode')}
-                  >
-                    <FileCode className="w-5 h-5" />
-                    {t('layout.code')}
-                  </button>
-                </div>
-              ) : isGalleryPage ? (
-                <>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => navigate('/photos?tab=all')}
-                      className={cn(
-                        'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                        isPhotosPage && photosTab === 'all'
-                          ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
-                          : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
-                      )}
-                      aria-label={t('layout.viewAllPhotos')}
-                    >
-                      <Image className="w-5 h-5" />
-                      {t('layout.all')}
-                    </button>
-                    <button
-                      onClick={() => navigate('/photos?tab=favorites')}
-                      className={cn(
-                        'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                        isPhotosPage && photosTab === 'favorites'
-                          ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
-                          : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
-                      )}
-                      aria-label={t('layout.viewFavoritePhotos')}
-                    >
-                      <Star className="w-5 h-5" />
-                      {t('layout.favorites')}
-                    </button>
-                    <button
-                      onClick={() => navigate('/photos?tab=videos')}
-                      className={cn(
-                        'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                        isPhotosPage && photosTab === 'videos'
-                          ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
-                          : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
-                      )}
-                      aria-label={t('layout.viewVideos')}
-                    >
-                      <Video className="w-5 h-5" />
-                      {t('layout.videos')}
-                    </button>
-                    <button
-                      onClick={() => navigate('/photos?tab=screenshots')}
-                      className={cn(
-                        'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                        isPhotosPage && photosTab === 'screenshots'
-                          ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
-                          : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
-                      )}
-                      aria-label={t('layout.viewScreenshots')}
-                    >
-                      <Camera className="w-5 h-5" />
-                      {t('layout.screenshots')}
-                    </button>
-                    <button
-                      onClick={() => navigate('/albums')}
-                      className={cn(
-                        'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                        isAlbumsPage
-                          ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
-                          : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
-                      )}
-                      aria-label={t('layout.viewAlbums')}
-                    >
-                      <FolderOpen className="w-5 h-5" />
-                      {t('layout.albums')}
-                    </button>
-                  </div>
-                  {isAlbumsPage && (
-                    <button
-                      onClick={() => window.dispatchEvent(new CustomEvent('create-album'))}
-                      className="h-7 px-3 mr-1 flex items-center gap-2 text-sm font-medium text-primary-600 hover:text-primary-700 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-full transition-colors"
-                    >
-                      <Plus className="w-4 h-4" />
-                      {t('layout.newAlbum')}
-                    </button>
-                  )}
-                </>
-              ) : showBreadcrumbs ? (
-                <Breadcrumbs
-                  items={breadcrumbs}
-                  basePath="/files"
-                  onRefresh={triggerRefresh}
-                />
-              ) : null}
-
-              <div className="flex-1" />
-
-              {(showViewControls || isMusicPage || isDocumentsPage || isGalleryPage || isSharedPage || isAlbumDetailPage) && (
-                <div className="flex items-center gap-1">
-                  {/* Sort dropdown */}
-                  <Dropdown
-                    trigger={
                       <button
-                        className="h-7 flex items-center justify-center gap-2 px-3 text-sm font-medium text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5 rounded-full transition-colors border border-transparent"
-                        aria-label={t('layout.sort')}
+                        onClick={() => navigate('/albums')}
+                        className="p-1.5 rounded-full hover:bg-dark-100 dark:hover:bg-white/10 transition-colors"
+                        aria-label={t('layout.backToAlbums')}
                       >
-                        {sortOrder === 'asc' ? (
-                          <SortAsc className="w-4 h-4" />
-                        ) : (
-                          <SortDesc className="w-4 h-4" />
-                        )}
-                        <span className="hidden sm:inline">{currentSortLabel}</span>
+                        <ArrowLeft className="w-5 h-5 text-dark-500" />
                       </button>
-                    }
-                    align="right"
-                  >
-                    <div>
-                      {sortOptions.map((option) => (
-                        <DropdownItem
-                          key={option.value}
-                          onClick={() => {
-                            setSortBy(option.value as 'name' | 'size' | 'createdAt' | 'updatedAt');
-                          }}
+                      <div className="flex items-center gap-2">
+                        <FolderOpen className="w-5 h-5 text-primary-500" />
+                        <span className="text-base font-semibold text-dark-900 dark:text-white">{currentAlbum.name}</span>
+                        <span className="text-sm text-dark-500">• {albumPhotoCount} {t('layout.photos')}</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => window.dispatchEvent(new CustomEvent('add-photos-to-album'))}
+                      className="h-7 px-3 mr-1 flex items-center gap-2 text-sm font-medium text-primary-600 hover:text-primary-700 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-full transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                      {t('layout.addPhotos')}
+                    </button>
+                  </>
+                ) : isMusicPage ? (
+                  <>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => navigate('/music?tab=all')}
+                        className={cn(
+                          'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
+                          musicTab === 'all'
+                            ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                            : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                        )}
+                        aria-label={t('layout.viewAllMusic')}
+                      >
+                        <Music className="w-5 h-5" />
+                        {t('layout.all')}
+                      </button>
+                      <button
+                        onClick={() => navigate('/music?tab=favorites')}
+                        className={cn(
+                          'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
+                          musicTab === 'favorites'
+                            ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                            : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                        )}
+                        aria-label={t('layout.viewFavoriteMusic')}
+                      >
+                        <Star className="w-5 h-5" />
+                        {t('layout.favorites')}
+                      </button>
+                      <button
+                        onClick={() => navigate('/music?tab=albums')}
+                        className={cn(
+                          'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
+                          musicTab === 'albums'
+                            ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                            : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                        )}
+                        aria-label={t('layout.viewMusicAlbums')}
+                      >
+                        <Disc className="w-5 h-5" />
+                        {t('layout.albums')}
+                      </button>
+                    </div>
+                    {(musicTab === 'all' || musicTab === 'albums') && (
+                      <button
+                        onClick={() => window.dispatchEvent(new CustomEvent('create-music-album'))}
+                        className="h-7 px-3 mr-1 flex items-center gap-2 text-sm font-medium text-primary-600 hover:text-primary-700 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-full transition-colors"
+                      >
+                        <Plus className="w-4 h-4" />
+                        {t('layout.newAlbum')}
+                      </button>
+                    )}
+                  </>
+                ) : isDocumentsPage ? (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => navigate('/documents?tab=all')}
+                      className={cn(
+                        'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
+                        documentsTab === 'all'
+                          ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                          : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                      )}
+                      aria-label={t('layout.viewAllDocuments')}
+                    >
+                      <FileText className="w-5 h-5" />
+                      {t('layout.all')}
+                    </button>
+                    <button
+                      onClick={() => navigate('/documents?tab=pdf')}
+                      className={cn(
+                        'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
+                        documentsTab === 'pdf'
+                          ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                          : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                      )}
+                      aria-label={t('layout.viewPDFs')}
+                    >
+                      <FileText className="w-5 h-5" />
+                      {t('layout.pdfs')}
+                    </button>
+                    <button
+                      onClick={() => navigate('/documents?tab=text')}
+                      className={cn(
+                        'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
+                        documentsTab === 'text'
+                          ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                          : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                      )}
+                      aria-label={t('layout.viewTextDocs')}
+                    >
+                      <FileText className="w-5 h-5" />
+                      {t('layout.text')}
+                    </button>
+                    <button
+                      onClick={() => navigate('/documents?tab=spreadsheet')}
+                      className={cn(
+                        'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
+                        documentsTab === 'spreadsheet'
+                          ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                          : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                      )}
+                      aria-label={t('layout.viewSpreadsheets')}
+                    >
+                      <FileSpreadsheet className="w-5 h-5" />
+                      {t('layout.spreadsheet')}
+                    </button>
+                    <button
+                      onClick={() => navigate('/documents?tab=presentation')}
+                      className={cn(
+                        'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
+                        documentsTab === 'presentation'
+                          ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                          : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                      )}
+                      aria-label={t('layout.viewPresentations')}
+                    >
+                      <Presentation className="w-5 h-5" />
+                      {t('layout.presentations')}
+                    </button>
+                    <button
+                      onClick={() => navigate('/documents?tab=code')}
+                      className={cn(
+                        'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
+                        documentsTab === 'code'
+                          ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                          : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                      )}
+                      aria-label={t('layout.viewCode')}
+                    >
+                      <FileCode className="w-5 h-5" />
+                      {t('layout.code')}
+                    </button>
+                  </div>
+                ) : isGalleryPage ? (
+                  <>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => navigate('/photos?tab=all')}
+                        className={cn(
+                          'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
+                          isPhotosPage && photosTab === 'all'
+                            ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                            : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                        )}
+                        aria-label={t('layout.viewAllPhotos')}
+                      >
+                        <Image className="w-5 h-5" />
+                        {t('layout.all')}
+                      </button>
+                      <button
+                        onClick={() => navigate('/photos?tab=favorites')}
+                        className={cn(
+                          'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
+                          isPhotosPage && photosTab === 'favorites'
+                            ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                            : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                        )}
+                        aria-label={t('layout.viewFavoritePhotos')}
+                      >
+                        <Star className="w-5 h-5" />
+                        {t('layout.favorites')}
+                      </button>
+                      <button
+                        onClick={() => navigate('/photos?tab=videos')}
+                        className={cn(
+                          'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
+                          isPhotosPage && photosTab === 'videos'
+                            ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                            : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                        )}
+                        aria-label={t('layout.viewVideos')}
+                      >
+                        <Video className="w-5 h-5" />
+                        {t('layout.videos')}
+                      </button>
+                      <button
+                        onClick={() => navigate('/photos?tab=screenshots')}
+                        className={cn(
+                          'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
+                          isPhotosPage && photosTab === 'screenshots'
+                            ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                            : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                        )}
+                        aria-label={t('layout.viewScreenshots')}
+                      >
+                        <Camera className="w-5 h-5" />
+                        {t('layout.screenshots')}
+                      </button>
+                      <button
+                        onClick={() => navigate('/albums')}
+                        className={cn(
+                          'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
+                          isAlbumsPage
+                            ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                            : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                        )}
+                        aria-label={t('layout.viewAlbums')}
+                      >
+                        <FolderOpen className="w-5 h-5" />
+                        {t('layout.albums')}
+                      </button>
+                    </div>
+                    {isAlbumsPage && (
+                      <button
+                        onClick={() => window.dispatchEvent(new CustomEvent('create-album'))}
+                        className="h-7 px-3 mr-1 flex items-center gap-2 text-sm font-medium text-primary-600 hover:text-primary-700 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-full transition-colors"
+                      >
+                        <Plus className="w-4 h-4" />
+                        {t('layout.newAlbum')}
+                      </button>
+                    )}
+                  </>
+                ) : showBreadcrumbs ? (
+                  <Breadcrumbs
+                    items={breadcrumbs}
+                    basePath="/files"
+                    onRefresh={triggerRefresh}
+                  />
+                ) : null}
+
+                <div className="flex-1" />
+
+                {(showViewControls || isMusicPage || isDocumentsPage || isGalleryPage || isSharedPage || isAlbumDetailPage) && (
+                  <div className="flex items-center gap-1">
+                    {/* Sort dropdown */}
+                    <Dropdown
+                      trigger={
+                        <button
+                          className="h-7 flex items-center justify-center gap-2 px-3 text-sm font-medium text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5 rounded-full transition-colors border border-transparent"
+                          aria-label={t('layout.sort')}
                         >
-                          {t(option.labelKey)}
-                          {sortBy === option.value && (
+                          {sortOrder === 'asc' ? (
+                            <SortAsc className="w-4 h-4" />
+                          ) : (
+                            <SortDesc className="w-4 h-4" />
+                          )}
+                          <span className="hidden sm:inline">{currentSortLabel}</span>
+                        </button>
+                      }
+                      align="right"
+                    >
+                      <div>
+                        {sortOptions.map((option) => (
+                          <DropdownItem
+                            key={option.value}
+                            onClick={() => {
+                              setSortBy(option.value as 'name' | 'size' | 'createdAt' | 'updatedAt');
+                            }}
+                          >
+                            {t(option.labelKey)}
+                            {sortBy === option.value && (
+                              <Check className="w-4 h-4 ml-auto text-primary-600" />
+                            )}
+                          </DropdownItem>
+                        ))}
+                        <DropdownDivider />
+                        <DropdownItem onClick={() => setSortOrder('asc')}>
+                          <SortAsc className="w-4 h-4" /> {t('layout.ascending')}
+                          {sortOrder === 'asc' && (
                             <Check className="w-4 h-4 ml-auto text-primary-600" />
                           )}
                         </DropdownItem>
-                      ))}
-                      <DropdownDivider />
-                      <DropdownItem onClick={() => setSortOrder('asc')}>
-                        <SortAsc className="w-4 h-4" /> {t('layout.ascending')}
-                        {sortOrder === 'asc' && (
-                          <Check className="w-4 h-4 ml-auto text-primary-600" />
+                        <DropdownItem onClick={() => setSortOrder('desc')}>
+                          <SortDesc className="w-4 h-4" /> {t('layout.descending')}
+                          {sortOrder === 'desc' && (
+                            <Check className="w-4 h-4 ml-auto text-primary-600" />
+                          )}
+                        </DropdownItem>
+                      </div>
+                    </Dropdown>
+
+                    {/* View toggle */}
+                    <div className="flex items-center bg-dark-100 dark:bg-dark-800 border border-dark-200 dark:border-dark-700 rounded-full p-0.5">
+                      <button
+                        onClick={() => setViewMode('grid')}
+                        className={cn(
+                          'p-1.5 rounded-full transition-colors flex items-center justify-center',
+                          viewMode === 'grid'
+                            ? 'bg-white dark:bg-white/10 text-dark-900 dark:text-white shadow-sm'
+                            : 'text-dark-500 dark:text-white/70 hover:text-dark-900 dark:hover:text-white hover:bg-dark-200 dark:hover:bg-white/5'
                         )}
-                      </DropdownItem>
-                      <DropdownItem onClick={() => setSortOrder('desc')}>
-                        <SortDesc className="w-4 h-4" /> {t('layout.descending')}
-                        {sortOrder === 'desc' && (
-                          <Check className="w-4 h-4 ml-auto text-primary-600" />
+                        aria-label={t('layout.viewGrid')}
+                        aria-pressed={viewMode === 'grid' ? "true" : "false"}
+                      >
+                        <Grid className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setViewMode('list')}
+                        className={cn(
+                          'p-1.5 rounded-full transition-colors flex items-center justify-center',
+                          viewMode === 'list'
+                            ? 'bg-white dark:bg-white/10 text-dark-900 dark:text-white shadow-sm'
+                            : 'text-dark-500 dark:text-white/70 hover:text-dark-900 dark:hover:text-white hover:bg-dark-200 dark:hover:bg-white/5'
                         )}
-                      </DropdownItem>
+                        aria-label={t('layout.viewList')}
+                        aria-pressed={viewMode === 'list'}
+                      >
+                        <List className="w-4 h-4" />
+                      </button>
                     </div>
-                  </Dropdown>
-
-                  {/* View toggle */}
-                  <div className="flex items-center bg-dark-100 dark:bg-dark-800 border border-dark-200 dark:border-dark-700 rounded-full p-0.5">
-                    <button
-                      onClick={() => setViewMode('grid')}
-                      className={cn(
-                        'p-1.5 rounded-full transition-colors flex items-center justify-center',
-                        viewMode === 'grid'
-                          ? 'bg-white dark:bg-white/10 text-dark-900 dark:text-white shadow-sm'
-                          : 'text-dark-500 dark:text-white/70 hover:text-dark-900 dark:hover:text-white hover:bg-dark-200 dark:hover:bg-white/5'
-                      )}
-                      aria-label={t('layout.viewGrid')}
-                      aria-pressed={viewMode === 'grid' ? "true" : "false"}
-                    >
-                      <Grid className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => setViewMode('list')}
-                      className={cn(
-                        'p-1.5 rounded-full transition-colors flex items-center justify-center',
-                        viewMode === 'list'
-                          ? 'bg-white dark:bg-white/10 text-dark-900 dark:text-white shadow-sm'
-                          : 'text-dark-500 dark:text-white/70 hover:text-dark-900 dark:hover:text-white hover:bg-dark-200 dark:hover:bg-white/5'
-                      )}
-                      aria-label={t('layout.viewList')}
-                      aria-pressed={viewMode === 'list'}
-                    >
-                      <List className="w-4 h-4" />
-                    </button>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
-          </div>
 
-          {/* Main workzone */}
-          <div
-            className={cn(
-              "bg-white dark:bg-dark-900 rounded-2xl flex-1 flex flex-col overflow-hidden border border-dark-200 dark:border-dark-700 shadow-sm transition-opacity duration-200 relative select-none",
-              isDragging && "opacity-50"
-            )}
-            onContextMenu={handleContextMenu}
+            {/* Main workzone */}
+            <div
+              className={cn(
+                "bg-white dark:bg-dark-900 rounded-2xl flex-1 flex flex-col overflow-hidden border border-dark-200 dark:border-dark-700 shadow-sm transition-opacity duration-200 relative select-none",
+                isDragging && "opacity-50"
+              )}
+              onContextMenu={handleContextMenu}
               onClick={closeContextMenu}
             >
               <main
@@ -1384,55 +1384,55 @@ export default function MainLayout() {
                   </div>
                 );
               })()}
+            </div>
           </div>
         </div>
-      </div>
-      <UploadProgress />
+        <UploadProgress />
 
-      {/* Drag and Drop Overlay */}
-      {isDragging && (
-        <div className="fixed inset-0 z-[100] pointer-events-none flex items-end justify-center pb-8">
-          <div className="bg-dark-900/80 dark:bg-white/90 backdrop-blur-sm rounded-full px-6 py-3 shadow-lg flex items-center gap-3 animate-breathing">
-            <Upload className="w-5 h-5 text-white dark:text-dark-900" />
-            <span className="text-sm font-medium text-white dark:text-dark-900">
-              {t('layout.dropToUpload')}
-            </span>
+        {/* Drag and Drop Overlay */}
+        {isDragging && (
+          <div className="fixed inset-0 z-[100] pointer-events-none flex items-end justify-center pb-8">
+            <div className="bg-dark-900/80 dark:bg-white/90 backdrop-blur-sm rounded-full px-6 py-3 shadow-lg flex items-center gap-3 animate-breathing">
+              <Upload className="w-5 h-5 text-white dark:text-dark-900" />
+              <span className="text-sm font-medium text-white dark:text-dark-900">
+                {t('layout.dropToUpload')}
+              </span>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Hidden folder input for folder upload */}
-      <input
-        ref={folderInputRef}
-        type="file"
-        className="hidden"
-        aria-label={t('layout.selectFolderToUpload')}
-        // @ts-ignore - webkitdirectory is not in types but works in browsers
-        webkitdirectory=""
-        directory=""
-        multiple
-        onChange={handleFolderInputChange}
-      />
+        {/* Hidden folder input for folder upload */}
+        <input
+          ref={folderInputRef}
+          type="file"
+          className="hidden"
+          aria-label={t('layout.selectFolderToUpload')}
+          // @ts-ignore - webkitdirectory is not in types but works in browsers
+          webkitdirectory=""
+          directory=""
+          multiple
+          onChange={handleFolderInputChange}
+        />
 
-      {/* Modals */}
-      <UploadModal
-        isOpen={isUploadModalOpen}
-        onClose={() => setUploadModalOpen(false)}
-        folderId={currentFolderId}
-        onSuccess={triggerRefresh}
-      />
-      <CreateFolderModal
-        isOpen={isCreateFolderModalOpen}
-        onClose={() => setCreateFolderModalOpen(false)}
-        parentId={currentFolderId}
-        onSuccess={triggerRefresh}
-      />
-      <CreateFileModal
-        isOpen={isCreateFileModalOpen}
-        onClose={() => setCreateFileModalOpen(false)}
-        folderId={currentFolderId}
-        onSuccess={triggerRefresh}
-      />
+        {/* Modals */}
+        <UploadModal
+          isOpen={isUploadModalOpen}
+          onClose={() => setUploadModalOpen(false)}
+          folderId={currentFolderId}
+          onSuccess={triggerRefresh}
+        />
+        <CreateFolderModal
+          isOpen={isCreateFolderModalOpen}
+          onClose={() => setCreateFolderModalOpen(false)}
+          parentId={currentFolderId}
+          onSuccess={triggerRefresh}
+        />
+        <CreateFileModal
+          isOpen={isCreateFileModalOpen}
+          onClose={() => setCreateFileModalOpen(false)}
+          folderId={currentFolderId}
+          onSuccess={triggerRefresh}
+        />
 
       </div>
     </DndContextProvider>

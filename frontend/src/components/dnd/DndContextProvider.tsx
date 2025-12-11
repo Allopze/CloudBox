@@ -12,23 +12,7 @@ import {
     pointerWithin,
 } from '@dnd-kit/core';
 
-// Modifier to keep the overlay anchored near the cursor instead of the element's origin.
-// This removes the drift that grows with the grab position (clicking on the right edge, etc.)
-// by normalizing the pointer to a constant gap from the overlay's top/left.
-const snapToCursorModifier: Modifier = ({ activatorEvent, draggingNodeRect, transform }) => {
-    if (!draggingNodeRect || !(activatorEvent instanceof PointerEvent)) return transform;
 
-    const cursorGap = 12; // keep pointer visible
-
-    const offsetX = activatorEvent.clientX - draggingNodeRect.left;
-    const offsetY = activatorEvent.clientY - draggingNodeRect.top;
-
-    return {
-        ...transform,
-        x: transform.x + offsetX - cursorGap,
-        y: transform.y + offsetY - cursorGap,
-    };
-};
 import { useDragDropStore, DragItem } from '../../stores/dragDropStore';
 import { useFileStore } from '../../stores/fileStore';
 import { api } from '../../lib/api';
@@ -54,6 +38,19 @@ interface DndContextProviderProps {
     children: React.ReactNode;
     onRefresh?: () => void;
 }
+
+// Modifier to keep the overlay centered on the cursor
+// This removes the drift and ensures the user feels like they are holding the item directly
+const snapToCursorModifier: Modifier = ({ activatorEvent, draggingNodeRect, overlayNodeRect, transform }) => {
+    if (!draggingNodeRect || !overlayNodeRect || !(activatorEvent instanceof PointerEvent)) return transform;
+
+    return {
+        ...transform,
+        x: transform.x + (activatorEvent.clientX - draggingNodeRect.left) - (overlayNodeRect.width / 2),
+        // Shift vertically so the element's top edge is slightly below the cursor
+        y: transform.y + (activatorEvent.clientY - draggingNodeRect.top) + 8,
+    };
+};
 
 export default function DndContextProvider({ children, onRefresh }: DndContextProviderProps) {
     const { t } = useTranslation();
@@ -260,7 +257,7 @@ export default function DndContextProvider({ children, onRefresh }: DndContextPr
             onDragCancel={handleDragCancel}
         >
             {children}
-            <DragOverlay dropAnimation={null} zIndex={9999} modifiers={[snapToCursorModifier]}>
+            <DragOverlay zIndex={9999} modifiers={[snapToCursorModifier]}>
                 {renderDragOverlay()}
             </DragOverlay>
         </DndContext>

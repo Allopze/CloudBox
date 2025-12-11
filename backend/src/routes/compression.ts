@@ -11,9 +11,12 @@ import {
   extract7z,
   cancelJob,
   listZipContents,
-  getTempPath
+  getTempPath,
+  EXTRACTION_LIMITS
 } from '../lib/compression.js';
 import { getStoragePath, fileExists, ensureUserDir, getUserFilePath } from '../lib/storage.js';
+import { getArchiveUncompressedSize } from '../lib/storageAccounting.js';
+import { config } from '../config/index.js';
 import path from 'path';
 import fs from 'fs/promises';
 
@@ -44,9 +47,17 @@ router.post('/compress', authenticate, validate(compressionSchema), async (req: 
     const { paths, format, outputName } = req.body;
     const userId = req.user!.userId;
 
-    // Resolve file paths from IDs
+    // SECURITY FIX: Check user quota BEFORE starting compression
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    // Resolve file paths from IDs and calculate total input size
     const inputPaths: string[] = [];
     const tempFolders: string[] = [];
+    let totalInputSize = BigInt(0);
 
     for (const p of paths) {
       // Check if it's a file ID
@@ -56,6 +67,7 @@ router.post('/compress', authenticate, validate(compressionSchema), async (req: 
 
       if (file) {
         inputPaths.push(file.path);
+        totalInputSize += file.size;
         continue;
       }
 
@@ -65,6 +77,9 @@ router.post('/compress', authenticate, validate(compressionSchema), async (req: 
       });
 
       if (folder) {
+        // Add folder's total size to input size
+        totalInputSize += folder.size || BigInt(0);
+
         // Create temp folder with contents
         const tempFolderPath = getTempPath(`folder_${folder.id}`);
         tempFolders.push(tempFolderPath);
@@ -99,6 +114,29 @@ router.post('/compress', authenticate, validate(compressionSchema), async (req: 
 
     if (inputPaths.length === 0) {
       res.status(400).json({ error: 'No valid files or folders found' });
+      return;
+    }
+
+    // SECURITY FIX: Preflight quota check
+    // Estimate output size (use 1:1 ratio for safety - compression doesn't always reduce size)
+    const estimatedOutputSize = Number(totalInputSize);
+
+    // Check against max archive size limit
+    if (estimatedOutputSize > config.limits.maxZipSize) {
+      res.status(400).json({
+        error: `Archive would exceed maximum size limit (${Math.round(config.limits.maxZipSize / (1024 * 1024 * 1024))} GB)`,
+        code: 'ARCHIVE_TOO_LARGE',
+      });
+      return;
+    }
+
+    // Check user quota
+    const remainingQuota = Number(user.storageQuota) - Number(user.storageUsed) - Number(user.tempStorage || 0);
+    if (estimatedOutputSize > remainingQuota) {
+      res.status(400).json({
+        error: 'Not enough storage space to create this archive',
+        code: 'QUOTA_EXCEEDED',
+      });
       return;
     }
 
@@ -235,23 +273,40 @@ router.post('/decompress', authenticate, validate(decompressSchema), async (req:
       return;
     }
 
-    // Check quota for ZIP files
-    if (ext === '.zip') {
-      try {
-        const contents = await listZipContents(file.path);
-        const totalSize = contents.reduce((acc, item) => acc + BigInt(item.size), BigInt(0));
+    // SECURITY FIX: Check quota for ALL archive formats (not just ZIP)
+    let uncompressedSize: bigint;
+    let remainingQuota: number;
 
-        const user = await prisma.user.findUnique({ where: { id: userId } });
-        if (user && (user.storageUsed + totalSize > user.storageQuota)) {
-          res.status(400).json({ error: 'Not enough storage space to decompress this archive' });
-          return;
-        }
-      } catch (error) {
-        console.error('Failed to check zip contents:', error);
-        // Continue but warn? Or fail? Safe to fail if we can't verify size.
-        res.status(400).json({ error: 'Failed to verify archive contents' });
+    try {
+      uncompressedSize = await getArchiveUncompressedSize(file.path, ext);
+
+      // Check against extraction limits
+      if (Number(uncompressedSize) > EXTRACTION_LIMITS.MAX_TOTAL_SIZE) {
+        res.status(400).json({
+          error: `Archive uncompressed size exceeds limit (${Math.round(EXTRACTION_LIMITS.MAX_TOTAL_SIZE / (1024 * 1024 * 1024))} GB)`,
+          code: 'ARCHIVE_TOO_LARGE',
+        });
         return;
       }
+
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (!user) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+
+      remainingQuota = Number(user.storageQuota) - Number(user.storageUsed) - Number(user.tempStorage || 0);
+      if (Number(uncompressedSize) > remainingQuota) {
+        res.status(400).json({
+          error: 'Not enough storage space to decompress this archive',
+          code: 'QUOTA_EXCEEDED',
+        });
+        return;
+      }
+    } catch (error) {
+      console.error('Failed to check archive contents:', error);
+      res.status(400).json({ error: 'Failed to verify archive contents. For non-ZIP formats, ensure 7z is installed.' });
+      return;
     }
 
     const jobId = uuidv4();
@@ -285,6 +340,9 @@ router.post('/decompress', authenticate, validate(decompressSchema), async (req:
           await extract7z(jobId, file.path, extractPath, onProgress);
         }
 
+        // SECURITY FIX: Track extracted size during processing to enforce quota
+        let totalExtractedSize = 0;
+
         // Create files and folders from extracted content
         const processExtracted = async (dirPath: string, parentFolderId: string | null) => {
           const entries = await fs.readdir(dirPath, { withFileTypes: true });
@@ -304,6 +362,13 @@ router.post('/decompress', authenticate, validate(decompressSchema), async (req:
               await processExtracted(entryPath, folder.id);
             } else {
               const stats = await fs.stat(entryPath);
+
+              // SECURITY FIX: Track and verify quota during extraction
+              totalExtractedSize += stats.size;
+              if (totalExtractedSize > remainingQuota) {
+                throw new Error('Storage quota exceeded during extraction');
+              }
+
               const newFileId = uuidv4();
               const ext = path.extname(entry.name);
               const newFilePath = getUserFilePath(userId, newFileId, ext);

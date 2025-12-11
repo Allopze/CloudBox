@@ -134,7 +134,7 @@ export default function Files() {
       completeOperation(opId);
       clearSelection();
       loadData();
-      toast(t('files.itemsDeleted', { count: total }), 'success');
+      // Note: No toast here - GlobalProgressIndicator already shows completion
     } catch (error) {
       failOperation(opId, t('files.deleteError'));
       toast(t('files.deleteError'), 'error');

@@ -246,13 +246,15 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
   if (view === 'list') {
     return (
       <>
-      <motion.div
-        ref={setNodeRef}
-        style={{
-          ...dragStyle,
-          transform: dragStyle?.transform || (isSelected ? 'scale(0.98)' : 'scale(1)'),
-        }}
-        {...attributes}
+        <motion.div
+          layout
+          transition={{ layout: { duration: 0.2, ease: 'easeOut' } }}
+          ref={setNodeRef}
+          style={{
+            ...dragStyle,
+            transform: dragStyle?.transform || (isSelected ? 'scale(0.98)' : 'scale(1)'),
+          }}
+          {...attributes}
           {...listeners}
           data-file-item={file.id}
           data-file-name={file.name}
@@ -260,10 +262,10 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
           onClick={handleClick}
           onDoubleClick={handleDoubleClick}
           onContextMenu={handleContextMenu}
-        className={cn(
-          'flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer transition-all duration-100 touch-none',
-          isSelected
-            ? 'bg-primary-50 dark:bg-primary-900/20 ring-2 ring-primary-500/50 ring-offset-1 ring-offset-white dark:ring-offset-dark-900'
+          className={cn(
+            'flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer transition-all duration-100 touch-none',
+            isSelected
+              ? 'bg-primary-50 dark:bg-primary-900/20 ring-2 ring-primary-500/50 ring-offset-1 ring-offset-white dark:ring-offset-dark-900'
               : 'hover:bg-dark-50 dark:hover:bg-dark-800'
           )}
         >
@@ -301,6 +303,8 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
   return (
     <>
       <motion.div
+        layout
+        transition={{ layout: { duration: 0.2, ease: 'easeOut' } }}
         ref={setNodeRef}
         style={{
           ...dragStyle,
