@@ -42,7 +42,10 @@ interface DndContextProviderProps {
 // Modifier to keep the overlay centered on the cursor
 // This removes the drift and ensures the user feels like they are holding the item directly
 const snapToCursorModifier: Modifier = ({ activatorEvent, draggingNodeRect, overlayNodeRect, transform }) => {
-    if (!draggingNodeRect || !overlayNodeRect || !(activatorEvent instanceof PointerEvent)) return transform;
+    // Only modify position when we have active drag rects
+    if (!draggingNodeRect || !overlayNodeRect || !(activatorEvent instanceof PointerEvent)) {
+        return transform;
+    }
 
     return {
         ...transform,
@@ -257,7 +260,14 @@ export default function DndContextProvider({ children, onRefresh }: DndContextPr
             onDragCancel={handleDragCancel}
         >
             {children}
-            <DragOverlay zIndex={9999} modifiers={[snapToCursorModifier]}>
+            <DragOverlay
+                zIndex={9999}
+                modifiers={[snapToCursorModifier]}
+                dropAnimation={{
+                    duration: 250,
+                    easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
+                }}
+            >
                 {renderDragOverlay()}
             </DragOverlay>
         </DndContext>
