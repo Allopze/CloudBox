@@ -657,7 +657,12 @@
     "deleteFolderError": "Error al eliminar carpeta",
     "itemsMovedTo": "{{count}} elemento(s) movido(s) a \"{{name}}\"",
     "moveError": "Error al mover elementos",
-    "itemsCount": "{{count}} elementos"
+    "itemsCount": "{{count}} elementos",
+    "downloadAsZip": "Descargar como ZIP",
+    "preparingDownload": "Preparando descarga...",
+    "downloadStarted": "Descarga iniciada",
+    "downloadError": "Error al descargar carpeta",
+    "compressingFolder": "Comprimiendo carpeta..."
   },
   "dragPreview": {
     "itemsCount": "{{count}} elementos",

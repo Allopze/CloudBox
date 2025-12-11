@@ -5,12 +5,6 @@ import { useDraggable } from '@dnd-kit/core';
 import { FileItem } from '../../types';
 import { useFileStore } from '../../stores/fileStore';
 import {
-  File,
-  Image,
-  Video,
-  Music,
-  FileText,
-  Archive,
   Star,
   Download,
   Share2,
@@ -23,7 +17,6 @@ import {
 import { formatBytes, formatDate, cn } from '../../lib/utils';
 import { api, getFileUrl } from '../../lib/api';
 import { toast } from '../ui/Toast';
-import AuthenticatedImage from '../AuthenticatedImage';
 import ShareModal from '../modals/ShareModal';
 import RenameModal from '../modals/RenameModal';
 import MoveModal from '../modals/MoveModal';
@@ -31,6 +24,7 @@ import CompressModal from '../modals/CompressModal';
 import InfoModal from '../modals/InfoModal';
 import ContextMenu, { ContextMenuItemOrDivider, ContextMenuDividerItem } from '../ui/ContextMenu';
 import { motion } from 'framer-motion';
+import { FileExtensionIcon } from '../icons/SolidIcons';
 
 interface FileCardProps {
   file: FileItem;
@@ -39,14 +33,51 @@ interface FileCardProps {
   onPreview?: (file: FileItem) => void;
 }
 
-const fileIcons: Record<string, typeof File> = {
-  image: Image,
-  video: Video,
-  audio: Music,
-  document: FileText,
-  archive: Archive,
-  default: File,
-};
+// Get color based on file type
+function getFileTypeColor(mimeType: string, fileName: string): string {
+  const ext = fileName.split('.').pop()?.toLowerCase() || '';
+  const mimeCategory = mimeType.split('/')[0];
+
+  // PDF - Red
+  if (ext === 'pdf' || mimeType === 'application/pdf') return 'text-red-500';
+
+  // Word documents - Blue
+  if (['doc', 'docx', 'odt', 'rtf'].includes(ext) || mimeType.includes('word')) return 'text-blue-600';
+
+  // Excel spreadsheets - Green
+  if (['xls', 'xlsx', 'ods', 'csv'].includes(ext) || mimeType.includes('spreadsheet')) return 'text-green-600';
+
+  // PowerPoint - Orange
+  if (['ppt', 'pptx', 'odp'].includes(ext) || mimeType.includes('presentation')) return 'text-orange-500';
+
+  // Code files - Purple
+  if (['js', 'jsx', 'ts', 'tsx', 'py', 'java', 'c', 'cpp', 'cs', 'go', 'rs', 'rb', 'php', 'html', 'css', 'json', 'xml', 'yaml', 'sh', 'sql'].includes(ext)) return 'text-purple-500';
+
+  // Archives - Amber
+  if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext) || mimeType.includes('zip') || mimeType.includes('archive')) return 'text-amber-600';
+
+  // Images - Cyan
+  if (mimeCategory === 'image' || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico'].includes(ext)) return 'text-cyan-500';
+
+  // Videos - Rose
+  if (mimeCategory === 'video' || ['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm'].includes(ext)) return 'text-rose-500';
+
+  // Audio - Violet
+  if (mimeCategory === 'audio' || ['mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a', 'wma'].includes(ext)) return 'text-violet-500';
+
+  // Text files - Gray
+  if (['txt', 'md', 'log'].includes(ext) || mimeType === 'text/plain') return 'text-gray-500';
+
+  // Default - Gray
+  return 'text-gray-400';
+}
+
+// Get file extension from filename
+function getFileExtension(fileName: string): string {
+  return fileName.split('.').pop()?.toLowerCase() || '';
+}
+
+
 
 export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: FileCardProps) {
   const { t } = useTranslation();
@@ -107,14 +138,9 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
     setContextMenu({ x: e.clientX, y: e.clientY });
   };
 
-  const getFileIcon = () => {
-    const mimeCategory = file.mimeType.split('/')[0];
-    const Icon = fileIcons[mimeCategory] || fileIcons.default;
-    return Icon;
-  };
-
-  const Icon = getFileIcon();
-  const hasThumbnail = Boolean(file.thumbnailPath);
+  // Get file extension and color for the icon
+  const fileExtension = getFileExtension(file.name);
+  const fileTypeColor = getFileTypeColor(file.mimeType, file.name);
   const dragData = useMemo(() => JSON.stringify(file), [file]);
 
   const handleClick = (e: React.MouseEvent) => {
@@ -250,10 +276,7 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
           layout
           transition={{ layout: { duration: 0.2, ease: 'easeOut' } }}
           ref={setNodeRef}
-          style={{
-            ...dragStyle,
-            transform: dragStyle?.transform || (isSelected ? 'scale(0.98)' : 'scale(1)'),
-          }}
+          style={dragStyle}
           {...attributes}
           {...listeners}
           data-file-item={file.id}
@@ -262,37 +285,32 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
           onClick={handleClick}
           onDoubleClick={handleDoubleClick}
           onContextMenu={handleContextMenu}
+          tabIndex={0}
           className={cn(
-            'flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer transition-all duration-100 touch-none',
-            isSelected
-              ? 'bg-primary-50 dark:bg-primary-900/20 ring-2 ring-primary-500/50 ring-offset-1 ring-offset-white dark:ring-offset-dark-900'
-              : 'hover:bg-dark-50 dark:hover:bg-dark-800'
+            'premium-card-list group',
+            isSelected && 'selected',
+            isDragging && 'dragging'
           )}
         >
-          <div className="w-9 h-9 flex-shrink-0">
-            {hasThumbnail ? (
-              <AuthenticatedImage
-                fileId={file.id}
-                endpoint="thumbnail"
-                alt={file.name}
-                className="w-full h-full object-cover rounded"
-                fallback={
-                  <div className="w-full h-full flex items-center justify-center bg-dark-50 dark:bg-dark-700 rounded">
-                    <Icon className="w-5 h-5 text-dark-400" />
-                  </div>
-                }
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <Icon className="w-5 h-5 text-dark-400" />
-              </div>
+          {/* Type-specific Icon with extension */}
+          <div className="w-10 h-10 flex-shrink-0 rounded-lg overflow-hidden bg-dark-100/50 dark:bg-white/5 flex items-center justify-center">
+            <FileExtensionIcon size={32} extension={fileExtension} className={fileTypeColor} />
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 min-w-0">
+            <p className="font-medium text-dark-900 dark:text-dark-50 truncate">{file.name}</p>
+            <p className="text-xs text-dark-500 dark:text-dark-400">
+              {formatBytes(file.size)} · {formatDate(file.createdAt)}
+            </p>
+          </div>
+
+          {/* Badges */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {file.isFavorite && (
+              <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
             )}
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-medium text-dark-900 dark:text-white truncate">{file.name}</p>
-            <p className="text-sm text-dark-500">{formatBytes(file.size)} - {formatDate(file.createdAt)}</p>
-          </div>
-          {file.isFavorite && <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />}
         </motion.div>
         <ContextMenu items={contextMenuItems} position={contextMenu} onClose={closeContextMenu} />
         {modals}
@@ -306,10 +324,7 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
         layout
         transition={{ layout: { duration: 0.2, ease: 'easeOut' } }}
         ref={setNodeRef}
-        style={{
-          ...dragStyle,
-          transform: dragStyle?.transform || (isSelected ? 'scale(0.97)' : 'scale(1)'),
-        }}
+        style={dragStyle}
         {...attributes}
         {...listeners}
         data-file-item={file.id}
@@ -318,38 +333,56 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
         onContextMenu={handleContextMenu}
+        tabIndex={0}
         className={cn(
-          'group relative flex items-center gap-3 px-3 py-2.5 rounded-2xl cursor-pointer transition-all duration-100 border touch-none',
-          isSelected
-            ? 'bg-primary-50 dark:bg-primary-900/20 border-primary-300 dark:border-primary-700 ring-2 ring-primary-500/40 ring-offset-1 ring-offset-white dark:ring-offset-dark-900'
-            : 'bg-white dark:bg-dark-800 border-dark-100 dark:border-dark-700 hover:border-dark-200 dark:hover:border-dark-600'
+          'premium-card group',
+          isSelected && 'selected',
+          isDragging && 'dragging'
         )}
       >
-        <div className="w-8 h-8 flex-shrink-0 rounded overflow-hidden bg-dark-50 dark:bg-dark-700">
-          {hasThumbnail ? (
-            <AuthenticatedImage
-              fileId={file.id}
-              endpoint="thumbnail"
-              alt={file.name}
-              className="w-full h-full object-cover"
-              fallback={
-                <div className="w-full h-full flex items-center justify-center">
-                  <Icon className="w-5 h-5 text-dark-400" />
-                </div>
-              }
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <Icon className="w-5 h-5 text-dark-400" />
-            </div>
-          )}
+        {/* Quick Actions - visible on hover */}
+        <div className="premium-card-actions">
+          <button
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); setShowShareModal(true); }}
+            className="premium-card-action-btn"
+            title={t('fileCard.share')}
+          >
+            <Share2 className="w-4 h-4" />
+          </button>
+          <button
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); handleDownload(); }}
+            className="premium-card-action-btn"
+            title={t('fileCard.download')}
+          >
+            <Download className="w-4 h-4" />
+          </button>
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-dark-900 dark:text-white truncate">{file.name}</p>
-        </div>
+
+        {/* Favorite badge */}
         {file.isFavorite && (
-          <Star className="w-4 h-4 text-yellow-500 fill-yellow-500 flex-shrink-0" />
+          <div className="premium-card-badges">
+            <Star className="w-4 h-4 text-yellow-400 fill-yellow-400 drop-shadow-md" />
+          </div>
         )}
+
+        {/* Type-specific Icon with extension in center */}
+        <div className="premium-card-thumbnail">
+          <FileExtensionIcon size={56} extension={fileExtension} className={fileTypeColor} />
+        </div>
+
+        {/* Content Area - Overlay at bottom */}
+        <div className="premium-card-content">
+          <p className="premium-card-name" title={file.name}>
+            {file.name}
+          </p>
+          <div className="premium-card-meta">
+            <span>{formatBytes(file.size)}</span>
+            <span>·</span>
+            <span>{formatDate(file.createdAt)}</span>
+          </div>
+        </div>
       </motion.div>
       <ContextMenu items={contextMenuItems} position={contextMenu} onClose={closeContextMenu} />
       {modals}

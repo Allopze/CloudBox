@@ -6,7 +6,6 @@ import { Folder } from '../../types';
 import { useFileStore } from '../../stores/fileStore';
 import { useDragDropStore } from '../../stores/dragDropStore';
 import {
-  FolderIcon,
   Star,
   Share2,
   Trash2,
@@ -14,7 +13,10 @@ import {
   Move,
   FileArchive,
   Info,
+  Download,
+  Loader2,
 } from 'lucide-react';
+import { SolidFolderIcon } from '../icons/SolidIcons';
 import { formatDate, cn } from '../../lib/utils';
 
 import { api } from '../../lib/api';
@@ -25,7 +27,7 @@ import MoveModal from '../modals/MoveModal';
 import CompressModal from '../modals/CompressModal';
 import InfoModal from '../modals/InfoModal';
 import ContextMenu, { ContextMenuItemOrDivider, ContextMenuDividerItem } from '../ui/ContextMenu';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface FolderCardProps {
   folder: Folder;
@@ -51,6 +53,8 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [contextMenuSelection, setContextMenuSelection] = useState<Set<string>>(new Set());
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState({ progress: 0, currentFile: '' });
   const dragData = useMemo(() => JSON.stringify(folder), [folder]);
 
   // Check if this folder is being dragged (can't drop on itself)
@@ -162,6 +166,63 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
     }
   }, [folder.id, folder.isFavorite, t, onRefresh]);
 
+  // Download folder as ZIP
+  const handleDownloadAsZip = useCallback(async () => {
+    if (isDownloading) return;
+    setIsDownloading(true);
+    setDownloadProgress({ progress: 0, currentFile: '' });
+
+    try {
+      // Start compression job
+      const response = await api.post('/compression/compress', {
+        paths: [folder.id],
+        format: 'zip',
+        outputName: folder.name,
+      });
+
+      const { jobId } = response.data;
+
+      // Poll for completion with progress updates
+      const pollForCompletion = async (): Promise<string | null> => {
+        const statusResponse = await api.get(`/compression/status/${jobId}`);
+        const { status, error, outputFileId, progress, currentFile } = statusResponse.data;
+
+        // Update progress
+        setDownloadProgress({
+          progress: progress || 0,
+          currentFile: currentFile || ''
+        });
+
+        if (status === 'COMPLETED' && outputFileId) {
+          setDownloadProgress({ progress: 100, currentFile: '' });
+          return outputFileId;
+        }
+
+        if (status === 'FAILED') {
+          throw new Error(error || t('folderCard.downloadError'));
+        }
+
+        // Continue polling
+        await new Promise(resolve => setTimeout(resolve, 300));
+        return pollForCompletion();
+      };
+
+      const outputFileId = await pollForCompletion();
+
+      if (outputFileId) {
+        // Download the ZIP file
+        window.open(`/api/files/${outputFileId}/download?attachment=true`, '_blank');
+        toast(t('folderCard.downloadStarted'), 'success');
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : t('folderCard.downloadError');
+      toast(message, 'error');
+    } finally {
+      setIsDownloading(false);
+      setDownloadProgress({ progress: 0, currentFile: '' });
+    }
+  }, [folder.id, folder.name, isDownloading, t]);
+
   // Context menu items configuration
   const contextMenuItems: ContextMenuItemOrDivider[] = useMemo(() => [
     { id: 'favorite', label: folder.isFavorite ? t('folderCard.removeFromFavorites') : t('folderCard.addToFavorites'), icon: Star, onClick: handleFavorite },
@@ -222,6 +283,67 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
         item={folder}
         type="folder"
       />
+      {/* Download Progress Modal */}
+      <AnimatePresence>
+        {isDownloading && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white dark:bg-dark-800 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-dark-200 dark:border-dark-700">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-primary-100 dark:bg-primary-900/30">
+                    <Download className="w-5 h-5 text-primary-600 dark:text-primary-400" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-semibold text-dark-900 dark:text-white">
+                      {t('folderCard.downloadAsZip')}
+                    </h2>
+                    <p className="text-xs text-dark-500 dark:text-dark-400 truncate max-w-[200px]">
+                      {folder.name}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Progress Content */}
+              <div className="p-5 space-y-4">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-dark-600 dark:text-dark-400 truncate max-w-[200px]">
+                      {downloadProgress.currentFile || t('folderCard.preparingDownload')}
+                    </span>
+                    <span className="text-dark-900 dark:text-white font-medium ml-2">
+                      {Math.round(downloadProgress.progress)}%
+                    </span>
+                  </div>
+                  <div className="h-2.5 bg-dark-100 dark:bg-dark-700 rounded-full overflow-hidden">
+                    <motion.div
+                      className="h-full bg-gradient-to-r from-primary-500 to-primary-600 rounded-full"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${downloadProgress.progress}%` }}
+                      transition={{ duration: 0.3, ease: 'easeOut' }}
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-center text-dark-500 dark:text-dark-400">
+                  {t('folderCard.compressingFolder')}
+                </p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 
@@ -235,10 +357,7 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
           layout
           transition={{ layout: { duration: 0.2, ease: 'easeOut' } }}
           ref={setNodeRef}
-          style={{
-            ...dragStyle,
-            transform: dragStyle?.transform || (isSelected ? 'scale(0.98)' : 'scale(1)'),
-          }}
+          style={dragStyle}
           {...attributes}
           {...listeners}
           data-folder-item={folder.id}
@@ -247,22 +366,33 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
           onClick={handleClick}
           onDoubleClick={handleDoubleClick}
           onContextMenu={handleContextMenu}
+          tabIndex={0}
           className={cn(
-            'flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer transition-all duration-100 touch-none',
-            isSelected
-              ? 'bg-primary-50 dark:bg-primary-900/20 ring-2 ring-primary-500/50 ring-offset-1 ring-offset-white dark:ring-offset-dark-900'
-              : 'hover:bg-dark-50 dark:hover:bg-dark-800',
+            'premium-card-list group',
+            isSelected && 'selected',
+            isDragging && 'dragging',
             isDropTarget && 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/30'
           )}
         >
-          <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center">
-            <FolderIcon className="w-6 h-6 text-primary-500" />
+          {/* Folder Icon */}
+          <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-lg bg-primary-50 dark:bg-primary-900/30">
+            <SolidFolderIcon size={20} className="text-primary-500" />
           </div>
+
+          {/* Content */}
           <div className="flex-1 min-w-0">
-            <p className="font-medium text-dark-900 dark:text-white truncate">{folder.name}</p>
-            <p className="text-sm text-dark-500">{t('folderCard.itemsCount', { count: folder._count?.files ?? 0 })} - {formatDate(folder.createdAt)}</p>
+            <p className="font-medium text-dark-900 dark:text-dark-50 truncate">{folder.name}</p>
+            <p className="text-xs text-dark-500 dark:text-dark-400">
+              {t('folderCard.itemsCount', { count: folder._count?.files ?? 0 })} · {formatDate(folder.createdAt)}
+            </p>
           </div>
-          {folder.isFavorite && <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />}
+
+          {/* Badges */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {folder.isFavorite && (
+              <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+            )}
+          </div>
         </motion.div>
         <ContextMenu items={contextMenuItems} position={contextMenu} onClose={closeContextMenu} />
         {modals}
@@ -276,10 +406,7 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
         layout
         transition={{ layout: { duration: 0.2, ease: 'easeOut' } }}
         ref={setNodeRef}
-        style={{
-          ...dragStyle,
-          transform: dragStyle?.transform || (isSelected ? 'scale(0.97)' : 'scale(1)'),
-        }}
+        style={dragStyle}
         {...attributes}
         {...listeners}
         data-folder-item={folder.id}
@@ -288,21 +415,62 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
         onContextMenu={handleContextMenu}
+        tabIndex={0}
         className={cn(
-          'group relative flex items-center gap-3 px-3 py-2.5 rounded-2xl cursor-pointer transition-all duration-100 border touch-none',
-          isSelected
-            ? 'bg-primary-50 dark:bg-primary-900/20 border-primary-300 dark:border-primary-700 ring-2 ring-primary-500/40 ring-offset-1 ring-offset-white dark:ring-offset-dark-900'
-            : 'bg-white dark:bg-dark-800 border-dark-100 dark:border-dark-700 hover:border-dark-200 dark:hover:border-dark-600',
-          isDropTarget && 'ring-2 ring-primary-500 border-primary-500 bg-primary-50 dark:bg-primary-900/30'
+          'premium-card group',
+          isSelected && 'selected',
+          isDragging && 'dragging',
+          isDropTarget && 'drop-target'
         )}
       >
-        <FolderIcon className="w-6 h-6 text-primary-500 flex-shrink-0" />
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-dark-900 dark:text-white truncate">{folder.name}</p>
+        {/* Quick Actions - visible on hover */}
+        <div className="premium-card-actions">
+          <button
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); setShowShareModal(true); }}
+            className="premium-card-action-btn"
+            title={t('folderCard.share')}
+          >
+            <Share2 className="w-4 h-4" />
+          </button>
+          <button
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); handleDownloadAsZip(); }}
+            className="premium-card-action-btn"
+            title={t('folderCard.downloadAsZip')}
+            disabled={isDownloading}
+          >
+            {isDownloading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Download className="w-4 h-4" />
+            )}
+          </button>
         </div>
+
+        {/* Favorite badge */}
         {folder.isFavorite && (
-          <Star className="w-4 h-4 text-yellow-500 fill-yellow-500 flex-shrink-0" />
+          <div className="premium-card-badges">
+            <Star className="w-4 h-4 text-yellow-400 fill-yellow-400 drop-shadow-md" />
+          </div>
         )}
+
+        {/* Folder Icon Area */}
+        <div className="premium-card-thumbnail">
+          <SolidFolderIcon size={60} className="text-primary-500" />
+        </div>
+
+        {/* Content Area - Overlay at bottom */}
+        <div className="premium-card-content">
+          <p className="premium-card-name" title={folder.name}>
+            {folder.name}
+          </p>
+          <div className="premium-card-meta">
+            <span>{t('folderCard.itemsCount', { count: folder._count?.files ?? 0 })}</span>
+            <span>·</span>
+            <span>{formatDate(folder.createdAt)}</span>
+          </div>
+        </div>
       </motion.div>
       <ContextMenu items={contextMenuItems} position={contextMenu} onClose={closeContextMenu} />
       {modals}

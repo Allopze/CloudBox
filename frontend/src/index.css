@@ -89,6 +89,127 @@
   .file-card.selected {
     @apply border-primary-500 bg-primary-50 dark:bg-primary-900/20;
   }
+
+  /* Minimalist file/folder cards - completely square */
+  .premium-card {
+    @apply relative rounded-xl cursor-pointer touch-none;
+    @apply transition-all duration-200 ease-out;
+    @apply bg-transparent border border-transparent;
+    @apply aspect-square overflow-hidden;
+  }
+
+  .premium-card:hover:not(.selected):not(.dragging) {
+    @apply bg-dark-100/50 dark:bg-white/5;
+    @apply border-dark-200/50 dark:border-white/10;
+  }
+
+  .premium-card.selected {
+    @apply border-primary-500/80 dark:border-primary-500/80;
+    @apply bg-primary-50/40 dark:bg-primary-900/30;
+  }
+
+  .premium-card:focus-visible {
+    @apply outline-none ring-2 ring-primary-500/50 ring-offset-2;
+    @apply ring-offset-white dark:ring-offset-dark-900;
+  }
+
+  .premium-card.drop-target {
+    @apply border-primary-500 border-dashed border-2;
+    @apply bg-primary-50/50 dark:bg-primary-900/40;
+    @apply scale-[1.02];
+  }
+
+  .premium-card.dragging {
+    @apply opacity-0 pointer-events-none;
+  }
+
+  /* Premium card thumbnail area - centered in space above content */
+  .premium-card-thumbnail {
+    @apply absolute top-0 left-0 right-0;
+    @apply bg-dark-100/30 dark:bg-white/5;
+    @apply flex items-center justify-center;
+    /* Use percentage to keep proportions within the square */
+    height: 70%;
+  }
+
+  .premium-card-thumbnail img {
+    @apply w-full h-full object-cover;
+  }
+
+  /* Premium card content area - opaque card at bottom (30% of card height) */
+  .premium-card-content {
+    @apply absolute bottom-0 left-0 right-0;
+    @apply px-3 py-2 flex flex-col justify-center gap-0.5;
+    @apply bg-white dark:bg-dark-800;
+    @apply border-t border-dark-100 dark:border-dark-700;
+    height: 30%;
+  }
+
+  .premium-card-name {
+    @apply text-sm font-medium leading-tight;
+    @apply text-dark-800 dark:text-dark-100;
+    @apply line-clamp-1;
+  }
+
+  .premium-card-meta {
+    @apply flex items-center gap-2;
+    @apply text-xs text-dark-500 dark:text-dark-400;
+  }
+
+  .premium-card-badges {
+    @apply absolute top-2 right-2 flex items-center gap-1;
+  }
+
+  /* Shared badge */
+  .premium-card-badge {
+    @apply text-[10px] font-medium px-1.5 py-0.5 rounded;
+    @apply bg-primary-500 text-white;
+  }
+
+  /* Premium card list view - also minimalist */
+  .premium-card-list {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-xl;
+    @apply transition-all duration-150 ease-out cursor-pointer touch-none;
+    @apply bg-transparent border border-transparent;
+  }
+
+  .premium-card-list:hover:not(.selected) {
+    @apply bg-dark-100/50 dark:bg-white/5;
+  }
+
+  .premium-card-list.selected {
+    @apply bg-primary-50/40 dark:bg-primary-900/30;
+    @apply border-primary-500/50 dark:border-primary-500/50;
+  }
+
+  .premium-card-list:focus-visible {
+    @apply outline-none ring-2 ring-primary-500/50 ring-offset-2;
+  }
+
+  .premium-card-list.dragging {
+    @apply opacity-0 pointer-events-none;
+  }
+
+  /* Quick action buttons on hover */
+  .premium-card-actions {
+    @apply absolute top-3 right-3 flex items-center gap-1 z-10;
+    @apply opacity-0 transition-opacity duration-150;
+  }
+
+  .premium-card:hover .premium-card-actions,
+  .premium-card.selected .premium-card-actions {
+    @apply opacity-100;
+  }
+
+  .premium-card-action-btn {
+    @apply p-1.5 rounded-lg;
+    @apply bg-dark-900/70 dark:bg-dark-800/90;
+    @apply text-white dark:text-dark-200;
+    @apply hover:bg-dark-900 hover:text-white;
+    @apply dark:hover:bg-dark-700 dark:hover:text-white;
+    @apply transition-colors duration-100;
+    @apply backdrop-blur-sm;
+  }
 }
 
 @layer utilities {

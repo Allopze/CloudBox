@@ -25,9 +25,9 @@ export function Skeleton({ className }: SkeletonProps) {
 export function SkeletonCard({ view = 'grid' }: { view?: 'grid' | 'list' }) {
     if (view === 'list') {
         return (
-            <div className="flex items-center gap-3 px-3 py-2 rounded-xl">
+            <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl">
                 <Skeleton className="w-10 h-10 rounded-lg flex-shrink-0" />
-                <div className="flex-1 min-w-0 space-y-2">
+                <div className="flex-1 min-w-0 space-y-1.5">
                     <Skeleton className="h-4 w-3/4" />
                     <Skeleton className="h-3 w-1/2" />
                 </div>
@@ -35,11 +35,16 @@ export function SkeletonCard({ view = 'grid' }: { view?: 'grid' | 'list' }) {
         );
     }
 
+    // Minimalist vertical card skeleton
     return (
-        <div className="flex items-center gap-3 px-3 py-2.5 rounded-2xl border border-dark-100 dark:border-dark-700 bg-white dark:bg-dark-800">
-            <Skeleton className="w-8 h-8 rounded flex-shrink-0" />
-            <div className="flex-1 min-w-0">
-                <Skeleton className="h-4 w-2/3" />
+        <div className="rounded-xl overflow-hidden">
+            {/* Thumbnail area */}
+            <Skeleton className="w-full aspect-square rounded-xl" />
+            {/* Content area */}
+            <div className="p-3 pt-2.5 space-y-1.5">
+                <Skeleton className="h-4 w-4/5" />
+                <Skeleton className="h-3 w-2/5" />
+                <Skeleton className="h-3 w-1/3" />
             </div>
         </div>
     );

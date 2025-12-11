@@ -101,7 +101,7 @@ export default function InfoModal({ isOpen, onClose, item, type }: InfoModalProp
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <p className="text-sm text-dark-500">{infoItem.label}</p>
-                                            <p className={`text-dark-900 dark:text-white break-all ${infoItem.mono ? 'font-mono text-xs' : ''}`}>
+                                            <p className="text-dark-900 dark:text-white break-all">
                                                 {infoItem.value}
                                             </p>
                                         </div>

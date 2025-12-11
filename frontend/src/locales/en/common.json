@@ -614,7 +614,12 @@
     "deleteFolderError": "Error deleting folder",
     "itemsMovedTo": "{{count}} item(s) moved to \"{{name}}\"",
     "moveError": "Error moving items",
-    "itemsCount": "{{count}} items"
+    "itemsCount": "{{count}} items",
+    "downloadAsZip": "Download as ZIP",
+    "preparingDownload": "Preparing download...",
+    "downloadStarted": "Download started",
+    "downloadError": "Error downloading folder",
+    "compressingFolder": "Compressing folder..."
   },
   "dragPreview": {
     "itemsCount": "{{count}} items",
