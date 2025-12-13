@@ -10,7 +10,8 @@ import { useAuthStore } from '../stores/authStore';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import { FileItem, Folder as FolderType } from '../types';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { waveIn } from '../lib/animations';
 
 interface TrashData {
   files: FileItem[];
@@ -26,6 +27,7 @@ interface ContextMenuState {
 
 export default function Trash() {
   const { t } = useTranslation();
+  const reducedMotion = useReducedMotion();
   const [data, setData] = useState<TrashData>({ files: [], folders: [] });
   const [loading, setLoading] = useState(true);
   const [showEmptyModal, setShowEmptyModal] = useState(false);
@@ -322,11 +324,12 @@ export default function Trash() {
       {totalItems > 0 ? (
         <div className="space-y-2">
           {/* Carpetas */}
-          {data.folders.map((folder) => {
+          {data.folders.map((folder, index) => {
             const isSelected = selectedItems.has(folder.id);
             return (
-              <div
+              <motion.div
                 key={`folder-${folder.id}`}
+                {...waveIn(index, reducedMotion)}
                 data-folder-item={folder.id}
                 onClick={(e) => handleItemClick(e, folder.id)}
                 onContextMenu={(e) => handleContextMenu(e, 'folder', folder)}
@@ -370,16 +373,17 @@ export default function Trash() {
                     {t('trash.delete')}
                   </Button>
                 </div>
-              </div>
+              </motion.div>
             );
           })}
 
           {/* Archivos */}
-          {data.files.map((file) => {
+          {data.files.map((file, index) => {
             const isSelected = selectedItems.has(file.id);
             return (
-              <div
+              <motion.div
                 key={`file-${file.id}`}
+                {...waveIn(data.folders.length + index, reducedMotion)}
                 data-file-item={file.id}
                 onClick={(e) => handleItemClick(e, file.id)}
                 onContextMenu={(e) => handleContextMenu(e, 'file', file)}
@@ -425,7 +429,7 @@ export default function Trash() {
                     {t('trash.delete')}
                   </Button>
                 </div>
-              </div>
+              </motion.div>
             );
           })}
         </div>

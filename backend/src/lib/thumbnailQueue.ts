@@ -18,6 +18,11 @@ const QUEUE_CONFIG = {
     port: parseInt(process.env.REDIS_PORT || '6379'),
     password: process.env.REDIS_PASSWORD || undefined,
   },
+  // Lock settings to prevent "Missing lock for job" errors
+  // lockDuration: Time (ms) a job is locked. Should be longer than max job execution time.
+  // lockRenewTime: Interval (ms) to renew the lock. Should be less than lockDuration/2.
+  lockDuration: parseInt(process.env.THUMBNAIL_LOCK_DURATION || '120000'), // 2 minutes
+  lockRenewTime: parseInt(process.env.THUMBNAIL_LOCK_RENEW_TIME || '30000'), // 30 seconds
   defaultJobOptions: {
     attempts: 3,
     backoff: {
@@ -52,17 +57,17 @@ class ThumbnailQueue {
   private queue: ThumbnailJob[] = [];
   private processing = false;
   private maxQueueSize = 1000; // Maximum queue size to prevent memory leaks
-  
+
   // p-limit for concurrency control in fallback mode
   private limiter: LimitFunction;
-  
+
   // Security: Per-user limits to prevent abuse (configurable via env vars)
   private userLimits = new Map<string, UserThumbnailLimit>();
 
   constructor() {
     // Initialize the limiter with configured concurrency
     this.limiter = pLimit(QUEUE_CONFIG.fallbackConcurrency);
-    logger.info('ThumbnailQueue initialized', { 
+    logger.info('ThumbnailQueue initialized', {
       fallbackConcurrency: QUEUE_CONFIG.fallbackConcurrency,
       maxJobsPerUserPerHour: QUEUE_CONFIG.maxJobsPerUserPerHour,
     });
@@ -70,10 +75,10 @@ class ThumbnailQueue {
 
   private checkUserLimit(userId?: string): boolean {
     if (!userId) return true; // Allow anonymous jobs (shared files)
-    
+
     const now = Date.now();
     const limit = this.userLimits.get(userId);
-    
+
     if (!limit || limit.resetAt < now) {
       this.userLimits.set(userId, {
         count: 1,
@@ -81,12 +86,12 @@ class ThumbnailQueue {
       });
       return true;
     }
-    
+
     if (limit.count >= QUEUE_CONFIG.maxJobsPerUserPerHour) {
       logger.warn('Thumbnail rate limit exceeded', { userId });
       return false;
     }
-    
+
     limit.count++;
     return true;
   }
@@ -105,8 +110,8 @@ class ThumbnailQueue {
 
     // Production mode: reject jobs if Redis is required but not available
     if (requireRedis) {
-      logger.error('Thumbnail job rejected: Redis required in production but not available', { 
-        fileId: job.fileId 
+      logger.error('Thumbnail job rejected: Redis required in production but not available', {
+        fileId: job.fileId
       });
       return false;
     }
@@ -116,7 +121,7 @@ class ThumbnailQueue {
       logger.warn('Thumbnail queue is full, dropping job', { fileId: job.fileId });
       return false;
     }
-    
+
     this.queue.push(job);
     this.processQueue();
     return true;
@@ -124,17 +129,17 @@ class ThumbnailQueue {
 
   addBatch(jobs: ThumbnailJob[]): number {
     let addedCount = 0;
-    
+
     for (const job of jobs) {
       if (this.add(job)) {
         addedCount++;
       }
     }
-    
+
     if (addedCount < jobs.length) {
       logger.warn('Thumbnail queue limited', { added: addedCount, requested: jobs.length });
     }
-    
+
     return addedCount;
   }
 
@@ -175,7 +180,7 @@ class ThumbnailQueue {
   get activeCount(): number {
     return this.limiter.activeCount;
   }
-  
+
   // Cleanup old user limits periodically
   cleanupUserLimits(): void {
     const now = Date.now();
@@ -253,12 +258,12 @@ export async function initThumbnailQueue(): Promise<void> {
         cleanup();
         resolve();
       });
-      
+
       redis.once('error', (err: Error) => {
         cleanup();
         reject(err);
       });
-      
+
       setTimeout(() => {
         cleanup();
         reject(new Error('Redis connection timeout'));
@@ -274,6 +279,12 @@ export async function initThumbnailQueue(): Promise<void> {
     bullQueue = new Bull<ThumbnailJob>('thumbnails', {
       redis: QUEUE_CONFIG.redis,
       defaultJobOptions: QUEUE_CONFIG.defaultJobOptions,
+      settings: {
+        lockDuration: QUEUE_CONFIG.lockDuration,
+        lockRenewTime: QUEUE_CONFIG.lockRenewTime,
+        stalledInterval: QUEUE_CONFIG.lockDuration, // Check for stalled jobs at same interval
+        maxStalledCount: 1, // Max times a job can be restarted due to stalling
+      },
     });
 
     // Process jobs
@@ -285,7 +296,7 @@ export async function initThumbnailQueue(): Promise<void> {
     });
 
     bullQueue.on('failed', (job, error) => {
-      logger.warn('Thumbnail job failed', { 
+      logger.warn('Thumbnail job failed', {
         fileId: job?.data.fileId,
         error: error.message,
       });

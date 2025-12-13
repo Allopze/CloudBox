@@ -113,14 +113,20 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
       where,
       orderBy: { name: 'asc' },
       include: {
-        _count: { select: { files: true } },
+        _count: { select: { files: true, children: true } },
       },
     });
 
     // Convert BigInt to string for JSON serialization
+    // Combine files and subfolders count into a single itemCount for UI display
     const serializedFolders = folders.map(folder => ({
       ...folder,
       size: folder.size?.toString() ?? '0',
+      _count: {
+        ...folder._count,
+        // Total items = files + subfolders
+        items: (folder._count?.files || 0) + (folder._count?.children || 0),
+      },
     }));
 
     // Cache root folders (most commonly accessed)

@@ -12,9 +12,12 @@ import ImageGallery from '../components/gallery/ImageGallery';
 import VideoPreview from '../components/gallery/VideoPreview';
 import DocumentViewer from '../components/gallery/DocumentViewer';
 import ShareModal from '../components/modals/ShareModal';
+import { motion, useReducedMotion } from 'framer-motion';
+import { waveIn } from '../lib/animations';
 
 export default function Favorites() {
   const { t } = useTranslation();
+  const reducedMotion = useReducedMotion();
   const [files, setFiles] = useState<FileItem[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -99,30 +102,40 @@ export default function Favorites() {
               : 'space-y-1'
           )}
         >
-          {folders.map((folder) => (
-            <FolderCard
+          {folders.map((folder, index) => (
+            <motion.div
               key={folder.id}
-              folder={folder}
-              view={viewMode}
-              onRefresh={loadData}
-            />
+              {...waveIn(index, reducedMotion)}
+              className={viewMode === 'grid' ? undefined : 'w-full'}
+            >
+              <FolderCard
+                folder={folder}
+                view={viewMode}
+                onRefresh={loadData}
+              />
+            </motion.div>
           ))}
-          {files.map((file) => (
-            <FileCard
+          {files.map((file, index) => (
+            <motion.div
               key={file.id}
-              file={file}
-              view={viewMode}
-              onRefresh={loadData}
-              onPreview={handleFilePreview}
-              onFavoriteToggle={(fileId, isFavorite) => {
-                // In favorites page, unfavoriting removes the file from the list
-                if (!isFavorite) {
-                  setFiles(prev => prev.filter(f => f.id !== fileId));
-                } else {
-                  setFiles(prev => prev.map(f => f.id === fileId ? { ...f, isFavorite } : f));
-                }
-              }}
-            />
+              {...waveIn(folders.length + index, reducedMotion)}
+              className={viewMode === 'grid' ? undefined : 'w-full'}
+            >
+              <FileCard
+                file={file}
+                view={viewMode}
+                onRefresh={loadData}
+                onPreview={handleFilePreview}
+                onFavoriteToggle={(fileId, isFavorite) => {
+                  // In favorites page, unfavoriting removes the file from the list
+                  if (!isFavorite) {
+                    setFiles(prev => prev.filter(f => f.id !== fileId));
+                  } else {
+                    setFiles(prev => prev.map(f => f.id === fileId ? { ...f, isFavorite } : f));
+                  }
+                }}
+              />
+            </motion.div>
           ))}
         </div>
       )}

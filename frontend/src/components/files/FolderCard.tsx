@@ -380,7 +380,7 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
           <div className="flex-1 min-w-0">
             <p className="font-medium text-dark-900 dark:text-dark-50 truncate">{folder.name}</p>
             <p className="text-xs text-dark-500 dark:text-dark-400">
-              {t('folderCard.itemsCount', { count: folder._count?.files ?? 0 })} · {formatDate(folder.createdAt)}
+              {t('folderCard.itemsCount', { count: folder._count?.items ?? folder._count?.files ?? 0 })} · {formatDate(folder.createdAt)}
             </p>
           </div>
 
@@ -463,7 +463,7 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
             {folder.name}
           </p>
           <div className="premium-card-meta">
-            <span>{t('folderCard.itemsCount', { count: folder._count?.files ?? 0 })}</span>
+            <span>{t('folderCard.itemsCount', { count: folder._count?.items ?? folder._count?.files ?? 0 })}</span>
             <span>·</span>
             <span>{formatDate(folder.createdAt)}</span>
           </div>

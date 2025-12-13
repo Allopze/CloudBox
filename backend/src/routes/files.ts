@@ -386,6 +386,7 @@ router.post('/upload-with-folders', authenticate, uploadFile.array('files', UPLO
           }
 
           // Check if folder exists (exclude trashed folders)
+          // Use a retry mechanism to handle race conditions with concurrent uploads
           let folder = await tx.folder.findFirst({
             where: {
               name: sanitizedFolderName,
@@ -396,14 +397,35 @@ router.post('/upload-with-folders', authenticate, uploadFile.array('files', UPLO
           });
 
           if (!folder) {
-            // Create the folder
-            folder = await tx.folder.create({
-              data: {
-                name: sanitizedFolderName,
-                parentId: currentParentId,
-                userId,
-              },
-            });
+            try {
+              // Try to create the folder
+              folder = await tx.folder.create({
+                data: {
+                  name: sanitizedFolderName,
+                  parentId: currentParentId,
+                  userId,
+                },
+              });
+            } catch (createError: any) {
+              // If unique constraint violation (P2002), folder was created by another concurrent request
+              // Retry findFirst to get the existing folder
+              if (createError.code === 'P2002') {
+                folder = await tx.folder.findFirst({
+                  where: {
+                    name: sanitizedFolderName,
+                    parentId: currentParentId,
+                    userId,
+                    isTrash: false,
+                  },
+                });
+                if (!folder) {
+                  // This shouldn't happen, but if it does, re-throw the error
+                  throw createError;
+                }
+              } else {
+                throw createError;
+              }
+            }
           }
 
           folderCache.set(partCacheKey, folder.id);

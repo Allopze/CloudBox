@@ -1,0 +1,805 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  Search, Moon, Sun, LayoutGrid, List, Plus, 
+  Upload, Folder, FileText, Image as ImageIcon, 
+  MoreVertical, Check, Shield, Server, Zap, 
+  Settings, Users, Trash2, Globe, Clock, 
+  ChevronRight, HardDrive, Lock, Activity,
+  Menu, X, Share2, CornerDownRight, ExternalLink,
+  Command, Music
+} from 'lucide-react';
+
+// --- Componentes UI Atómicos ---
+
+const Button = ({ children, variant = 'primary', className = '', ...props }) => {
+  const baseStyle = "px-6 py-2 rounded-full text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 active:scale-95 focus:outline-none focus:ring-2 focus:ring-red-500/50";
+  
+  const variants = {
+    primary: "bg-red-600 hover:bg-red-700 text-white shadow-sm border border-transparent hover:shadow-red-500/20",
+    secondary: "bg-white dark:bg-[#222222] text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-[#2a2a2a]",
+    ghost: "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-[#222222]",
+    link: "text-red-500 hover:text-red-400 p-0 h-auto font-normal rounded-none"
+  };
+
+  return (
+    <button className={`${baseStyle} ${variants[variant]} ${className}`} {...props}>
+      {children}
+    </button>
+  );
+};
+
+const Badge = ({ children, className = '' }) => (
+  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-[#222222] text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 ${className}`}>
+    {children}
+  </span>
+);
+
+const Panel = ({ children, className = '', noPadding = false }) => (
+  <div className={`bg-white dark:bg-[#222222] border border-gray-200 dark:border-gray-800 rounded-2xl overflow-hidden transition-colors duration-300 ${noPadding ? '' : 'p-6'} ${className}`}>
+    {children}
+  </div>
+);
+
+// --- Componente de Logo Dinámico ---
+const BrandLogo = ({ className = "h-8" }) => (
+  <div className={`flex items-center gap-2 ${className}`}>
+    {/* Versión Light Mode */}
+    <div className="dark:hidden flex items-center gap-2">
+       <div className="w-8 h-8 bg-red-600 rounded-xl flex items-center justify-center shadow-md shadow-red-500/20">
+          <span className="text-white text-sm font-bold">C</span>
+       </div>
+       <span className="text-gray-900 font-bold tracking-tight text-xl">CloudBox</span>
+    </div>
+
+    {/* Versión Dark Mode */}
+    <div className="hidden dark:flex items-center gap-2">
+       <div className="w-8 h-8 bg-white rounded-xl flex items-center justify-center shadow-md">
+          <span className="text-red-600 text-sm font-bold">C</span>
+       </div>
+       <span className="text-white font-bold tracking-tight text-xl">CloudBox</span>
+    </div>
+  </div>
+);
+
+// --- Mockups de la App (Componentes Visuales High-Fidelity) ---
+
+const AppMockupHeader = () => (
+  <div className="h-16 border-b border-gray-100 dark:border-[#2a2a2a] flex items-center justify-between px-6 bg-white dark:bg-[#1e1e1e] flex-shrink-0">
+    <div className="flex items-center gap-6 flex-1 min-w-0">
+      {/* Logo dentro de la app (más pequeño/discreto) */}
+      <div className="flex items-center gap-2 text-gray-800 dark:text-white font-semibold flex-shrink-0">
+        <div className="w-7 h-7 bg-red-600 rounded-lg flex items-center justify-center">
+            <span className="text-white text-xs font-bold">C</span>
+        </div>
+      </div>
+      
+      {/* Buscador funcional visualmente */}
+      <div className="hidden md:flex relative group max-w-md w-full">
+        <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+          <Search className="w-4 h-4 text-gray-400 group-focus-within:text-red-500 transition-colors" />
+        </div>
+        <input 
+            type="text" 
+            readOnly
+            placeholder="Buscar archivos..." 
+            className="w-full h-9 bg-gray-100 dark:bg-[#2a2a2a] rounded-xl text-sm pl-10 pr-4 text-gray-700 dark:text-gray-200 border-none outline-none focus:ring-2 focus:ring-red-500/20 transition-all cursor-default"
+        />
+        <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none">
+             <div className="flex items-center gap-1">
+                <Command className="w-3 h-3 text-gray-400" />
+                <span className="text-[10px] text-gray-400 font-medium">K</span>
+             </div>
+        </div>
+      </div>
+    </div>
+    
+    <div className="flex items-center gap-4 flex-shrink-0 ml-4">
+      <Button variant="primary" className="h-8 px-4 text-xs gap-1.5 shadow-none rounded-lg hidden sm:flex">
+         <Plus className="w-3.5 h-3.5" /> Nuevo
+      </Button>
+      <div className="h-6 w-px bg-gray-200 dark:bg-[#333] hidden sm:block"></div>
+      <div className="flex items-center gap-3">
+          <div className="relative">
+             <div className="w-2 h-2 bg-red-500 rounded-full absolute -top-0.5 -right-0.5 border-2 border-white dark:border-[#1e1e1e]"></div>
+             <Activity className="w-5 h-5 text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white cursor-pointer transition-colors" />
+          </div>
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center text-white text-xs font-bold shadow-md cursor-pointer border-2 border-white dark:border-[#1e1e1e]">
+            JS
+          </div>
+      </div>
+    </div>
+  </div>
+);
+
+const AppMockupSidebar = () => {
+  // Nuevas opciones basadas en la imagen de referencia
+  const items = [
+    { icon: LayoutGrid, label: 'Inicio', active: false },
+    { icon: Folder, label: 'Mis archivos', active: true },
+    { icon: FileText, label: 'Documentos', active: false },
+    { icon: ImageIcon, label: 'Galería', active: false },
+    { icon: Music, label: 'Música', active: false },
+    { icon: Users, label: 'Compartidos', active: false },
+  ];
+
+  const bottomItems = [
+    { icon: Trash2, label: 'Papelera', active: false },
+    { icon: Settings, label: 'Configuración', active: false },
+  ];
+
+  // 10.3 GB de 50 GB es aprox 20.6%
+  const storagePercentage = 20.6;
+
+  return (
+    <div className="w-60 flex-shrink-0 border-r border-gray-100 dark:border-[#2a2a2a] hidden sm:flex flex-col py-6 bg-gray-50/80 dark:bg-[#161616]">
+      
+      {/* Lista Principal */}
+      <div className="flex flex-col gap-1 px-4 mb-auto">
+        {items.map((item, idx) => (
+            <div key={idx} className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-default text-sm font-medium transition-all ${item.active ? 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-[#252525]'}`}>
+                <item.icon className={`w-5 h-5 ${item.active ? 'text-red-500' : 'text-gray-500 dark:text-gray-400'}`} />
+                {item.label}
+            </div>
+        ))}
+      </div>
+
+      {/* Items Inferiores (Papelera y Config) */}
+      <div className="flex flex-col gap-1 px-4 mt-4">
+        {bottomItems.map((item, idx) => (
+            <div key={idx} className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-default text-sm font-medium transition-all text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-[#252525]`}>
+                <item.icon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                {item.label}
+            </div>
+        ))}
+      </div>
+
+      {/* Sección de Almacenamiento Actualizada */}
+      <div className="mt-6 px-7">
+        <div className="pt-4 border-t border-gray-200 dark:border-[#333]">
+            <div className="flex justify-between items-center mb-2">
+                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Almacenamiento</span>
+            </div>
+            <div className="h-1.5 bg-gray-200 dark:bg-[#333] rounded-full overflow-hidden mb-2">
+                <div 
+                    className="h-full bg-red-500 rounded-full transition-all duration-1000 ease-out" 
+                    style={{ width: `${storagePercentage}%` }}
+                ></div>
+            </div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                10.3 GB / 50 GB
+            </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const HeroMockup = () => {
+  return (
+    <div className="w-full h-full flex flex-col bg-white dark:bg-[#1e1e1e] select-none rounded-2xl overflow-hidden font-sans">
+      <AppMockupHeader />
+      <div className="flex flex-1 overflow-hidden">
+        <AppMockupSidebar />
+        <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#1e1e1e]">
+          {/* Toolbar & Breadcrumbs */}
+          <div className="h-14 border-b border-gray-100 dark:border-[#2a2a2a] flex items-center justify-between px-6 flex-shrink-0">
+            <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 overflow-hidden">
+              <span className="hover:text-gray-900 dark:hover:text-white cursor-pointer px-1 flex-shrink-0">Inicio</span>
+              <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
+              <span className="hover:text-gray-900 dark:hover:text-white cursor-pointer px-1 truncate hidden sm:block">Proyectos</span>
+              <ChevronRight className="w-4 h-4 text-gray-300 hidden sm:block flex-shrink-0" />
+              <div className="flex items-center gap-2 px-2 py-1 bg-gray-50 dark:bg-[#2a2a2a] rounded-md text-gray-900 dark:text-white font-medium whitespace-nowrap">
+                 <Folder className="w-3.5 h-3.5 text-red-500 fill-red-500/20" />
+                 Marketing 2025
+              </div>
+            </div>
+            <div className="flex items-center gap-3 ml-2 flex-shrink-0">
+              <span className="text-xs text-gray-400 hidden xl:inline">Ordenar por:</span>
+              <span className="text-xs font-medium text-gray-700 dark:text-gray-300 cursor-pointer hover:text-red-500 hidden xl:inline">Fecha</span>
+              <div className="w-px h-4 bg-gray-200 dark:bg-[#333] hidden xl:block"></div>
+              <div className="flex bg-gray-100 dark:bg-[#2a2a2a] rounded-lg p-1">
+                <div className="p-1.5 bg-white dark:bg-[#333] rounded-md shadow-sm">
+                  <LayoutGrid className="w-4 h-4 text-red-500" />
+                </div>
+                <div className="p-1.5 hover:bg-gray-200 dark:hover:bg-[#444] rounded-md cursor-pointer text-gray-400">
+                  <List className="w-4 h-4" />
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Main Content Area */}
+          <div className="flex-1 p-6 overflow-y-auto custom-scrollbar">
+            {/* Carpetas */}
+            <div className="mb-8">
+                <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Carpetas</h4>
+                    <span className="text-[10px] bg-gray-100 dark:bg-[#2a2a2a] text-gray-500 px-2 py-0.5 rounded-full">3</span>
+                </div>
+                <div className="grid grid-cols-2 xl:grid-cols-3 gap-4">
+                {['Assets', 'Borradores', 'Legales'].map((folder, i) => (
+                    <div key={i} className="group p-4 border border-gray-100 dark:border-[#2a2a2a] rounded-2xl flex items-center gap-4 hover:border-red-500/30 dark:hover:border-red-500/30 hover:shadow-lg hover:shadow-red-500/5 transition-all cursor-pointer bg-white dark:bg-[#252525]">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${i === 0 ? 'bg-red-50 dark:bg-red-500/10' : 'bg-blue-50 dark:bg-blue-500/10'}`}>
+                            <Folder className={`w-5 h-5 ${i === 0 ? 'fill-red-500 text-red-500' : 'fill-blue-400 text-blue-500'}`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <div className="text-sm font-semibold text-gray-700 dark:text-gray-200 truncate">{folder}</div>
+                            <div className="text-[10px] text-gray-400">12 archivos</div>
+                        </div>
+                    </div>
+                ))}
+                <div className="border border-dashed border-gray-200 dark:border-[#333] rounded-2xl flex items-center justify-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-[#252525] transition-colors text-gray-400 hover:text-red-500">
+                    <Plus className="w-5 h-5" />
+                </div>
+                </div>
+            </div>
+
+            {/* Archivos */}
+            <div>
+                <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Archivos</h4>
+                    <span className="text-[10px] bg-gray-100 dark:bg-[#2a2a2a] text-gray-500 px-2 py-0.5 rounded-full">12</span>
+                </div>
+                <div className="grid grid-cols-2 xl:grid-cols-3 gap-4">
+                {/* Active Item (Enhanced) */}
+                <div className="relative group p-4 border-2 border-red-500 bg-red-50/10 dark:bg-red-500/5 rounded-2xl flex flex-col gap-3 cursor-pointer shadow-xl shadow-red-500/10">
+                    <div className="flex justify-between items-start">
+                        <div className="w-10 h-10 rounded-xl bg-white dark:bg-[#2a2a2a] flex items-center justify-center shadow-sm">
+                            <FileText className="w-5 h-5 text-red-500" />
+                        </div>
+                        <button className="text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 p-1 rounded-md transition-colors">
+                            <MoreVertical className="w-4 h-4" />
+                        </button>
+                    </div>
+                    <div>
+                        <div className="text-sm font-bold text-gray-900 dark:text-white truncate">Brief_Q1.pdf</div>
+                        <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[10px] text-gray-500 font-medium">2.4 MB</span>
+                            <span className="w-0.5 h-0.5 bg-gray-300 rounded-full"></span>
+                            <span className="text-[10px] text-gray-500">Hace 2 min</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Other Items */}
+                {[
+                    { name: 'Banner_V2.png', size: '4.1 MB', icon: ImageIcon, color: 'text-purple-500', bg: 'bg-purple-50 dark:bg-purple-500/10' },
+                    { name: 'backup_site.zip', size: '150 MB', icon: HardDrive, color: 'text-orange-500', bg: 'bg-orange-50 dark:bg-orange-500/10' },
+                    { name: 'logo_white.svg', size: '12 KB', icon: ImageIcon, color: 'text-pink-500', bg: 'bg-pink-50 dark:bg-pink-500/10' },
+                    { name: 'contrato_final.docx', size: '2 MB', icon: FileText, color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-500/10' },
+                ].map((file, i) => (
+                    <div key={i} className="group p-4 border border-gray-100 dark:border-[#2a2a2a] rounded-2xl flex flex-col gap-3 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-lg transition-all cursor-pointer bg-white dark:bg-[#252525]">
+                        <div className="flex justify-between items-start">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${file.bg}`}>
+                                <file.icon className={`w-5 h-5 ${file.color}`} />
+                            </div>
+                            <MoreVertical className="w-4 h-4 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity hover:text-gray-600 dark:hover:text-white" />
+                        </div>
+                        <div>
+                            <div className="text-sm font-semibold text-gray-700 dark:text-gray-200 truncate group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors">{file.name}</div>
+                            <div className="text-[10px] text-gray-400 mt-1 font-medium">{file.size} • Ayer</div>
+                        </div>
+                    </div>
+                ))}
+                </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Detail Panel Sidebar (Right) */}
+        {/* CORRECCIÓN: Agregado flex-shrink-0 para evitar colapsos */}
+        <div className="w-72 flex-shrink-0 border-l border-gray-100 dark:border-[#2a2a2a] hidden xl:flex flex-col bg-gray-50/50 dark:bg-[#1e1e1e] p-6 shadow-[-10px_0_30px_-15px_rgba(0,0,0,0.03)]">
+            <div className="flex items-center justify-between mb-8">
+                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Detalles</span>
+                 <button className="p-1 hover:bg-gray-200 dark:hover:bg-[#333] rounded-md"><X className="w-4 h-4 text-gray-400" /></button>
+            </div>
+
+            <div className="flex flex-col items-center mb-8">
+              <div className="w-32 h-40 bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333] rounded-2xl flex items-center justify-center shadow-lg mb-4 relative overflow-hidden group">
+                 <div className="absolute inset-0 bg-gradient-to-tr from-gray-50 to-white dark:from-[#252525] dark:to-[#2a2a2a]"></div>
+                 <FileText className="w-16 h-16 text-red-500 relative z-10 shadow-sm" />
+                 <div className="absolute inset-x-0 bottom-0 h-1 bg-red-500"></div>
+              </div>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white text-center break-all px-2">Brief_Q1.pdf</h3>
+              <p className="text-xs text-gray-500 mt-1 font-medium bg-gray-200 dark:bg-[#2a2a2a] px-2.5 py-0.5 rounded-full">Documento PDF</p>
+            </div>
+            
+            <div className="space-y-4 mb-8 bg-white dark:bg-[#252525] p-5 rounded-2xl border border-gray-100 dark:border-[#2a2a2a] shadow-sm">
+               <div className="flex justify-between items-center text-xs">
+                  <span className="text-gray-500">Tamaño</span>
+                  <span className="text-gray-900 dark:text-white font-semibold">2.4 MB</span>
+               </div>
+               <div className="w-full h-px bg-gray-100 dark:bg-[#333]"></div>
+               <div className="flex justify-between items-center text-xs">
+                  <span className="text-gray-500">Creado</span>
+                  <span className="text-gray-900 dark:text-white font-semibold">23 Oct, 2025</span>
+               </div>
+               <div className="w-full h-px bg-gray-100 dark:bg-[#333]"></div>
+               <div className="flex justify-between items-center text-xs">
+                  <span className="text-gray-500">Modificado</span>
+                  <span className="text-gray-900 dark:text-white font-semibold">Hoy, 10:23</span>
+               </div>
+               <div className="w-full h-px bg-gray-100 dark:bg-[#333]"></div>
+               <div className="flex justify-between items-center text-xs">
+                  <span className="text-gray-500">Permisos</span>
+                  <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">Lectura</Badge>
+               </div>
+            </div>
+
+            <div className="mt-auto space-y-3">
+                <Button variant="primary" className="w-full justify-center text-sm h-11 shadow-red-500/20">
+                    <Share2 className="w-4 h-4" /> Compartir
+                </Button>
+                <Button variant="secondary" className="w-full justify-center text-sm h-11 bg-white dark:bg-[#252525]">
+                    Descargar
+                </Button>
+            </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- Mini Mockups para la sección de Flow (Estilo High-Fidelity) ---
+
+const UploadMiniMockup = () => (
+  <div className="h-32 border border-dashed border-gray-300 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-[#1a1a1a] flex flex-col items-center justify-center p-4 relative overflow-hidden group hover:border-red-400 transition-colors">
+    <div className="w-full absolute bottom-0 left-0 h-1.5 bg-gray-200 dark:bg-gray-700 overflow-hidden">
+      <div className="h-full w-2/3 bg-red-500 rounded-r-full animate-pulse"></div>
+    </div>
+    <div className="bg-white dark:bg-[#252525] p-3 rounded-2xl shadow-sm border border-gray-200 dark:border-[#333] mb-3 group-hover:scale-110 transition-transform duration-300">
+      <Upload className="w-6 h-6 text-red-500" />
+    </div>
+    <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wide group-hover:text-red-500 transition-colors">Arrastra archivos aquí</span>
+  </div>
+);
+
+const OrganizeMiniMockup = () => (
+    <div className="h-32 bg-white dark:bg-[#1a1a1a] rounded-xl border border-gray-200 dark:border-gray-700 p-4 relative overflow-hidden">
+      <div className="flex gap-4 mb-3 items-center justify-center h-full">
+        <div className="w-12 h-12 rounded-xl border border-red-500 bg-red-50 dark:bg-red-900/10 flex items-center justify-center z-10 shadow-xl transform hover:scale-105 transition-transform cursor-grab">
+           <FileText className="w-6 h-6 text-red-600" />
+        </div>
+        <div className="flex flex-col items-center gap-1 text-gray-300">
+           <span className="w-1 h-1 bg-current rounded-full"></span>
+           <span className="w-1 h-1 bg-current rounded-full"></span>
+           <span className="w-1 h-1 bg-current rounded-full"></span>
+           <CornerDownRight className="w-4 h-4" />
+        </div>
+        <div className="w-12 h-12 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-[#222] flex items-center justify-center group hover:border-red-400 transition-colors">
+           <Folder className="w-6 h-6 text-gray-400 group-hover:text-red-400 transition-colors" />
+        </div>
+      </div>
+    </div>
+);
+
+const ShareMiniMockup = () => (
+  <div className="h-32 bg-white dark:bg-[#1a1a1a] flex items-center justify-center p-4">
+    <div className="w-full bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333] rounded-2xl shadow-sm p-4">
+        <div className="flex justify-between items-center mb-3">
+           <span className="text-[10px] font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wide">Enlace público</span>
+           <div className="w-9 h-5 bg-red-500 rounded-full relative cursor-pointer">
+              <div className="w-3.5 h-3.5 bg-white rounded-full absolute right-1 top-0.5 shadow-sm"></div>
+           </div>
+        </div>
+        <div className="flex gap-2">
+           <div className="flex-1 bg-gray-50 dark:bg-[#1a1a1a] rounded-lg text-[10px] text-gray-500 p-2 truncate border border-gray-100 dark:border-[#333] font-mono flex items-center select-all">
+              cloudbox.lat/s/x8...
+           </div>
+           <button className="bg-red-50 dark:bg-red-900/20 px-2 rounded-lg border border-red-100 dark:border-red-900/30 flex items-center justify-center hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors">
+              <Check className="w-3.5 h-3.5 text-red-600" />
+           </button>
+        </div>
+    </div>
+  </div>
+);
+
+const AdminMiniMockup = () => (
+    <div className="h-32 flex overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700">
+       <div className="w-1/3 border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#1a1a1a] p-3 space-y-3">
+          <div className="w-full h-2 bg-gray-200 dark:bg-[#333] rounded-full"></div>
+          <div className="w-3/4 h-2 bg-gray-200 dark:bg-[#333] rounded-full"></div>
+          <div className="w-full h-2 bg-red-200 dark:bg-red-900/30 rounded-full"></div>
+       </div>
+       <div className="flex-1 p-3 bg-white dark:bg-[#252525] flex flex-col justify-center items-center">
+           <div className="scale-75 origin-center border border-gray-100 dark:border-[#333] rounded-lg p-2 shadow-sm bg-white dark:bg-[#1e1e1e]">
+                <div className="flex gap-2 mb-2">
+                    <div className="w-5 h-5 rounded-md bg-red-600 shadow-sm"></div>
+                    <div className="w-16 h-2 bg-gray-200 dark:bg-[#333] rounded-full mt-1.5"></div>
+                </div>
+                <div className="w-24 h-6 bg-red-600 rounded-md flex items-center justify-center text-[8px] text-white font-bold shadow-red-500/20 shadow-lg">
+                    CloudBox
+                </div>
+           </div>
+       </div>
+    </div>
+);
+
+// --- Componente Principal ---
+
+export default function CloudBoxLanding() {
+  const [darkMode, setDarkMode] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      setDarkMode(true);
+    }
+    const handleScroll = () => setScrolled(window.scrollY > 10);
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  return (
+    <div className={`${darkMode ? 'dark' : ''} font-sans`}>
+      <div className="bg-gray-50 dark:bg-[#121212] min-h-screen text-gray-600 dark:text-gray-400 transition-colors duration-300 selection:bg-red-500/30 selection:text-red-900 dark:selection:text-red-100">
+        
+        {/* --- Header Tipo App (Organizado y Limpio) --- */}
+        <header className={`fixed top-0 w-full z-50 h-20 border-b transition-all duration-300 ${scrolled ? 'bg-white/90 dark:bg-[#121212]/90 backdrop-blur-xl border-gray-200 dark:border-gray-800 shadow-sm' : 'bg-transparent border-transparent'}`}>
+            <div className="max-w-7xl mx-auto px-6 h-full flex items-center justify-between">
+                
+                {/* 1. Izquierda: Logo (Brand) */}
+                <div className="flex items-center cursor-pointer group flex-shrink-0 hover:opacity-80 transition-opacity">
+                    <BrandLogo />
+                </div>
+
+                {/* 2. Centro: Navegación (Centrada y limpia) */}
+                <nav className="hidden md:flex items-center gap-8 text-sm font-medium absolute left-1/2 transform -translate-x-1/2">
+                    <a href="#features" className="text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors">Producto</a>
+                    <a href="#hosted" className="text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors">Hosted</a>
+                    <a href="#self-hosted" className="text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors">Self-hosted</a>
+                    <a href="#docs" className="text-gray-500 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors">Docs</a>
+                </nav>
+
+                {/* 3. Derecha: Acciones (Más espacio, Registrarse actualizado) */}
+                <div className="flex items-center gap-4">
+                    <button className="hidden sm:block text-sm font-semibold text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-2 transition-colors">
+                        Iniciar sesión
+                    </button>
+                    <Button variant="primary" className="hidden sm:flex px-6 h-11 shadow-lg shadow-red-600/20 text-base">
+                        Registrarse
+                    </Button>
+                    <div className="w-px h-6 bg-gray-200 dark:bg-gray-800 mx-1 hidden sm:block"></div>
+                    <div 
+                        onClick={() => setDarkMode(!darkMode)}
+                        className="w-10 h-10 rounded-full flex items-center justify-center cursor-pointer hover:bg-gray-200/50 dark:hover:bg-white/10 transition-colors text-gray-500 dark:text-gray-400"
+                    >
+                        {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                    </div>
+                    <div className="md:hidden">
+                        <Menu className="w-6 h-6 text-gray-700 dark:text-gray-300" />
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main className="pt-36 pb-20">
+            {/* --- Hero Section --- */}
+            <section className="max-w-7xl mx-auto px-6 grid lg:grid-cols-12 gap-16 items-center mb-32">
+                <div className="lg:col-span-5 flex flex-col items-start text-left">
+                    <Badge className="mb-6 border-red-200 dark:border-red-900/30 bg-red-50 dark:bg-red-900/10 text-red-600 dark:text-red-400 px-4 py-1.5 text-sm font-semibold">
+                        v2.4 Disponible ahora
+                    </Badge>
+                    <h1 className="text-5xl lg:text-7xl font-bold text-gray-900 dark:text-white tracking-tight leading-[1.05] mb-8">
+                        Tu nube privada,<br />
+                        <span className="text-gray-400 dark:text-gray-600">ordenada.</span>
+                    </h1>
+                    <p className="text-xl text-gray-600 dark:text-gray-400 mb-10 leading-relaxed max-w-lg">
+                        Sube, organiza y comparte archivos en segundos. La potencia de un servidor propio con la sencillez que mereces.
+                    </p>
+                    <div className="flex flex-wrap gap-4 mb-12 w-full">
+                        <Button className="h-14 px-10 text-lg shadow-xl shadow-red-500/20">
+                            Empezar ahora
+                        </Button>
+                        <Button variant="secondary" className="h-14 px-8 text-lg gap-2 rounded-full">
+                           <Zap className="w-5 h-5" /> Demo en vivo
+                        </Button>
+                    </div>
+                    
+                    {/* Trust / Features Mini Line */}
+                    <div className="pt-8 border-t border-gray-200 dark:border-gray-800 w-full">
+                        <div className="flex flex-wrap gap-3">
+                            {['Subidas por chunks', 'Links con expiración', 'Permisos granulares', 'Logs de actividad'].map((feat, i) => (
+                                <Badge key={i} className="bg-transparent border-gray-200 dark:border-gray-800 text-gray-500 py-1 px-3">
+                                    {feat}
+                                </Badge>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Hero Graphic: Functional Mockup (True Interface Style) */}
+                <div className="lg:col-span-7 relative h-[600px] lg:h-[700px] w-full">
+                    {/* Background Glow */}
+                    <div className="absolute inset-0 bg-gradient-to-tr from-gray-200 to-white dark:from-[#1a1a1a] dark:to-[#1e1e1e] rounded-[3rem] transform rotate-2 opacity-50 blur-3xl -z-10"></div>
+                    
+                    {/* The Mockup Container */}
+                    <div className="relative w-full h-full shadow-2xl shadow-gray-300/50 dark:shadow-black/60 flex flex-col border border-gray-200 dark:border-[#333] rounded-3xl overflow-hidden bg-white dark:bg-[#1e1e1e]">
+                        <HeroMockup />
+                    </div>
+                </div>
+            </section>
+
+            {/* --- Flow Section --- */}
+            <section className="max-w-7xl mx-auto px-6 mb-32">
+                <div className="mb-16 text-center md:text-left">
+                    <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">Flujo simple, control total</h2>
+                    <p className="text-lg text-gray-500 dark:text-gray-400">Diseñado para imitar tu flujo mental, no para interrumpirlo.</p>
+                </div>
+                
+                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
+                    {[
+                        { title: 'Sube', desc: 'Drag & drop inteligente con soporte para archivos grandes.', mockup: UploadMiniMockup },
+                        { title: 'Organiza', desc: 'Mueve y ordena como en tu sistema operativo local.', mockup: OrganizeMiniMockup },
+                        { title: 'Comparte', desc: 'Genera enlaces públicos con contraseña y caducidad.', mockup: ShareMiniMockup },
+                        { title: 'Administra', desc: 'Personaliza colores y logo desde el panel visual.', mockup: AdminMiniMockup },
+                    ].map((item, idx) => (
+                        <Panel key={idx} className="group hover:border-red-200 dark:hover:border-red-900/30 transition-all hover:shadow-xl hover:shadow-gray-200/50 dark:hover:shadow-none hover:-translate-y-1">
+                            <div className="mb-6 overflow-hidden rounded-2xl border border-gray-100 dark:border-[#2a2a2a]">
+                                <item.mockup />
+                            </div>
+                            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">{item.title}</h3>
+                            <p className="text-sm text-gray-500 leading-relaxed">{item.desc}</p>
+                        </Panel>
+                    ))}
+                </div>
+            </section>
+
+            {/* --- Features Catalog --- */}
+            <section id="features" className="max-w-7xl mx-auto px-6 mb-32">
+                 <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                    {[
+                        { icon: Search, title: 'Búsqueda Global', text: 'Indexado instantáneo' },
+                        { icon: Shield, title: 'Permisos RBAC', text: 'Control por carpeta' },
+                        { icon: Trash2, title: 'Papelera', text: 'Recuperación 30 días' },
+                        { icon: Activity, title: 'Logs de Auditoría', text: 'Registro inmutable' },
+                        { icon: ImageIcon, title: 'Vistas Previas', text: 'RAW, PDF, Media' },
+                        { icon: Globe, title: 'CDN Ready', text: 'Compatible S3' },
+                        { icon: Lock, title: 'Enlaces Privados', text: 'Protección con clave' },
+                        { icon: Zap, title: 'Rendimiento', text: 'Carga < 100ms' },
+                    ].map((feature, i) => (
+                        <div key={i} className="p-6 border border-gray-200 dark:border-gray-800 rounded-2xl hover:bg-gray-50 dark:hover:bg-[#1a1a1a] transition-colors group cursor-default">
+                            <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-[#222] flex items-center justify-center mb-4 group-hover:bg-red-50 dark:group-hover:bg-red-900/10 transition-colors">
+                                <feature.icon className="w-5 h-5 text-gray-500 group-hover:text-red-500 transition-colors" />
+                            </div>
+                            <h4 className="font-bold text-gray-900 dark:text-white text-base mb-2">{feature.title}</h4>
+                            <p className="text-sm text-gray-500 leading-relaxed">{feature.text}</p>
+                        </div>
+                    ))}
+                 </div>
+            </section>
+
+            {/* --- Hosted vs Self-Hosted --- */}
+            <section className="max-w-7xl mx-auto px-6 mb-32" id="hosted">
+                <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
+                    {/* Hosted Panel */}
+                    <Panel className="relative p-10 md:p-14 flex flex-col h-full border-red-100 dark:border-red-900/20 shadow-xl shadow-red-500/5">
+                        <div className="absolute top-0 right-0 p-6">
+                            <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs font-bold px-3 py-1.5 rounded-full uppercase tracking-wide">
+                                Recomendado
+                            </div>
+                        </div>
+                        <h3 className="text-3xl font-bold text-gray-900 dark:text-white mb-3">CloudBox Hosted</h3>
+                        <p className="text-gray-500 mb-10 text-lg">Listo para usar. Nosotros nos encargamos de la infraestructura y seguridad.</p>
+                        
+                        <ul className="space-y-5 mb-10 flex-1">
+                            {['Actualizaciones automáticas', 'Soporte prioritario 24/7', 'Dominio personalizado', 'Backups diarios en frío'].map((item, i) => (
+                                <li key={i} className="flex items-center gap-4 text-base text-gray-700 dark:text-gray-300">
+                                    <div className="w-6 h-6 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center flex-shrink-0">
+                                        <Check className="w-3.5 h-3.5 text-red-600" />
+                                    </div>
+                                    {item}
+                                </li>
+                            ))}
+                        </ul>
+
+                        <div className="mt-auto">
+                            <div className="text-4xl font-bold text-gray-900 dark:text-white mb-2">$5<span className="text-base font-normal text-gray-500">/mes</span></div>
+                            <div className="text-sm text-gray-400 mb-8">por usuario activo</div>
+                            <Button className="w-full justify-center h-12 text-base">Crear cuenta Hosted</Button>
+                        </div>
+                    </Panel>
+
+                    {/* Self-Hosted Panel */}
+                    <Panel className="p-10 md:p-14 flex flex-col h-full bg-gray-50 dark:bg-[#1a1a1a] border-transparent">
+                        <h3 className="text-3xl font-bold text-gray-900 dark:text-white mb-3">Self-Hosted</h3>
+                        <p className="text-gray-500 mb-10 text-lg">Tu servidor, tus reglas. Código fuente disponible para control total.</p>
+                        
+                        <ul className="space-y-5 mb-10 flex-1">
+                            {['Imagen Docker oficial', 'Soporte Docker Compose', 'Sin límites de usuarios', 'Marca blanca total'].map((item, i) => (
+                                <li key={i} className="flex items-center gap-4 text-base text-gray-700 dark:text-gray-300">
+                                    <div className="w-6 h-6 rounded-full bg-gray-200 dark:bg-[#333] flex items-center justify-center flex-shrink-0">
+                                        <Server className="w-3.5 h-3.5 text-gray-600 dark:text-gray-400" />
+                                    </div>
+                                    {item}
+                                </li>
+                            ))}
+                        </ul>
+
+                        <div className="mt-auto">
+                             <div className="flex gap-2 mb-8">
+                                {['Docker', 'Linux', 'Nginx'].map(badge => (
+                                    <Badge key={badge} className="bg-white dark:bg-[#222] px-3 py-1">{badge}</Badge>
+                                ))}
+                             </div>
+                             <Button variant="secondary" className="w-full justify-center gap-2 h-12 text-base rounded-full">
+                                <span className="font-bold">GitHub</span> Ver Repositorio
+                             </Button>
+                             <p className="text-xs text-gray-400 text-center mt-6">
+                                Requiere conocimientos de administración de servidores.
+                             </p>
+                        </div>
+                    </Panel>
+                </div>
+            </section>
+
+            {/* --- Admin & Branding Section --- */}
+            <section className="max-w-7xl mx-auto px-6 mb-32">
+                <div className="bg-[#222] dark:bg-[#000] rounded-[2.5rem] overflow-hidden shadow-2xl relative border border-gray-800">
+                    <div className="grid lg:grid-cols-12">
+                        <div className="lg:col-span-4 p-10 md:p-14 flex flex-col justify-center z-10 bg-[#121212] lg:bg-transparent">
+                            <div className="flex items-center gap-2 mb-6">
+                                <Settings className="w-5 h-5 text-red-500" />
+                                <span className="text-red-500 font-bold uppercase tracking-wider text-xs">Administración</span>
+                            </div>
+                            <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">Identidad propia sin tocar código.</h2>
+                            <p className="text-gray-400 mb-8 leading-relaxed text-lg">
+                                Mantén la coherencia de tu marca. Cambia el logo, ajusta el color de acento y modifica textos visualmente.
+                            </p>
+                            <div className="flex flex-col gap-4">
+                                <div className="flex items-center gap-4 text-gray-300">
+                                    <div className="w-8 h-8 rounded-full bg-red-600 flex items-center justify-center text-xs text-white font-bold">A</div>
+                                    <span>Color primario configurable</span>
+                                </div>
+                                <div className="flex items-center gap-4 text-gray-300">
+                                    <div className="w-8 h-8 rounded-full border border-gray-700 flex items-center justify-center">
+                                        <ImageIcon className="w-4 h-4 text-gray-400" />
+                                    </div>
+                                    <span>Logo y Favicon personalizados</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div className="lg:col-span-8 bg-[#1a1a1a] p-8 lg:p-14 flex items-center justify-center relative">
+                            {/* Admin Mockup - Rounder */}
+                            <div className="w-full max-w-xl bg-[#222] rounded-2xl border border-gray-800 shadow-2xl flex flex-col overflow-hidden">
+                                <div className="h-12 border-b border-gray-800 bg-[#222] flex items-center px-5 gap-2">
+                                    <div className="w-3 h-3 rounded-full bg-red-500/20"></div>
+                                    <div className="w-3 h-3 rounded-full bg-yellow-500/20"></div>
+                                    <div className="w-3 h-3 rounded-full bg-green-500/20"></div>
+                                    <span className="ml-auto text-xs text-gray-500 font-medium">Admin Panel</span>
+                                </div>
+                                <div className="flex flex-1">
+                                    <div className="w-40 border-r border-gray-800 bg-[#1a1a1a] p-4 space-y-4">
+                                        {['General', 'Branding', 'Usuarios', 'Seguridad'].map((item, i) => (
+                                            <div key={i} className={`text-sm font-medium ${i===1 ? 'text-red-400' : 'text-gray-500'}`}>{item}</div>
+                                        ))}
+                                    </div>
+                                    <div className="flex-1 p-8 space-y-8">
+                                        <div>
+                                            <label className="text-xs text-gray-500 block mb-3 font-bold uppercase">Nombre del sitio</label>
+                                            <div className="bg-[#111] border border-gray-700 rounded-xl p-3 text-sm text-white w-full">CloudBox Corp</div>
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-gray-500 block mb-3 font-bold uppercase">Color de acento</label>
+                                            <div className="flex gap-4">
+                                                <div className="w-10 h-10 rounded-full bg-red-600 ring-4 ring-offset-4 ring-offset-[#222] ring-red-600/50 cursor-pointer"></div>
+                                                <div className="w-10 h-10 rounded-full bg-blue-600 cursor-pointer opacity-50 hover:opacity-100 transition-opacity"></div>
+                                                <div className="w-10 h-10 rounded-full bg-emerald-500 cursor-pointer opacity-50 hover:opacity-100 transition-opacity"></div>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-gray-500 block mb-3 font-bold uppercase">Previsualización</label>
+                                            <div className="h-14 bg-[#121212] border border-gray-700 rounded-xl flex items-center px-4 justify-between">
+                                                 <div className="flex items-center gap-3">
+                                                    <div className="w-5 h-5 bg-red-600 rounded-md"></div>
+                                                    <div className="w-20 h-2.5 bg-gray-700 rounded-full"></div>
+                                                 </div>
+                                                 <div className="w-20 h-7 bg-red-600 rounded-full text-[9px] flex items-center justify-center text-white font-bold">Button</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* --- Trust & Dashboard --- */}
+            <section className="max-w-5xl mx-auto px-6 mb-32">
+                <div className="text-center mb-16">
+                    <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Tus datos, bajo tu lupa</h2>
+                    <p className="text-lg text-gray-500 mt-3">Seguridad activa y auditoría transparente.</p>
+                </div>
+                
+                <div className="grid md:grid-cols-3 gap-8">
+                    <Panel className="md:col-span-2 p-8 flex flex-col justify-between">
+                         <div className="flex items-center justify-between mb-8">
+                            <h3 className="font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2 text-lg">
+                                <Activity className="w-5 h-5 text-red-500" /> Actividad Reciente
+                            </h3>
+                            <Badge className="bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400 border-green-200 dark:border-green-900">En vivo</Badge>
+                         </div>
+                         <div className="space-y-6">
+                            {[
+                                { user: 'Ana M.', action: 'descargó', file: 'Presupuesto_Final.pdf', time: '2m' },
+                                { user: 'Carlos R.', action: 'subió', file: 'Assets_Web.zip', time: '15m' },
+                                { user: 'Admin', action: 'cambió permisos en', file: 'Carpeta /Legal', time: '1h' },
+                            ].map((log, i) => (
+                                <div key={i} className="flex items-center text-sm gap-3 border-b border-gray-100 dark:border-gray-800 pb-3 last:border-0 last:pb-0">
+                                    <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-xs font-bold text-gray-600 dark:text-gray-300">
+                                        {log.user.charAt(0)}
+                                    </div>
+                                    <div className="flex-1 text-gray-600 dark:text-gray-400">
+                                        <span className="font-bold text-gray-900 dark:text-white">{log.user}</span> {log.action} <span className="text-gray-800 dark:text-gray-300 italic">{log.file}</span>
+                                    </div>
+                                    <span className="text-xs text-gray-400 font-medium">{log.time}</span>
+                                </div>
+                            ))}
+                         </div>
+                    </Panel>
+                    
+                    <div className="flex flex-col gap-8">
+                        <Panel className="flex-1 flex flex-col justify-center items-center text-center p-8">
+                            <div className="w-14 h-14 bg-gray-100 dark:bg-[#1a1a1a] rounded-full flex items-center justify-center mb-4">
+                                <Shield className="w-7 h-7 text-gray-500 dark:text-gray-400" />
+                            </div>
+                            <div className="text-xl font-bold text-gray-900 dark:text-white mb-2">AES-256</div>
+                            <p className="text-sm text-gray-500">Cifrado en reposo disponible para máxima seguridad.</p>
+                        </Panel>
+                        <Panel className="flex-1 flex flex-col justify-center items-center text-center p-8 border-red-100 dark:border-red-900/20 bg-red-50/20 dark:bg-red-900/5">
+                            <div className="w-14 h-14 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4">
+                                <Trash2 className="w-7 h-7 text-red-500" />
+                            </div>
+                            <div className="text-xl font-bold text-gray-900 dark:text-white mb-2">Soft Delete</div>
+                            <p className="text-sm text-gray-500">Recuperación ante desastres y errores humanos.</p>
+                        </Panel>
+                    </div>
+                </div>
+            </section>
+
+            {/* --- CTA Final --- */}
+            <section className="max-w-4xl mx-auto px-6">
+                <Panel className="text-center py-20 px-8 border-red-100 dark:border-red-900/20 shadow-2xl shadow-red-500/10 rounded-[3rem]">
+                    <h2 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">Empieza con CloudBox hoy</h2>
+                    <p className="text-gray-500 dark:text-gray-400 mb-10 text-xl">Hosted o self-hosted, elige tu camino.</p>
+                    
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-5 mb-10">
+                        <Button className="w-full sm:w-auto px-10 h-14 text-lg">Crear cuenta gratis</Button>
+                        <Button variant="secondary" className="w-full sm:w-auto px-10 h-14 text-lg rounded-full">Ver documentación</Button>
+                    </div>
+                    
+                    <div className="flex items-center justify-center gap-6 text-sm text-gray-400 font-medium">
+                        <a href="#" className="hover:text-red-500 transition-colors">Términos de servicio</a>
+                        <span className="w-1.5 h-1.5 bg-gray-300 rounded-full"></span>
+                        <a href="#" className="hover:text-red-500 transition-colors">Privacidad</a>
+                        <span className="w-1.5 h-1.5 bg-gray-300 rounded-full"></span>
+                        <a href="#" className="hover:text-red-500 transition-colors">Estado del sistema</a>
+                    </div>
+                </Panel>
+            </section>
+        </main>
+
+        {/* --- Footer Minimalista --- */}
+        <footer className="border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-[#121212] py-16">
+            <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-8">
+                <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center">
+                         <span className="text-xs font-bold text-gray-500">C</span>
+                    </div>
+                    <span className="text-sm font-medium text-gray-500 dark:text-gray-400">© 2025 CloudBox Inc.</span>
+                </div>
+                
+                <div className="flex items-center gap-8 text-sm font-medium text-gray-500 dark:text-gray-400">
+                    <a href="#" className="hover:text-gray-900 dark:hover:text-white transition-colors">GitHub</a>
+                    <a href="#" className="hover:text-gray-900 dark:hover:text-white transition-colors">Twitter</a>
+                    <a href="#" className="hover:text-gray-900 dark:hover:text-white transition-colors">Discord</a>
+                </div>
+            </div>
+        </footer>
+
+      </div>
+    </div>
+  );
+}
