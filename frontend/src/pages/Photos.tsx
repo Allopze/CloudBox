@@ -13,7 +13,8 @@ import { toast } from '../components/ui/Toast';
 import { formatDate, cn } from '../lib/utils';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { waveIn } from '../lib/animations';
 import ShareModal from '../components/modals/ShareModal';
 import RenameModal from '../components/modals/RenameModal';
 import ConfirmModal from '../components/ui/ConfirmModal';
@@ -33,6 +34,7 @@ export default function Photos() {
   const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const activeTab = (searchParams.get('tab') || 'all') as TabType;
+  const reducedMotion = useReducedMotion();
 
   const [photos, setPhotos] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -162,7 +164,17 @@ export default function Photos() {
     try {
       await api.patch(`/files/${photo.id}/favorite`);
       toast(photo.isFavorite ? t('photos.removedFromFavorites') : t('photos.addedToFavorites'), 'success');
-      loadData();
+      // Update local state instead of reloading
+      if (activeTab === 'favorites' && photo.isFavorite) {
+        // In favorites tab, unfavoriting removes the photo from the list
+        setPhotos(prev => prev.filter(p => p.id !== photo.id));
+      } else {
+        setPhotos(prev => prev.map(p => p.id === photo.id ? { ...p, isFavorite: !p.isFavorite } : p));
+      }
+      // Also update selectedPhoto if it's being viewed in lightbox
+      if (selectedPhoto?.id === photo.id) {
+        setSelectedPhoto(prev => prev ? { ...prev, isFavorite: !prev.isFavorite } : null);
+      }
     } catch {
       toast(t('photos.favoriteError'), 'error');
     }
@@ -443,52 +455,53 @@ export default function Photos() {
             };
 
             return (
-              <motion.div
-                key={photo.id}
-                data-file-item={photo.id}
-                onClick={handleClick}
-                onDoubleClick={() => openLightbox(photo, index)}
-                onContextMenu={(e) => handleContextMenu(e, photo)}
-                animate={isSelected ? { scale: 0.95 } : { scale: 1 }}
-                transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-                className={cn(
-                  'premium-card group',
-                  isSelected && 'selected'
-                )}
-              >
-                {/* Selection indicator */}
-                {isSelected && (
-                  <div className="absolute top-2 left-2 w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center shadow-lg z-20">
-                    <Check className="w-4 h-4 text-white" />
-                  </div>
-                )}
+              <motion.div key={photo.id} {...waveIn(index, reducedMotion)}>
+                <motion.div
+                  data-file-item={photo.id}
+                  onClick={handleClick}
+                  onDoubleClick={() => openLightbox(photo, index)}
+                  onContextMenu={(e) => handleContextMenu(e, photo)}
+                  animate={isSelected ? { scale: 0.95 } : { scale: 1 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                  className={cn(
+                    'premium-card group',
+                    isSelected && 'selected'
+                  )}
+                >
+                  {/* Selection indicator */}
+                  {isSelected && (
+                    <div className="absolute top-2 left-2 w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center shadow-lg z-20">
+                      <Check className="w-4 h-4 text-white" />
+                    </div>
+                  )}
 
-                {/* Favorite badge - top left */}
-                {photo.isFavorite && !isSelected && (
-                  <div className="absolute top-2 left-2 z-10">
-                    <Star className="w-4 h-4 text-yellow-400 fill-yellow-400 drop-shadow-md" />
-                  </div>
-                )}
+                  {/* Favorite badge - top left */}
+                  {photo.isFavorite && !isSelected && (
+                    <div className="absolute top-2 left-2 z-10">
+                      <Star className="w-4 h-4 text-yellow-400 fill-yellow-400 drop-shadow-md" />
+                    </div>
+                  )}
 
-                {/* Photo thumbnail */}
-                <div className="premium-card-thumbnail">
-                  <img
-                    src={photo.thumbnailPath ? getFileUrl(`/files/${photo.id}/thumbnail`, undefined, true) : getFileUrl(`/files/${photo.id}/view`, undefined, true)}
-                    alt={photo.name}
-                    className="w-full h-full object-cover"
-                    loading="lazy"
-                  />
-                </div>
-
-                {/* Content Area */}
-                <div className="premium-card-content">
-                  <p className="premium-card-name" title={photo.name}>
-                    {photo.name}
-                  </p>
-                  <div className="premium-card-meta">
-                    <span>{formatDate(photo.createdAt)}</span>
+                  {/* Photo thumbnail */}
+                  <div className="premium-card-thumbnail">
+                    <img
+                      src={photo.thumbnailPath ? getFileUrl(`/files/${photo.id}/thumbnail`, undefined, true) : getFileUrl(`/files/${photo.id}/view`, undefined, true)}
+                      alt={photo.name}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
                   </div>
-                </div>
+
+                  {/* Content Area */}
+                  <div className="premium-card-content">
+                    <p className="premium-card-name" title={photo.name}>
+                      {photo.name}
+                    </p>
+                    <div className="premium-card-meta">
+                      <span>{formatDate(photo.createdAt)}</span>
+                    </div>
+                  </div>
+                </motion.div>
               </motion.div>
             );
           })}

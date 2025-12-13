@@ -127,6 +127,9 @@ model File {
   @@index([isTrash])
   @@index([mimeType])
   @@index([createdAt])
+  // Performance: Composite indexes for common query patterns
+  @@index([userId, folderId, isTrash])  // Covers file listing query
+  @@index([userId, isFavorite, isTrash]) // Covers favorites query
   @@map("files")
 }
 

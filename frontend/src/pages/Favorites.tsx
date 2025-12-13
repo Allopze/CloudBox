@@ -114,6 +114,14 @@ export default function Favorites() {
               view={viewMode}
               onRefresh={loadData}
               onPreview={handleFilePreview}
+              onFavoriteToggle={(fileId, isFavorite) => {
+                // In favorites page, unfavoriting removes the file from the list
+                if (!isFavorite) {
+                  setFiles(prev => prev.filter(f => f.id !== fileId));
+                } else {
+                  setFiles(prev => prev.map(f => f.id === fileId ? { ...f, isFavorite } : f));
+                }
+              }}
             />
           ))}
         </div>

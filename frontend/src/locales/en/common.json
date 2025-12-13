@@ -142,7 +142,11 @@
     "useContextMenuForFolders": "Use the context menu to rename folders",
     "uploadingFiles": "Uploading {{count}} file(s)...",
     "itemsMovedTo": "{{count}} item(s) moved to \"{{name}}\"",
-    "moveError": "Error moving items"
+    "moveError": "Error moving items",
+    "noFiles": "This folder is empty",
+    "noSearchResults": "No results found",
+    "tryDifferentSearch": "Try different search terms",
+    "uploadOrCreate": "Upload files or create folders to get started"
   },
   "photos": {
     "loadError": "Error loading photos",

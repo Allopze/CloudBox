@@ -77,12 +77,44 @@ export default function LegalPage() {
     // Extract TOC from content
     const toc = useMemo(() => {
         if (!displayContent) return [];
-        const headings = displayContent.match(/^#{1,2}\s+(.+)$/gm) || [];
-        return headings.map(heading => {
-            const level = heading.startsWith('##') ? 2 : 1;
-            const text = heading.replace(/^#{1,2}\s+/, '').trim();
-            return { id: slugify(text), text, level };
+
+        const items: Array<{ id: string; text: string; level: number }> = [];
+
+        const addItem = (text: string, level: number) => {
+            const trimmedText = text.trim();
+            if (!trimmedText) return;
+            const id = slugify(trimmedText);
+            if (!id) return;
+            items.push({ id, text: trimmedText, level });
+        };
+
+        // Prefer HTML headings when content includes them (default backend content uses <h2>).
+        const hasHtmlHeadings = /<h[1-3][\s>]/i.test(displayContent);
+        if (hasHtmlHeadings) {
+            const htmlHeadingRegex = /<h([1-3])[^>]*>([\s\S]*?)<\/h\1>/gi;
+            let match: RegExpExecArray | null;
+
+            while ((match = htmlHeadingRegex.exec(displayContent)) !== null) {
+                const level = Number(match[1]);
+                const text = match[2]
+                    .replace(/<[^>]+>/g, ' ')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+                addItem(text, level);
+            }
+
+            return items;
+        }
+
+        // Markdown headings (#, ##, ###)
+        const markdownHeadings = displayContent.match(/^#{1,3}\s+(.+)$/gm) || [];
+        markdownHeadings.forEach(heading => {
+            const level = heading.startsWith('###') ? 3 : heading.startsWith('##') ? 2 : 1;
+            const text = heading.replace(/^#{1,3}\s+/, '').trim();
+            addItem(text, level);
         });
+
+        return items;
     }, [displayContent]);
 
     const displayTitle = isPrivacy ? t('legal.privacyPolicy', 'Política de Privacidad') : t('legal.termsOfService', 'Términos y Condiciones');

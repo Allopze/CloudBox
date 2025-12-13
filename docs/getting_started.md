@@ -1,80 +1,77 @@
 # Getting Started with CloudBox
 
-This guide will help you set up and run the CloudBox project locally.
+This guide helps you run CloudBox locally (frontend + backend + database).
 
 ## Prerequisites
 
-- **Node.js**: v18 or higher
-- **npm**: v9 or higher
-- **PostgreSQL**: Running locally or accessible remotely
-- **Redis**: Required for background jobs (Bull queue)
-- **FFmpeg**: Required for video processing (installed on system path)
+- **Node.js**: v18+
+- **npm**: v9+
+- **PostgreSQL**: v16+ (or use Docker)
+- **Redis**: optional for local dev, recommended; required for Bull queues in production
+- **System dependencies (for full feature set):**
+  - **FFmpeg**: video/audio transcoding
+  - **7-Zip / p7zip (`7z`)**: extracting `.7z`, `.rar`, `.tar` archives
+  - **GraphicsMagick (`gm`)**: PDF thumbnails (used by `pdf2pic`)
+  - **LibreOffice (`soffice`)**: Office document → PDF preview generation
 
 ## Project Structure
 
-- `backend/`: Node.js API server
-- `frontend/`: React Web application
+- `backend/`: Express API server (TypeScript, Prisma)
+- `frontend/`: React app (Vite, Zustand, Tailwind)
+- `docs/`: architecture, API, deployment
 
-## Installation
+## Option A (Recommended): Local dev servers + Docker for Postgres/Redis
 
-1. **Clone and Install Dependencies**
-    The project has a helper script to install dependencies for both frontend and backend.
+1. **Start Postgres + Redis**
 
-    ```bash
-    npm run install:all
-    ```
+   ```bash
+   docker-compose up -d postgres redis
+   ```
 
-2. **Environment Setup**
-    - Navigate to `backend/` and copy `.env.example` to `.env`.
-    - Configure your database URL, Redis connection, and JWT secrets.
+2. **Install dependencies**
 
-    ```bash
-    cd backend
-    cp .env.example .env
-    # Edit .env with your credentials
-    ```
+   ```bash
+   npm run install:all
+   ```
 
-    - Navigate to `frontend/` and copy `.env.example` to `.env` if necessary (usually for API URL).
+3. **Configure environment**
 
-3. **Database Setup**
-    Initialize the database schema and seed initial data.
+   - Backend: copy `backend/.env.example` to `backend/.env` and set `DATABASE_URL` to your local Postgres.
+   - Frontend: copy `frontend/.env.example` to `frontend/.env` (usually only `VITE_API_URL`).
 
-    ```bash
-    npm run setup
-    # This runs: generate, db push, and seed
-    ```
+4. **Initialize the database**
 
-## Running the Application
+   ```bash
+   npm run setup
+   ```
 
-### Development Mode
+   Development note: the seed creates an admin user. If you want a known password, set `ADMIN_PASSWORD` before running the seed; otherwise it prints a randomly-generated password to the console.
 
-To run both backend and frontend concurrently in development mode:
+5. **Run dev servers**
 
-```bash
-npm run dev
-```
+   ```bash
+   npm run dev
+   ```
 
-- **Backend:** <http://localhost:3001> (default)
-- **Frontend:** <http://localhost:5173> (default)
+   - Frontend: `http://localhost:5173`
+   - Backend: `http://localhost:3001` (API base: `http://localhost:3001/api`)
 
-### Building for Production
+## Option B: Dockerized local run (no hot reload)
 
-To build both applications:
+This runs the backend + a built frontend behind NGINX (use Option A for Vite HMR).
 
 ```bash
-npm run build
+docker-compose up -d --build
 ```
 
-The build artifacts will be located in:
+- Frontend: `http://localhost:8080`
+- Backend: `http://localhost:3001`
 
-- Backend: `backend/dist/`
-- Frontend: `frontend/dist/`
+## Useful Commands
 
-## Scripts Reference
-
-| Script | Description |
+| Command | Description |
 |--------|-------------|
-| `npm run dev` | Starts dev servers for frontend and backend |
-| `npm run build` | Builds both applications |
-| `npm run setup` | Installs deps and sets up the database |
-| `npm run db:studio` | Opens Prisma Studio to view database content |
+| `npm run dev` | Start frontend (5173) + backend (3001) |
+| `npm run setup` | Install deps, Prisma generate, db push, seed |
+| `npm run db:studio` | Open Prisma Studio |
+| `cd backend && npm test` | Run backend tests (Vitest) |

@@ -31,6 +31,7 @@ interface FileCardProps {
   view?: 'grid' | 'list';
   onRefresh?: () => void;
   onPreview?: (file: FileItem) => void;
+  onFavoriteToggle?: (fileId: string, isFavorite: boolean) => void;
 }
 
 // Get color based on file type
@@ -79,7 +80,7 @@ function getFileExtension(fileName: string): string {
 
 
 
-export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: FileCardProps) {
+export default function FileCard({ file, view = 'grid', onRefresh, onPreview, onFavoriteToggle }: FileCardProps) {
   const { t } = useTranslation();
   const location = useLocation();
   const isSelected = useFileStore(useCallback((state) => state.selectedItems.has(file.id), [file.id]));
@@ -196,11 +197,16 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
     try {
       await api.patch(`/files/${file.id}/favorite`);
       toast(file.isFavorite ? t('fileCard.removedFromFavorites') : t('fileCard.addedToFavorites'), 'success');
-      onRefresh?.();
+      // Use onFavoriteToggle if available for local state update, otherwise fall back to onRefresh
+      if (onFavoriteToggle) {
+        onFavoriteToggle(file.id, !file.isFavorite);
+      } else {
+        onRefresh?.();
+      }
     } catch {
       toast(t('fileCard.favoriteError'), 'error');
     }
-  }, [file.id, file.isFavorite, t, onRefresh]);
+  }, [file.id, file.isFavorite, t, onRefresh, onFavoriteToggle]);
 
   // Context menu items configuration
   const contextMenuItems: ContextMenuItemOrDivider[] = useMemo(() => [

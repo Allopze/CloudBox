@@ -222,7 +222,7 @@ Este documento resume una revisión rápida del backend y frontend realizada con
 ### 5.3 Experiencia de archivos grandes
 
 - La combinación de:
-  - Chunked upload (`lib/chunkedUpload.ts` + endpoints `/upload/init`, `/upload/chunk`, `/upload/complete`).
+  - Chunked upload (`lib/chunkedUpload.ts` + endpoints `/upload/init`, `/upload/chunk` (merge on last chunk)).
   - Pre-validación de subida (`validateUploadFiles` en `lib/api.ts`).
   - Colas de transcodificación/miniaturas.
 - Ya está muy bien; como mejoras futuras:
@@ -248,4 +248,3 @@ Este documento resume una revisión rápida del backend y frontend realizada con
    - Añadir pantallas UI para el historial de compresión y otras tareas en segundo plano.
 
 Con estos pasos, el proyecto queda más robusto, predecible y cómodo de mantener, sin cambiar su diseño funcional ni su modelo de seguridad actual.
-

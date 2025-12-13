@@ -143,7 +143,11 @@
     "useContextMenuForFolders": "Usa el menú contextual para renombrar carpetas",
     "uploadingFiles": "Subiendo {{count}} archivo(s)...",
     "itemsMovedTo": "{{count}} elemento(s) movido(s) a \"{{name}}\"",
-    "moveError": "Error al mover elementos"
+    "moveError": "Error al mover elementos",
+    "noFiles": "Esta carpeta está vacía",
+    "noSearchResults": "No se encontraron resultados",
+    "tryDifferentSearch": "Intenta con otros términos de búsqueda",
+    "uploadOrCreate": "Sube archivos o crea carpetas para empezar"
   },
   "photos": {
     "loadError": "Error al cargar las fotos",

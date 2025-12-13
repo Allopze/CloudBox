@@ -530,7 +530,7 @@ router.get('/:id/download', authenticate, async (req: Request, res: Response) =>
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(folder.name)}.zip"`);
 
-    const archive = archiver('zip', { zlib: { level: 9 } });
+    const archive = archiver('zip', { zlib: { level: config.compression.zipLevel } });
     archive.pipe(res);
 
     const addFolderToArchive = async (folderId: string, archivePath: string) => {
