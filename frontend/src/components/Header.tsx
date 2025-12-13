@@ -13,6 +13,7 @@ import {
   Sun,
   Settings,
   ShieldCheck,
+  PanelTop,
   LogOut,
   Plus,
   Upload,
@@ -324,16 +325,28 @@ export default function Header() {
                   {t('header.settings')}
                 </button>
                 {user?.role === 'ADMIN' && (
-                  <button
-                    onClick={() => {
-                      navigate('/admin');
-                      setShowUserMenu(false);
-                    }}
-                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-dark-700 dark:text-white hover:bg-dark-50 dark:hover:bg-white/10 transition-colors"
-                  >
-                    <ShieldCheck className="w-4 h-4" />
-                    {t('header.admin')}
-                  </button>
+                  <>
+                    <button
+                      onClick={() => {
+                        navigate('/admin');
+                        setShowUserMenu(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-dark-700 dark:text-white hover:bg-dark-50 dark:hover:bg-white/10 transition-colors"
+                    >
+                      <ShieldCheck className="w-4 h-4" />
+                      {t('header.admin')}
+                    </button>
+                    <button
+                      onClick={() => {
+                        navigate('/admin/landing');
+                        setShowUserMenu(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-dark-700 dark:text-white hover:bg-dark-50 dark:hover:bg-white/10 transition-colors"
+                    >
+                      <PanelTop className="w-4 h-4" />
+                      {t('header.landingEditor')}
+                    </button>
+                  </>
                 )}
                 <div className="border-t border-dark-200 dark:border-dark-700 mt-1 pt-1">
                   <button

@@ -241,6 +241,182 @@ export const publicLinkPasswordSchema = z.object({
 });
 
 // ============================================================
+// Landing Page Settings - Validation
+// ============================================================
+
+const safeHrefSchema = z.string()
+  .trim()
+  .max(2048)
+  .refine((value) => {
+    const lower = value.toLowerCase();
+    if (!value) return false;
+    if (lower.startsWith('javascript:') || lower.startsWith('data:') || lower.startsWith('vbscript:')) {
+      return false;
+    }
+    return (
+      value.startsWith('/') ||
+      value.startsWith('#') ||
+      lower.startsWith('http://') ||
+      lower.startsWith('https://') ||
+      lower.startsWith('mailto:')
+    );
+  }, 'Invalid link');
+
+const optionalSafeHrefSchema = z.union([safeHrefSchema, z.literal('')]).optional();
+
+const landingIconSchema = z.string().trim().min(1).max(64);
+
+const landingCardSchema = z.object({
+  id: z.string().trim().min(1).max(64),
+  icon: landingIconSchema,
+  title: z.string().trim().min(1).max(140),
+  description: z.string().trim().min(1).max(800),
+}).passthrough();
+
+const landingStepSchema = z.object({
+  id: z.string().trim().min(1).max(64),
+  title: z.string().trim().min(1).max(140),
+  description: z.string().trim().min(1).max(800),
+}).passthrough();
+
+const landingLinkSchema = z.object({
+  id: z.string().trim().min(1).max(64),
+  label: z.string().trim().min(1).max(80),
+  href: safeHrefSchema,
+}).passthrough();
+
+const landingFeatureItemSchema = z.object({
+  id: z.string().trim().min(1).max(64),
+  icon: landingIconSchema,
+  title: z.string().trim().min(1).max(140),
+  description: z.string().trim().min(1).max(800),
+}).passthrough();
+
+const landingFeatureGroupSchema = z.object({
+  id: z.string().trim().min(1).max(64),
+  title: z.string().trim().min(1).max(140),
+  description: z.string().trim().min(1).max(800).optional(),
+  items: z.array(landingFeatureItemSchema).min(1).max(20),
+}).passthrough();
+
+const landingComparisonRowSchema = z.object({
+  id: z.string().trim().min(1).max(64),
+  label: z.string().trim().min(1).max(120),
+  cloud: z.string().trim().min(1).max(240),
+  selfHosted: z.string().trim().min(1).max(240),
+}).passthrough();
+
+const landingFaqItemSchema = z.object({
+  id: z.string().trim().min(1).max(64),
+  question: z.string().trim().min(1).max(200),
+  answer: z.string().trim().min(1).max(1200),
+}).passthrough();
+
+export const landingConfigSchema = z.object({
+  version: z.literal(1),
+  links: z.object({
+    cloudUrl: safeHrefSchema,
+    appUrl: safeHrefSchema,
+    githubUrl: safeHrefSchema,
+    docsUrl: optionalSafeHrefSchema,
+    supportUrl: optionalSafeHrefSchema,
+  }).passthrough(),
+  assets: z.object({
+    heroImageUrl: optionalSafeHrefSchema,
+    featureImageUrl: optionalSafeHrefSchema,
+  }).passthrough().optional(),
+  sections: z.object({
+    hero: z.object({
+      enabled: z.boolean(),
+      title: z.string().trim().min(1).max(140),
+      subtitle: z.string().trim().min(1).max(800),
+      primaryCta: z.object({
+        label: z.string().trim().min(1).max(60),
+        href: safeHrefSchema,
+      }).passthrough(),
+      secondaryCta: z.object({
+        label: z.string().trim().min(1).max(60),
+        href: safeHrefSchema,
+      }).passthrough(),
+    }).passthrough(),
+    benefits: z.object({
+      enabled: z.boolean(),
+      title: z.string().trim().min(1).max(140),
+      items: z.array(landingCardSchema).min(3).max(12),
+    }).passthrough(),
+    howItWorks: z.object({
+      enabled: z.boolean(),
+      title: z.string().trim().min(1).max(140),
+      cloud: z.object({
+        title: z.string().trim().min(1).max(140),
+        steps: z.array(landingStepSchema).min(3).max(8),
+      }).passthrough(),
+      selfHosted: z.object({
+        title: z.string().trim().min(1).max(140),
+        steps: z.array(landingStepSchema).min(3).max(10),
+      }).passthrough(),
+    }).passthrough(),
+    features: z.object({
+      enabled: z.boolean(),
+      title: z.string().trim().min(1).max(140),
+      groups: z.array(landingFeatureGroupSchema).min(2).max(12),
+    }).passthrough(),
+    comparison: z.object({
+      enabled: z.boolean(),
+      title: z.string().trim().min(1).max(140),
+      cloud: z.object({
+        title: z.string().trim().min(1).max(80),
+        description: z.string().trim().min(1).max(400),
+        bullets: z.array(z.string().trim().min(1).max(140)).min(2).max(10),
+      }).passthrough(),
+      selfHosted: z.object({
+        title: z.string().trim().min(1).max(80),
+        description: z.string().trim().min(1).max(400),
+        bullets: z.array(z.string().trim().min(1).max(140)).min(2).max(10),
+      }).passthrough(),
+      rows: z.array(landingComparisonRowSchema).min(3).max(12),
+    }).passthrough(),
+    security: z.object({
+      enabled: z.boolean(),
+      title: z.string().trim().min(1).max(140),
+      body: z.string().trim().min(1).max(1200),
+      points: z.array(z.string().trim().min(1).max(200)).min(2).max(10),
+    }).passthrough(),
+    github: z.object({
+      enabled: z.boolean(),
+      title: z.string().trim().min(1).max(140),
+      body: z.string().trim().min(1).max(1200),
+      ctaLabel: z.string().trim().min(1).max(80),
+      requirements: z.array(z.string().trim().min(1).max(200)).min(2).max(10),
+    }).passthrough(),
+    useCases: z.object({
+      enabled: z.boolean(),
+      title: z.string().trim().min(1).max(140),
+      items: z.array(landingCardSchema).min(2).max(12),
+    }).passthrough(),
+    faq: z.object({
+      enabled: z.boolean(),
+      title: z.string().trim().min(1).max(140),
+      items: z.array(landingFaqItemSchema).min(3).max(24),
+    }).passthrough(),
+    footer: z.object({
+      enabled: z.boolean(),
+      tagline: z.string().trim().min(1).max(200),
+      groups: z.array(z.object({
+        id: z.string().trim().min(1).max(64),
+        title: z.string().trim().min(1).max(80),
+        links: z.array(landingLinkSchema).min(1).max(12),
+      }).passthrough()).min(2).max(6),
+      finePrint: z.string().trim().min(1).max(240).optional(),
+    }).passthrough(),
+  }).passthrough(),
+}).passthrough();
+
+export const landingSettingsSchema = z.object({
+  body: landingConfigSchema,
+});
+
+// ============================================================
 // Upload Schemas - Validation for file upload endpoints
 // ============================================================
 

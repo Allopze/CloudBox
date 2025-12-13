@@ -40,8 +40,52 @@
     "darkMode": "Modo oscuro",
     "settings": "Configuración",
     "admin": "Administración",
+    "landingEditor": "Editar landing",
     "logout": "Cerrar sesión",
     "userMenu": "Menú de usuario"
+  },
+  "landing": {
+    "loading": "Cargando…",
+    "nav": {
+      "open": "Abrir navegación",
+      "close": "Cerrar navegación",
+      "benefits": "Beneficios",
+      "howItWorks": "Cómo funciona",
+      "features": "Características",
+      "comparison": "Nube vs autohospedado",
+      "security": "Seguridad",
+      "github": "GitHub",
+      "faq": "FAQ"
+    },
+    "theme": {
+      "light": "Modo claro",
+      "dark": "Modo oscuro"
+    },
+    "hero": {
+      "badge": "Nube privada · experiencia moderna",
+      "modeCloud": "En la nube",
+      "modeSelfHosted": "Autohospedado",
+      "selfHostedValue": "GitHub / Autoalojado"
+    },
+    "section": {
+      "eyebrow": "CloudBox"
+    },
+    "comparison": {
+      "table": {
+        "feature": "Característica",
+        "cloud": "Nube",
+        "selfHosted": "Autohospedado"
+      }
+    },
+    "security": {
+      "highlights": "Puntos clave"
+    },
+    "github": {
+      "requirements": "Requisitos mínimos"
+    },
+    "footer": {
+      "note": "Úsalo en la nube o autohospédalo."
+    }
   },
   "sidebar": {
     "dashboard": "Inicio",
