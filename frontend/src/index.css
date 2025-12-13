@@ -106,6 +106,7 @@
   .premium-card.selected {
     @apply border-primary-500/80 dark:border-primary-500/80;
     @apply bg-primary-50/40 dark:bg-primary-900/30;
+    transform: scale(0.95);
   }
 
   .premium-card:focus-visible {
@@ -180,6 +181,7 @@
   .premium-card-list.selected {
     @apply bg-primary-50/40 dark:bg-primary-900/30;
     @apply border-primary-500/50 dark:border-primary-500/50;
+    transform: scale(0.98);
   }
 
   .premium-card-list:focus-visible {

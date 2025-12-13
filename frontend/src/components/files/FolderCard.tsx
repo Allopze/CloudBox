@@ -40,11 +40,8 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
   const [, setSearchParams] = useSearchParams();
   const location = useLocation();
   const isSelected = useFileStore(useCallback((state) => state.selectedItems.has(folder.id), [folder.id]));
-  const addToSelection = useFileStore((state) => state.addToSelection);
-  const removeFromSelection = useFileStore((state) => state.removeFromSelection);
-  const selectRange = useFileStore((state) => state.selectRange);
-  const selectSingle = useFileStore((state) => state.selectSingle);
-  const clearSelection = useFileStore((state) => state.clearSelection);
+  // Use getState() for action functions to avoid unnecessary subscriptions
+  const { addToSelection, removeFromSelection, selectRange, selectSingle, clearSelection } = useFileStore.getState();
   const { draggedItems } = useDragDropStore();
   const [showShareModal, setShowShareModal] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
@@ -355,7 +352,7 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
       <>
         <motion.div
           layout
-          transition={{ layout: { duration: 0.2, ease: 'easeOut' } }}
+          transition={{ type: 'spring', stiffness: 400, damping: 25 }}
           ref={setNodeRef}
           style={dragStyle}
           {...attributes}
@@ -404,7 +401,7 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
     <>
       <motion.div
         layout
-        transition={{ layout: { duration: 0.2, ease: 'easeOut' } }}
+        transition={{ type: 'spring', stiffness: 400, damping: 25 }}
         ref={setNodeRef}
         style={dragStyle}
         {...attributes}

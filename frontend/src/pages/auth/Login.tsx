@@ -29,7 +29,7 @@ export default function Login() {
   const [countdown, setCountdown] = useState<number>(0);
   const [showRememberTooltip, setShowRememberTooltip] = useState(false);
   const [hasSubmitted, setHasSubmitted] = useState(false);
-  
+
   const emailInputRef = useRef<HTMLInputElement>(null);
   const passwordInputRef = useRef<HTMLInputElement>(null);
 
@@ -73,7 +73,7 @@ export default function Login() {
 
   const validateForm = (): boolean => {
     let isValid = true;
-    
+
     if (!email) {
       setEmailError(t('auth.errors.emailRequired'));
       isValid = false;
@@ -83,14 +83,14 @@ export default function Login() {
     } else {
       setEmailError('');
     }
-    
+
     if (!password) {
       setPasswordError(t('auth.errors.passwordRequired'));
       isValid = false;
     } else {
       setPasswordError('');
     }
-    
+
     return isValid;
   };
 
@@ -114,14 +114,14 @@ export default function Login() {
 
     try {
       await login(email, password);
-      
+
       // Handle "Remember me" functionality
       if (rememberMe) {
         localStorage.setItem('rememberEmail', email);
       } else {
         localStorage.removeItem('rememberEmail');
       }
-      
+
       toast(t('auth.welcomeBack'), 'success');
       navigate('/');
     } catch (err: any) {
@@ -129,7 +129,7 @@ export default function Login() {
       const code = errorData?.code || null;
       const attempts = errorData?.remainingAttempts ?? null;
       const retryAfter = errorData?.retryAfter ?? null;
-      
+
       // Set specific error messages based on error code
       let errorMessage = '';
       switch (code) {
@@ -154,17 +154,17 @@ export default function Login() {
         default:
           errorMessage = errorData?.error || errorData?.message || t('auth.loginFailed');
       }
-      
+
       setError(errorMessage);
       setErrorCode(code);
       setRemainingAttempts(attempts);
-      
+
       // Handle rate limiting / lockout
       if (code === 'TOO_MANY_ATTEMPTS' && retryAfter) {
         setLockoutTime(retryAfter);
         setCountdown(Math.ceil(retryAfter / 1000));
       }
-      
+
       // Only show toast for network errors or unexpected errors
       if (!err.response) {
         toast(t('auth.connectionError'), 'error');
@@ -249,7 +249,7 @@ export default function Login() {
             showRequiredIndicator
             aria-required="true"
           />
-          
+
           {/* Forgot password link - positioned right below password field */}
           <div className="flex justify-end">
             <Link
@@ -279,7 +279,7 @@ export default function Login() {
               </div>
             </div>
           )}
-          
+
           {/* Regular error messages */}
           {!isLocked && error && (
             <div className="p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800" role="alert">
@@ -289,12 +289,9 @@ export default function Login() {
                 </div>
                 <div className="flex-1 pt-1">
                   <p className="text-sm font-medium text-red-800 dark:text-red-200">
-                    {t('auth.loginFailed')}
-                  </p>
-                  <p className="text-sm text-red-700 dark:text-red-300 mt-1">
                     {error}
                   </p>
-                  
+
                   {/* Show remaining attempts warning */}
                   {remainingAttempts !== null && remainingAttempts > 0 && remainingAttempts <= 3 && (
                     <p className="text-xs text-red-600 dark:text-red-400 mt-2 font-medium">
@@ -309,7 +306,7 @@ export default function Login() {
 
         {/* Remember me checkbox with enlarged clickable area */}
         <div className="relative">
-          <label 
+          <label
             className="flex items-center gap-3 cursor-pointer select-none py-2 px-1 -mx-1 rounded-lg hover:bg-dark-50 dark:hover:bg-dark-800/50 transition-colors"
           >
             <input
@@ -338,10 +335,10 @@ export default function Login() {
               </button>
             </span>
           </label>
-          
+
           {/* Tooltip */}
           {showRememberTooltip && (
-            <div 
+            <div
               className="absolute left-0 top-full mt-1 p-2 bg-dark-800 dark:bg-dark-700 text-white text-xs rounded-lg shadow-lg z-10 max-w-xs"
               role="tooltip"
             >
@@ -365,26 +362,26 @@ export default function Login() {
       <div className="mt-6 space-y-4">
         <p className="text-center text-dark-600 dark:text-dark-400">
           {t('auth.noAccount')}{' '}
-          <Link 
-            to="/register" 
+          <Link
+            to="/register"
             className="text-dark-700 dark:text-dark-300 hover:text-primary-600 dark:hover:text-primary-500 font-medium transition-colors underline underline-offset-2"
           >
             {t('auth.register')}
           </Link>
         </p>
-        
+
         {/* Privacy and terms links */}
         <p className="text-center text-xs text-dark-400 dark:text-dark-500">
           {t('auth.acceptTerms')}{' '}
-          <Link 
-            to="/privacy" 
+          <Link
+            to="/privacy"
             className="hover:text-dark-600 dark:hover:text-dark-400 underline underline-offset-2 transition-colors"
           >
             {t('auth.privacyPolicy')}
           </Link>
           {' '}{t('auth.and')}{' '}
-          <Link 
-            to="/terms" 
+          <Link
+            to="/terms"
             className="hover:text-dark-600 dark:hover:text-dark-400 underline underline-offset-2 transition-colors"
           >
             {t('auth.termsOfService')}

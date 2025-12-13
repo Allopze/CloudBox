@@ -83,10 +83,8 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
   const { t } = useTranslation();
   const location = useLocation();
   const isSelected = useFileStore(useCallback((state) => state.selectedItems.has(file.id), [file.id]));
-  const addToSelection = useFileStore((state) => state.addToSelection);
-  const removeFromSelection = useFileStore((state) => state.removeFromSelection);
-  const selectRange = useFileStore((state) => state.selectRange);
-  const selectSingle = useFileStore((state) => state.selectSingle);
+  // Use getState() for action functions to avoid unnecessary subscriptions
+  const { addToSelection, removeFromSelection, selectRange, selectSingle } = useFileStore.getState();
   const [showShareModal, setShowShareModal] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [showMoveModal, setShowMoveModal] = useState(false);
@@ -188,12 +186,12 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
     }
   };
 
-  const handleDownload = () => {
+  const handleDownload = useCallback(() => {
     setContextMenu(null);
     window.open(getFileUrl(file.id, 'download', true), '_blank');
-  };
+  }, [file.id]);
 
-  const handleFavorite = async () => {
+  const handleFavorite = useCallback(async () => {
     setContextMenu(null);
     try {
       await api.patch(`/files/${file.id}/favorite`);
@@ -202,7 +200,7 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
     } catch {
       toast(t('fileCard.favoriteError'), 'error');
     }
-  };
+  }, [file.id, file.isFavorite, t, onRefresh]);
 
   // Context menu items configuration
   const contextMenuItems: ContextMenuItemOrDivider[] = useMemo(() => [
@@ -274,7 +272,7 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
       <>
         <motion.div
           layout
-          transition={{ layout: { duration: 0.2, ease: 'easeOut' } }}
+          transition={{ type: 'spring', stiffness: 400, damping: 25 }}
           ref={setNodeRef}
           style={dragStyle}
           {...attributes}
@@ -322,7 +320,7 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
     <>
       <motion.div
         layout
-        transition={{ layout: { duration: 0.2, ease: 'easeOut' } }}
+        transition={{ type: 'spring', stiffness: 400, damping: 25 }}
         ref={setNodeRef}
         style={dragStyle}
         {...attributes}
@@ -360,9 +358,9 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview }: 
           </button>
         </div>
 
-        {/* Favorite badge */}
+        {/* Favorite badge - top left */}
         {file.isFavorite && (
-          <div className="premium-card-badges">
+          <div className="absolute top-2 left-2 z-10">
             <Star className="w-4 h-4 text-yellow-400 fill-yellow-400 drop-shadow-md" />
           </div>
         )}

@@ -7,7 +7,7 @@ import { useFileStore } from '../stores/fileStore';
 import FileCard from '../components/files/FileCard';
 import DocumentThumbnail from '../components/files/DocumentThumbnail';
 import {
-  Loader2, FileText, FileSpreadsheet, File, Eye, Heart, Check,
+  Loader2, FileText, FileSpreadsheet, File, Eye, Check,
   Download, Share2, Trash2, Info, Copy, Star, Code, Presentation
 } from 'lucide-react';
 import { toast } from '../components/ui/Toast';
@@ -277,19 +277,6 @@ export default function Documents() {
     closeContextMenu();
   };
 
-  const toggleFavorite = async (e: React.MouseEvent, doc: FileItem) => {
-    e.stopPropagation();
-    try {
-      await api.patch(`/files/${doc.id}/favorite`);
-      setDocuments(prev => prev.map(d =>
-        d.id === doc.id ? { ...d, isFavorite: !d.isFavorite } : d
-      ));
-      toast(doc.isFavorite ? t('documents.removedFromFavorites') : t('documents.addedToFavorites'), 'success');
-    } catch {
-      toast(t('documents.favoriteError'), 'error');
-    }
-  };
-
   // Remove file extension from name for display
   const getDisplayName = (name: string) => {
     return name.replace(/\.[^/.]+$/, '');
@@ -308,7 +295,7 @@ export default function Documents() {
       {/* Content - Visual card grid view */}
       {documents.length > 0 ? (
         viewMode === 'grid' ? (
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
             {documents.map((doc) => {
               const isSelected = selectedItems.has(doc.id);
 
@@ -346,62 +333,43 @@ export default function Documents() {
                   animate={isSelected ? { scale: 0.95 } : { scale: 1 }}
                   transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                   className={cn(
-                    'group cursor-pointer rounded-xl transition-all duration-200 p-2',
-                    'hover:bg-dark-100 dark:hover:bg-dark-800',
-                    isSelected && 'ring-3 ring-primary-500 ring-offset-2 ring-offset-white dark:ring-offset-dark-900'
+                    'premium-card group',
+                    isSelected && 'selected'
                   )}
                 >
-                  {/* Document preview / Cover */}
-                  <div className="relative aspect-[3/4] rounded-lg overflow-hidden mb-3 shadow-md">
-                    {/* Document thumbnail with live preview */}
+                  {/* Selection indicator */}
+                  {isSelected && (
+                    <div className="absolute top-2 left-2 w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center shadow-lg z-20">
+                      <Check className="w-4 h-4 text-white" />
+                    </div>
+                  )}
+
+                  {/* Favorite badge - top left */}
+                  {doc.isFavorite && !isSelected && (
+                    <div className="absolute top-2 left-2 z-10">
+                      <Star className="w-4 h-4 text-yellow-400 fill-yellow-400 drop-shadow-md" />
+                    </div>
+                  )}
+
+                  {/* Document thumbnail */}
+                  <div className="premium-card-thumbnail">
                     <DocumentThumbnail
                       fileId={doc.id}
                       fileName={doc.name}
                       mimeType={doc.mimeType}
                     />
-
-                    {/* Selection indicator */}
-                    {isSelected && (
-                      <div className="absolute top-2 left-2 w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center shadow-lg z-20">
-                        <Check className="w-4 h-4 text-white" />
-                      </div>
-                    )}
-
-                    {/* Favorite button */}
-                    <button
-                      onClick={(e) => toggleFavorite(e, doc)}
-                      className={cn(
-                        'absolute top-2 right-2 p-1.5 rounded-full transition-all z-10',
-                        doc.isFavorite
-                          ? 'bg-red-500 text-white'
-                          : 'bg-black/40 text-white opacity-0 group-hover:opacity-100 hover:bg-black/60'
-                      )}
-                      aria-label={doc.isFavorite ? t('common.removeFromFavorites') : t('common.addToFavorites')}
-                    >
-                      <Heart className={cn('w-4 h-4', doc.isFavorite && 'fill-current')} />
-                    </button>
-
-                    {/* Preview overlay on hover */}
-                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <div className="w-12 h-12 rounded-full bg-primary-500 flex items-center justify-center shadow-lg transform transition-transform group-hover:scale-110">
-                        <Eye className="w-6 h-6 text-white" />
-                      </div>
-                    </div>
-
-                    {/* File size badge */}
-                    <div className="absolute bottom-2 right-2 px-2 py-0.5 bg-black/60 rounded text-xs text-white font-medium z-10">
-                      {formatBytes(doc.size)}
-                    </div>
                   </div>
 
-                  {/* Document info */}
-                  <div className="px-1">
-                    <p className="font-medium text-sm truncate text-dark-900 dark:text-white">
+                  {/* Content Area */}
+                  <div className="premium-card-content">
+                    <p className="premium-card-name" title={doc.name}>
                       {getDisplayName(doc.name)}
                     </p>
-                    <p className="text-xs text-dark-500 truncate">
-                      {formatDate(doc.createdAt)}
-                    </p>
+                    <div className="premium-card-meta">
+                      <span>{formatBytes(doc.size)}</span>
+                      <span>·</span>
+                      <span>{formatDate(doc.createdAt)}</span>
+                    </div>
                   </div>
                 </motion.div>
               );

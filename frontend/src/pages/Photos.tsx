@@ -414,7 +414,7 @@ export default function Photos() {
           );
         })()
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
           {photos.map((photo, index) => {
             const isSelected = selectedItems.has(photo.id);
 
@@ -452,35 +452,43 @@ export default function Photos() {
                 animate={isSelected ? { scale: 0.95 } : { scale: 1 }}
                 transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                 className={cn(
-                  'group relative aspect-square rounded-xl overflow-hidden cursor-pointer bg-dark-100 dark:bg-dark-800 transition-all',
-                  isSelected && 'ring-3 ring-primary-500 ring-offset-2 ring-offset-white dark:ring-offset-dark-900'
+                  'premium-card group',
+                  isSelected && 'selected'
                 )}
               >
-                <img
-                  src={photo.thumbnailPath ? getFileUrl(`/files/${photo.id}/thumbnail`, undefined, true) : getFileUrl(`/files/${photo.id}/view`, undefined, true)}
-                  alt={photo.name}
-                  className="w-full h-full object-cover"
-                  loading="lazy"
-                />
                 {/* Selection indicator */}
                 {isSelected && (
-                  <div className="absolute top-2 left-2 w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center shadow-lg">
+                  <div className="absolute top-2 left-2 w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center shadow-lg z-20">
                     <Check className="w-4 h-4 text-white" />
                   </div>
                 )}
-                <div className={cn(
-                  'absolute inset-0 bg-black/40 transition-opacity flex items-end',
-                  isSelected ? 'opacity-50' : 'opacity-0 group-hover:opacity-100'
-                )}>
-                  <div className="p-2 w-full">
-                    <p className="text-white text-xs font-medium truncate">{photo.name}</p>
-                  </div>
-                </div>
-                {photo.isFavorite && (
-                  <div className="absolute top-2 right-2">
-                    <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />
+
+                {/* Favorite badge - top left */}
+                {photo.isFavorite && !isSelected && (
+                  <div className="absolute top-2 left-2 z-10">
+                    <Star className="w-4 h-4 text-yellow-400 fill-yellow-400 drop-shadow-md" />
                   </div>
                 )}
+
+                {/* Photo thumbnail */}
+                <div className="premium-card-thumbnail">
+                  <img
+                    src={photo.thumbnailPath ? getFileUrl(`/files/${photo.id}/thumbnail`, undefined, true) : getFileUrl(`/files/${photo.id}/view`, undefined, true)}
+                    alt={photo.name}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                </div>
+
+                {/* Content Area */}
+                <div className="premium-card-content">
+                  <p className="premium-card-name" title={photo.name}>
+                    {photo.name}
+                  </p>
+                  <div className="premium-card-meta">
+                    <span>{formatDate(photo.createdAt)}</span>
+                  </div>
+                </div>
               </motion.div>
             );
           })}

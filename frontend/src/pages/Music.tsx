@@ -534,7 +534,7 @@ export default function MusicPage() {
     return (
       <div className="pb-24">
         {albumGroups.length > 0 ? (
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
             {albumGroups.map((album) => {
               const [fromColor, toColor] = getGradientColors(album.name);
 
@@ -545,10 +545,11 @@ export default function MusicPage() {
                     // Update URL to include folder ID, enabling drag-and-drop globally
                     setSearchParams({ tab: 'albums', folder: album.id });
                   }}
-                  className="group cursor-pointer rounded-xl transition-all duration-200 hover:bg-dark-100 dark:hover:bg-dark-800 p-2"
+                  className="premium-card group"
                 >
+                  {/* Album cover */}
                   <div className={cn(
-                    'relative aspect-square rounded-lg overflow-hidden mb-3 shadow-md',
+                    'premium-card-thumbnail',
                     !album.cover && `bg-gradient-to-br ${fromColor} ${toColor}`
                   )}>
                     {album.cover ? (
@@ -559,25 +560,18 @@ export default function MusicPage() {
                         loading="lazy"
                       />
                     ) : (
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <Disc className="w-12 h-12 text-white/80" />
-                      </div>
+                      <Disc className="w-12 h-12 text-white/80" />
                     )}
-
-                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <div className="w-12 h-12 rounded-full bg-primary-500 flex items-center justify-center shadow-lg">
-                        <Play className="w-6 h-6 text-white fill-white" />
-                      </div>
-                    </div>
                   </div>
 
-                  <div className="px-1">
-                    <p className="font-medium text-sm truncate text-dark-900 dark:text-white">
+                  {/* Content Area */}
+                  <div className="premium-card-content">
+                    <p className="premium-card-name" title={album.name}>
                       {album.name}
                     </p>
-                    <p className="text-xs text-dark-500">
-                      {t('music.songsCount', { count: album.tracks.length })}
-                    </p>
+                    <div className="premium-card-meta">
+                      <span>{t('music.songsCount', { count: album.tracks.length })}</span>
+                    </div>
                   </div>
                 </div>
               );
@@ -598,7 +592,7 @@ export default function MusicPage() {
     <div className="pb-24">
       {/* Track grid */}
       {tracks.length > 0 ? (
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
           {tracks.map((track) => {
             const [fromColor, toColor] = getGradientColors(track.name);
             const isCurrentTrack = currentTrack?.id === track.id;
@@ -638,18 +632,30 @@ export default function MusicPage() {
                 animate={isSelected ? { scale: 0.95 } : { scale: 1 }}
                 transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                 className={cn(
-                  'group cursor-pointer rounded-xl transition-all duration-200 p-2',
-                  'hover:bg-dark-100 dark:hover:bg-dark-800',
-                  isCurrentTrack && 'bg-dark-100 dark:bg-dark-800',
-                  isSelected && 'ring-3 ring-primary-500 ring-offset-2 ring-offset-white dark:ring-offset-dark-900'
+                  'premium-card group',
+                  isSelected && 'selected',
+                  isCurrentTrack && 'bg-dark-100 dark:bg-dark-800'
                 )}
               >
+                {/* Selection indicator */}
+                {isSelected && (
+                  <div className="absolute top-2 left-2 w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center shadow-lg z-20">
+                    <Check className="w-4 h-4 text-white" />
+                  </div>
+                )}
+
+                {/* Favorite badge - top left */}
+                {track.isFavorite && !isSelected && (
+                  <div className="absolute top-2 left-2 z-10">
+                    <Star className="w-4 h-4 text-yellow-400 fill-yellow-400 drop-shadow-md" />
+                  </div>
+                )}
+
                 {/* Album art / Cover */}
                 <div className={cn(
-                  'relative aspect-square rounded-lg overflow-hidden mb-3 shadow-md',
+                  'premium-card-thumbnail',
                   !track.thumbnailPath && `bg-gradient-to-br ${fromColor} ${toColor}`
                 )}>
-                  {/* Cover image or fallback gradient with icon */}
                   {track.thumbnailPath ? (
                     <img
                       src={getFileUrl(track.id, 'thumbnail', true)}
@@ -658,68 +664,35 @@ export default function MusicPage() {
                       loading="lazy"
                     />
                   ) : (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <Music className="w-12 h-12 text-white/80" />
-                    </div>
+                    <Music className="w-12 h-12 text-white/80" />
                   )}
 
-                  {/* Selection indicator */}
-                  {isSelected && (
-                    <div className="absolute top-2 left-2 w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center shadow-lg z-20">
-                      <Check className="w-4 h-4 text-white" />
-                    </div>
-                  )}
-
-                  {/* Favorite button */}
-                  <button
-                    onClick={(e) => toggleFavorite(e, track)}
-                    className={cn(
-                      'absolute top-2 right-2 p-1.5 rounded-full transition-all z-10',
-                      track.isFavorite
-                        ? 'bg-red-500 text-white'
-                        : 'bg-black/40 text-white opacity-0 group-hover:opacity-100 hover:bg-black/60'
-                    )}
-                    title={track.isFavorite ? t('music.removeFromFavorites') : t('music.addToFavorites')}
-                    aria-label={track.isFavorite ? t('music.removeFromFavorites') : t('music.addToFavorites')}
-                  >
-                    <Heart className={cn('w-4 h-4', track.isFavorite && 'fill-current')} />
-                  </button>
-
-                  {/* Playing indicator / Play button overlay */}
-                  <div className={cn(
-                    'absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity',
-                    isCurrentTrack && isPlaying ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                  )}>
-                    {isCurrentTrack && isPlaying ? (
+                  {/* Playing indicator overlay */}
+                  {isCurrentTrack && isPlaying && (
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                       <div className="flex items-end gap-1 h-8">
                         <div className="w-1.5 bg-white rounded-full animate-music-bar-1" />
                         <div className="w-1.5 bg-white rounded-full animate-music-bar-2" />
                         <div className="w-1.5 bg-white rounded-full animate-music-bar-3" />
                         <div className="w-1.5 bg-white rounded-full animate-music-bar-1" />
                       </div>
-                    ) : (
-                      <div className="w-12 h-12 rounded-full bg-primary-500 flex items-center justify-center shadow-lg transform transition-transform group-hover:scale-110">
-                        <Play className="w-6 h-6 text-white fill-white" />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Duration badge */}
-                  {trackDurations[track.id] && Number.isFinite(trackDurations[track.id]) && (
-                    <div className="absolute bottom-2 right-2 px-2 py-0.5 bg-black/60 rounded text-xs text-white font-medium">
-                      {formatTime(trackDurations[track.id])}
                     </div>
                   )}
                 </div>
 
-                {/* Track info */}
-                <div className="px-1">
+                {/* Content Area */}
+                <div className="premium-card-content">
                   <p className={cn(
-                    'font-medium text-sm truncate',
-                    isCurrentTrack ? 'text-primary-600' : 'text-dark-900 dark:text-white'
-                  )}>
+                    'premium-card-name',
+                    isCurrentTrack && 'text-primary-600'
+                  )} title={track.name}>
                     {getDisplayName(track.name)}
                   </p>
+                  <div className="premium-card-meta">
+                    {trackDurations[track.id] && Number.isFinite(trackDurations[track.id]) && (
+                      <span>{formatTime(trackDurations[track.id])}</span>
+                    )}
+                  </div>
                 </div>
               </motion.div>
             );

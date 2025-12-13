@@ -539,27 +539,33 @@ export default function MainLayout() {
     // Only start on left click
     if (e.button !== undefined && e.button !== 0) return;
 
-    // Avoid starting from obvious form controls to not break UI usage
+    // Avoid starting from interactive form controls that need clicks to work
     const target = e.target as HTMLElement | null;
-    if (target && (target.closest('input, textarea, select, button, [role="button"], a, [contenteditable="true"]'))) {
+    if (target && (target.closest('input, textarea, select, button, [role="button"], a, [contenteditable="true"], .no-marquee'))) {
       return;
     }
 
+    // Require workzone to exist for proper coordinate calculation
     const rect = workzoneRef.current?.getBoundingClientRect();
-    if (rect) {
-      // Allow starting from anywhere in the viewport; clamp to workzone bounds
-      const rawX = e.clientX - rect.left + (workzoneRef.current?.scrollLeft || 0);
-      const rawY = e.clientY - rect.top + (workzoneRef.current?.scrollTop || 0);
-      const x = Math.max(0, Math.min(rect.width + (workzoneRef.current?.scrollLeft || 0), rawX));
-      const y = Math.max(0, Math.min(rect.height + (workzoneRef.current?.scrollTop || 0), rawY));
+    if (!rect || !workzoneRef.current) return;
 
-      setMarqueeStart({ x, y });
-      marqueeEndRef.current = { x, y };
-      setIsMarqueeActive(true);
-      clearSelection();
-      // Cache element positions for fast collision detection
-      cacheElementPositions();
-    }
+    // Calculate position relative to workzone, clamping to valid bounds
+    // This allows starting from anywhere on the screen
+    const rawX = e.clientX - rect.left + workzoneRef.current.scrollLeft;
+    const rawY = e.clientY - rect.top + workzoneRef.current.scrollTop;
+
+    // Clamp coordinates to workzone bounds
+    const maxX = workzoneRef.current.scrollWidth;
+    const maxY = workzoneRef.current.scrollHeight;
+    const x = Math.max(0, Math.min(maxX, rawX));
+    const y = Math.max(0, Math.min(maxY, rawY));
+
+    setMarqueeStart({ x, y });
+    marqueeEndRef.current = { x, y };
+    setIsMarqueeActive(true);
+    clearSelection();
+    // Cache element positions for fast collision detection
+    cacheElementPositions();
   }, [clearSelection, isInternalDragging, isAdminPage, cacheElementPositions]);
 
   // Store marquee state in refs for auto-scroll access
@@ -578,8 +584,12 @@ export default function MainLayout() {
     mousePositionRef.current = { x: e.clientX, y: e.clientY };
 
     const rect = workzoneRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left + workzoneRef.current.scrollLeft;
-    const y = e.clientY - rect.top + workzoneRef.current.scrollTop;
+    const rawX = e.clientX - rect.left + workzoneRef.current.scrollLeft;
+    const rawY = e.clientY - rect.top + workzoneRef.current.scrollTop;
+
+    // Clamp coordinates to content bounds to prevent infinite extension
+    const x = Math.max(0, Math.min(rawX, workzoneRef.current.scrollWidth));
+    const y = Math.max(0, Math.min(rawY, workzoneRef.current.scrollHeight));
 
     // Update marquee visual immediately via DOM (no React re-render)
     marqueeEndRef.current = { x, y };
@@ -667,9 +677,12 @@ export default function MainLayout() {
       const maxScrollTop = workzoneRef.current.scrollHeight - workzoneRef.current.clientHeight;
       const currentScrollTop = workzoneRef.current.scrollTop;
 
-      // Scroll down when near bottom edge (but not beyond content)
-      if (distanceFromBottom < edgeThreshold && distanceFromBottom >= 0 && currentScrollTop < maxScrollTop) {
-        const intensity = Math.min((edgeThreshold - distanceFromBottom) / edgeThreshold, 1);
+      // Scroll down when near OR BEYOND bottom edge (but not beyond content)
+      // distanceFromBottom < edgeThreshold means cursor is near bottom
+      // distanceFromBottom < 0 means cursor is BELOW the workzone
+      if (distanceFromBottom < edgeThreshold && currentScrollTop < maxScrollTop) {
+        // When beyond the edge (negative distance), use max intensity
+        const intensity = distanceFromBottom < 0 ? 1 : (edgeThreshold - distanceFromBottom) / edgeThreshold;
         const desiredScroll = Math.ceil(scrollSpeed * intensity);
         // Clamp to not exceed max scroll
         scrolledY = Math.min(desiredScroll, maxScrollTop - currentScrollTop);
@@ -677,9 +690,11 @@ export default function MainLayout() {
           workzoneRef.current.scrollTop += scrolledY;
         }
       }
-      // Scroll up when near top edge
-      else if (distanceFromTop < edgeThreshold && distanceFromTop >= 0 && currentScrollTop > 0) {
-        const intensity = Math.min((edgeThreshold - distanceFromTop) / edgeThreshold, 1);
+      // Scroll up when near OR BEYOND top edge
+      // distanceFromTop < 0 means cursor is ABOVE the workzone
+      else if (distanceFromTop < edgeThreshold && currentScrollTop > 0) {
+        // When beyond the edge (negative distance), use max intensity
+        const intensity = distanceFromTop < 0 ? 1 : (edgeThreshold - distanceFromTop) / edgeThreshold;
         const desiredScroll = Math.ceil(scrollSpeed * intensity);
         // Clamp to not go below 0
         scrolledY = -Math.min(desiredScroll, currentScrollTop);
@@ -690,7 +705,11 @@ export default function MainLayout() {
 
       // Update marquee end position and selection if scrolled
       if (scrolledY !== 0) {
-        const newEndY = marqueeEndRef.current.y + scrolledY;
+        // Clamp the new Y position to the actual content bounds
+        const newEndY = Math.max(0, Math.min(
+          marqueeEndRef.current.y + scrolledY,
+          workzoneRef.current.scrollHeight
+        ));
         marqueeEndRef.current = { x: marqueeEndRef.current.x, y: newEndY };
         // Update DOM directly for performance
         if (marqueeBoxRef.current) {
