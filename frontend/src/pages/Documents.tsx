@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { api, getFileUrl } from '../lib/api';
+import { api, getSignedFileUrl, openSignedFileUrl } from '../lib/api';
 import { FileItem } from '../types';
 import { useFileStore } from '../stores/fileStore';
 import FileCard from '../components/files/FileCard';
@@ -224,7 +224,7 @@ export default function Documents() {
   };
 
   const handleDownload = (file: FileItem) => {
-    window.open(getFileUrl(file.id, 'download'), '_blank');
+    void openSignedFileUrl(file.id, 'download');
     closeContextMenu();
   };
 
@@ -240,7 +240,7 @@ export default function Documents() {
 
   const handleCopyLink = async (doc: FileItem) => {
     try {
-      const url = `${window.location.origin}${getFileUrl(doc.id, 'view')}`;
+      const url = await getSignedFileUrl(doc.id, 'view');
       await navigator.clipboard.writeText(url);
       toast(t('documents.linkCopied'), 'success');
     } catch {

@@ -16,8 +16,9 @@ import {
   Loader2
 } from 'lucide-react';
 import { FileItem } from '../../types';
-import { getFileUrl, getSignedFileUrl } from '../../lib/api';
+import { getSignedFileUrl } from '../../lib/api';
 import { cn } from '../../lib/utils';
+import AuthenticatedImage from '../AuthenticatedImage';
 
 interface ImageGalleryProps {
   images: FileItem[];
@@ -478,8 +479,9 @@ export default function ImageGallery({
                     : 'border-transparent opacity-60 hover:opacity-100'
                 )}
               >
-                <img
-                  src={getFileUrl(image.id, 'thumbnail', true)}
+                <AuthenticatedImage
+                  fileId={image.id}
+                  endpoint={image.thumbnailPath ? 'thumbnail' : 'view'}
                   alt={image.name}
                   className="w-full h-full object-cover"
                 />

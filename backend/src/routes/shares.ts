@@ -1,11 +1,12 @@
 import { Router, Request, Response } from 'express';
+import fs from 'fs/promises';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import prisma from '../lib/prisma.js';
 import { authenticate, optionalAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { createShareSchema, addCollaboratorSchema, publicLinkPasswordSchema } from '../schemas/index.js';
-import { fileExists, isValidUUID } from '../lib/storage.js';
+import { fileExists, isValidUUID, streamFile } from '../lib/storage.js';
 import { shareRateLimiter } from '../middleware/shareRateLimiter.js';
 import archiver from 'archiver';
 import { config } from '../config/index.js';
@@ -344,7 +345,7 @@ router.get('/public/:token', shareRateLimiter(), optionalAuth, async (req: Reque
         type: 'PUBLIC',
       },
       include: {
-        file: { select: { id: true, name: true, mimeType: true, size: true } },
+        file: { select: { id: true, name: true, mimeType: true, size: true, updatedAt: true, thumbnailPath: true } },
         folder: { select: { id: true, name: true } },
         owner: { select: { name: true } },
       },
@@ -449,6 +450,223 @@ router.post('/public/:token/verify', shareRateLimiter(), validate(publicLinkPass
   } catch (error) {
     logger.error('Verify password error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to verify password' });
+  }
+});
+
+async function fileBelongsToSharedFolder(fileFolderId: string | null, shareFolderId: string): Promise<boolean> {
+  let currentFolderId = fileFolderId;
+  let depth = 0;
+
+  while (currentFolderId && depth < config.limits.maxShareDepthCheck) {
+    if (currentFolderId === shareFolderId) return true;
+
+    const folder = await prisma.folder.findUnique({
+      where: { id: currentFolderId },
+      select: { parentId: true },
+    });
+
+    currentFolderId = folder?.parentId || null;
+    depth++;
+  }
+
+  return false;
+}
+
+// View/stream a file from a public share (for previews)
+router.get('/public/:token/files/:fileId/view', shareRateLimiter(), async (req: Request, res: Response) => {
+  try {
+    const { token, fileId } = req.params;
+    const password = typeof req.query.password === 'string' ? req.query.password : undefined;
+
+    if (!isValidUUID(fileId)) {
+      res.status(400).json({ error: 'Invalid file ID format' });
+      return;
+    }
+
+    const share = await prisma.share.findFirst({
+      where: { publicToken: token, type: 'PUBLIC' },
+      select: {
+        id: true,
+        fileId: true,
+        folderId: true,
+        password: true,
+        expiresAt: true,
+        downloadLimit: true,
+        downloadCount: true,
+      },
+    });
+
+    if (!share) {
+      res.status(404).json({ error: 'Share not found' });
+      return;
+    }
+
+    if (share.expiresAt && share.expiresAt < new Date()) {
+      res.status(410).json({ error: 'This share has expired' });
+      return;
+    }
+
+    if (share.downloadLimit && share.downloadCount >= share.downloadLimit) {
+      res.status(410).json({ error: 'Download limit reached' });
+      return;
+    }
+
+    if (share.password) {
+      if (!password) {
+        res.status(401).json({ error: 'Password required', hasPassword: true });
+        return;
+      }
+
+      const valid = await bcrypt.compare(password, share.password);
+      if (!valid) {
+        res.locals.recordPasswordFailure?.();
+        res.status(401).json({ error: 'Invalid password', hasPassword: true });
+        return;
+      }
+
+      res.locals.recordPasswordSuccess?.();
+    }
+
+    // Ensure the requested file actually belongs to this share
+    if (share.fileId && share.fileId !== fileId) {
+      res.status(403).json({ error: 'File does not belong to this share' });
+      return;
+    }
+
+    const file = await prisma.file.findUnique({
+      where: { id: fileId },
+      select: { id: true, name: true, path: true, mimeType: true, isTrash: true, folderId: true, thumbnailPath: true },
+    });
+
+    if (!file || file.isTrash) {
+      res.status(404).json({ error: 'File not found' });
+      return;
+    }
+
+    if (share.folderId) {
+      const isChild = await fileBelongsToSharedFolder(file.folderId, share.folderId);
+      if (!isChild) {
+        res.status(403).json({ error: 'File does not belong to this share' });
+        return;
+      }
+    }
+
+    if (!await fileExists(file.path)) {
+      res.status(404).json({ error: 'File not found on disk' });
+      return;
+    }
+
+    const stat = await fs.stat(file.path);
+    await streamFile(req, res, file, stat);
+  } catch (error) {
+    logger.error('View shared file error', {}, error instanceof Error ? error : undefined);
+    res.status(500).json({ error: 'Failed to view file' });
+  }
+});
+
+// Get a thumbnail from a public share (for previews)
+router.get('/public/:token/files/:fileId/thumbnail', shareRateLimiter(), async (req: Request, res: Response) => {
+  try {
+    const { token, fileId } = req.params;
+    const password = typeof req.query.password === 'string' ? req.query.password : undefined;
+
+    if (!isValidUUID(fileId)) {
+      res.status(400).json({ error: 'Invalid file ID format' });
+      return;
+    }
+
+    const share = await prisma.share.findFirst({
+      where: { publicToken: token, type: 'PUBLIC' },
+      select: {
+        id: true,
+        fileId: true,
+        folderId: true,
+        password: true,
+        expiresAt: true,
+        downloadLimit: true,
+        downloadCount: true,
+      },
+    });
+
+    if (!share) {
+      res.status(404).json({ error: 'Share not found' });
+      return;
+    }
+
+    if (share.expiresAt && share.expiresAt < new Date()) {
+      res.status(410).json({ error: 'This share has expired' });
+      return;
+    }
+
+    if (share.downloadLimit && share.downloadCount >= share.downloadLimit) {
+      res.status(410).json({ error: 'Download limit reached' });
+      return;
+    }
+
+    if (share.password) {
+      if (!password) {
+        res.status(401).json({ error: 'Password required', hasPassword: true });
+        return;
+      }
+
+      const valid = await bcrypt.compare(password, share.password);
+      if (!valid) {
+        res.locals.recordPasswordFailure?.();
+        res.status(401).json({ error: 'Invalid password', hasPassword: true });
+        return;
+      }
+
+      res.locals.recordPasswordSuccess?.();
+    }
+
+    if (share.fileId && share.fileId !== fileId) {
+      res.status(403).json({ error: 'File does not belong to this share' });
+      return;
+    }
+
+    const file = await prisma.file.findUnique({
+      where: { id: fileId },
+      select: { id: true, name: true, path: true, mimeType: true, isTrash: true, folderId: true, thumbnailPath: true },
+    });
+
+    if (!file || file.isTrash) {
+      res.status(404).json({ error: 'File not found' });
+      return;
+    }
+
+    if (share.folderId) {
+      const isChild = await fileBelongsToSharedFolder(file.folderId, share.folderId);
+      if (!isChild) {
+        res.status(403).json({ error: 'File does not belong to this share' });
+        return;
+      }
+    }
+
+    if (!file.thumbnailPath) {
+      res.status(404).json({ error: 'Thumbnail not found' });
+      return;
+    }
+
+    if (!await fileExists(file.thumbnailPath)) {
+      res.status(404).json({ error: 'Thumbnail not found' });
+      return;
+    }
+
+    // Avoid caching password-protected resources in shared/proxy caches.
+    const cacheControl = share.password ? 'private, no-store' : 'private, max-age=3600';
+    const etag = `"${file.id}-thumb"`;
+
+    if (req.headers['if-none-match'] === etag) {
+      res.status(304).end();
+      return;
+    }
+
+    res.setHeader('Cache-Control', cacheControl);
+    res.setHeader('ETag', etag);
+    res.sendFile(file.thumbnailPath);
+  } catch (error) {
+    logger.error('Thumbnail shared file error', {}, error instanceof Error ? error : undefined);
+    res.status(500).json({ error: 'Failed to get thumbnail' });
   }
 });
 

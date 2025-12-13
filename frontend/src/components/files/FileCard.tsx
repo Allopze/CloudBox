@@ -15,7 +15,7 @@ import {
   Info,
 } from 'lucide-react';
 import { formatBytes, formatDate, cn } from '../../lib/utils';
-import { api, getFileUrl } from '../../lib/api';
+import { api, openSignedFileUrl } from '../../lib/api';
 import { toast } from '../ui/Toast';
 import ShareModal from '../modals/ShareModal';
 import RenameModal from '../modals/RenameModal';
@@ -170,7 +170,7 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview, on
         if (onPreview) {
           onPreview(file);
         } else {
-          window.open(getFileUrl(file.id, 'view'), '_blank');
+          void openSignedFileUrl(file.id, 'view');
         }
       } else {
         selectSingle(file.id);
@@ -183,13 +183,13 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview, on
     if (onPreview) {
       onPreview(file);
     } else {
-      window.open(getFileUrl(file.id, 'view'), '_blank');
+      void openSignedFileUrl(file.id, 'view');
     }
   };
 
   const handleDownload = useCallback(() => {
     setContextMenu(null);
-    window.open(getFileUrl(file.id, 'download', true), '_blank');
+    void openSignedFileUrl(file.id, 'download');
   }, [file.id]);
 
   const handleFavorite = useCallback(async () => {

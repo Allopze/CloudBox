@@ -30,7 +30,7 @@ import UploadFolderModal from './modals/UploadFolderModal';
 import CreateFolderModal from './modals/CreateFolderModal';
 import CreateFileModal from './modals/CreateFileModal';
 import { formatBytes } from '../lib/utils';
-import { api, getFileUrl } from '../lib/api';
+import { api, openSignedFileUrl } from '../lib/api';
 import { toast } from './ui/Toast';
 
 // Issue #18: Debounce hook for search
@@ -124,7 +124,7 @@ export default function Header() {
     itemIds.forEach((id) => {
       const fileEl = document.querySelector(`[data-file-item="${id}"]`);
       if (fileEl) {
-        window.open(getFileUrl(`/files/${id}/download`, undefined, true), '_blank');
+        void openSignedFileUrl(id, 'download');
       }
     });
   };

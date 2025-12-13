@@ -2,7 +2,6 @@ import { Router, Request, Response } from 'express';
 import fs from 'fs/promises';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
-import bcrypt from 'bcryptjs';
 import prisma, { updateParentFolderSizes } from '../lib/prisma.js';
 import { authenticate } from '../middleware/auth.js';
 import { authOptional } from '../middleware/authOptional.js';
@@ -743,7 +742,7 @@ router.post('/upload/init', authenticate, validate(uploadInitSchema), async (req
 });
 
 // Chunked upload - upload chunk
-router.post('/upload/chunk', authenticate, uploadChunk.single('chunk'), async (req: Request, res: Response) => {
+router.post('/upload/chunk', authenticate, uploadChunk.single('chunk'), validate(uploadChunkSchema), async (req: Request, res: Response) => {
   try {
     const { uploadId, chunkIndex, totalChunks, filename: rawFilename, mimeType, totalSize, folderId } = req.body;
     const filename = decodeFilename(rawFilename);
@@ -1424,60 +1423,25 @@ router.get('/:id/download', authOptional, async (req: Request, res: Response) =>
   }
 });
 
-const findFile = async (id: string, userId?: string, sharePassword?: string) => {
+const findFile = async (id: string, userId?: string) => {
   // Validate ID format first
   if (!isValidUUID(id)) {
-    return { file: null, requiresPassword: false, error: 'invalid_id' };
+    return { file: null, error: 'invalid_id' as const };
   }
 
-  // First try to find file owned by user
-  if (userId) {
-    const file = await prisma.file.findFirst({
-      where: {
-        id,
-        isTrash: false,
-        userId,
-      },
-    });
-    if (file) return { file, requiresPassword: false };
+  if (!userId) {
+    return { file: null };
   }
 
-  // Check for public share with valid conditions
-  const share = await prisma.share.findFirst({
+  const file = await prisma.file.findFirst({
     where: {
-      fileId: id,
-      type: 'PUBLIC',
-      OR: [
-        { expiresAt: null },
-        { expiresAt: { gt: new Date() } },
-      ],
+      id,
+      isTrash: false,
+      userId,
     },
   });
 
-  if (share) {
-    // Check download limit
-    if (share.downloadLimit && share.downloadCount >= share.downloadLimit) {
-      return { file: null, requiresPassword: false, error: 'download_limit_reached' };
-    }
-
-    // Security: Validate password for password-protected shares
-    if (share.password) {
-      if (!sharePassword) {
-        return { file: null, requiresPassword: true, error: 'password_required' };
-      }
-      const validPassword = await bcrypt.compare(sharePassword, share.password);
-      if (!validPassword) {
-        return { file: null, requiresPassword: true, error: 'invalid_password' };
-      }
-    }
-
-    const file = await prisma.file.findFirst({
-      where: { id, isTrash: false }
-    });
-    return { file, requiresPassword: false };
-  }
-
-  return { file: null, requiresPassword: false };
+  return { file };
 };
 
 // Stream/play file
@@ -1485,27 +1449,16 @@ router.get('/:id/stream', authOptional, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const userId = req.user?.userId;
-    const sharePassword = req.query.password as string | undefined;
 
-    const result = await findFile(id, userId, sharePassword);
+    const result = await findFile(id, userId);
 
     if (result.error === 'invalid_id') {
       res.status(400).json({ error: 'Invalid file ID format' });
       return;
     }
 
-    if (result.requiresPassword) {
-      res.status(401).json({ error: 'Password required', hasPassword: true });
-      return;
-    }
-
-    if (result.error === 'invalid_password') {
-      res.status(401).json({ error: 'Invalid password', hasPassword: true });
-      return;
-    }
-
-    if (result.error === 'download_limit_reached') {
-      res.status(410).json({ error: 'Download limit reached' });
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
       return;
     }
 
@@ -1567,17 +1520,16 @@ router.get('/:id/excel-html', authOptional, async (req: Request, res: Response) 
     const { id } = req.params;
     const sheetIndex = parseInt(req.query.sheet as string) || 0;
     const userId = req.user?.userId;
-    const sharePassword = req.query.password as string | undefined;
 
-    const result = await findFile(id, userId, sharePassword);
+    const result = await findFile(id, userId);
 
     if (result.error === 'invalid_id') {
       res.status(400).json({ error: 'Invalid file ID format' });
       return;
     }
 
-    if (result.requiresPassword) {
-      res.status(401).json({ error: 'Password required', hasPassword: true });
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
       return;
     }
 
@@ -1855,17 +1807,16 @@ router.get('/:id/view', authOptional, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const userId = req.user?.userId;
-    const sharePassword = req.query.password as string | undefined;
 
-    const result = await findFile(id, userId, sharePassword);
+    const result = await findFile(id, userId);
 
     if (result.error === 'invalid_id') {
       res.status(400).json({ error: 'Invalid file ID format' });
       return;
     }
 
-    if (result.requiresPassword) {
-      res.status(401).json({ error: 'Password required', hasPassword: true });
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
       return;
     }
 
@@ -1894,17 +1845,16 @@ router.get('/:id/thumbnail', authOptional, async (req: Request, res: Response) =
   try {
     const { id } = req.params;
     const userId = req.user?.userId;
-    const sharePassword = req.query.password as string | undefined;
 
-    const result = await findFile(id, userId, sharePassword);
+    const result = await findFile(id, userId);
 
     if (result.error === 'invalid_id') {
       res.status(400).json({ error: 'Invalid file ID format' });
       return;
     }
 
-    if (result.requiresPassword) {
-      res.status(401).json({ error: 'Password required', hasPassword: true });
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
       return;
     }
 

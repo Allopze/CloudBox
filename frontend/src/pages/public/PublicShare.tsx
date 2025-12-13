@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
-import { api, getFileUrl, API_URL } from '../../lib/api';
+import { api, API_URL } from '../../lib/api';
 import { FileItem } from '../../types';
 import { formatBytes, formatDate, cn, getFileIcon } from '../../lib/utils';
 import {
@@ -39,6 +39,11 @@ export default function PublicShare() {
   const [verifying, setVerifying] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [, setCurrentFolder] = useState<string | null>(null);
+
+  const getPublicFileUrl = useCallback((fileId: string, action: 'view' | 'thumbnail') => {
+    const pwd = password ? `?password=${encodeURIComponent(password)}` : '';
+    return `${API_URL}/shares/public/${token}/files/${fileId}/${action}${pwd}`;
+  }, [password, token]);
 
   const loadShare = useCallback(async (pwd?: string) => {
     try {
@@ -225,10 +230,10 @@ export default function PublicShare() {
                   key={file.id}
                   className="bg-white dark:bg-dark-800 rounded-xl p-4 hover:shadow-lg transition-shadow"
                 >
-                  {file.mimeType.startsWith('image/') && file.thumbnailPath ? (
+                  {file.mimeType.startsWith('image/') ? (
                     <div className="aspect-square rounded-lg overflow-hidden mb-3 bg-dark-100">
                       <img
-                        src={getFileUrl(file.id)}
+                        src={getPublicFileUrl(file.id, file.thumbnailPath ? 'thumbnail' : 'view')}
                         alt={file.name}
                         className="w-full h-full object-cover"
                       />

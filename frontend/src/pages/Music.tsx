@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { api, getFileUrl } from '../lib/api';
+import { api, getSignedFileUrl, openSignedFileUrl } from '../lib/api';
 import { FileItem } from '../types';
 import { useMusicStore } from '../stores/musicStore';
 import { useFileStore } from '../stores/fileStore';
@@ -16,6 +16,7 @@ import { waveIn } from '../lib/animations';
 import ShareModal from '../components/modals/ShareModal';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
+import AuthenticatedImage from '../components/AuthenticatedImage';
 
 interface ContextMenuState {
   x: number;
@@ -110,6 +111,7 @@ export default function MusicPage() {
           if (signal?.aborted) break;
 
           try {
+            const streamUrl = await getSignedFileUrl(track.id, 'stream');
             await new Promise<void>((resolve) => {
               const onLoaded = () => {
                 if (Number.isFinite(audio.duration) && audio.duration > 0) {
@@ -121,7 +123,7 @@ export default function MusicPage() {
 
               audio.addEventListener('loadedmetadata', onLoaded, { once: true });
               audio.addEventListener('error', onError, { once: true });
-              audio.src = getFileUrl(track.id, 'stream', true);
+              audio.src = streamUrl;
             });
           } catch (e) {
             console.error(`Failed to load duration for ${track.name}`, e);
@@ -261,7 +263,7 @@ export default function MusicPage() {
   };
 
   const handleDownload = (track: FileItem) => {
-    window.open(getFileUrl(track.id, 'download', true), '_blank');
+    void openSignedFileUrl(track.id, 'download');
     closeContextMenu();
   };
 
@@ -273,7 +275,7 @@ export default function MusicPage() {
 
   const handleCopyLink = async (track: FileItem) => {
     try {
-      const url = `${window.location.origin}${getFileUrl(track.id, 'stream', true)}`;
+      const url = await getSignedFileUrl(track.id, 'stream');
       await navigator.clipboard.writeText(url);
       toast(t('music.linkCopied'), 'success');
     } catch {
@@ -432,8 +434,9 @@ export default function MusicPage() {
                 !selectedAlbumData.cover && 'bg-gradient-to-br from-violet-400 to-purple-300'
               )}>
                 {selectedAlbumData.cover ? (
-                  <img
-                    src={getFileUrl(selectedAlbumData.cover, 'thumbnail', true)}
+                  <AuthenticatedImage
+                    fileId={selectedAlbumData.cover}
+                    endpoint="thumbnail"
                     alt={selectedAlbumData.name}
                     className="w-full h-full object-cover"
                   />
@@ -487,8 +490,9 @@ export default function MusicPage() {
                     !track.thumbnailPath && `bg-gradient-to-br ${fromColor} ${toColor}`
                   )}>
                     {track.thumbnailPath ? (
-                      <img
-                        src={getFileUrl(track.id, 'thumbnail', true)}
+                      <AuthenticatedImage
+                        fileId={track.id}
+                        endpoint="thumbnail"
                         alt={track.name}
                         className="w-full h-full object-cover"
                       />
@@ -555,8 +559,9 @@ export default function MusicPage() {
                     !album.cover && `bg-gradient-to-br ${fromColor} ${toColor}`
                   )}>
                     {album.cover ? (
-                      <img
-                        src={getFileUrl(album.cover, 'thumbnail', true)}
+                      <AuthenticatedImage
+                        fileId={album.cover}
+                        endpoint="thumbnail"
                         alt={album.name}
                         className="w-full h-full object-cover"
                         loading="lazy"
@@ -658,8 +663,9 @@ export default function MusicPage() {
                   !track.thumbnailPath && `bg-gradient-to-br ${fromColor} ${toColor}`
                 )}>
                   {track.thumbnailPath ? (
-                    <img
-                      src={getFileUrl(track.id, 'thumbnail', true)}
+                    <AuthenticatedImage
+                      fileId={track.id}
+                      endpoint="thumbnail"
                       alt={track.name}
                       className="w-full h-full object-cover"
                       loading="lazy"
@@ -913,8 +919,9 @@ export default function MusicPage() {
                 !infoTrack.thumbnailPath && 'bg-gradient-to-br from-primary-400 to-primary-600'
               )}>
                 {infoTrack.thumbnailPath ? (
-                  <img
-                    src={getFileUrl(`/files/${infoTrack.id}/thumbnail`)}
+                  <AuthenticatedImage
+                    fileId={infoTrack.id}
+                    endpoint="thumbnail"
                     alt={infoTrack.name}
                     className="w-full h-full object-cover"
                   />

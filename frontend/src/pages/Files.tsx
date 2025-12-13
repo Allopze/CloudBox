@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { api, getFileUrl } from '../lib/api';
+import { api, openSignedFileUrl } from '../lib/api';
 import { FileItem, Folder } from '../types';
 import { useFileStore } from '../stores/fileStore';
 import { useGlobalProgressStore } from '../stores/globalProgressStore';
@@ -151,8 +151,7 @@ export default function Files() {
   const handleDownloadSelected = useCallback(() => {
     const { selectedFiles } = getSelectedItems();
     selectedFiles.forEach(file => {
-      const url = getFileUrl(file.id, 'download', true);
-      window.open(url, '_blank');
+      void openSignedFileUrl(file.id, 'download');
     });
   }, [getSelectedItems]);
 
@@ -592,7 +591,7 @@ export default function Files() {
         initialIndex={galleryIndex}
         isOpen={galleryOpen}
         onClose={() => setGalleryOpen(false)}
-        onDownload={(file) => window.open(getFileUrl(file.id, 'download', true), '_blank')}
+        onDownload={(file) => void openSignedFileUrl(file.id, 'download')}
         onShare={(file) => {
           setSelectedFileForAction(file);
           setShareModalOpen(true);
@@ -606,7 +605,7 @@ export default function Files() {
           file={videoPreviewFile}
           isOpen={!!videoPreviewFile}
           onClose={() => setVideoPreviewFile(null)}
-          onDownload={(file) => window.open(getFileUrl(file.id, 'download', true), '_blank')}
+          onDownload={(file) => void openSignedFileUrl(file.id, 'download')}
           onShare={(file) => {
             setSelectedFileForAction(file);
             setShareModalOpen(true);
@@ -623,7 +622,7 @@ export default function Files() {
           onClose={() => setDocumentPreviewFile(null)}
           files={documentFiles}
           onNavigate={(file) => setDocumentPreviewFile(file)}
-          onDownload={(file) => window.open(getFileUrl(file.id, 'download', true), '_blank')}
+          onDownload={(file) => void openSignedFileUrl(file.id, 'download')}
           onShare={(file) => {
             setSelectedFileForAction(file);
             setShareModalOpen(true);

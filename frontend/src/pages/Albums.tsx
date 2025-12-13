@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { api, getFileUrl } from '../lib/api';
+import { api, getSignedFileUrl, openSignedFileUrl } from '../lib/api';
 import { Album, FileItem } from '../types';
 import { useFileStore } from '../stores/fileStore';
 import { Loader2, Album as AlbumIcon, Trash2, X, FolderPlus, Check, Download, Share2, Copy, Info, Star, Eye } from 'lucide-react';
@@ -12,6 +12,7 @@ import Modal from '../components/ui/Modal';
 import Input from '../components/ui/Input';
 import { motion, AnimatePresence } from 'framer-motion';
 import ShareModal from '../components/modals/ShareModal';
+import AuthenticatedImage from '../components/AuthenticatedImage';
 
 interface PhotoContextMenuState {
   x: number;
@@ -224,7 +225,7 @@ export default function Albums() {
   };
 
   const handleDownloadPhoto = (photo: FileItem) => {
-    window.open(getFileUrl(`/files/${photo.id}/download`), '_blank');
+    void openSignedFileUrl(photo.id, 'download');
     closePhotoContextMenu();
   };
 
@@ -236,7 +237,7 @@ export default function Albums() {
 
   const handleCopyPhotoLink = async (photo: FileItem) => {
     try {
-      const url = `${window.location.origin}${getFileUrl(`/files/${photo.id}/thumbnail`)}`;
+      const url = await getSignedFileUrl(photo.id, photo.thumbnailPath ? 'thumbnail' : 'view');
       await navigator.clipboard.writeText(url);
       toast(t('albums.linkCopied'), 'success');
     } catch {
@@ -329,8 +330,9 @@ export default function Albums() {
                     isSelected && 'ring-3 ring-primary-500 ring-offset-2 ring-offset-white dark:ring-offset-dark-900'
                   )}
                 >
-                  <img
-                    src={getFileUrl(`/files/${photo.id}/thumbnail`)}
+                  <AuthenticatedImage
+                    fileId={photo.id}
+                    endpoint={photo.thumbnailPath ? 'thumbnail' : 'view'}
                     alt={photo.name}
                     className="w-full h-full object-cover"
                   />
@@ -381,8 +383,9 @@ export default function Albums() {
                         : 'ring-transparent hover:ring-dark-300'
                     )}
                   >
-                    <img
-                      src={getFileUrl(`/files/${photo.id}/thumbnail`)}
+                    <AuthenticatedImage
+                      fileId={photo.id}
+                      endpoint={photo.thumbnailPath ? 'thumbnail' : 'view'}
                       alt={photo.name}
                       className="w-full h-full object-cover"
                     />
@@ -523,8 +526,9 @@ export default function Albums() {
             >
               <div className="flex items-center gap-4 mb-6">
                 <div className="w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-dark-100 dark:bg-dark-700">
-                  <img
-                    src={getFileUrl(`/files/${infoPhoto.id}/thumbnail`)}
+                  <AuthenticatedImage
+                    fileId={infoPhoto.id}
+                    endpoint={infoPhoto.thumbnailPath ? 'thumbnail' : 'view'}
                     alt={infoPhoto.name}
                     className="w-full h-full object-cover"
                   />
@@ -573,8 +577,9 @@ export default function Albums() {
             >
               <X className="w-6 h-6" />
             </button>
-            <img
-              src={getFileUrl(`/files/${lightboxPhoto.id}/stream`)}
+            <AuthenticatedImage
+              fileId={lightboxPhoto.id}
+              endpoint="view"
               alt={lightboxPhoto.name}
               className="max-w-full max-h-full object-contain"
               onClick={(e) => e.stopPropagation()}
@@ -628,9 +633,10 @@ export default function Albums() {
                 {album.files && album.files.length >= 4 ? (
                   <div className="grid grid-cols-2 grid-rows-2 w-full h-full gap-0.5">
                     {album.files.slice(0, 4).map((file) => (
-                      <img
+                      <AuthenticatedImage
                         key={file.id}
-                        src={getFileUrl(`/files/${file.id}/thumbnail`)}
+                        fileId={file.id}
+                        endpoint={file.thumbnailPath ? 'thumbnail' : 'view'}
                         alt={file.name}
                         className="w-full h-full object-cover"
                       />

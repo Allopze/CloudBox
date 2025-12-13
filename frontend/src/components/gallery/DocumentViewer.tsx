@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import {
@@ -18,6 +18,7 @@ import { FileItem } from '../../types';
 import { getFileUrl, api } from '../../lib/api';
 import mammoth from 'mammoth';
 import { Document, Page, pdfjs } from 'react-pdf';
+import DOMPurify from 'dompurify';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
@@ -115,6 +116,16 @@ export default function DocumentViewer({
   const [error, setError] = useState<string | null>(null);
   const [content, setContent] = useState<string>('');
   const [spreadsheetData, setSpreadsheetData] = useState<SpreadsheetData | null>(null);
+
+  const sanitizedHtmlContent = useMemo(() => {
+    return DOMPurify.sanitize(content, { USE_PROFILES: { html: true } });
+  }, [content]);
+
+  const sanitizedSpreadsheetHtml = useMemo(() => {
+    return spreadsheetData
+      ? DOMPurify.sanitize(spreadsheetData.html, { USE_PROFILES: { html: true } })
+      : '';
+  }, [spreadsheetData?.html]);
   const [zoom, setZoom] = useState(100);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [numPages, setNumPages] = useState<number>(0);
@@ -521,7 +532,7 @@ export default function DocumentViewer({
           >
             <div
               className="prose prose-sm max-w-none"
-              dangerouslySetInnerHTML={{ __html: content }}
+              dangerouslySetInnerHTML={{ __html: sanitizedHtmlContent }}
             />
           </div>
         );
@@ -575,7 +586,7 @@ export default function DocumentViewer({
             <div
               className="flex-1 overflow-auto p-2 preview-zoom-transform"
               style={{ '--preview-scale': zoom / 100 } as React.CSSProperties}
-              dangerouslySetInnerHTML={{ __html: spreadsheetData.html }}
+              dangerouslySetInnerHTML={{ __html: sanitizedSpreadsheetHtml }}
             />
           </div>
         );
