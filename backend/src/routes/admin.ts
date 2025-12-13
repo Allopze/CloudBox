@@ -2,17 +2,18 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import prisma from '../lib/prisma.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
-import { uploadBranding } from '../middleware/upload.js';
+import { uploadBranding, uploadLandingAsset } from '../middleware/upload.js';
 import { validate } from '../middleware/validate.js';
-import { adminUserSchema, smtpConfigSchema, emailTemplateSchema, paginationSchema, PAGINATION_LIMITS, PaginationQuery } from '../schemas/index.js';
+import { adminUserSchema, smtpConfigSchema, emailTemplateSchema, paginationSchema, PAGINATION_LIMITS, PaginationQuery, landingSettingsSchema, landingConfigSchema } from '../schemas/index.js';
 import { resetTransporter, testSmtpConnection, sendEmail } from '../lib/email.js';
-import { getBrandingPath, deleteFile, fileExists } from '../lib/storage.js';
+import { getBrandingPath, deleteFile, fileExists, copyFile, getStoragePath } from '../lib/storage.js';
 import { encryptSecret } from '../lib/encryption.js';
 import sharp from 'sharp';
 import os from 'os';
 import fs from 'fs/promises';
 import path from 'path';
 import { config } from '../config/index.js';
+import { getDefaultLandingConfig, LANDING_SETTINGS_KEY, LandingAssetType } from '../lib/landing.js';
 
 const router = Router();
 
@@ -526,6 +527,110 @@ router.delete('/branding/:type', authenticate, requireAdmin, async (req: Request
   } catch (error) {
     console.error('Delete branding error:', error);
     res.status(500).json({ error: 'Failed to delete branding' });
+  }
+});
+
+// ========== Landing Assets ==========
+
+// Upload landing assets (Admin)
+router.post('/landing/assets/:type', authenticate, requireAdmin, uploadLandingAsset.single('file'), async (req: Request, res: Response) => {
+  try {
+    const { type } = req.params as { type: LandingAssetType };
+
+    if (!['hero', 'feature'].includes(type)) {
+      res.status(400).json({ error: 'Invalid landing asset type' });
+      return;
+    }
+
+    if (!req.file) {
+      res.status(400).json({ error: 'No file uploaded' });
+      return;
+    }
+
+    const outputWebpPath = getStoragePath('landing', `${type}.webp`);
+    const outputSvgPath = getStoragePath('landing', `${type}.svg`);
+
+    const fileExt = path.extname(req.file.originalname).toLowerCase();
+    const mimeType = req.file.mimetype;
+    const isSvg = fileExt === '.svg' || mimeType === 'image/svg+xml';
+
+    // Replace existing assets
+    await deleteFile(outputWebpPath);
+    await deleteFile(outputSvgPath);
+
+    if (isSvg) {
+      await copyFile(req.file.path, outputSvgPath);
+    } else {
+      // Normalize/optimize to WebP
+      await sharp(req.file.path)
+        .resize(2400, 2400, { fit: 'inside', withoutEnlargement: true })
+        .webp({ quality: 90 })
+        .toFile(outputWebpPath);
+    }
+
+    await deleteFile(req.file.path);
+
+    res.json({ path: `/api/admin/landing/assets/${type}` });
+  } catch (error) {
+    console.error('Upload landing asset error:', error);
+    if (req.file) {
+      await deleteFile(req.file.path);
+    }
+    res.status(500).json({ error: 'Failed to upload landing asset' });
+  }
+});
+
+// Get landing asset (Public)
+router.get('/landing/assets/:type', async (req: Request, res: Response) => {
+  try {
+    const { type } = req.params as { type: LandingAssetType };
+
+    if (!['hero', 'feature'].includes(type)) {
+      res.status(400).json({ error: 'Invalid landing asset type' });
+      return;
+    }
+
+    const webpPath = getStoragePath('landing', `${type}.webp`);
+    const svgPath = getStoragePath('landing', `${type}.svg`);
+
+    if (await fileExists(svgPath)) {
+      res.setHeader('Content-Type', 'image/svg+xml');
+      res.sendFile(svgPath);
+      return;
+    }
+
+    if (await fileExists(webpPath)) {
+      res.sendFile(webpPath);
+      return;
+    }
+
+    res.status(404).json({ error: 'Landing asset not found' });
+  } catch (error) {
+    console.error('Get landing asset error:', error);
+    res.status(500).json({ error: 'Failed to get landing asset' });
+  }
+});
+
+// Delete landing asset (Admin)
+router.delete('/landing/assets/:type', authenticate, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { type } = req.params as { type: LandingAssetType };
+
+    if (!['hero', 'feature'].includes(type)) {
+      res.status(400).json({ error: 'Invalid landing asset type' });
+      return;
+    }
+
+    const webpPath = getStoragePath('landing', `${type}.webp`);
+    const svgPath = getStoragePath('landing', `${type}.svg`);
+
+    await deleteFile(webpPath);
+    await deleteFile(svgPath);
+
+    res.json({ message: 'Landing asset deleted successfully' });
+  } catch (error) {
+    console.error('Delete landing asset error:', error);
+    res.status(500).json({ error: 'Failed to delete landing asset' });
   }
 });
 
@@ -1164,6 +1269,56 @@ router.put('/settings/branding', authenticate, requireAdmin, async (req: Request
   } catch (error) {
     console.error('Save branding settings error:', error);
     res.status(500).json({ error: 'Failed to save branding settings' });
+  }
+});
+
+// Get landing settings (Public)
+router.get('/settings/landing', async (req: Request, res: Response) => {
+  try {
+    const setting = await prisma.settings.findUnique({
+      where: { key: LANDING_SETTINGS_KEY },
+      select: { value: true },
+    });
+
+    if (!setting?.value) {
+      res.json(getDefaultLandingConfig());
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(setting.value);
+      const validated = landingConfigSchema.safeParse(parsed);
+      if (validated.success) {
+        res.json(validated.data);
+        return;
+      }
+
+      console.warn('Invalid landing config stored, falling back to default');
+      res.json(getDefaultLandingConfig());
+    } catch {
+      res.json(getDefaultLandingConfig());
+    }
+  } catch (error) {
+    console.error('Get landing settings error:', error);
+    res.status(500).json({ error: 'Failed to get landing settings' });
+  }
+});
+
+// Save landing settings (Admin)
+router.put('/settings/landing', authenticate, requireAdmin, validate(landingSettingsSchema), async (req: Request, res: Response) => {
+  try {
+    const landingConfig = req.body;
+
+    await prisma.settings.upsert({
+      where: { key: LANDING_SETTINGS_KEY },
+      update: { value: JSON.stringify(landingConfig) },
+      create: { key: LANDING_SETTINGS_KEY, value: JSON.stringify(landingConfig) },
+    });
+
+    res.json({ message: 'Landing settings saved successfully' });
+  } catch (error) {
+    console.error('Save landing settings error:', error);
+    res.status(500).json({ error: 'Failed to save landing settings' });
   }
 });
 

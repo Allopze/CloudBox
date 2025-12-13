@@ -40,8 +40,52 @@
     "darkMode": "Dark mode",
     "settings": "Settings",
     "admin": "Administration",
+    "landingEditor": "Edit landing",
     "logout": "Log out",
     "userMenu": "User menu"
+  },
+  "landing": {
+    "loading": "Loading…",
+    "nav": {
+      "open": "Open navigation",
+      "close": "Close navigation",
+      "benefits": "Benefits",
+      "howItWorks": "How it works",
+      "features": "Features",
+      "comparison": "Cloud vs self-hosted",
+      "security": "Security",
+      "github": "GitHub",
+      "faq": "FAQ"
+    },
+    "theme": {
+      "light": "Light mode",
+      "dark": "Dark mode"
+    },
+    "hero": {
+      "badge": "Private cloud · Modern experience",
+      "modeCloud": "Cloud",
+      "modeSelfHosted": "Self-hosted",
+      "selfHostedValue": "GitHub / Self-host"
+    },
+    "section": {
+      "eyebrow": "CloudBox"
+    },
+    "comparison": {
+      "table": {
+        "feature": "Feature",
+        "cloud": "Cloud",
+        "selfHosted": "Self-hosted"
+      }
+    },
+    "security": {
+      "highlights": "Highlights"
+    },
+    "github": {
+      "requirements": "Minimum requirements"
+    },
+    "footer": {
+      "note": "Use CloudBox in the cloud or self-host it."
+    }
   },
   "sidebar": {
     "dashboard": "Dashboard",
