@@ -3,13 +3,13 @@ import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { api } from '../lib/api';
 import { Share } from '../types';
-import { 
-  Loader2, 
-  Share2, 
-  Users, 
-  Copy, 
-  Trash2, 
-  ExternalLink, 
+import {
+  Loader2,
+  Share2,
+  Users,
+  Copy,
+  Trash2,
+  ExternalLink,
   MoreVertical,
   Lock,
   Globe,
@@ -21,6 +21,8 @@ import {
 import { toast } from '../components/ui/Toast';
 import { formatDate } from '../lib/utils';
 import Dropdown, { DropdownItem, DropdownDivider } from '../components/ui/Dropdown';
+import { motion, useReducedMotion } from 'framer-motion';
+import { waveIn } from '../lib/animations';
 
 interface ContextMenuState {
   x: number;
@@ -31,6 +33,7 @@ interface ContextMenuState {
 
 export default function Shared() {
   const { t } = useTranslation();
+  const reducedMotion = useReducedMotion();
   const [searchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'my-shares';
 
@@ -168,9 +171,10 @@ export default function Shared() {
       {currentData.length > 0 && (
         <div className="space-y-1">
           {activeTab === 'my-shares' ? (
-            myShares.map((share) => (
-              <div
+            myShares.map((share, index) => (
+              <motion.div
                 key={share.id}
+                {...waveIn(index, reducedMotion)}
                 onContextMenu={(e) => handleContextMenu(e, share, true)}
                 className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-dark-50 dark:hover:bg-dark-800 transition-colors"
               >
@@ -234,7 +238,7 @@ export default function Shared() {
                 </div>
                 <Dropdown
                   trigger={
-                    <button 
+                    <button
                       className="p-2 text-dark-500 hover:text-dark-900 dark:hover:text-white rounded-lg hover:bg-dark-100 dark:hover:bg-dark-700 transition-colors"
                       aria-label={t('shared.shareOptions')}
                     >
@@ -254,12 +258,13 @@ export default function Shared() {
                     <Trash2 className="w-4 h-4" /> {t('common.delete')}
                   </DropdownItem>
                 </Dropdown>
-              </div>
+              </motion.div>
             ))
           ) : (
-            sharedWithMe.map((share) => (
-              <div
+            sharedWithMe.map((share, index) => (
+              <motion.div
                 key={share.id}
+                {...waveIn(index, reducedMotion)}
                 className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-dark-50 dark:hover:bg-dark-800 transition-colors"
               >
                 <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
@@ -289,7 +294,7 @@ export default function Shared() {
                 </div>
                 <Dropdown
                   trigger={
-                    <button 
+                    <button
                       className="p-2 text-dark-500 hover:text-dark-900 dark:hover:text-white rounded-lg hover:bg-dark-100 dark:hover:bg-dark-700 transition-colors"
                       aria-label={t('shared.itemOptions')}
                     >
@@ -305,7 +310,7 @@ export default function Shared() {
                     <Copy className="w-4 h-4" /> {t('shared.copyLink')}
                   </DropdownItem>
                 </Dropdown>
-              </div>
+              </motion.div>
             ))
           )}
         </div>

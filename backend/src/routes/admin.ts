@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
+import rateLimit from 'express-rate-limit';
 import prisma from '../lib/prisma.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { uploadBranding, uploadLandingAsset } from '../middleware/upload.js';
@@ -16,6 +17,15 @@ import { config } from '../config/index.js';
 import { getDefaultLandingConfig, LANDING_SETTINGS_KEY, LandingAssetType } from '../lib/landing.js';
 
 const router = Router();
+
+// Security: Rate limiter for public endpoints (landing, branding, assets)
+const publicEndpointLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60, // 60 requests per minute per IP
+  message: { error: 'Too many requests, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // ========== Users Management ==========
 
@@ -581,7 +591,7 @@ router.post('/landing/assets/:type', authenticate, requireAdmin, uploadLandingAs
 });
 
 // Get landing asset (Public)
-router.get('/landing/assets/:type', async (req: Request, res: Response) => {
+router.get('/landing/assets/:type', publicEndpointLimiter, async (req: Request, res: Response) => {
   try {
     const { type } = req.params as { type: LandingAssetType };
 
@@ -595,11 +605,14 @@ router.get('/landing/assets/:type', async (req: Request, res: Response) => {
 
     if (await fileExists(svgPath)) {
       res.setHeader('Content-Type', 'image/svg+xml');
+      res.setHeader('Cache-Control', 'public, max-age=86400'); // 24 hours
       res.sendFile(svgPath);
       return;
     }
 
     if (await fileExists(webpPath)) {
+      res.setHeader('Content-Type', 'image/webp');
+      res.setHeader('Cache-Control', 'public, max-age=86400'); // 24 hours
       res.sendFile(webpPath);
       return;
     }
@@ -1178,7 +1191,7 @@ router.get('/health', async (req: Request, res: Response) => {
 // ========== Settings API ==========
 
 // Get branding settings (Public)
-router.get('/settings/branding', async (req: Request, res: Response) => {
+router.get('/settings/branding', publicEndpointLimiter, async (req: Request, res: Response) => {
   try {
     const settings = await prisma.settings.findMany({
       where: {
@@ -1273,7 +1286,7 @@ router.put('/settings/branding', authenticate, requireAdmin, async (req: Request
 });
 
 // Get landing settings (Public)
-router.get('/settings/landing', async (req: Request, res: Response) => {
+router.get('/settings/landing', publicEndpointLimiter, async (req: Request, res: Response) => {
   try {
     const setting = await prisma.settings.findUnique({
       where: { key: LANDING_SETTINGS_KEY },
@@ -1281,6 +1294,7 @@ router.get('/settings/landing', async (req: Request, res: Response) => {
     });
 
     if (!setting?.value) {
+      res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
       res.json(getDefaultLandingConfig());
       return;
     }
@@ -1289,6 +1303,8 @@ router.get('/settings/landing', async (req: Request, res: Response) => {
       const parsed = JSON.parse(setting.value);
       const validated = landingConfigSchema.safeParse(parsed);
       if (validated.success) {
+        // Security: Add cache headers for public endpoint
+        res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
         res.json(validated.data);
         return;
       }

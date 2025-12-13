@@ -15,7 +15,8 @@ import { cn, formatBytes, formatDate } from '../lib/utils';
 import UploadModal from '../components/modals/UploadModal';
 import DocumentViewer from '../components/gallery/DocumentViewer';
 import ShareModal from '../components/modals/ShareModal';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { waveIn } from '../lib/animations';
 import Button from '../components/ui/Button';
 
 interface ContextMenuState {
@@ -84,6 +85,7 @@ const getExtension = (fileName: string) => {
 
 export default function Documents() {
   const { t } = useTranslation();
+  const reducedMotion = useReducedMotion();
   const [searchParams] = useSearchParams();
   const [documents, setDocuments] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -296,7 +298,7 @@ export default function Documents() {
       {documents.length > 0 ? (
         viewMode === 'grid' ? (
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-            {documents.map((doc) => {
+            {documents.map((doc, index) => {
               const isSelected = selectedItems.has(doc.id);
 
               const handleDocClick = (e: React.MouseEvent) => {
@@ -326,12 +328,11 @@ export default function Documents() {
               return (
                 <motion.div
                   key={doc.id}
+                  {...waveIn(index, reducedMotion)}
                   data-file-item={doc.id}
                   onClick={handleDocClick}
                   onDoubleClick={() => handlePreview(doc)}
                   onContextMenu={(e) => handleContextMenu(e, doc)}
-                  animate={isSelected ? { scale: 0.95 } : { scale: 1 }}
-                  transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                   className={cn(
                     'premium-card group',
                     isSelected && 'selected'

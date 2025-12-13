@@ -11,7 +11,8 @@ import {
 } from 'lucide-react';
 import { toast } from '../components/ui/Toast';
 import { cn, formatDate } from '../lib/utils';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { waveIn } from '../lib/animations';
 import ShareModal from '../components/modals/ShareModal';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
@@ -40,6 +41,7 @@ const getGradientColors = (name: string) => {
 
 export default function MusicPage() {
   const { t } = useTranslation();
+  const reducedMotion = useReducedMotion();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const [tracks, setTracks] = useState<FileItem[]>([]);
@@ -593,7 +595,7 @@ export default function MusicPage() {
       {/* Track grid */}
       {tracks.length > 0 ? (
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-          {tracks.map((track) => {
+          {tracks.map((track, index) => {
             const [fromColor, toColor] = getGradientColors(track.name);
             const isCurrentTrack = currentTrack?.id === track.id;
             const isSelected = selectedItems.has(track.id);
@@ -625,12 +627,11 @@ export default function MusicPage() {
             return (
               <motion.div
                 key={track.id}
+                {...waveIn(index, reducedMotion)}
                 data-file-item={track.id}
                 onClick={handleTrackClick}
                 onDoubleClick={() => playTrack(track)}
                 onContextMenu={(e) => handleContextMenu(e, track)}
-                animate={isSelected ? { scale: 0.95 } : { scale: 1 }}
-                transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                 className={cn(
                   'premium-card group',
                   isSelected && 'selected',

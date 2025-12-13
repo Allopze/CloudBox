@@ -45,7 +45,7 @@ export interface Folder {
   createdAt: string;
   updatedAt: string;
   size?: string;
-  _count?: { files: number };
+  _count?: { files: number; children?: number; items?: number };
 }
 
 export interface Share {
