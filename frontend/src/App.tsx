@@ -3,6 +3,7 @@ import { useEffect, lazy, Suspense } from 'react';
 import { useAuthStore } from './stores/authStore';
 import { useThemeStore } from './stores/themeStore';
 import { useBrandingStore } from './stores/brandingStore';
+import { preloadUploadConfig } from './lib/chunkedUpload';
 import ErrorBoundary from './components/ErrorBoundary';
 
 // Layouts
@@ -66,6 +67,9 @@ function App() {
     const abortController = new AbortController();
     checkAuth(abortController.signal);
     loadBranding(abortController.signal);
+
+    // Performance: Preload upload config to avoid latency on first upload
+    preloadUploadConfig();
 
     return () => {
       abortController.abort();

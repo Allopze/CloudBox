@@ -517,7 +517,7 @@ export default function MusicPage() {
                   >
                     <Heart className={cn('w-4 h-4', track.isFavorite && 'fill-current')} />
                   </button>
-                  {trackDurations[track.id] && Number.isFinite(trackDurations[track.id]) && (
+                  {typeof trackDurations[track.id] === 'number' && Number.isFinite(trackDurations[track.id]) && (
                     <span className="text-xs text-dark-400 w-10 text-right">
                       {formatTime(trackDurations[track.id])}
                     </span>
@@ -689,7 +689,7 @@ export default function MusicPage() {
                     {getDisplayName(track.name)}
                   </p>
                   <div className="premium-card-meta">
-                    {trackDurations[track.id] && Number.isFinite(trackDurations[track.id]) && (
+                    {typeof trackDurations[track.id] === 'number' && Number.isFinite(trackDurations[track.id]) && (
                       <span>{formatTime(trackDurations[track.id])}</span>
                     )}
                   </div>

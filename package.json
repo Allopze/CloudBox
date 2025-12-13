@@ -15,9 +15,14 @@
     "db:push": "cd backend && npx prisma db push",
     "db:seed": "cd backend && npx tsx src/prisma/seed.ts",
     "db:studio": "cd backend && npx prisma studio",
-    "setup": "npm run install:all && npm run db:generate && npm run db:push && npm run db:seed"
+    "setup": "npm run install:all && npm run db:generate && npm run db:push && npm run db:seed",
+    "release": "node scripts/release.js",
+    "release:patch": "node scripts/release.js patch",
+    "release:minor": "node scripts/release.js minor",
+    "release:major": "node scripts/release.js major"
   },
   "devDependencies": {
+    "archiver": "^7.0.1",
     "concurrently": "^9.2.1"
   },
   "engines": {

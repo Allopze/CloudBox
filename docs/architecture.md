@@ -2,63 +2,63 @@
 
 ## Overview
 
-CloudBox is a scalable, self-hosted cloud storage platform built with a modern tech stack. It utilizes a client-server architecture where a React-based Single Page Application (SPA) communicates with a Node.js/Express REST API.
+CloudBox is a monorepo with a React SPA frontend and an Express REST API backend. The frontend talks to the backend over HTTP (`/api`) and uses Socket.io for real-time updates.
 
-## Technology Stack
-
-### Backend
-
-- **Runtime:** Node.js
-- **Language:** TypeScript
-- **Framework:** Express.js
-- **Database:** PostgreSQL
-- **ORM:** Prisma
-- **Asynchronous Jobs:** Bull (Redis-backed)
-- **File Processing:**
-  - `multer`: File uploads
-  - `sharp`: Image processing
-  - `fluent-ffmpeg`: Video transcoding
-  - `pdf-lib`: PDF manipulation
+## Components
 
 ### Frontend
 
-- **Framework:** React 18 (Vite)
-- **Language:** TypeScript
-- **State Management:** Zustand
-- **Styling:** Tailwind CSS
-- **Data Fetching:** TanStack Query (React Query)
-- **UI Components:** Headless UI / Custom components
-- **Icons:** Lucide React
+- **React 18 + Vite + TypeScript**
+- **State**: Zustand
+- **Data fetching**: TanStack Query
+- **Styling**: Tailwind CSS
+- **Real-time**: Socket.io client (JWT auth via `handshake.auth.token`)
 
-## System Components
+### Backend
 
-1. **Web Client (Frontend):**
-    - Handles user interaction, file browsing, and media playback.
-    - Communicates with the backend via REST API and Socket.io for real-time updates.
-    - Manages local application state (auth, themes, upload progress).
+- **Node.js + Express + TypeScript**
+- **Database**: PostgreSQL via Prisma
+- **Queues**: Bull + Redis (with limited fallback mode in dev when Redis is unavailable)
+- **Storage**: local filesystem path (`STORAGE_PATH`)
 
-2. **API Server (Backend):**
-    - Exposes REST endpoints for user management, file operations, and sharing.
-    - Enforces security policies (authentication, rate limiting, quotas).
-    - Manages the physical file system interactions.
+## Key Flows
 
-3. **Database (PostgreSQL):**
-    - Stores relational data: Users, Files, Folders, Shares, Albums, etc.
-    - Maintains hierarchical folder structures.
+### Authentication
 
-4. **Job Queue (Redis + Bull):**
-    - Offloads heavy processing tasks from the main thread.
-    - Tasks include: Video transcoding, thumbnail generation, email sending.
+- **Access tokens** are sent via `Authorization: Bearer <token>`.
+- **Refresh token** is stored in an **httpOnly cookie** (`refreshToken`) scoped to `/api/auth`.
+- Refresh token rotation is tracked in the DB (`RefreshToken.familyId`, `jti`).
+- Optional Redis session store enables multi-device sessions and instant logout.
 
-5. **File Storage:**
-    - Local file system storage strategy (extensible design).
-    - Files are stored in a structured directory layout, often utilizing UUIDs to prevent collisions.
+### Uploads & Storage
 
-## Security Architecture
+- **Direct uploads**: multipart upload via `/api/files/upload`.
+- **Chunked uploads**:
+  - `/api/files/upload/init` reserves quota (uses `User.tempStorage` to avoid races).
+  - `/api/files/upload/chunk` stores chunks and merges automatically when the last chunk arrives.
+- **Storage layout** (under `STORAGE_PATH`):
+  - `files/<userId>/...` (original files + transcoded outputs)
+  - `thumbnails/`
+  - `chunks/<uploadId>/...`
+  - `temp/`, `avatars/`, `branding/`
 
-- **Authentication:** JWT-based stateless authentication (Access + Refresh tokens).
-- **Authorization:** Middleware checks ownership and permissions for every resource access.
-- **Data Protection:**
-  - Passwords hashed with `bcrypt`.
-  - Secure public link tokens.
-  - Input validation using `zod`.
+### Background Processing
+
+- **Video transcoding**: Bull queue `transcoding` (FFmpeg). Progress is emitted over Socket.io.
+- **Thumbnails**: Bull queue `thumbnails` (`sharp` for images; PDFs use `pdf2pic` and require GraphicsMagick).
+- **Office document → PDF previews**: Bull queue `document-conversion` (requires LibreOffice `soffice`).
+
+### Real-time (Socket.io)
+
+- Clients subscribe to rooms (e.g. `subscribe:upload`, `subscribe:transcoding`).
+- Server emits progress events (`upload:*`, `transcoding:*`) and quota updates (`quota:updated`).
+
+## Operations
+
+- **Health checks**:
+  - `/api/health/ping` is public (suitable for load balancers).
+  - `/api/health` is admin-only and includes deeper infrastructure checks.
+- **Queue dashboard**: Bull Board mounted at `/admin/queues` (admin-only).
+- **Observability**:
+  - Structured logging via Pino (`backend/src/lib/logger.ts`).
+  - Optional error tracking via Sentry/GlitchTip (`SENTRY_DSN`).

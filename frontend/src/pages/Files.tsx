@@ -21,13 +21,15 @@ import ImageGallery from '../components/gallery/ImageGallery';
 import VideoPreview from '../components/gallery/VideoPreview';
 import DocumentViewer from '../components/gallery/DocumentViewer';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { waveIn } from '../lib/animations';
 
 export default function Files() {
   const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const folderId = searchParams.get('folder');
   const searchQuery = searchParams.get('search');
+  const reducedMotion = useReducedMotion();
 
   const [files, setFiles] = useState<FileItem[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
@@ -395,6 +397,13 @@ export default function Files() {
         <div className="flex items-center justify-center h-64">
           <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
         </div>
+      ) : files.length === 0 && folders.length === 0 ? (
+        /* Empty state */
+        <div className="flex flex-col items-center justify-center h-64 text-dark-500">
+          <FolderPlus className={`w-16 h-16 mb-4 opacity-50 ${searchQuery ? 'text-dark-400' : 'text-primary-400'}`} />
+          <p className="text-lg font-medium">{searchQuery ? t('files.noSearchResults') : t('files.noFiles')}</p>
+          <p className="text-sm">{searchQuery ? t('files.tryDifferentSearch') : t('files.uploadOrCreate')}</p>
+        </div>
       ) : (
         <div
           className={cn(
@@ -404,24 +413,37 @@ export default function Files() {
           )}
         >
           {/* Carpetas primero */}
-          {folders.map((folder) => (
-            <FolderCard
+          {folders.map((folder, index) => (
+            <motion.div
               key={folder.id}
-              folder={folder}
-              view={viewMode}
-              onRefresh={loadData}
-            />
+              {...waveIn(index, reducedMotion)}
+              className={viewMode === 'grid' ? undefined : 'w-full'}
+            >
+              <FolderCard
+                folder={folder}
+                view={viewMode}
+                onRefresh={loadData}
+              />
+            </motion.div>
           ))}
 
           {/* Luego archivos */}
-          {files.map((file) => (
-            <FileCard
+          {files.map((file, index) => (
+            <motion.div
               key={file.id}
-              file={file}
-              view={viewMode}
-              onRefresh={loadData}
-              onPreview={handleFileClick}
-            />
+              {...waveIn(folders.length + index, reducedMotion)}
+              className={viewMode === 'grid' ? undefined : 'w-full'}
+            >
+              <FileCard
+                file={file}
+                view={viewMode}
+                onRefresh={loadData}
+                onPreview={handleFileClick}
+                onFavoriteToggle={(fileId, isFavorite) => {
+                  setFiles(prev => prev.map(f => f.id === fileId ? { ...f, isFavorite } : f));
+                }}
+              />
+            </motion.div>
           ))}
         </div>
       )}

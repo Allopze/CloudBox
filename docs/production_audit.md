@@ -263,7 +263,7 @@ router.post('/', authenticate, validate(createFolderSchema), async (req, res) =>
 | Database Schema | ✅ | `/docs/database_schema.md` |
 | Deployment Guide | ✅ | `/docs/deployment.md` |
 | Getting Started | ✅ | `/docs/getting_started.md` |
-| Frontend Structure | ✅ | `/docs/frontend_structure.md` |
+| Frontend Structure | ✅ | `/docs/frontend_guide.md` |
 | Production Readiness | ✅ | `/docs/production_readiness_report.md` |
 
 ---

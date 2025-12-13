@@ -77,6 +77,14 @@ export const config = {
     retentionDays: parseInt(process.env.TRASH_RETENTION_DAYS || '30'),
   },
 
+  // Compression settings
+  compression: {
+    // ZIP compression level: 0 (no compression) to 9 (max compression)
+    // Level 5 provides good balance between speed and size
+    // Higher levels are slower but produce smaller files
+    zipLevel: parseInt(process.env.ZIP_COMPRESSION_LEVEL || '5'),
+  },
+
   // Security: Centralized limits for folder depth operations
   limits: {
     maxFolderDepth: parseInt(process.env.MAX_FOLDER_DEPTH || '50'),

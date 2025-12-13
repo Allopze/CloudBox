@@ -58,6 +58,16 @@ export async function ensureConfigLoaded(): Promise<void> {
   await configLoadPromise;
 }
 
+/**
+ * Performance: Preload upload config during app initialization
+ * Call this in App.tsx or main.tsx to avoid latency on first upload
+ */
+export function preloadUploadConfig(): void {
+  if (!configLoaded && !configLoadPromise) {
+    configLoadPromise = loadUploadConfig();
+  }
+}
+
 // Error codes matching backend
 export const UPLOAD_ERROR_CODES = {
   QUOTA_EXCEEDED: 'QUOTA_EXCEEDED',

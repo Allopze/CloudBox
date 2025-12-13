@@ -209,6 +209,42 @@ export async function invalidateUserFiles(userId: string): Promise<void> {
   await delPattern(`files:${userId}:*`);
 }
 
+// ==================== Favorites Cache ====================
+
+/**
+ * Get cached favorites list for a user (Performance: dedicated cache for favorites page)
+ */
+export async function getFavorites(
+  userId: string,
+  page: number = 1,
+  sortBy?: string,
+  sortOrder?: string
+): Promise<any | null> {
+  const key = `favorites:${userId}:${page}:${sortBy || 'createdAt'}:${sortOrder || 'desc'}`;
+  return get<any>(key);
+}
+
+/**
+ * Cache favorites list for a user
+ */
+export async function setFavorites(
+  userId: string,
+  page: number,
+  data: any,
+  sortBy?: string,
+  sortOrder?: string
+): Promise<boolean> {
+  const key = `favorites:${userId}:${page}:${sortBy || 'createdAt'}:${sortOrder || 'desc'}`;
+  return set(key, data, CACHE_CONFIG.ttl.files);
+}
+
+/**
+ * Invalidate favorites cache for a user
+ */
+export async function invalidateFavorites(userId: string): Promise<void> {
+  await delPattern(`favorites:${userId}:*`);
+}
+
 // ==================== User Info Cache ====================
 
 /**
@@ -520,6 +556,7 @@ export async function invalidateAfterFileChange(userId: string, fileId?: string)
     invalidateQuota(userId),
     invalidateDashboard(userId),
     invalidateRecentFiles(userId),
+    invalidateFavorites(userId), // Performance: also invalidate favorites cache
   ];
 
   if (fileId) {

@@ -1,43 +1,47 @@
 # CloudBox Database Schema
 
-CloudBox uses PostgreSQL with Prisma ORM. Below are the core data models.
+CloudBox uses PostgreSQL via Prisma (`backend/prisma/schema.prisma`).
 
-## User Management
+## Conventions
 
-- **`User`**: Core user entity. Stores credentials, role (`USER`/`ADMIN`), storage quotas (`storageQuota`, `storageUsed`), and profile info.
-- **`RefreshToken`**: Stores JWT refresh tokens for session management. Includes rotation security (`familyId`, `tokenHash`).
-- **`LoginAttempt`**: Tracks failed login attempts for rate limiting and security auditing.
+- **Primary keys**: UUIDs (`@db.Uuid`)
+- **Sizes/quotas**: `BigInt` (bytes)
+- **Timestamps**: `timestamptz` (`@db.Timestamptz`)
 
-## File System
+## Models (by domain)
 
-- **`Folder`**: Hierarchical structure.
-  - `parentId`: Self-relation to support nested folders.
-  - `userId`: Owner of the folder.
-- **`File`**: Represents a file on disk.
-  - `folderId`: Link to parent folder (nullable for root files).
-  - `mimeType`: Used for file type validation and icons.
-  - `path`: Physical path on storage.
-  - `size`: File size in bytes (stored as BigInt).
-- **`FileChunk`**: Temporary storage for chunks during a chunked upload process.
-- **`TranscodingJob`**: Tracks background video processing status.
+### Users & Auth
 
-## Sharing & Collaboration
+- **`User`**: user profile, role, and storage limits (`storageQuota`, `storageUsed`, `maxFileSize`).
+- **`RefreshToken`**: hashed refresh tokens with rotation tracking (`familyId`, `jti`, `revokedAt`, `expiresAt`).
+- **`LoginAttempt`**: failed/successful login attempts for lockout/auditing (includes `ipAddress` as `inet`).
+- **`SignedUrl`**: short-lived tokens for file actions (`view`, `download`, `stream`, `thumbnail`) without exposing long-lived credentials.
 
-- **`Share`**: Configuration for a shared resource (file or folder).
-  - `type`: `PUBLIC`, `PRIVATE`, `PASSWORD`.
-  - `publicToken`: Unique token for public access URL.
-  - `password`: Optional password protection.
-  - `expiresAt`: Expiration date for the link.
-- **`ShareCollaborator`**: Maps specific users to a share with permissions (`VIEWER`, `EDITOR`).
-- **`SignedUrl`**: Short-lived tokens for secure file access without exposing permanent links.
+### Files & Folders
 
-## Media Organization
+- **`Folder`**: hierarchical structure via `parentId` (self relation), supports favorites and trash.
+- **`File`**: file metadata + storage pointers (`path`, `thumbnailPath`, `transcodedPath`), supports favorites and trash.
+- **`FileChunk`**: staging records for chunked uploads (`uploadId` + `chunkIndex` unique).
+- **`Activity`**: audit trail of user actions (upload/delete/share/etc).
 
-- **`Album`**: Logical collection of files (usually photos).
-- **`AlbumFile`**: Many-to-many relation between `Album` and `File`.
+### Sharing
 
-## System & Logs
+- **`Share`**: share links for a file or folder (supports `publicToken`, optional `password`, expiry, and download limits).
+- **`ShareCollaborator`**: per-user permissions (`VIEWER`/`EDITOR`) for private shares.
 
-- **`Activity`**: Audit log for user actions (upload, delete, share).
-- **`Settings`**: System-wide key-value configuration.
-- **`EmailTemplate`**: Dynamic templates for system emails (welcome, reset password).
+### Media
+
+- **`Album`**: user-owned media collections.
+- **`AlbumFile`**: join table between `Album` and `File` (includes ordering).
+
+### Background Jobs
+
+- **`TranscodingJob`**: state/progress for video transcoding.
+- **`CompressionJob`**: state/progress for compress/decompress operations.
+- **`StorageRequest`**: user requests for quota increases (admin-review workflow).
+
+### Configuration & Content
+
+- **`Settings`**: key/value configuration editable from the admin UI.
+- **`EmailTemplate`** / **`EmailTemplateVariable`**: email templates and their variables.
+- **`LegalPage`**: editable legal pages (stored content + `isActive` flag).

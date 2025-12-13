@@ -824,16 +824,22 @@ router.post('/upload/chunk', authenticate, uploadChunk.single('chunk'), async (r
       await ensureUserDir(userId);
 
       try {
-        // Write to temporary file first
-        const writeStream = await fs.open(tempFilePath, 'w');
-        try {
-          for (const chunk of chunks) {
-            const chunkData = await fs.readFile(chunk.path);
-            await writeStream.write(chunkData);
-          }
-        } finally {
-          await writeStream.close();
+        // Performance: Use streaming to avoid loading entire chunks into memory
+        // This reduces RAM usage from O(chunkSize) to O(buffer ~64KB)
+        const { createWriteStream, createReadStream } = await import('fs');
+        const { pipeline } = await import('stream/promises');
+
+        const output = createWriteStream(tempFilePath);
+        for (const chunk of chunks) {
+          await pipeline(createReadStream(chunk.path), output, { end: false });
         }
+        output.end();
+
+        // Wait for write stream to finish
+        await new Promise<void>((resolve, reject) => {
+          output.on('finish', resolve);
+          output.on('error', reject);
+        });
 
         // SECURITY FIX: Verify actual file size matches declared totalSize
         const mergedStats = await fs.stat(tempFilePath);
@@ -983,16 +989,27 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
     const limitNum = parseInt(limit as string);
     const folderIdStr = folderId === 'null' || folderId === '' ? null : (folderId as string) || null;
 
-    // Build cache key based on query params (only for non-search queries)
-    const canUseCache = !search && !favorite;
+    // Performance: Use separate cache for favorites queries
+    const isFavoriteQuery = favorite === 'true';
+    const canUseCache = !search;
 
     if (canUseCache) {
-      // Try to get from cache first
-      const cachedFiles = await cache.getFiles(userId, folderIdStr, pageNum, type as string, sortBy as string, sortOrder as string);
-      if (cachedFiles) {
-        logger.debug('Cache hit for files list', { userId, folderId: folderIdStr, page: pageNum });
-        res.json(cachedFiles);
-        return;
+      if (isFavoriteQuery) {
+        // Favorites have their own dedicated cache
+        const cachedFavorites = await cache.getFavorites(userId, pageNum, sortBy as string, sortOrder as string);
+        if (cachedFavorites) {
+          logger.debug('Cache hit for favorites list', { userId, page: pageNum });
+          res.json(cachedFavorites);
+          return;
+        }
+      } else {
+        // Regular files cache
+        const cachedFiles = await cache.getFiles(userId, folderIdStr, pageNum, type as string, sortBy as string, sortOrder as string);
+        if (cachedFiles) {
+          logger.debug('Cache hit for files list', { userId, folderId: folderIdStr, page: pageNum });
+          res.json(cachedFiles);
+          return;
+        }
       }
     }
 
@@ -1068,7 +1085,11 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
 
     // Cache the result if it's a cacheable query
     if (canUseCache) {
-      await cache.setFiles(userId, folderIdStr, pageNum, type as string, response as any, sortBy as string, sortOrder as string);
+      if (isFavoriteQuery) {
+        await cache.setFavorites(userId, pageNum, response as any, sortBy as string, sortOrder as string);
+      } else {
+        await cache.setFiles(userId, folderIdStr, pageNum, type as string, response as any, sortBy as string, sortOrder as string);
+      }
     }
 
     res.json(response);
@@ -1873,6 +1894,18 @@ router.get('/:id/thumbnail', authOptional, async (req: Request, res: Response) =
     const file = result.file;
 
     if (file.thumbnailPath && await fileExists(file.thumbnailPath)) {
+      // Performance: Add browser cache headers for thumbnails
+      // Thumbnails are immutable once generated, so we can cache aggressively
+      const etag = `"${file.id}"`;
+
+      // Check If-None-Match for conditional request (304 Not Modified)
+      if (req.headers['if-none-match'] === etag) {
+        res.status(304).end();
+        return;
+      }
+
+      res.setHeader('Cache-Control', 'public, max-age=86400, immutable'); // 24 hours
+      res.setHeader('ETag', etag);
       res.sendFile(file.thumbnailPath);
     } else {
       logger.info('Thumbnail path in DB but file missing', { fileId: id, thumbnailPath: file.thumbnailPath });
