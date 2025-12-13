@@ -38,6 +38,7 @@ import { useBrandingStore } from '../../stores/brandingStore';
 import { useAuthStore } from '../../stores/authStore';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
+import rehypeSanitize from 'rehype-sanitize';
 import remarkGfm from 'remark-gfm';
 
 // Helper functions for byte conversion
@@ -1964,7 +1965,7 @@ export default function AdminDashboard() {
                         dangerouslySetInnerHTML={undefined}
                       >
                         <ReactMarkdown
-                          rehypePlugins={[rehypeRaw]}
+                          rehypePlugins={[rehypeRaw, rehypeSanitize]}
                           remarkPlugins={[remarkGfm]}
                         >
                           {editingLegalPage.content}

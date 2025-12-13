@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { api, getFileUrl } from '../lib/api';
+import { api, getSignedFileUrl, openSignedFileUrl } from '../lib/api';
 import { FileItem, Album } from '../types';
 import { useFileStore } from '../stores/fileStore';
 import {
@@ -19,6 +19,7 @@ import ShareModal from '../components/modals/ShareModal';
 import RenameModal from '../components/modals/RenameModal';
 import ConfirmModal from '../components/ui/ConfirmModal';
 import VideoPreview from '../components/gallery/VideoPreview';
+import AuthenticatedImage from '../components/AuthenticatedImage';
 
 type TabType = 'all' | 'favorites' | 'videos' | 'screenshots';
 
@@ -238,7 +239,7 @@ export default function Photos() {
 
   // Context menu actions
   const handleDownload = (photo: FileItem) => {
-    window.open(getFileUrl(`/files/${photo.id}/download`), '_blank');
+    void openSignedFileUrl(photo.id, 'download');
     closeContextMenu();
   };
 
@@ -336,7 +337,7 @@ export default function Photos() {
 
   const handleCopyLink = async (photo: FileItem) => {
     try {
-      const url = `${window.location.origin}${getFileUrl(`/files/${photo.id}/view`)}`;
+      const url = await getSignedFileUrl(photo.id, 'view');
       await navigator.clipboard.writeText(url);
       toast(t('photos.linkCopied'), 'success');
     } catch {
@@ -346,7 +347,7 @@ export default function Photos() {
   };
 
   const handleOpenInNewTab = (photo: FileItem) => {
-    window.open(getFileUrl(`/files/${photo.id}/view`), '_blank');
+    void openSignedFileUrl(photo.id, 'view');
     closeContextMenu();
   };
 
@@ -484,8 +485,9 @@ export default function Photos() {
 
                   {/* Photo thumbnail */}
                   <div className="premium-card-thumbnail">
-                    <img
-                      src={photo.thumbnailPath ? getFileUrl(`/files/${photo.id}/thumbnail`, undefined, true) : getFileUrl(`/files/${photo.id}/view`, undefined, true)}
+                    <AuthenticatedImage
+                      fileId={photo.id}
+                      endpoint={photo.thumbnailPath ? 'thumbnail' : 'view'}
                       alt={photo.name}
                       className="w-full h-full object-cover"
                       loading="lazy"
@@ -537,8 +539,9 @@ export default function Photos() {
           </button>
 
           {/* Image */}
-          <img
-            src={getFileUrl(`/files/${selectedPhoto.id}/view`, undefined, true)}
+          <AuthenticatedImage
+            fileId={selectedPhoto.id}
+            endpoint="view"
             alt={selectedPhoto.name}
             className="max-w-full max-h-full object-contain"
           />
@@ -563,7 +566,7 @@ export default function Photos() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => window.open(getFileUrl(`/files/${selectedPhoto.id}/download`), '_blank')}
+                  onClick={() => void openSignedFileUrl(selectedPhoto.id, 'download')}
                   className="text-white hover:bg-white/10"
                   aria-label={t('common.download')}
                 >
@@ -802,8 +805,9 @@ export default function Photos() {
             >
               {/* Preview */}
               <div className="aspect-video bg-dark-100 dark:bg-dark-900 relative">
-                <img
-                  src={infoPhoto.thumbnailPath ? getFileUrl(`/files/${infoPhoto.id}/thumbnail`, undefined, true) : getFileUrl(`/files/${infoPhoto.id}/view`, undefined, true)}
+                <AuthenticatedImage
+                  fileId={infoPhoto.id}
+                  endpoint={infoPhoto.thumbnailPath ? 'thumbnail' : 'view'}
                   alt={infoPhoto.name}
                   className="w-full h-full object-contain"
                 />
@@ -1015,7 +1019,7 @@ export default function Photos() {
           isOpen={true}
           onClose={() => setVideoPreviewFile(null)}
           onDownload={(file) => {
-            window.open(getFileUrl(`/files/${file.id}/download`), '_blank');
+            void openSignedFileUrl(file.id, 'download');
             setVideoPreviewFile(null);
           }}
           onShare={(file) => {

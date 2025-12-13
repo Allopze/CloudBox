@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { api, getFileUrl } from '../lib/api';
+import { api, openSignedFileUrl } from '../lib/api';
 import { FileItem, Folder } from '../types';
 import { useFileStore } from '../stores/fileStore';
 import FileCard from '../components/files/FileCard';
@@ -146,7 +146,7 @@ export default function Favorites() {
         initialIndex={galleryIndex}
         isOpen={galleryOpen}
         onClose={() => setGalleryOpen(false)}
-        onDownload={(file) => window.open(getFileUrl(file.id, 'download'), '_blank')}
+        onDownload={(file) => void openSignedFileUrl(file.id, 'download')}
         onShare={(file) => {
           setShareFile(file);
           setGalleryOpen(false);
@@ -159,7 +159,7 @@ export default function Favorites() {
           file={videoPreviewFile}
           isOpen={!!videoPreviewFile}
           onClose={() => setVideoPreviewFile(null)}
-          onDownload={(file) => window.open(getFileUrl(file.id, 'download', true), '_blank')}
+          onDownload={(file) => void openSignedFileUrl(file.id, 'download')}
           onShare={(file) => {
             setShareFile(file);
             setVideoPreviewFile(null);
@@ -173,7 +173,7 @@ export default function Favorites() {
           file={documentPreviewFile}
           isOpen={!!documentPreviewFile}
           onClose={() => setDocumentPreviewFile(null)}
-          onDownload={(file) => window.open(getFileUrl(file.id, 'download', true), '_blank')}
+          onDownload={(file) => void openSignedFileUrl(file.id, 'download')}
           onShare={(file) => {
             setShareFile(file);
             setDocumentPreviewFile(null);

@@ -131,11 +131,12 @@ export const uploadLandingAsset = multer({
 export const uploadChunk = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => {
-      cb(null, getStoragePath('chunks'));
+      // SECURITY: Store chunks in temp with a random filename to prevent path traversal.
+      // The validated uploadId/chunkIndex are applied later when moving into the final chunk path.
+      cb(null, getStoragePath('temp'));
     },
     filename: (req, file, cb) => {
-      const { uploadId, chunkIndex } = req.body;
-      cb(null, `${uploadId}_${chunkIndex}`);
+      cb(null, `chunk_${uuidv4()}`);
     },
   }),
   limits: {

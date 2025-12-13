@@ -6,15 +6,14 @@ import prisma from '../lib/prisma.js';
 // Note: Request.user type is declared in auth.ts
 
 export const authOptional = async (req: Request, res: Response, next: NextFunction) => {
-  // Security: Prefer Authorization header, then signed URL, deprecated query token last
-  const tokenFromHeader = req.headers.authorization?.split(' ')[1];
-  const signedUrlToken = req.query.sig as string;
-  // Deprecated: query string tokens (only for backward compatibility during migration)
-  const tokenFromQuery = req.query.token as string;
+  // Security: Prefer Authorization header, then signed URL.
+  const authHeader = req.headers.authorization;
+  const tokenFromHeader = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : undefined;
+  const signedUrlToken = req.query.sig as string | undefined;
+  let headerTokenInvalid = false;
   
   // Clear tokens from query to prevent logging
   if (signedUrlToken) delete req.query.sig;
-  if (tokenFromQuery) delete req.query.token;
 
   // Priority 1: Authorization header (preferred)
   if (tokenFromHeader) {
@@ -27,7 +26,8 @@ export const authOptional = async (req: Request, res: Response, next: NextFuncti
       };
       return next();
     } catch {
-      // Token invalid, continue to check other auth methods
+      // Token invalid: allow signed URL fallback, otherwise respond 401.
+      headerTokenInvalid = true;
     }
   }
 
@@ -71,24 +71,9 @@ export const authOptional = async (req: Request, res: Response, next: NextFuncti
     }
   }
 
-  // Priority 3: Query string token (DEPRECATED - for backward compatibility only)
-  // Security warning: These tokens can be logged in server logs and browser history
-  if (tokenFromQuery) {
-    try {
-      const decoded = jwt.verify(tokenFromQuery, config.jwt.secret) as { userId: string; email: string; role: string };
-      req.user = { 
-        userId: decoded.userId,
-        email: decoded.email,
-        role: decoded.role,
-      };
-      
-      // Mark request as using deprecated auth method
-      (req as any).usedDeprecatedQueryToken = true;
-      
-      return next();
-    } catch {
-      // Token invalid, continue without auth
-    }
+  if (headerTokenInvalid) {
+    res.status(401).json({ error: 'Invalid token' });
+    return;
   }
 
   // No valid auth found, continue without user context

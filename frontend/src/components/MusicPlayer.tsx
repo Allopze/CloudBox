@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMusicStore } from '../stores/musicStore';
-import { getFileUrl } from '../lib/api';
+import { getSignedFileUrl } from '../lib/api';
 import { formatDuration, cn } from '../lib/utils';
 import { X, Music } from 'lucide-react';
+import AuthenticatedImage, { useAuthenticatedUrl } from './AuthenticatedImage';
 
 // Constants for edge magnetism
 const MAGNETISM_THRESHOLD = 50; // pixels - distance to start snapping
@@ -187,6 +188,11 @@ export default function MusicPlayer() {
     play,
   } = useMusicStore();
 
+  const { url: thumbnailUrl } = useAuthenticatedUrl(
+    currentTrack?.thumbnailPath ? currentTrack.id : null,
+    'thumbnail'
+  );
+
   // Apply edge magnetism to position
   // Always use collapsed size (w-44=176px, h-20=80px) for consistent positioning
   const applyMagnetism = useCallback((x: number, y: number): { x: number; y: number } => {
@@ -304,10 +310,24 @@ export default function MusicPlayer() {
 
   useEffect(() => {
     if (!audioRef.current || !currentTrack) return;
-    audioRef.current.src = getFileUrl(currentTrack.id, 'stream', true);
-    if (isPlaying) {
-      audioRef.current.play().catch(console.error);
-    }
+
+    let isCancelled = false;
+
+    getSignedFileUrl(currentTrack.id, 'stream')
+      .then((url) => {
+        if (isCancelled || !audioRef.current) return;
+        audioRef.current.src = url;
+
+        // If we were already playing, start playback on track change.
+        if (useMusicStore.getState().isPlaying) {
+          audioRef.current.play().catch(console.error);
+        }
+      })
+      .catch(console.error);
+
+    return () => {
+      isCancelled = true;
+    };
   }, [currentTrack]);
 
   useEffect(() => {
@@ -364,9 +384,6 @@ export default function MusicPlayer() {
 
   const trackName = currentTrack.name.replace(/\.[^/.]+$/, '');
   const progressPercent = duration > 0 ? (progress / duration) * 100 : 0;
-  const thumbnailUrl = currentTrack.thumbnailPath
-    ? getFileUrl(currentTrack.id, 'thumbnail', true)
-    : null;
 
   return (
     <>
@@ -407,9 +424,7 @@ export default function MusicPlayer() {
               </div>
               <div className="overflow-y-auto max-h-52">
                 {queue.map((track, index) => {
-                  const trackThumbUrl = track.thumbnailPath
-                    ? getFileUrl(track.id, 'thumbnail', true)
-                    : null;
+                  const hasThumbnail = !!track.thumbnailPath;
 
                   return (
                     <button
@@ -418,11 +433,12 @@ export default function MusicPlayer() {
                       className={`w-full px-4 py-2 flex items-center gap-3 hover:bg-primary-50 dark:hover:bg-dark-700 transition-colors text-left ${index === currentIndex ? 'bg-primary-50 dark:bg-dark-700' : ''
                         }`}
                     >
-                      <div className={`w-8 h-8 rounded overflow-hidden flex items-center justify-center flex-shrink-0 ${!trackThumbUrl && (index === currentIndex ? 'bg-primary-500 text-white' : 'bg-gray-100 dark:bg-dark-600 text-gray-500')
+                      <div className={`w-8 h-8 rounded overflow-hidden flex items-center justify-center flex-shrink-0 ${!hasThumbnail && (index === currentIndex ? 'bg-primary-500 text-white' : 'bg-gray-100 dark:bg-dark-600 text-gray-500')
                         }`}>
-                        {trackThumbUrl ? (
-                          <img
-                            src={trackThumbUrl}
+                        {hasThumbnail ? (
+                          <AuthenticatedImage
+                            fileId={track.id}
+                            endpoint="thumbnail"
                             alt={track.name}
                             className="w-full h-full object-cover"
                           />
@@ -443,7 +459,7 @@ export default function MusicPlayer() {
                         </p>
                       </div>
                       {/* Playing indicator for tracks with thumbnail */}
-                      {trackThumbUrl && index === currentIndex && isPlaying && (
+                      {hasThumbnail && index === currentIndex && isPlaying && (
                         <div className="flex items-center gap-0.5 mr-1">
                           <span className="w-0.5 h-3 bg-primary-500 animate-pulse rounded-full" />
                           <span className="w-0.5 h-4 bg-primary-500 animate-pulse delay-75 rounded-full" />

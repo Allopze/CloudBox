@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
+import { cn } from '../lib/utils';
 
 interface AuthenticatedImageProps extends Omit<React.ImgHTMLAttributes<HTMLImageElement>, 'src'> {
   fileId: string;
@@ -64,13 +65,19 @@ export default function AuthenticatedImage({
 
   if (loading) {
     return fallback ? <>{fallback}</> : (
-      <div className="animate-pulse bg-gray-200 dark:bg-gray-700" style={{ width: props.width, height: props.height }} />
+      <div
+        className={cn('animate-pulse bg-gray-200 dark:bg-gray-700', props.className)}
+        style={{ width: props.width, height: props.height }}
+      />
     );
   }
 
   if (error || !objectUrl) {
     return fallback ? <>{fallback}</> : (
-      <div className="flex items-center justify-center bg-gray-100 dark:bg-gray-800 text-gray-400" style={{ width: props.width, height: props.height }}>
+      <div
+        className={cn('flex items-center justify-center bg-gray-100 dark:bg-gray-800 text-gray-400', props.className)}
+        style={{ width: props.width, height: props.height }}
+      >
         <span className="text-xs">Error</span>
       </div>
     );

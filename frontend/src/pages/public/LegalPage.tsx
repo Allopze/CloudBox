@@ -2,6 +2,7 @@ import { useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
+import rehypeSanitize from 'rehype-sanitize';
 import remarkGfm from 'remark-gfm';
 import { motion } from 'framer-motion';
 import { Shield, FileText, Check } from 'lucide-react';
@@ -253,7 +254,7 @@ export default function LegalPage() {
                         prose-img:rounded-xl
                         prose-hr:border-dark-100 dark:prose-hr:border-dark-700">
                         <ReactMarkdown
-                            rehypePlugins={[rehypeRaw]}
+                            rehypePlugins={[rehypeRaw, rehypeSanitize]}
                             remarkPlugins={[remarkGfm]}
                             components={{
                                 h1: (props) => <HeadingRenderer level={1} {...props} />,

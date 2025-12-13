@@ -61,22 +61,38 @@ export const api = axios.create({
 
 // Security: Generate signed URL for file access (preferred over query string tokens)
 export const getSignedFileUrl = async (fileId: string, action: 'view' | 'download' | 'stream' | 'thumbnail' = 'view'): Promise<string> => {
+  const response = await api.post(`/files/${fileId}/signed-url`, { action });
+  return response.data.signedUrl;
+};
+
+// Open signed URL in a new tab without exposing tokens in URLs.
+// Uses a synchronous window.open to reduce popup blocking, then navigates once the URL is resolved.
+export const openSignedFileUrl = async (
+  fileId: string,
+  action: 'view' | 'download' | 'stream' | 'thumbnail' = 'view',
+  target: string = '_blank'
+): Promise<void> => {
+  const win = window.open('about:blank', target, 'noopener,noreferrer');
+  if (win) win.opener = null;
+
   try {
-    const response = await api.post(`/files/${fileId}/signed-url`, { action });
-    return response.data.signedUrl;
+    const url = await getSignedFileUrl(fileId, action);
+    if (win) {
+      win.location.href = url;
+    } else {
+      window.location.href = url;
+    }
   } catch (error) {
-    console.error('Failed to get signed URL:', error);
-    // Fallback to direct URL with Authorization header (for components that can set headers)
-    return `${API_URL}/files/${fileId}/${action}`;
+    if (win) win.close();
+    console.error('Failed to open signed URL:', error);
   }
 };
 
 // Security: For immediate use (e.g., img src, audio src), use this with Authorization header
 // Note: This returns a URL that requires Authorization header, not usable in img/audio src directly
-export const getFileUrl = (pathOrFileId: string, endpoint?: 'view' | 'stream' | 'download' | 'thumbnail', includeToken: boolean = false) => {
-  // Security: Query string tokens are deprecated, use signed URLs instead
-  // This function now returns URLs without tokens for backward compatibility
-  // Components should migrate to using getSignedFileUrl for direct browser access
+export const getFileUrl = (pathOrFileId: string, endpoint?: 'view' | 'stream' | 'download' | 'thumbnail') => {
+  // SECURITY: Do not put auth tokens in URLs.
+  // For direct browser access (img/audio/video/window.open), use getSignedFileUrl().
 
   // Check if it's the old format (starts with /files/)
   let url = '';
@@ -86,14 +102,6 @@ export const getFileUrl = (pathOrFileId: string, endpoint?: 'view' | 'stream' | 
     // New format: just fileId and endpoint type
     const endpointPath = endpoint || 'view';
     url = `${API_URL}/files/${pathOrFileId}/${endpointPath}`;
-  }
-
-  if (includeToken) {
-    const token = localStorage.getItem('accessToken');
-    if (token) {
-      const separator = url.includes('?') ? '&' : '?';
-      return `${url}${separator}token=${token}`;
-    }
   }
 
   return url;
@@ -222,4 +230,3 @@ export const validateUploadFiles = async (
 };
 
 export default api;
-
