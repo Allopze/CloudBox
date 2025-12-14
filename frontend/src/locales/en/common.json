@@ -49,13 +49,12 @@
     "nav": {
       "open": "Open navigation",
       "close": "Close navigation",
-      "benefits": "Benefits",
-      "howItWorks": "How it works",
+      "login": "Log in",
+      "register": "Register",
+      "tryBeta": "Try Beta",
       "features": "Features",
-      "comparison": "Cloud vs self-hosted",
-      "security": "Security",
-      "github": "GitHub",
-      "faq": "FAQ"
+      "hosted": "Hosted",
+      "selfHosted": "Self-hosted"
     },
     "theme": {
       "light": "Light mode",
@@ -63,14 +62,148 @@
     },
     "hero": {
       "badge": "Private cloud · Modern experience",
-      "modeCloud": "Cloud",
-      "modeSelfHosted": "Self-hosted",
-      "selfHostedValue": "GitHub / Self-host"
+      "title1": "Your cloud",
+      "title2": "organized.",
+      "subtitle": "Private storage with music player, photo gallery and more. Hosted or self-hosted.",
+      "primaryCta": "Enter CloudBox",
+      "secondaryCta": "View on GitHub"
     },
-    "section": {
-      "eyebrow": "CloudBox"
+    "trustAvatars": {
+      "rating": "5.0",
+      "betaTesters": "Satisfied beta testers",
+      "modules": "modules",
+      "languages": "languages"
+    },
+    "scrollIndicator": "Scroll",
+    "marquee": {
+      "chunkUploads": "Chunk uploads",
+      "expiringLinks": "Expiring links",
+      "musicPlayer": "Built-in music player",
+      "photoGallery": "Photo gallery",
+      "zipCompression": "ZIP compression",
+      "favorites": "Favorites",
+      "adminPanel": "Admin panel",
+      "uptime": "99.9% uptime"
+    },
+    "flow": {
+      "title": "Everything you need, in one place",
+      "subtitle": "Designed to match your mental flow, not interrupt it.",
+      "upload": {
+        "title": "Upload",
+        "desc": "Smart drag & drop with large file support."
+      },
+      "organize": {
+        "title": "Organize",
+        "desc": "Move and sort like your local operating system."
+      },
+      "explore": {
+        "title": "Explore",
+        "desc": "View your photos in a modern gallery with lightbox."
+      },
+      "play": {
+        "title": "Play",
+        "desc": "Listen to your music with built-in player and queues."
+      },
+      "favorites": {
+        "title": "Favorites",
+        "desc": "Mark important files for quick access."
+      },
+      "share": {
+        "title": "Share",
+        "desc": "Generate public links with password and expiration."
+      },
+      "recover": {
+        "title": "Recover",
+        "desc": "Restore deleted files from trash."
+      },
+      "admin": {
+        "title": "Admin",
+        "desc": "Customize colors and logo from the visual panel."
+      }
+    },
+    "features": {
+      "badge": "Features",
+      "title": "Power in every detail",
+      "subtitle": "Tools designed to help you manage your files like a pro",
+      "musicPlayer": {
+        "title": "Music Player",
+        "desc": "Built-in streaming with playback queue, shuffle, repeat and cover art display. Supports MP3, WAV, FLAC and more.",
+        "status": "Now playing"
+      },
+      "gallery": {
+        "title": "Photo Gallery",
+        "desc": "Modern lightbox with touch navigation"
+      },
+      "albums": {
+        "title": "Albums",
+        "desc": "Organize photos and music in collections"
+      },
+      "zip": {
+        "title": "ZIP Compression",
+        "desc": "Compress and extract files instantly"
+      },
+      "favorites": {
+        "title": "Favorites",
+        "desc": "Quick access to what matters"
+      },
+      "privateLinks": {
+        "title": "Private Links",
+        "desc": "Share with password, download limits and expiration date",
+        "badge": "Protected"
+      },
+      "trash": {
+        "title": "Trash",
+        "desc": "Recover deleted files"
+      },
+      "logs": {
+        "title": "Activity Logs",
+        "desc": "Complete history of actions"
+      }
+    },
+    "useCases": {
+      "badge": "Use Cases",
+      "title": "Designed for you",
+      "subtitle": "Professionals, teams and families who need to organize their files securely",
+      "photographers": {
+        "title": "Photographers",
+        "desc": "Private gallery with lightbox, organized albums and bulk image download."
+      },
+      "musicians": {
+        "title": "Musicians",
+        "desc": "Your music library streaming from anywhere with playback queue."
+      },
+      "teams": {
+        "title": "Work Teams",
+        "desc": "Secure collaboration with protected links, activity logs and permissions."
+      },
+      "families": {
+        "title": "Families",
+        "desc": "Share memories privately with your loved ones securely."
+      },
+      "developers": {
+        "title": "Developers",
+        "desc": "Self-hosted with Docker, open source, documented API and customizable."
+      },
+      "business": {
+        "title": "Business",
+        "desc": "Meet compliance and data policies with your own infrastructure."
+      }
+    },
+    "techStack": {
+      "eyebrow": "Top-tier technology",
+      "title": "Built with the modern stack"
+    },
+    "beta": {
+      "badge": "Early Access",
+      "title": "Be among the first to try CloudBox",
+      "subtitle": "Join the beta program and get extra storage for free. Help us improve with your feedback.",
+      "cta": "Try Beta",
+      "exploreCta": "Explore Features"
     },
     "comparison": {
+      "recommended": "Recommended",
+      "createAccount": "Create account",
+      "viewOnGithub": "View on GitHub",
       "table": {
         "feature": "Feature",
         "cloud": "Cloud",
@@ -78,13 +211,174 @@
       }
     },
     "security": {
-      "highlights": "Highlights"
+      "badge": "Security",
+      "title": "Your data, protected",
+      "subtitle": "Enterprise-grade security with transparent auditing and total control",
+      "activeTitle": "Active Security",
+      "monitoring": "24/7 Monitoring",
+      "https": {
+        "label": "HTTPS/TLS",
+        "desc": "Encryption in transit"
+      },
+      "passwords": {
+        "label": "Passwords",
+        "desc": "Protected links"
+      },
+      "auditLogs": {
+        "label": "Audit Logs",
+        "desc": "Complete history"
+      },
+      "softDelete": {
+        "label": "Soft Delete",
+        "desc": "Safe recovery"
+      },
+      "uptime": "Uptime",
+      "breaches": "Security breaches",
+      "support": "Support",
+      "recentActivity": "Recent Activity",
+      "live": "Live",
+      "downloaded": "downloaded",
+      "uploaded": "uploaded",
+      "shared": "shared",
+      "addedToFavorites": "added to favorites",
+      "selfHosted": {
+        "title": "Self-Hosted",
+        "desc": "Total control over your infrastructure. Deploy on your own server."
+      },
+      "openSource": {
+        "title": "Open Source",
+        "desc": "Open and auditable code. No backdoors, no surprises."
+      },
+      "privacy": {
+        "title": "Privacy",
+        "desc": "No tracking, no invasive analytics. Your privacy is priority."
+      }
     },
-    "github": {
-      "requirements": "Minimum requirements"
+    "faq": {
+      "title": "Frequently asked questions",
+      "subtitle": "Everything you need to know about CloudBox.",
+      "q1": {
+        "question": "What is CloudBox?",
+        "answer": "CloudBox is a private cloud storage solution that you can use hosted or self-hosted. It includes a music player, photo gallery, and more."
+      },
+      "q2": {
+        "question": "Can I self-host it?",
+        "answer": "Yes! CloudBox is open source and you can deploy it on your own server with Docker. You have total control over your data."
+      },
+      "q3": {
+        "question": "What formats does the player support?",
+        "answer": "The player supports MP3, WAV, FLAC, OGG and more. It includes cover art display, playback queue and shuffle."
+      },
+      "q4": {
+        "question": "Are my files secure?",
+        "answer": "We use HTTPS for encryption in transit. In the self-hosted version, you completely control your data security."
+      }
+    },
+    "cta": {
+      "title": "Start with CloudBox today",
+      "subtitle": "Hosted or self-hosted, choose your path.",
+      "primary": "Create free account",
+      "secondary": "View documentation",
+      "terms": "Terms of service",
+      "privacy": "Privacy"
+    },
+    "pricing": {
+      "badge": "Pricing",
+      "title": "Simple and transparent",
+      "subtitle": "One plan, everything included. No surprises.",
+      "beta": {
+        "name": "Beta",
+        "price": "$0",
+        "period": "/month",
+        "storage": "50 GB storage",
+        "features": [
+          "All features included",
+          "Unlimited music player",
+          "Full photo gallery",
+          "Unlimited shared links",
+          "Email support",
+          "Early access to new features"
+        ],
+        "cta": "Start for free",
+        "badge": "Early Access"
+      }
+    },
+    "roadmap": {
+      "badge": "Roadmap",
+      "title": "What's coming",
+      "subtitle": "Features we're working on",
+      "status": {
+        "completed": "Completed",
+        "inProgress": "In Progress",
+        "planned": "Planned"
+      },
+      "items": {
+        "i18n": {
+          "title": "Full internationalization",
+          "desc": "Support for 6 languages across the app"
+        },
+        "mobile": {
+          "title": "Mobile app (PWA)",
+          "desc": "Offline access and push notifications"
+        },
+        "collaboration": {
+          "title": "Real-time collaboration",
+          "desc": "Simultaneous editing and file comments"
+        },
+        "api": {
+          "title": "Documented public API",
+          "desc": "Third-party integrations and automations"
+        },
+        "e2e": {
+          "title": "End-to-end encryption",
+          "desc": "Maximum security for sensitive files"
+        },
+        "ai": {
+          "title": "AI-powered search",
+          "desc": "OCR and image content analysis"
+        }
+      }
+    },
+    "contact": {
+      "badge": "Contact",
+      "title": "Have questions?",
+      "subtitle": "We're here to help",
+      "email": {
+        "title": "Email",
+        "desc": "Response within 24 hours",
+        "cta": "Send email"
+      },
+      "github": {
+        "title": "GitHub Issues",
+        "desc": "Report bugs or request features",
+        "cta": "Open issue"
+      },
+      "docs": {
+        "title": "Documentation",
+        "desc": "Detailed guides and tutorials",
+        "cta": "View docs"
+      }
     },
     "footer": {
-      "note": "Use CloudBox in the cloud or self-host it."
+      "note": "Use CloudBox in the cloud or self-host it.",
+      "product": {
+        "title": "Product",
+        "features": "Features",
+        "pricing": "Pricing",
+        "roadmap": "Roadmap"
+      },
+      "resources": {
+        "title": "Resources",
+        "docs": "Documentation",
+        "github": "GitHub",
+        "support": "Support"
+      },
+      "legal": {
+        "title": "Legal",
+        "terms": "Terms of Service",
+        "privacy": "Privacy Policy"
+      },
+      "copyright": "© {{year}} CloudBox. All rights reserved."
     }
   },
   "sidebar": {

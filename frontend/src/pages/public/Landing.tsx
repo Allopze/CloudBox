@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import {
@@ -27,6 +27,18 @@ import {
   Star,
   Archive,
   Album,
+  Globe,
+  ChevronDown,
+  Camera,
+  Briefcase,
+  Code,
+  Building2,
+  ChevronRight,
+  Sparkles,
+  MousePointer2,
+  Mail,
+  BookOpen,
+  type LucideIcon,
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useThemeStore } from '../../stores/themeStore';
@@ -96,37 +108,123 @@ const Marquee = ({ items, speed = 30 }: { items: string[]; speed?: number }) => 
 };
 
 // --- Trust Avatars Component (Granola.ai inspired) ---
-const TrustAvatars = ({ count = 127 }: { count?: number }) => (
-  <div className="flex items-center gap-3">
-    <div className="flex -space-x-2">
-      {['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-orange-500'].map((color, i) => (
-        <div
-          key={i}
-          className={`w-8 h-8 rounded-full ${color} border-2 border-white dark:border-dark-800 flex items-center justify-center text-white text-xs font-bold`}
-        >
-          {String.fromCharCode(65 + i)}
+const TrustAvatars = () => (
+  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+    <div className="flex items-center gap-3">
+      <div className="flex -space-x-2">
+        {['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-orange-500'].map((color, i) => (
+          <div
+            key={i}
+            className={`w-8 h-8 rounded-full ${color} border-2 border-white dark:border-dark-800 flex items-center justify-center text-white text-xs font-bold`}
+          >
+            {String.fromCharCode(65 + i)}
+          </div>
+        ))}
+      </div>
+      <div className="flex flex-col">
+        <div className="flex items-center gap-1">
+          {[1, 2, 3, 4, 5].map(i => (
+            <Star key={i} className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />
+          ))}
+          <span className="text-xs font-bold text-dark-700 dark:text-dark-300 ml-1">5.0</span>
         </div>
-      ))}
+        <span className="text-xs text-dark-500 dark:text-dark-400">Beta testers satisfechos</span>
+      </div>
     </div>
-    <span className="text-sm text-dark-500 dark:text-dark-400">
-      <span className="font-bold text-dark-700 dark:text-dark-200">+{count}</span> usuarios activos
-    </span>
+    <div className="hidden sm:block w-px h-8 bg-dark-200 dark:bg-dark-700" />
+    <div className="flex items-center gap-4 text-sm">
+      <div className="flex items-center gap-1.5">
+        <Zap className="w-4 h-4 text-[#F44336]" />
+        <span className="text-dark-600 dark:text-dark-400"><span className="font-bold text-dark-800 dark:text-dark-200">8</span> módulos</span>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <Globe className="w-4 h-4 text-[#F44336]" />
+        <span className="text-dark-600 dark:text-dark-400"><span className="font-bold text-dark-800 dark:text-dark-200">6</span> idiomas</span>
+      </div>
+    </div>
   </div>
 );
 
-// --- Testimonial Card Component (Picmal.app inspired) ---
-const TestimonialCard = ({ quote, author, role }: { quote: string; author: string; role: string }) => (
-  <div className="p-6 bg-white dark:bg-dark-800 border border-dark-200 dark:border-dark-700 rounded-2xl hover:shadow-lg transition-shadow">
-    <p className="text-dark-600 dark:text-dark-300 mb-4 italic text-sm leading-relaxed">"{quote}"</p>
-    <div className="flex items-center gap-3">
-      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#F44336] to-orange-500 flex items-center justify-center text-white font-bold text-sm">
-        {author.charAt(0)}
-      </div>
-      <div>
-        <div className="font-semibold text-dark-900 dark:text-white text-sm">{author}</div>
-        <div className="text-xs text-dark-500">{role}</div>
+// --- Use Case Card Component (Replaces Testimonials for pre-launch) ---
+const UseCaseCard = ({ icon: Icon, title, description, color }: { icon: LucideIcon; title: string; description: string; color: string }) => (
+  <div className={`group p-6 bg-white dark:bg-dark-800 border border-dark-200 dark:border-dark-700 rounded-2xl hover:shadow-xl transition-all hover:-translate-y-1 hover:border-${color}-300 dark:hover:border-${color}-700`}>
+    <div className={`w-14 h-14 rounded-2xl bg-${color}-100 dark:bg-${color}-900/30 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
+      <Icon className={`w-7 h-7 text-${color}-600 dark:text-${color}-400`} />
+    </div>
+    <h3 className="text-lg font-bold text-dark-900 dark:text-white mb-2">{title}</h3>
+    <p className="text-dark-500 dark:text-dark-400 text-sm leading-relaxed">{description}</p>
+  </div>
+);
+
+// --- Tech Stack Logos Component ---
+const TechStackLogos = () => {
+  const technologies = [
+    { name: 'React', color: '#61DAFB', letter: 'R' },
+    { name: 'Node.js', color: '#339933', letter: 'N' },
+    { name: 'TypeScript', color: '#3178C6', letter: 'TS' },
+    { name: 'PostgreSQL', color: '#4169E1', letter: 'PG' },
+    { name: 'Docker', color: '#2496ED', letter: 'D' },
+    { name: 'Vite', color: '#646CFF', letter: 'V' },
+  ];
+
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-6 md:gap-10">
+      {technologies.map((tech) => (
+        <div key={tech.name} className="flex flex-col items-center gap-2 group cursor-default">
+          <div
+            className="w-14 h-14 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-lg group-hover:scale-110 transition-transform"
+            style={{ backgroundColor: tech.color }}
+          >
+            {tech.letter}
+          </div>
+          <span className="text-xs font-medium text-dark-500 dark:text-dark-400 group-hover:text-dark-700 dark:group-hover:text-dark-200 transition-colors">{tech.name}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// --- Beta Access Section Component ---
+const BetaAccessSection = () => (
+  <section className="max-w-[1600px] mx-auto px-6 mb-24">
+    <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-r from-[#F44336] via-[#FF5722] to-orange-500 p-10 md:p-16">
+      {/* Background decoration */}
+      <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+      <div className="absolute bottom-0 left-0 w-64 h-64 bg-black/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
+
+      <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
+        <div className="text-center md:text-left">
+          <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full mb-6">
+            <Sparkles className="w-4 h-4 text-white" />
+            <span className="text-white text-sm font-semibold">Acceso Anticipado</span>
+          </div>
+          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Sé de los primeros en probar CloudBox</h2>
+          <p className="text-white/80 text-lg max-w-xl">Únete al programa beta y obtén almacenamiento extra gratis. Ayúdanos a mejorar con tu feedback.</p>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-4">
+          <a href="/register">
+            <button className="px-8 py-4 bg-white text-[#F44336] font-bold rounded-full hover:bg-dark-50 transition-colors shadow-xl shadow-black/20 flex items-center gap-2">
+              <Sparkles className="w-5 h-5" />
+              Probar Beta
+            </button>
+          </a>
+          <a href="#features">
+            <button className="px-8 py-4 bg-white/10 backdrop-blur-sm text-white font-medium rounded-full hover:bg-white/20 transition-colors border border-white/20 flex items-center gap-2">
+              Explorar Features
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </a>
+        </div>
       </div>
     </div>
+  </section>
+);
+
+// --- Scroll Indicator Component ---
+const ScrollIndicator = () => (
+  <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 animate-bounce opacity-60 hover:opacity-100 transition-opacity cursor-pointer">
+    <span className="text-xs font-medium text-dark-500 dark:text-dark-400">Scroll</span>
+    <MousePointer2 className="w-5 h-5 text-dark-400 dark:text-dark-500 rotate-180" />
   </div>
 );
 
@@ -173,6 +271,78 @@ const BrandLogo = ({ logoSrc, className = "h-8" }: { logoSrc?: string; className
     )}
   </div>
 );
+
+
+// --- Language Selector Component ---
+const LANGUAGES = [
+  { code: 'es', name: 'Español', flag: '🇪🇸' },
+  { code: 'en', name: 'English', flag: '🇺🇸' },
+  { code: 'fr', name: 'Français', flag: '🇫🇷' },
+  { code: 'de', name: 'Deutsch', flag: '🇩🇪' },
+  { code: 'it', name: 'Italiano', flag: '🇮🇹' },
+  { code: 'pt', name: 'Português', flag: '🇧🇷' },
+];
+
+const LanguageSelector = () => {
+  const { i18n, t } = useTranslation();
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const currentLang = LANGUAGES.find(l => l.code === i18n.language) || LANGUAGES[0];
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleLanguageChange = (langCode: string) => {
+    i18n.changeLanguage(langCode);
+    setIsOpen(false);
+  };
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium text-dark-600 dark:text-dark-300 hover:bg-dark-100 dark:hover:bg-dark-800 transition-all duration-200"
+        aria-label={t('language.label')}
+      >
+        <Globe className="w-4 h-4" />
+        <span className="hidden sm:inline">{currentLang.flag}</span>
+        <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {/* Dropdown */}
+      {isOpen && (
+        <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-dark-800 border border-dark-200 dark:border-dark-700 rounded-xl shadow-xl shadow-dark-200/50 dark:shadow-black/30 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="py-1">
+            {LANGUAGES.map((lang) => (
+              <button
+                key={lang.code}
+                onClick={() => handleLanguageChange(lang.code)}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${i18n.language === lang.code
+                  ? 'bg-[#F44336]/10 text-[#F44336] font-medium'
+                  : 'text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700'
+                  }`}
+              >
+                <span className="text-lg">{lang.flag}</span>
+                <span>{lang.name}</span>
+                {i18n.language === lang.code && (
+                  <Check className="w-4 h-4 ml-auto text-[#F44336]" />
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 
 const HeroMockup = ({ isDark, logoLight, logoDark }: { isDark: boolean; logoLight?: string; logoDark?: string }) => {
@@ -470,6 +640,85 @@ const AdminMiniMockup = () => (
   </div>
 );
 
+const GalleryMiniMockup = () => (
+  <div className="h-36 bg-white dark:bg-dark-900 rounded-lg overflow-hidden flex flex-col">
+    {/* Gallery header */}
+    <div className="h-6 bg-dark-50 dark:bg-dark-800 border-b border-dark-100 dark:border-dark-700 flex items-center px-2">
+      <ImageIcon className="w-3 h-3 text-[#F44336] mr-1" />
+      <span className="text-[8px] text-dark-400">Galería</span>
+    </div>
+    {/* Photo grid */}
+    <div className="flex-1 p-1.5 grid grid-cols-3 gap-1">
+      {[
+        'bg-gradient-to-br from-blue-400 to-purple-500',
+        'bg-gradient-to-br from-orange-400 to-pink-500',
+        'bg-gradient-to-br from-green-400 to-teal-500',
+        'bg-gradient-to-br from-pink-400 to-rose-500',
+        'bg-gradient-to-br from-yellow-400 to-orange-500',
+        'bg-gradient-to-br from-indigo-400 to-blue-500',
+      ].map((gradient, i) => (
+        <div key={i} className={`${gradient} rounded aspect-square flex items-center justify-center`}>
+          <ImageIcon className="w-3 h-3 text-white/60" />
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+const FavoritesMiniMockup = () => (
+  <div className="h-36 bg-white dark:bg-dark-900 rounded-lg overflow-hidden flex flex-col">
+    {/* Favorites header */}
+    <div className="h-6 bg-dark-50 dark:bg-dark-800 border-b border-dark-100 dark:border-dark-700 flex items-center px-2">
+      <Star className="w-3 h-3 text-yellow-500 fill-yellow-500 mr-1" />
+      <span className="text-[8px] text-dark-400">Favoritos</span>
+    </div>
+    {/* Favorites list */}
+    <div className="flex-1 p-2 flex flex-col gap-1.5">
+      {[
+        { name: 'Proyecto.pdf', icon: FileText, color: 'text-blue-500' },
+        { name: 'Diseños', icon: Folder, color: 'text-[#F44336]' },
+        { name: 'Música', icon: Music, color: 'text-purple-500' },
+      ].map((item, i) => (
+        <div key={i} className="flex items-center gap-2 p-1 rounded hover:bg-dark-50 dark:hover:bg-dark-800">
+          <item.icon className={`w-4 h-4 ${item.color}`} />
+          <span className="text-[8px] text-dark-700 dark:text-dark-300 flex-1 truncate">{item.name}</span>
+          <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+const TrashMiniMockup = () => (
+  <div className="h-36 bg-white dark:bg-dark-900 rounded-lg overflow-hidden flex flex-col">
+    {/* Trash header */}
+    <div className="h-6 bg-dark-50 dark:bg-dark-800 border-b border-dark-100 dark:border-dark-700 flex items-center justify-between px-2">
+      <div className="flex items-center">
+        <Trash2 className="w-3 h-3 text-dark-400 mr-1" />
+        <span className="text-[8px] text-dark-400">Papelera</span>
+      </div>
+      <span className="text-[6px] text-dark-400 bg-dark-100 dark:bg-dark-700 px-1.5 py-0.5 rounded">3 elementos</span>
+    </div>
+    {/* Trash items */}
+    <div className="flex-1 p-2 flex flex-col gap-1">
+      {[
+        { name: 'Borrador_v1.docx', date: 'Hace 2 días' },
+        { name: 'Imagen_temp.jpg', date: 'Hace 5 días' },
+        { name: 'old_backup.zip', date: 'Hace 1 semana' },
+      ].map((item, i) => (
+        <div key={i} className="flex items-center gap-2 p-1 rounded bg-dark-50/50 dark:bg-dark-800/50">
+          <FileText className="w-3.5 h-3.5 text-dark-400" />
+          <div className="flex-1 min-w-0">
+            <span className="text-[7px] text-dark-600 dark:text-dark-300 truncate block">{item.name}</span>
+            <span className="text-[6px] text-dark-400">{item.date}</span>
+          </div>
+          <button className="text-[6px] text-[#F44336] font-medium">Restaurar</button>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
 // --- Main Component ---
 
 export default function Landing() {
@@ -521,20 +770,12 @@ export default function Landing() {
   const flowSteps = [
     { title: 'Sube', desc: 'Drag & drop inteligente con soporte para archivos grandes.', mockup: UploadMiniMockup },
     { title: 'Organiza', desc: 'Mueve y ordena como en tu sistema operativo local.', mockup: OrganizeMiniMockup },
-    { title: 'Reproduce', desc: 'Escucha tu música y explora tu galería de fotos.', mockup: MusicMiniMockup },
+    { title: 'Explora', desc: 'Visualiza tus fotos en una galería moderna con lightbox.', mockup: GalleryMiniMockup },
+    { title: 'Reproduce', desc: 'Escucha tu música con reproductor integrado y colas.', mockup: MusicMiniMockup },
+    { title: 'Favoritos', desc: 'Marca archivos importantes para acceso rápido.', mockup: FavoritesMiniMockup },
     { title: 'Comparte', desc: 'Genera enlaces públicos con contraseña y caducidad.', mockup: ShareMiniMockup },
+    { title: 'Recupera', desc: 'Restaura archivos eliminados desde la papelera.', mockup: TrashMiniMockup },
     { title: 'Administra', desc: 'Personaliza colores y logo desde el panel visual.', mockup: AdminMiniMockup },
-  ];
-
-  const features = [
-    { icon: Music, title: 'Reproductor de Música', text: 'Streaming integrado' },
-    { icon: ImageIcon, title: 'Galería de Fotos', text: 'Lightbox y navegación' },
-    { icon: Album, title: 'Álbumes', text: 'Organiza tus recuerdos' },
-    { icon: Archive, title: 'Compresión ZIP', text: 'Comprimir y extraer' },
-    { icon: Star, title: 'Favoritos', text: 'Acceso rápido' },
-    { icon: Lock, title: 'Enlaces Privados', text: 'Contraseña y caducidad' },
-    { icon: Trash2, title: 'Papelera', text: 'Recuperación segura' },
-    { icon: Activity, title: 'Logs de Actividad', text: 'Historial completo' },
   ];
 
   return (
@@ -565,10 +806,11 @@ export default function Landing() {
             </Link>
             <Link to="/register">
               <Button variant="primary" className="hidden sm:flex px-6 h-11 shadow-lg shadow-[#F44336]/20 text-base">
-                Registrarse
+                Probar Beta
               </Button>
             </Link>
             <div className="w-px h-6 bg-dark-200 dark:bg-dark-700 mx-1 hidden sm:block"></div>
+            <LanguageSelector />
             <button
               onClick={toggleTheme}
               className="w-10 h-10 rounded-full flex items-center justify-center cursor-pointer hover:bg-dark-200/50 dark:hover:bg-white/10 transition-colors text-dark-500 dark:text-dark-400"
@@ -656,7 +898,7 @@ export default function Landing() {
 
                 {/* Trust Avatars */}
                 <div className="pt-8 border-t border-dark-200 dark:border-dark-700 w-full">
-                  <TrustAvatars count={127} />
+                  <TrustAvatars />
                 </div>
               </div>
 
@@ -679,6 +921,11 @@ export default function Landing() {
                 </div>
               </div>
             </div>
+
+            {/* Scroll Indicator */}
+            <div className="hidden lg:flex justify-center mt-12">
+              <ScrollIndicator />
+            </div>
           </section>
         )}
 
@@ -698,9 +945,9 @@ export default function Landing() {
 
         {/* Flow Section */}
         {config.sections.howItWorks.enabled && (
-          <section className="max-w-[1600px] mx-auto px-6 mb-24">
+          <section className="max-w-[1600px] mx-auto px-6 mt-20 mb-24">
             <div className="mb-16 text-center md:text-left">
-              <h2 className="text-3xl font-bold text-dark-900 dark:text-white mb-4">{config.sections.howItWorks.title}</h2>
+              <h2 className="text-3xl font-bold text-dark-900 dark:text-white mb-4">Todo lo que necesitas, en un solo lugar</h2>
               <p className="text-lg text-dark-500 dark:text-dark-400">Diseñado para imitar tu flujo mental, no para interrumpirlo.</p>
             </div>
 
@@ -718,50 +965,190 @@ export default function Landing() {
           </section>
         )}
 
-        {/* Features Section */}
+        {/* Features Section - Bento Grid */}
         {config.sections.features.enabled && (
           <section id="features" className="max-w-[1600px] mx-auto px-6 mb-32">
-            <div className="mb-12 text-center">
-              <h2 className="text-3xl font-bold text-dark-900 dark:text-white mb-4">{config.sections.features.title}</h2>
+            <div className="mb-16 text-center">
+              <Badge className="mb-4 border-[#F44336]/20 bg-[#F44336]/10 text-[#F44336] px-4 py-1.5 text-sm font-semibold">
+                Características
+              </Badge>
+              <h2 className="text-4xl md:text-5xl font-bold text-dark-900 dark:text-white mb-4">
+                Potencia en cada detalle
+              </h2>
+              <p className="text-lg text-dark-500 dark:text-dark-400 max-w-2xl mx-auto">
+                Herramientas diseñadas para que gestiones tus archivos como un profesional
+              </p>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              {features.map((feature, i) => (
-                <div key={i} className="p-6 border border-dark-200 dark:border-dark-700 rounded-2xl hover:bg-dark-50 dark:hover:bg-dark-800 transition-colors group cursor-default">
-                  <div className="w-10 h-10 rounded-full bg-dark-100 dark:bg-dark-800 flex items-center justify-center mb-4 group-hover:bg-[#F44336]/10 transition-colors">
-                    <feature.icon className="w-5 h-5 text-dark-500 group-hover:text-[#F44336] transition-colors" />
+
+            {/* Bento Grid Layout */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 auto-rows-[180px]">
+
+              {/* Feature 1 - Large Card */}
+              <div className="md:col-span-2 md:row-span-2 group relative overflow-hidden rounded-3xl bg-rose-100 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 p-8 cursor-default hover:shadow-xl hover:shadow-rose-500/10 transition-all hover:-translate-y-1">
+                <div className="relative z-10 h-full flex flex-col">
+                  <div className="w-14 h-14 bg-rose-200 dark:bg-rose-900/50 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                    <Music className="w-7 h-7 text-rose-600 dark:text-rose-400" />
                   </div>
-                  <h4 className="font-bold text-dark-900 dark:text-white text-base mb-2">{feature.title}</h4>
-                  <p className="text-sm text-dark-500 leading-relaxed">{feature.text}</p>
+                  <h3 className="text-2xl font-bold text-rose-900 dark:text-rose-100 mb-3">Reproductor de Música</h3>
+                  <p className="text-rose-700 dark:text-rose-300 text-lg leading-relaxed flex-1">
+                    Streaming integrado con cola de reproducción, shuffle, repeat y visualización de carátulas. Soporta MP3, WAV, FLAC y más.
+                  </p>
+                  <div className="flex items-center gap-2 mt-4">
+                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                    <span className="text-rose-600 dark:text-rose-400 text-sm">Reproduciendo ahora</span>
+                  </div>
                 </div>
-              ))}
+              </div>
+
+              {/* Feature 2 */}
+              <div className="group relative overflow-hidden rounded-3xl bg-sky-100 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-900/50 p-6 cursor-default hover:shadow-xl hover:shadow-sky-500/10 transition-all hover:-translate-y-1">
+                <div className="relative z-10 h-full flex flex-col">
+                  <div className="w-12 h-12 bg-sky-200 dark:bg-sky-900/50 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                    <ImageIcon className="w-6 h-6 text-sky-600 dark:text-sky-400" />
+                  </div>
+                  <h3 className="text-lg font-bold text-sky-900 dark:text-sky-100 mb-2">Galería de Fotos</h3>
+                  <p className="text-sky-700 dark:text-sky-300 text-sm">Lightbox moderno con navegación táctil</p>
+                </div>
+              </div>
+
+              {/* Feature 3 */}
+              <div className="group relative overflow-hidden rounded-3xl bg-violet-100 dark:bg-violet-950/40 border border-violet-200 dark:border-violet-900/50 p-6 cursor-default hover:shadow-xl hover:shadow-violet-500/10 transition-all hover:-translate-y-1">
+                <div className="relative z-10 h-full flex flex-col">
+                  <div className="w-12 h-12 bg-violet-200 dark:bg-violet-900/50 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                    <Album className="w-6 h-6 text-violet-600 dark:text-violet-400" />
+                  </div>
+                  <h3 className="text-lg font-bold text-violet-900 dark:text-violet-100 mb-2">Álbumes</h3>
+                  <p className="text-violet-700 dark:text-violet-300 text-sm">Organiza fotos y música en colecciones</p>
+                </div>
+              </div>
+
+              {/* Feature 4 */}
+              <div className="group relative overflow-hidden rounded-3xl bg-amber-100 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 p-6 cursor-default hover:shadow-xl hover:shadow-amber-500/10 transition-all hover:-translate-y-1">
+                <div className="relative z-10 h-full flex flex-col">
+                  <div className="w-12 h-12 bg-amber-200 dark:bg-amber-900/50 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                    <Archive className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <h3 className="text-lg font-bold text-amber-900 dark:text-amber-100 mb-2">Compresión ZIP</h3>
+                  <p className="text-amber-700 dark:text-amber-300 text-sm">Comprime y extrae archivos al instante</p>
+                </div>
+              </div>
+
+              {/* Feature 5 */}
+              <div className="group relative overflow-hidden rounded-3xl bg-yellow-100 dark:bg-yellow-950/40 border border-yellow-200 dark:border-yellow-900/50 p-6 cursor-default hover:shadow-xl hover:shadow-yellow-500/10 transition-all hover:-translate-y-1">
+                <div className="relative z-10 h-full flex flex-col">
+                  <div className="w-12 h-12 bg-yellow-200 dark:bg-yellow-900/50 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                    <Star className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
+                  </div>
+                  <h3 className="text-lg font-bold text-yellow-900 dark:text-yellow-100 mb-2">Favoritos</h3>
+                  <p className="text-yellow-700 dark:text-yellow-300 text-sm">Acceso rápido a lo importante</p>
+                </div>
+              </div>
+
+              {/* Feature 6 - Wide Card */}
+              <div className="md:col-span-2 group relative overflow-hidden rounded-3xl bg-emerald-100 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 p-6 cursor-default hover:shadow-xl hover:shadow-emerald-500/10 transition-all hover:-translate-y-1">
+                <div className="relative z-10 h-full flex flex-col md:flex-row md:items-center gap-4">
+                  <div className="w-12 h-12 bg-emerald-200 dark:bg-emerald-900/50 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <Lock className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-bold text-emerald-900 dark:text-emerald-100 mb-1">Enlaces Privados</h3>
+                    <p className="text-emerald-700 dark:text-emerald-300 text-sm">Comparte con contraseña, límite de descargas y fecha de expiración</p>
+                  </div>
+                  <div className="hidden md:flex items-center gap-2 bg-emerald-200 dark:bg-emerald-900/50 rounded-full px-4 py-2">
+                    <Shield className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    <span className="text-emerald-700 dark:text-emerald-300 text-sm">Protegido</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Feature 7 */}
+              <div className="group relative overflow-hidden rounded-3xl bg-slate-100 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/50 p-6 cursor-default hover:shadow-xl hover:shadow-slate-500/10 transition-all hover:-translate-y-1">
+                <div className="relative z-10 h-full flex flex-col">
+                  <div className="w-12 h-12 bg-slate-200 dark:bg-slate-700/50 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                    <Trash2 className="w-6 h-6 text-slate-600 dark:text-slate-400" />
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-2">Papelera</h3>
+                  <p className="text-slate-700 dark:text-slate-300 text-sm">Recupera archivos eliminados</p>
+                </div>
+              </div>
+
+              {/* Feature 8 */}
+              <div className="group relative overflow-hidden rounded-3xl bg-indigo-100 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-900/50 p-6 cursor-default hover:shadow-xl hover:shadow-indigo-500/10 transition-all hover:-translate-y-1">
+                <div className="relative z-10 h-full flex flex-col">
+                  <div className="w-12 h-12 bg-indigo-200 dark:bg-indigo-900/50 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                    <Activity className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+                  </div>
+                  <h3 className="text-lg font-bold text-indigo-900 dark:text-indigo-100 mb-2">Logs de Actividad</h3>
+                  <p className="text-indigo-700 dark:text-indigo-300 text-sm">Historial completo de acciones</p>
+                </div>
+              </div>
+
             </div>
           </section>
         )}
 
-        {/* Testimonials Section */}
+        {/* Use Cases Section - "Ideal para..." */}
         <section className="max-w-[1600px] mx-auto px-6 mb-24">
           <div className="mb-12 text-center">
-            <h2 className="text-3xl font-bold text-dark-900 dark:text-white mb-4">Lo que dicen nuestros usuarios</h2>
-            <p className="text-lg text-dark-500">Profesionales y equipos que confían en CloudBox.</p>
+            <Badge className="mb-4 border-[#F44336]/20 bg-[#F44336]/10 text-[#F44336] px-4 py-1.5 text-sm font-semibold">
+              Casos de Uso
+            </Badge>
+            <h2 className="text-3xl md:text-4xl font-bold text-dark-900 dark:text-white mb-4">Diseñado para ti</h2>
+            <p className="text-lg text-dark-500 dark:text-dark-400 max-w-2xl mx-auto">
+              Profesionales, equipos y familias que necesitan organizar sus archivos de forma segura
+            </p>
           </div>
-          <div className="grid md:grid-cols-3 gap-6">
-            <TestimonialCard
-              quote="Perfecto para organizar mis fotos familiares. El reproductor de música es un bonus increíble."
-              author="María L."
-              role="Fotógrafa"
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <UseCaseCard
+              icon={Camera}
+              title="Fotógrafos"
+              description="Galería privada con lightbox, álbumes organizados y descarga masiva de imágenes."
+              color="rose"
             />
-            <TestimonialCard
-              quote="Migré desde Google Drive y no me arrepiento. El control sobre mis datos es total."
-              author="Carlos R."
-              role="Desarrollador"
+            <UseCaseCard
+              icon={Music}
+              title="Músicos"
+              description="Tu biblioteca musical en streaming desde cualquier lugar con cola de reproducción."
+              color="violet"
             />
-            <TestimonialCard
-              quote="La opción self-hosted fue clave para cumplir con las políticas de mi empresa."
-              author="Ana G."
-              role="IT Manager"
+            <UseCaseCard
+              icon={Briefcase}
+              title="Equipos de Trabajo"
+              description="Colaboración segura con enlaces protegidos, logs de actividad y permisos."
+              color="blue"
+            />
+            <UseCaseCard
+              icon={Users}
+              title="Familias"
+              description="Comparte recuerdos de forma privada con tus seres queridos de manera segura."
+              color="emerald"
+            />
+            <UseCaseCard
+              icon={Code}
+              title="Desarrolladores"
+              description="Self-hosted con Docker, código abierto, API documentada y personalizable."
+              color="amber"
+            />
+            <UseCaseCard
+              icon={Building2}
+              title="Empresas"
+              description="Cumple con compliance y políticas de datos con tu propia infraestructura."
+              color="slate"
             />
           </div>
         </section>
+
+        {/* Tech Stack Section */}
+        <section className="max-w-[1600px] mx-auto px-6 mb-24">
+          <div className="text-center mb-10">
+            <p className="text-sm font-semibold text-dark-400 dark:text-dark-500 uppercase tracking-wider mb-2">Tecnología de primer nivel</p>
+            <h3 className="text-xl font-bold text-dark-700 dark:text-dark-300">Construido con el stack moderno</h3>
+          </div>
+          <TechStackLogos />
+        </section>
+
+        {/* Beta Access Section */}
+        <BetaAccessSection />
 
         {/* Hosted vs Self-Hosted Section */}
         {config.sections.comparison.enabled && (
@@ -819,7 +1206,7 @@ export default function Landing() {
                   </div>
                   <a href={config.links.githubUrl} target="_blank" rel="noopener noreferrer">
                     <Button variant="secondary" className="w-full justify-center gap-2 h-12 text-base rounded-full">
-                      <span className="font-bold">GitHub</span> Ver Repositorio
+                      Ver en GitHub
                     </Button>
                   </a>
                 </div>
@@ -832,52 +1219,134 @@ export default function Landing() {
         {config.sections.security.enabled && (
           <section className="max-w-[1600px] mx-auto px-6 mb-32">
             <div className="text-center mb-16">
-              <h2 className="text-3xl font-bold text-dark-900 dark:text-white">{config.sections.security.title}</h2>
-              <p className="text-lg text-dark-500 mt-3">Seguridad activa y auditoría transparente.</p>
+              <Badge className="mb-4 border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-4 py-1.5 text-sm font-semibold">
+                Seguridad
+              </Badge>
+              <h2 className="text-4xl md:text-5xl font-bold text-dark-900 dark:text-white mb-4">
+                Tus datos, protegidos
+              </h2>
+              <p className="text-lg text-dark-500 dark:text-dark-400 max-w-2xl mx-auto">
+                Seguridad de nivel empresarial con auditoría transparente y control total
+              </p>
             </div>
 
-            <div className="grid md:grid-cols-3 gap-8">
-              <Panel className="md:col-span-2 p-8 flex flex-col justify-between">
-                <div className="flex items-center justify-between mb-8">
-                  <h3 className="font-bold text-dark-800 dark:text-dark-200 flex items-center gap-2 text-lg">
-                    <Activity className="w-5 h-5 text-[#F44336]" /> Actividad Reciente
-                  </h3>
-                  <Badge className="bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400 border-green-200 dark:border-green-900">En vivo</Badge>
-                </div>
-                <div className="space-y-6">
-                  {[
-                    { user: 'Ana M.', action: 'descargó', file: 'Presupuesto_Final.pdf', time: '2m' },
-                    { user: 'Carlos R.', action: 'subió', file: 'Assets_Web.zip', time: '15m' },
-                    { user: 'Admin', action: 'compartió', file: 'Presentación Q4.pdf', time: '1h' },
-                  ].map((log, i) => (
-                    <div key={i} className="flex items-center text-sm gap-3 border-b border-dark-100 dark:border-dark-700 pb-3 last:border-0 last:pb-0">
-                      <div className="w-8 h-8 rounded-full bg-dark-100 dark:bg-dark-700 flex items-center justify-center text-xs font-bold text-dark-600 dark:text-dark-300">
-                        {log.user.charAt(0)}
-                      </div>
-                      <div className="flex-1 text-dark-600 dark:text-dark-400">
-                        <span className="font-bold text-dark-900 dark:text-white">{log.user}</span> {log.action} <span className="text-dark-800 dark:text-dark-300 italic">{log.file}</span>
-                      </div>
-                      <span className="text-xs text-dark-400 font-medium">{log.time}</span>
-                    </div>
-                  ))}
-                </div>
-              </Panel>
+            {/* Main Security Card */}
+            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900 dark:from-dark-950 dark:via-dark-900 dark:to-dark-950 p-8 md:p-12 mb-8">
+              {/* Background decoration */}
+              <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl"></div>
+              <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl"></div>
 
-              <div className="flex flex-col gap-8">
-                <Panel className="flex-1 flex flex-col justify-center items-center text-center p-8">
-                  <div className="w-14 h-14 bg-dark-100 dark:bg-dark-800 rounded-full flex items-center justify-center mb-4">
-                    <Shield className="w-7 h-7 text-dark-500 dark:text-dark-400" />
+              <div className="relative z-10 grid md:grid-cols-2 gap-12 items-center">
+                {/* Left - Stats & Features */}
+                <div>
+                  <div className="flex items-center gap-3 mb-8">
+                    <div className="w-12 h-12 bg-emerald-500/20 rounded-xl flex items-center justify-center">
+                      <Shield className="w-6 h-6 text-emerald-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-bold text-white">Seguridad Activa</h3>
+                      <p className="text-dark-400 text-sm">Monitoreo 24/7</p>
+                    </div>
                   </div>
-                  <div className="text-xl font-bold text-dark-900 dark:text-white mb-2">HTTPS</div>
-                  <p className="text-sm text-dark-500">Conexión cifrada en tránsito.</p>
-                </Panel>
-                <Panel className="flex-1 flex flex-col justify-center items-center text-center p-8 border-[#F44336]/10 bg-[#F44336]/5">
-                  <div className="w-14 h-14 bg-[#F44336]/10 rounded-full flex items-center justify-center mb-4">
-                    <Trash2 className="w-7 h-7 text-[#F44336]" />
+
+                  {/* Security Features Grid */}
+                  <div className="grid grid-cols-2 gap-4 mb-8">
+                    {[
+                      { icon: Lock, label: 'HTTPS/TLS', desc: 'Cifrado en tránsito' },
+                      { icon: Shield, label: 'Contraseñas', desc: 'Enlaces protegidos' },
+                      { icon: Activity, label: 'Audit Logs', desc: 'Historial completo' },
+                      { icon: Trash2, label: 'Soft Delete', desc: 'Recuperación segura' },
+                    ].map((item, i) => (
+                      <div key={i} className="flex items-start gap-3 p-4 bg-white/5 rounded-xl hover:bg-white/10 transition-colors">
+                        <item.icon className="w-5 h-5 text-emerald-400 mt-0.5" />
+                        <div>
+                          <div className="text-white font-medium text-sm">{item.label}</div>
+                          <div className="text-dark-400 text-xs">{item.desc}</div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div className="text-xl font-bold text-dark-900 dark:text-white mb-2">Soft Delete</div>
-                  <p className="text-sm text-dark-500">Recuperación ante desastres y errores.</p>
-                </Panel>
+
+                  {/* Uptime Stats */}
+                  <div className="flex items-center gap-6">
+                    <div>
+                      <div className="text-4xl font-bold text-white">99.9%</div>
+                      <div className="text-dark-400 text-sm">Uptime</div>
+                    </div>
+                    <div className="w-px h-12 bg-dark-700"></div>
+                    <div>
+                      <div className="text-4xl font-bold text-emerald-400">0</div>
+                      <div className="text-dark-400 text-sm">Brechas de seguridad</div>
+                    </div>
+                    <div className="w-px h-12 bg-dark-700"></div>
+                    <div>
+                      <div className="text-4xl font-bold text-white">24/7</div>
+                      <div className="text-dark-400 text-sm">Soporte</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right - Live Activity Feed */}
+                <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
+                  <div className="flex items-center justify-between mb-6">
+                    <h4 className="text-white font-bold flex items-center gap-2">
+                      <Activity className="w-4 h-4 text-emerald-400" />
+                      Actividad Reciente
+                    </h4>
+                    <span className="flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-full">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                      En vivo
+                    </span>
+                  </div>
+
+                  <div className="space-y-4">
+                    {[
+                      { user: 'Ana M.', action: 'descargó', file: 'Presupuesto_Final.pdf', time: 'Hace 2m', avatar: 'A' },
+                      { user: 'Carlos R.', action: 'subió', file: 'Assets_Web.zip', time: 'Hace 15m', avatar: 'C' },
+                      { user: 'Admin', action: 'compartió', file: 'Presentación Q4.pdf', time: 'Hace 1h', avatar: 'AD' },
+                      { user: 'María L.', action: 'movió a favoritos', file: 'Diseño_v2.fig', time: 'Hace 2h', avatar: 'M' },
+                    ].map((log, i) => (
+                      <div key={i} className="flex items-center gap-3 text-sm py-2 border-b border-white/5 last:border-0">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-[10px] font-bold text-white">
+                          {log.avatar}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-white font-medium">{log.user}</span>
+                          <span className="text-dark-400"> {log.action} </span>
+                          <span className="text-dark-300 truncate">{log.file}</span>
+                        </div>
+                        <span className="text-xs text-dark-500 shrink-0">{log.time}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Cards */}
+            <div className="grid md:grid-cols-3 gap-4">
+              <div className="group p-6 bg-white dark:bg-dark-800 border border-dark-200 dark:border-dark-700 rounded-2xl hover:shadow-xl hover:shadow-emerald-500/5 transition-all hover:-translate-y-1">
+                <div className="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                  <Server className="w-6 h-6 text-emerald-500" />
+                </div>
+                <h4 className="text-lg font-bold text-dark-900 dark:text-white mb-2">Self-Hosted</h4>
+                <p className="text-dark-500 text-sm">Control total sobre tu infraestructura. Despliega en tu propio servidor.</p>
+              </div>
+
+              <div className="group p-6 bg-white dark:bg-dark-800 border border-dark-200 dark:border-dark-700 rounded-2xl hover:shadow-xl hover:shadow-blue-500/5 transition-all hover:-translate-y-1">
+                <div className="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                  <Lock className="w-6 h-6 text-blue-500" />
+                </div>
+                <h4 className="text-lg font-bold text-dark-900 dark:text-white mb-2">Open Source</h4>
+                <p className="text-dark-500 text-sm">Código abierto y auditable. Sin backdoors, sin sorpresas.</p>
+              </div>
+
+              <div className="group p-6 bg-white dark:bg-dark-800 border border-dark-200 dark:border-dark-700 rounded-2xl hover:shadow-xl hover:shadow-purple-500/5 transition-all hover:-translate-y-1">
+                <div className="w-12 h-12 bg-purple-500/10 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                  <Users className="w-6 h-6 text-purple-500" />
+                </div>
+                <h4 className="text-lg font-bold text-dark-900 dark:text-white mb-2">Privacidad</h4>
+                <p className="text-dark-500 text-sm">Sin rastreo, sin analytics invasivos. Tu privacidad es prioridad.</p>
               </div>
             </div>
           </section>
@@ -887,31 +1356,31 @@ export default function Landing() {
         <section className="max-w-[1600px] mx-auto px-6 mb-24">
           <div className="grid md:grid-cols-2 gap-12 items-start">
             <div>
-              <h2 className="text-3xl font-bold text-dark-900 dark:text-white mb-4">Preguntas frecuentes</h2>
-              <p className="text-lg text-dark-500">Todo lo que necesitas saber sobre CloudBox.</p>
+              <h2 className="text-3xl font-bold text-dark-900 dark:text-white mb-4">{t('landing.faq.title')}</h2>
+              <p className="text-lg text-dark-500">{t('landing.faq.subtitle')}</p>
             </div>
             <div className="bg-white dark:bg-dark-800 rounded-2xl border border-dark-200 dark:border-dark-700 p-6">
               <FAQItem
-                question="¿Qué es CloudBox?"
-                answer="CloudBox es una solución de almacenamiento en la nube privada que puedes usar hosted o self-hosted. Incluye reproductor de música, galería de fotos, y más."
+                question={t('landing.faq.q1.question')}
+                answer={t('landing.faq.q1.answer')}
                 isOpen={openFAQ === 0}
                 onClick={() => setOpenFAQ(openFAQ === 0 ? null : 0)}
               />
               <FAQItem
-                question="¿Puedo autohospedarlo?"
-                answer="¡Sí! CloudBox es open source y puedes desplegarlo en tu propio servidor con Docker. Tenés control total sobre tus datos."
+                question={t('landing.faq.q2.question')}
+                answer={t('landing.faq.q2.answer')}
                 isOpen={openFAQ === 1}
                 onClick={() => setOpenFAQ(openFAQ === 1 ? null : 1)}
               />
               <FAQItem
-                question="¿Qué formatos soporta el reproductor?"
-                answer="El reproductor soporta MP3, WAV, FLAC, OGG y más. Incluye visualización de carátulas, cola de reproducción y shuffle."
+                question={t('landing.faq.q3.question')}
+                answer={t('landing.faq.q3.answer')}
                 isOpen={openFAQ === 2}
                 onClick={() => setOpenFAQ(openFAQ === 2 ? null : 2)}
               />
               <FAQItem
-                question="¿Mis archivos están seguros?"
-                answer="Usamos HTTPS para cifrado en tránsito. En la versión self-hosted, vos controlás completamente la seguridad de tus datos."
+                question={t('landing.faq.q4.question')}
+                answer={t('landing.faq.q4.answer')}
                 isOpen={openFAQ === 3}
                 onClick={() => setOpenFAQ(openFAQ === 3 ? null : 3)}
               />
@@ -919,25 +1388,153 @@ export default function Landing() {
           </div>
         </section>
 
+        {/* Pricing Section */}
+        <section id="pricing" className="max-w-4xl mx-auto px-6 mb-24">
+          <div className="text-center mb-12">
+            <Badge className="mb-4 border-[#F44336]/20 bg-[#F44336]/10 text-[#F44336]">{t('landing.pricing.badge')}</Badge>
+            <h2 className="text-4xl font-bold text-dark-900 dark:text-white mb-4">{t('landing.pricing.title')}</h2>
+            <p className="text-lg text-dark-500 max-w-2xl mx-auto">{t('landing.pricing.subtitle')}</p>
+          </div>
+
+          <div className="relative">
+            <Panel className="p-8 border-2 border-[#F44336]/30 shadow-2xl shadow-[#F44336]/10">
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                <span className="bg-[#F44336] text-white text-xs font-bold px-4 py-1.5 rounded-full">
+                  {t('landing.pricing.beta.badge')}
+                </span>
+              </div>
+
+              <div className="text-center mb-8">
+                <h3 className="text-2xl font-bold text-dark-900 dark:text-white mb-2">{t('landing.pricing.beta.name')}</h3>
+                <div className="flex items-baseline justify-center gap-1">
+                  <span className="text-5xl font-bold text-[#F44336]">{t('landing.pricing.beta.price')}</span>
+                  <span className="text-dark-500">{t('landing.pricing.beta.period')}</span>
+                </div>
+                <p className="text-dark-500 mt-2">{t('landing.pricing.beta.storage')}</p>
+              </div>
+
+              <ul className="space-y-3 mb-8">
+                {(t('landing.pricing.beta.features', { returnObjects: true }) as string[]).map((feature, i) => (
+                  <li key={i} className="flex items-center gap-3 text-dark-700 dark:text-dark-300">
+                    <Check className="w-5 h-5 text-emerald-500 shrink-0" />
+                    <span>{feature}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <Link to="/register" className="block">
+                <Button className="w-full h-14 text-lg">{t('landing.pricing.beta.cta')}</Button>
+              </Link>
+            </Panel>
+          </div>
+        </section>
+
+        {/* Roadmap Section */}
+        <section id="roadmap" className="max-w-[1200px] mx-auto px-6 mb-24">
+          <div className="text-center mb-12">
+            <Badge className="mb-4">{t('landing.roadmap.badge')}</Badge>
+            <h2 className="text-4xl font-bold text-dark-900 dark:text-white mb-4">{t('landing.roadmap.title')}</h2>
+            <p className="text-lg text-dark-500">{t('landing.roadmap.subtitle')}</p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[
+              { key: 'i18n', status: 'completed', color: 'emerald' },
+              { key: 'mobile', status: 'inProgress', color: 'blue' },
+              { key: 'collaboration', status: 'inProgress', color: 'purple' },
+              { key: 'api', status: 'planned', color: 'orange' },
+              { key: 'e2e', status: 'planned', color: 'red' },
+              { key: 'ai', status: 'planned', color: 'pink' },
+            ].map((item) => (
+              <Panel key={item.key} className="group hover:shadow-lg transition-all hover:-translate-y-1">
+                <div className="flex items-start justify-between mb-4">
+                  <div className={`px-2.5 py-1 rounded-full text-xs font-medium ${item.status === 'completed' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' :
+                    item.status === 'inProgress' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400' :
+                      'bg-dark-100 dark:bg-dark-700 text-dark-500'
+                    }`}>
+                    {t(`landing.roadmap.status.${item.status}`)}
+                  </div>
+                </div>
+                <h3 className="text-lg font-bold text-dark-900 dark:text-white mb-2">
+                  {t(`landing.roadmap.items.${item.key}.title`)}
+                </h3>
+                <p className="text-sm text-dark-500">
+                  {t(`landing.roadmap.items.${item.key}.desc`)}
+                </p>
+              </Panel>
+            ))}
+          </div>
+        </section>
+
+        {/* Contact Section */}
+        <section id="contact" className="max-w-[1200px] mx-auto px-6 mb-24">
+          <div className="text-center mb-12">
+            <Badge className="mb-4">{t('landing.contact.badge')}</Badge>
+            <h2 className="text-4xl font-bold text-dark-900 dark:text-white mb-4">{t('landing.contact.title')}</h2>
+            <p className="text-lg text-dark-500">{t('landing.contact.subtitle')}</p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-6">
+            <a href="mailto:allopze@gmail.com" className="block">
+              <Panel className="group h-full hover:shadow-lg hover:border-[#F44336]/20 transition-all hover:-translate-y-1 cursor-pointer">
+                <div className="w-12 h-12 bg-[#F44336]/10 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                  <Mail className="w-6 h-6 text-[#F44336]" />
+                </div>
+                <h3 className="text-lg font-bold text-dark-900 dark:text-white mb-2">{t('landing.contact.email.title')}</h3>
+                <p className="text-sm text-dark-500 mb-4">{t('landing.contact.email.desc')}</p>
+                <span className="text-[#F44336] text-sm font-medium flex items-center gap-1">
+                  {t('landing.contact.email.cta')} <ChevronRight className="w-4 h-4" />
+                </span>
+              </Panel>
+            </a>
+
+            <a href={`${config.links.githubUrl}/issues`} target="_blank" rel="noopener noreferrer" className="block">
+              <Panel className="group h-full hover:shadow-lg hover:border-dark-300 dark:hover:border-dark-600 transition-all hover:-translate-y-1 cursor-pointer">
+                <div className="w-12 h-12 bg-dark-100 dark:bg-dark-700 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                  <Code className="w-6 h-6 text-dark-600 dark:text-dark-300" />
+                </div>
+                <h3 className="text-lg font-bold text-dark-900 dark:text-white mb-2">{t('landing.contact.github.title')}</h3>
+                <p className="text-sm text-dark-500 mb-4">{t('landing.contact.github.desc')}</p>
+                <span className="text-dark-600 dark:text-dark-300 text-sm font-medium flex items-center gap-1">
+                  {t('landing.contact.github.cta')} <ChevronRight className="w-4 h-4" />
+                </span>
+              </Panel>
+            </a>
+
+            <a href={config.links.githubUrl} target="_blank" rel="noopener noreferrer" className="block">
+              <Panel className="group h-full hover:shadow-lg hover:border-blue-200 dark:hover:border-blue-900 transition-all hover:-translate-y-1 cursor-pointer">
+                <div className="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                  <BookOpen className="w-6 h-6 text-blue-500" />
+                </div>
+                <h3 className="text-lg font-bold text-dark-900 dark:text-white mb-2">{t('landing.contact.docs.title')}</h3>
+                <p className="text-sm text-dark-500 mb-4">{t('landing.contact.docs.desc')}</p>
+                <span className="text-blue-500 text-sm font-medium flex items-center gap-1">
+                  {t('landing.contact.docs.cta')} <ChevronRight className="w-4 h-4" />
+                </span>
+              </Panel>
+            </a>
+          </div>
+        </section>
+
         {/* CTA Final */}
         <section className="max-w-4xl mx-auto px-6">
           <Panel className="text-center py-20 px-8 border-[#F44336]/10 shadow-2xl shadow-[#F44336]/10 rounded-[3rem]">
-            <h2 className="text-4xl font-bold text-dark-900 dark:text-white mb-4">Empieza con CloudBox hoy</h2>
-            <p className="text-dark-500 dark:text-dark-400 mb-10 text-xl">Hosted o self-hosted, elige tu camino.</p>
+            <h2 className="text-4xl font-bold text-dark-900 dark:text-white mb-4">{t('landing.cta.title')}</h2>
+            <p className="text-dark-500 dark:text-dark-400 mb-10 text-xl">{t('landing.cta.subtitle')}</p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-5 mb-10">
               <Link to="/register">
-                <Button className="w-full sm:w-auto px-10 h-14 text-lg">Crear cuenta gratis</Button>
+                <Button className="w-full sm:w-auto px-10 h-14 text-lg">{t('landing.cta.primary')}</Button>
               </Link>
               <a href={config.links.githubUrl} target="_blank" rel="noopener noreferrer">
-                <Button variant="secondary" className="w-full sm:w-auto px-10 h-14 text-lg rounded-full">Ver documentación</Button>
+                <Button variant="secondary" className="w-full sm:w-auto px-10 h-14 text-lg rounded-full">{t('landing.cta.secondary')}</Button>
               </a>
             </div>
 
             <div className="flex items-center justify-center gap-6 text-sm text-dark-400 font-medium">
-              <Link to="/terms" className="hover:text-[#F44336] transition-colors">Términos de servicio</Link>
+              <Link to="/terms" className="hover:text-[#F44336] transition-colors">{t('landing.cta.terms')}</Link>
               <span className="w-1.5 h-1.5 bg-dark-300 rounded-full"></span>
-              <Link to="/privacy" className="hover:text-[#F44336] transition-colors">Privacidad</Link>
+              <Link to="/privacy" className="hover:text-[#F44336] transition-colors">{t('landing.cta.privacy')}</Link>
             </div>
           </Panel>
         </section>
@@ -946,21 +1543,54 @@ export default function Landing() {
       {/* Footer */}
       {config.sections.footer.enabled && (
         <footer className="border-t border-dark-200 dark:border-dark-700 bg-white dark:bg-dark-900 py-16">
-          <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-8">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-dark-100 dark:bg-dark-700 rounded-full flex items-center justify-center">
-                <span className="text-xs font-bold text-dark-500">C</span>
+          <div className="max-w-7xl mx-auto px-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-12">
+              {/* Brand */}
+              <div className="col-span-2 md:col-span-1">
+                <div className="flex items-center gap-3 mb-4">
+                  <BrandLogo logoSrc={isDark ? branding.logoDarkUrl : branding.logoLightUrl} className="h-8" />
+                </div>
+                <p className="text-sm text-dark-500 dark:text-dark-400">{t('landing.footer.note')}</p>
               </div>
-              <span className="text-sm font-medium text-dark-500 dark:text-dark-400">{config.sections.footer.finePrint}</span>
+
+              {/* Product */}
+              <div>
+                <h4 className="text-sm font-semibold text-dark-900 dark:text-white mb-4">{t('landing.footer.product.title')}</h4>
+                <ul className="space-y-3 text-sm text-dark-500 dark:text-dark-400">
+                  <li><a href="#features" className="hover:text-[#F44336] transition-colors">{t('landing.footer.product.features')}</a></li>
+                  <li><a href="#pricing" className="hover:text-[#F44336] transition-colors">{t('landing.footer.product.pricing')}</a></li>
+                  <li><a href="#roadmap" className="hover:text-[#F44336] transition-colors">{t('landing.footer.product.roadmap')}</a></li>
+                </ul>
+              </div>
+
+              {/* Resources */}
+              <div>
+                <h4 className="text-sm font-semibold text-dark-900 dark:text-white mb-4">{t('landing.footer.resources.title')}</h4>
+                <ul className="space-y-3 text-sm text-dark-500 dark:text-dark-400">
+                  <li><a href={config.links.githubUrl} target="_blank" rel="noopener noreferrer" className="hover:text-[#F44336] transition-colors">{t('landing.footer.resources.docs')}</a></li>
+                  <li><a href={config.links.githubUrl} target="_blank" rel="noopener noreferrer" className="hover:text-[#F44336] transition-colors">{t('landing.footer.resources.github')}</a></li>
+                  <li><a href="#contact" className="hover:text-[#F44336] transition-colors">{t('landing.footer.resources.support')}</a></li>
+                </ul>
+              </div>
+
+              {/* Legal */}
+              <div>
+                <h4 className="text-sm font-semibold text-dark-900 dark:text-white mb-4">{t('landing.footer.legal.title')}</h4>
+                <ul className="space-y-3 text-sm text-dark-500 dark:text-dark-400">
+                  <li><Link to="/terms" className="hover:text-[#F44336] transition-colors">{t('landing.footer.legal.terms')}</Link></li>
+                  <li><Link to="/privacy" className="hover:text-[#F44336] transition-colors">{t('landing.footer.legal.privacy')}</Link></li>
+                </ul>
+              </div>
             </div>
 
-            <div className="flex items-center gap-8 text-sm font-medium text-dark-500 dark:text-dark-400">
-              <a href={config.links.githubUrl} target="_blank" rel="noopener noreferrer" className="hover:text-dark-900 dark:hover:text-white transition-colors">GitHub</a>
-              {config.sections.footer.groups.map((group) => (
-                group.links.slice(0, 2).map((link) => (
-                  <a key={link.id} href={link.href} className="hover:text-dark-900 dark:hover:text-white transition-colors">{link.label}</a>
-                ))
-              ))}
+            {/* Bottom bar */}
+            <div className="pt-8 border-t border-dark-200 dark:border-dark-700 flex flex-col md:flex-row justify-between items-center gap-4">
+              <p className="text-sm text-dark-400">{t('landing.footer.copyright', { year: new Date().getFullYear() })}</p>
+              <div className="flex items-center gap-6">
+                <a href={config.links.githubUrl} target="_blank" rel="noopener noreferrer" className="text-dark-400 hover:text-dark-900 dark:hover:text-white transition-colors">
+                  <Code className="w-5 h-5" />
+                </a>
+              </div>
             </div>
           </div>
         </footer>
