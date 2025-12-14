@@ -4,7 +4,7 @@ import { cn } from '../../lib/utils';
 export default function CloudBoxMockup() {
   return (
     <div className="relative">
-      <div className="absolute -inset-4 rounded-3xl bg-[#F44336]/10 blur-2xl" />
+      <div className="absolute -inset-4 rounded-3xl bg-primary-500/10 blur-2xl" />
       <div className="relative rounded-2xl border border-white/10 bg-dark-900 shadow-2xl overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
           <div className="flex items-center gap-2">
@@ -33,11 +33,11 @@ export default function CloudBoxMockup() {
                     className={cn(
                       'flex items-center gap-2 rounded-lg px-3 py-2 text-xs',
                       item.active
-                        ? 'bg-[#F44336]/15 text-white border border-[#F44336]/30'
+                        ? 'bg-primary-500/15 text-white border border-primary-500/30'
                         : 'text-white/70 hover:bg-white/5 border border-transparent'
                     )}
                   >
-                    <Icon className={cn('h-4 w-4', item.active ? 'text-[#F44336]' : 'text-white/50')} />
+                    <Icon className={cn('h-4 w-4', item.active ? 'text-primary-500' : 'text-white/50')} />
                     <span className="truncate">{item.label}</span>
                   </div>
                 );
@@ -54,7 +54,7 @@ export default function CloudBoxMockup() {
               <div className="flex items-center gap-2">
                 <div className="h-8 w-8 rounded-lg bg-white/5 border border-white/10" />
                 <div className="h-8 w-8 rounded-lg bg-white/5 border border-white/10" />
-                <div className="h-8 w-8 rounded-lg bg-[#F44336] text-white flex items-center justify-center shadow-sm">
+                <div className="h-8 w-8 rounded-lg bg-primary-600 text-white flex items-center justify-center shadow-sm">
                   <UploadCloud className="h-4 w-4" />
                 </div>
               </div>

@@ -41,6 +41,343 @@
     "logout": "Sair",
     "userMenu": "Menu do usuário"
   },
+  "landing": {
+    "loading": "Carregando…",
+    "nav": {
+      "open": "Abrir navegação",
+      "close": "Fechar navegação",
+      "login": "Entrar",
+      "register": "Registrar",
+      "tryBeta": "Testar Beta",
+      "features": "Recursos",
+      "hosted": "Hospedado",
+      "selfHosted": "Auto-hospedado"
+    },
+    "theme": {
+      "light": "Modo claro",
+      "dark": "Modo escuro"
+    },
+    "hero": {
+      "badge": "Nuvem privada · Experiência moderna",
+      "title1": "Sua nuvem",
+      "title2": "organizada.",
+      "subtitle": "Armazenamento privado com player de música, galeria de fotos e mais. Hospedado ou auto-hospedado.",
+      "primaryCta": "Entrar no CloudBox",
+      "secondaryCta": "Ver no GitHub"
+    },
+    "trustAvatars": {
+      "rating": "5.0",
+      "betaTesters": "Testadores beta satisfeitos",
+      "modules": "módulos",
+      "languages": "idiomas"
+    },
+    "scrollIndicator": "Rolar",
+    "marquee": {
+      "chunkUploads": "Uploads em partes",
+      "expiringLinks": "Links com expiração",
+      "musicPlayer": "Player de música integrado",
+      "photoGallery": "Galeria de fotos",
+      "zipCompression": "Compressão ZIP",
+      "favorites": "Favoritos",
+      "adminPanel": "Painel admin",
+      "uptime": "99.9% uptime"
+    },
+    "flow": {
+      "title": "Tudo o que você precisa, em um só lugar",
+      "subtitle": "Projetado para seguir seu fluxo mental.",
+      "upload": {
+        "title": "Enviar",
+        "desc": "Drag & drop inteligente."
+      },
+      "organize": {
+        "title": "Organizar",
+        "desc": "Mova e ordene."
+      },
+      "explore": {
+        "title": "Explorar",
+        "desc": "Galeria moderna com lightbox."
+      },
+      "play": {
+        "title": "Reproduzir",
+        "desc": "Música com player integrado."
+      },
+      "favorites": {
+        "title": "Favoritos",
+        "desc": "Marque arquivos importantes."
+      },
+      "share": {
+        "title": "Compartilhar",
+        "desc": "Links com senha."
+      },
+      "recover": {
+        "title": "Recuperar",
+        "desc": "Restaure da lixeira."
+      },
+      "admin": {
+        "title": "Administrar",
+        "desc": "Personalize cores e logo."
+      }
+    },
+    "features": {
+      "badge": "Recursos",
+      "title": "Poder em cada detalhe",
+      "subtitle": "Ferramentas para gerenciar seus arquivos como um profissional",
+      "musicPlayer": {
+        "title": "Player de Música",
+        "desc": "Streaming com fila, shuffle, repeat.",
+        "status": "Reproduzindo"
+      },
+      "gallery": {
+        "title": "Galeria de Fotos",
+        "desc": "Lightbox moderno"
+      },
+      "albums": {
+        "title": "Álbuns",
+        "desc": "Organize fotos e músicas"
+      },
+      "zip": {
+        "title": "Compressão ZIP",
+        "desc": "Comprima instantaneamente"
+      },
+      "favorites": {
+        "title": "Favoritos",
+        "desc": "Acesso rápido"
+      },
+      "privateLinks": {
+        "title": "Links Privados",
+        "desc": "Compartilhe com senha",
+        "badge": "Protegido"
+      },
+      "trash": {
+        "title": "Lixeira",
+        "desc": "Recupere arquivos excluídos"
+      },
+      "logs": {
+        "title": "Logs de Atividade",
+        "desc": "Histórico completo"
+      }
+    },
+    "useCases": {
+      "badge": "Casos de Uso",
+      "title": "Projetado para você",
+      "subtitle": "Profissionais, equipes e famílias que organizam seus arquivos com segurança",
+      "photographers": {
+        "title": "Fotógrafos",
+        "desc": "Galeria privada com lightbox."
+      },
+      "musicians": {
+        "title": "Músicos",
+        "desc": "Biblioteca musical em streaming."
+      },
+      "teams": {
+        "title": "Equipes",
+        "desc": "Colaboração segura."
+      },
+      "families": {
+        "title": "Famílias",
+        "desc": "Compartilhe memórias em privado."
+      },
+      "developers": {
+        "title": "Desenvolvedores",
+        "desc": "Auto-hospedado com Docker."
+      },
+      "business": {
+        "title": "Empresas",
+        "desc": "Conformidade e políticas de dados."
+      }
+    },
+    "techStack": {
+      "eyebrow": "Tecnologia de ponta",
+      "title": "Construído com stack moderno"
+    },
+    "beta": {
+      "badge": "Acesso Antecipado",
+      "title": "Seja um dos primeiros a testar o CloudBox",
+      "subtitle": "Junte-se ao programa beta e ganhe armazenamento grátis.",
+      "cta": "Testar Beta",
+      "exploreCta": "Explorar recursos"
+    },
+    "comparison": {
+      "recommended": "Recomendado",
+      "createAccount": "Criar conta",
+      "viewOnGithub": "Ver no GitHub",
+      "table": {
+        "feature": "Recurso",
+        "cloud": "Nuvem",
+        "selfHosted": "Auto-hospedado"
+      }
+    },
+    "security": {
+      "badge": "Segurança",
+      "title": "Seus dados, protegidos",
+      "subtitle": "Segurança empresarial com auditoria transparente",
+      "activeTitle": "Segurança Ativa",
+      "monitoring": "Monitoramento 24/7",
+      "https": {
+        "label": "HTTPS/TLS",
+        "desc": "Criptografia"
+      },
+      "passwords": {
+        "label": "Senhas",
+        "desc": "Links protegidos"
+      },
+      "auditLogs": {
+        "label": "Logs",
+        "desc": "Histórico completo"
+      },
+      "softDelete": {
+        "label": "Exclusão suave",
+        "desc": "Recuperação segura"
+      },
+      "uptime": "Uptime",
+      "breaches": "Violações de segurança",
+      "support": "Suporte",
+      "recentActivity": "Atividade Recente",
+      "live": "Ao vivo",
+      "downloaded": "baixou",
+      "uploaded": "enviou",
+      "shared": "compartilhou",
+      "addedToFavorites": "adicionou aos favoritos",
+      "selfHosted": {
+        "title": "Auto-Hospedado",
+        "desc": "Controle total sobre sua infraestrutura."
+      },
+      "openSource": {
+        "title": "Open Source",
+        "desc": "Código aberto e auditável."
+      },
+      "privacy": {
+        "title": "Privacidade",
+        "desc": "Sem rastreamento."
+      }
+    },
+    "faq": {
+      "title": "Perguntas frequentes",
+      "subtitle": "Tudo sobre o CloudBox.",
+      "q1": {
+        "question": "O que é o CloudBox?",
+        "answer": "CloudBox é uma solução de armazenamento em nuvem privada."
+      },
+      "q2": {
+        "question": "Posso hospedar sozinho?",
+        "answer": "Sim! CloudBox é open source e pode ser implantado com Docker."
+      },
+      "q3": {
+        "question": "Quais formatos o player suporta?",
+        "answer": "MP3, WAV, FLAC, OGG e mais."
+      },
+      "q4": {
+        "question": "Meus arquivos estão seguros?",
+        "answer": "Usamos HTTPS para criptografia."
+      }
+    },
+    "cta": {
+      "title": "Comece com o CloudBox hoje",
+      "subtitle": "Hospedado ou auto-hospedado, escolha.",
+      "primary": "Criar conta grátis",
+      "secondary": "Documentação",
+      "terms": "Termos de serviço",
+      "privacy": "Privacidade"
+    },
+    "pricing": {
+      "badge": "Preços",
+      "title": "Simples e transparente",
+      "subtitle": "Um plano, tudo incluído. Sem surpresas.",
+      "beta": {
+        "name": "Beta",
+        "price": "R$0",
+        "period": "/mês",
+        "storage": "50 GB de armazenamento",
+        "features": [
+          "Todos os recursos incluídos",
+          "Player de música ilimitado",
+          "Galeria de fotos completa",
+          "Links compartilhados ilimitados",
+          "Suporte por email",
+          "Acesso antecipado a novos recursos"
+        ],
+        "cta": "Começar grátis",
+        "badge": "Acesso Antecipado"
+      }
+    },
+    "roadmap": {
+      "badge": "Roadmap",
+      "title": "O que vem por aí",
+      "subtitle": "Recursos em que estamos trabalhando",
+      "status": {
+        "completed": "Concluído",
+        "inProgress": "Em andamento",
+        "planned": "Planejado"
+      },
+      "items": {
+        "i18n": {
+          "title": "Internacionalização completa",
+          "desc": "Suporte para 6 idiomas em todo o app"
+        },
+        "mobile": {
+          "title": "App móvel (PWA)",
+          "desc": "Acesso offline e notificações push"
+        },
+        "collaboration": {
+          "title": "Colaboração em tempo real",
+          "desc": "Edição simultânea e comentários em arquivos"
+        },
+        "api": {
+          "title": "API pública documentada",
+          "desc": "Integrações de terceiros e automações"
+        },
+        "e2e": {
+          "title": "Criptografia de ponta a ponta",
+          "desc": "Segurança máxima para arquivos sensíveis"
+        },
+        "ai": {
+          "title": "Busca inteligente com IA",
+          "desc": "OCR e análise de conteúdo de imagens"
+        }
+      }
+    },
+    "contact": {
+      "badge": "Contato",
+      "title": "Tem perguntas?",
+      "subtitle": "Estamos aqui para ajudar",
+      "email": {
+        "title": "Email",
+        "desc": "Resposta em até 24 horas",
+        "cta": "Enviar email"
+      },
+      "github": {
+        "title": "GitHub Issues",
+        "desc": "Reportar bugs ou solicitar recursos",
+        "cta": "Abrir issue"
+      },
+      "docs": {
+        "title": "Documentação",
+        "desc": "Guias e tutoriais detalhados",
+        "cta": "Ver docs"
+      }
+    },
+    "footer": {
+      "note": "Use o CloudBox na nuvem ou hospede você mesmo.",
+      "product": {
+        "title": "Produto",
+        "features": "Recursos",
+        "pricing": "Preços",
+        "roadmap": "Roadmap"
+      },
+      "resources": {
+        "title": "Recursos",
+        "docs": "Documentação",
+        "github": "GitHub",
+        "support": "Suporte"
+      },
+      "legal": {
+        "title": "Legal",
+        "terms": "Termos de Serviço",
+        "privacy": "Política de Privacidade"
+      },
+      "copyright": "© {{year}} CloudBox. Todos os direitos reservados."
+    }
+  },
   "sidebar": {
     "dashboard": "Início",
     "files": "Meus arquivos",
