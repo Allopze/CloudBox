@@ -21,11 +21,12 @@ import {
   Settings,
   Users,
   Trash2,
-  Globe,
   Lock,
   Activity,
-  CornerDownRight,
   Music,
+  Star,
+  Archive,
+  Album,
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useThemeStore } from '../../stores/themeStore';
@@ -246,72 +247,151 @@ const HeroMockup = ({ isDark, logoLight, logoDark }: { isDark: boolean; logoLigh
 // --- Mini Mockups for Flow Section ---
 
 const UploadMiniMockup = () => (
-  <div className="h-32 border border-dashed border-dark-300 dark:border-dark-600 rounded-xl bg-dark-50 dark:bg-dark-900 flex flex-col items-center justify-center p-4 relative overflow-hidden group hover:border-[#F44336] transition-colors">
-    <div className="w-full absolute bottom-0 left-0 h-1.5 bg-dark-200 dark:bg-dark-700 overflow-hidden">
-      <div className="h-full w-2/3 bg-[#F44336] rounded-r-full animate-pulse"></div>
+  <div className="h-36 bg-white dark:bg-dark-900 rounded-lg overflow-hidden flex flex-col">
+    {/* Mini header */}
+    <div className="h-6 bg-dark-50 dark:bg-dark-800 border-b border-dark-100 dark:border-dark-700 flex items-center px-2 gap-1">
+      <div className="w-2 h-2 rounded-full bg-[#F44336]"></div>
+      <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
+      <div className="w-2 h-2 rounded-full bg-green-500"></div>
+      <span className="text-[8px] text-dark-400 ml-2">Mis archivos</span>
     </div>
-    <div className="bg-white dark:bg-dark-800 p-3 rounded-2xl shadow-sm border border-dark-200 dark:border-dark-700 mb-3 group-hover:scale-110 transition-transform duration-300">
-      <Upload className="w-6 h-6 text-[#F44336]" />
+    {/* Upload zone */}
+    <div className="flex-1 p-2 flex items-center justify-center">
+      <div className="w-full h-full border-2 border-dashed border-[#F44336]/40 bg-[#F44336]/5 rounded-lg flex flex-col items-center justify-center gap-1">
+        <Upload className="w-5 h-5 text-[#F44336]" />
+        <span className="text-[8px] text-dark-500 font-medium">Suelta archivos aquí</span>
+        <div className="w-16 h-1 bg-dark-200 dark:bg-dark-700 rounded-full mt-1">
+          <div className="h-full w-2/3 bg-[#F44336] rounded-full animate-pulse"></div>
+        </div>
+      </div>
     </div>
-    <span className="text-[10px] text-dark-500 font-bold uppercase tracking-wide group-hover:text-[#F44336] transition-colors">Arrastra archivos aquí</span>
   </div>
 );
 
 const OrganizeMiniMockup = () => (
-  <div className="h-32 bg-white dark:bg-dark-900 rounded-xl border border-dark-200 dark:border-dark-700 p-4 relative overflow-hidden">
-    <div className="flex gap-4 mb-3 items-center justify-center h-full">
-      <div className="w-12 h-12 rounded-xl border border-[#F44336] bg-[#F44336]/10 flex items-center justify-center z-10 shadow-xl transform hover:scale-105 transition-transform cursor-grab">
-        <FileText className="w-6 h-6 text-[#F44336]" />
-      </div>
-      <div className="flex flex-col items-center gap-1 text-dark-300">
-        <span className="w-1 h-1 bg-current rounded-full"></span>
-        <span className="w-1 h-1 bg-current rounded-full"></span>
-        <span className="w-1 h-1 bg-current rounded-full"></span>
-        <CornerDownRight className="w-4 h-4" />
-      </div>
-      <div className="w-12 h-12 rounded-xl border-2 border-dashed border-dark-300 dark:border-dark-600 bg-dark-50 dark:bg-dark-800 flex items-center justify-center group hover:border-[#F44336] transition-colors">
-        <Folder className="w-6 h-6 text-dark-400 group-hover:text-[#F44336] transition-colors" />
-      </div>
+  <div className="h-36 bg-white dark:bg-dark-900 rounded-lg overflow-hidden flex flex-col">
+    {/* Mini header */}
+    <div className="h-6 bg-dark-50 dark:bg-dark-800 border-b border-dark-100 dark:border-dark-700 flex items-center px-2">
+      <Folder className="w-3 h-3 text-dark-400 mr-1" />
+      <span className="text-[8px] text-dark-400">Mis archivos</span>
+    </div>
+    {/* Folder grid */}
+    <div className="flex-1 p-2 grid grid-cols-3 gap-1">
+      {['Fotos', 'Docs', 'Música'].map((name, i) => (
+        <div key={i} className="flex flex-col items-center p-1 rounded hover:bg-dark-50 dark:hover:bg-dark-800">
+          <div className="w-6 h-6 rounded bg-[#F44336]/10 flex items-center justify-center mb-0.5">
+            <Folder className="w-3.5 h-3.5 text-[#F44336] fill-[#F44336]/80" />
+          </div>
+          <span className="text-[7px] text-dark-600 dark:text-dark-300 truncate w-full text-center">{name}</span>
+        </div>
+      ))}
+      {['Doc.pdf', 'Foto.jpg', 'Data.zip'].map((name, i) => (
+        <div key={i} className="flex flex-col items-center p-1 rounded hover:bg-dark-50 dark:hover:bg-dark-800">
+          <div className="w-6 h-6 rounded bg-blue-500/10 flex items-center justify-center mb-0.5">
+            <FileText className="w-3.5 h-3.5 text-blue-500" />
+          </div>
+          <span className="text-[7px] text-dark-500 truncate w-full text-center">{name}</span>
+        </div>
+      ))}
     </div>
   </div>
 );
 
 const ShareMiniMockup = () => (
-  <div className="h-32 bg-white dark:bg-dark-900 flex items-center justify-center p-4">
-    <div className="w-full bg-white dark:bg-dark-800 border border-dark-200 dark:border-dark-700 rounded-2xl shadow-sm p-4">
-      <div className="flex justify-between items-center mb-3">
-        <span className="text-[10px] font-bold text-dark-700 dark:text-dark-200 uppercase tracking-wide">Enlace público</span>
-        <div className="w-9 h-5 bg-[#F44336] rounded-full relative cursor-pointer">
-          <div className="w-3.5 h-3.5 bg-white rounded-full absolute right-1 top-0.5 shadow-sm"></div>
-        </div>
+  <div className="h-36 bg-white dark:bg-dark-900 rounded-lg overflow-hidden flex flex-col">
+    {/* Modal header */}
+    <div className="h-7 bg-dark-50 dark:bg-dark-800 border-b border-dark-100 dark:border-dark-700 flex items-center justify-between px-2">
+      <span className="text-[8px] font-bold text-dark-700 dark:text-dark-200">Compartir archivo</span>
+      <X className="w-3 h-3 text-dark-400" />
+    </div>
+    {/* Modal content */}
+    <div className="flex-1 p-2 flex flex-col gap-1.5">
+      <div className="flex items-center gap-1">
+        <span className="text-[7px] text-dark-500 w-10">Enlace:</span>
+        <div className="flex-1 h-4 bg-dark-100 dark:bg-dark-800 rounded text-[7px] text-dark-400 px-1 flex items-center font-mono">cloudbox.lat/s/x8kj2...</div>
       </div>
-      <div className="flex gap-2">
-        <div className="flex-1 bg-dark-50 dark:bg-dark-900 rounded-lg text-[10px] text-dark-500 p-2 truncate border border-dark-100 dark:border-dark-700 font-mono flex items-center select-all">
-          cloudbox.lat/s/x8...
+      <div className="flex items-center gap-1">
+        <span className="text-[7px] text-dark-500 w-10">Expira:</span>
+        <div className="flex-1 h-4 bg-dark-100 dark:bg-dark-800 rounded text-[7px] text-dark-500 px-1 flex items-center">7 días</div>
+      </div>
+      <div className="flex items-center gap-1">
+        <span className="text-[7px] text-dark-500 w-10">Clave:</span>
+        <div className="flex-1 h-4 bg-dark-100 dark:bg-dark-800 rounded text-[7px] text-dark-500 px-1 flex items-center">••••••</div>
+      </div>
+      <button className="mt-auto h-5 bg-[#F44336] rounded text-[8px] text-white font-medium flex items-center justify-center gap-1">
+        <Check className="w-3 h-3" /> Copiar enlace
+      </button>
+    </div>
+  </div>
+);
+
+const MusicMiniMockup = () => (
+  <div className="h-36 bg-white dark:bg-dark-900 rounded-lg overflow-hidden flex flex-col">
+    {/* Player header */}
+    <div className="h-6 bg-dark-50 dark:bg-dark-800 border-b border-dark-100 dark:border-dark-700 flex items-center px-2">
+      <Music className="w-3 h-3 text-[#F44336] mr-1" />
+      <span className="text-[8px] text-dark-400">Reproductor</span>
+    </div>
+    {/* Player content */}
+    <div className="flex-1 p-2 flex items-center gap-2">
+      {/* Vinyl */}
+      <div className="w-16 h-16 flex-shrink-0">
+        <svg viewBox="0 0 64 64" className="w-full h-full animate-[spin_3s_linear_infinite]">
+          <circle cx="32" cy="32" r="32" fill="#1a1a1a" />
+          <circle cx="32" cy="32" r="28" fill="none" stroke="#2a2a2a" strokeWidth="0.5" />
+          <circle cx="32" cy="32" r="24" fill="none" stroke="#252525" strokeWidth="0.5" />
+          <circle cx="32" cy="32" r="20" fill="none" stroke="#2a2a2a" strokeWidth="0.5" />
+          <circle cx="32" cy="32" r="11" fill="#F44336" />
+          <circle cx="32" cy="32" r="3" fill="white" />
+        </svg>
+      </div>
+      {/* Controls */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <div className="text-[9px] font-bold text-dark-800 dark:text-dark-200 truncate">Mi Canción</div>
+        <div className="text-[7px] text-dark-400 mb-1">1 de 12</div>
+        <div className="w-full h-1 bg-[#F44336]/10 rounded-full mb-1">
+          <div className="h-full w-1/3 bg-[#F44336] rounded-full"></div>
         </div>
-        <button className="bg-[#F44336]/10 px-2 rounded-lg border border-[#F44336]/20 flex items-center justify-center hover:bg-[#F44336]/20 transition-colors">
-          <Check className="w-3.5 h-3.5 text-[#F44336]" />
-        </button>
+        <div className="flex items-center justify-center gap-2">
+          <div className="w-3 h-3 text-dark-400"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="19 20 9 12 19 4" /><line x1="5" y1="19" x2="5" y2="5" /></svg></div>
+          <div className="w-5 h-5 rounded-full bg-dark-900 dark:bg-white flex items-center justify-center"><svg className="w-2 h-2 text-white dark:text-dark-900" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg></div>
+          <div className="w-3 h-3 text-dark-400"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="5 4 15 12 5 20" /><line x1="19" y1="5" x2="19" y2="19" /></svg></div>
+        </div>
       </div>
     </div>
   </div>
 );
 
 const AdminMiniMockup = () => (
-  <div className="h-32 flex overflow-hidden rounded-xl border border-dark-200 dark:border-dark-700">
-    <div className="w-1/3 border-r border-dark-200 dark:border-dark-700 bg-dark-50 dark:bg-dark-900 p-3 space-y-3">
-      <div className="w-full h-2 bg-dark-200 dark:bg-dark-700 rounded-full"></div>
-      <div className="w-3/4 h-2 bg-dark-200 dark:bg-dark-700 rounded-full"></div>
-      <div className="w-full h-2 bg-[#F44336]/30 rounded-full"></div>
+  <div className="h-36 bg-white dark:bg-dark-900 rounded-lg overflow-hidden flex flex-col">
+    {/* Settings header */}
+    <div className="h-6 bg-dark-50 dark:bg-dark-800 border-b border-dark-100 dark:border-dark-700 flex items-center px-2">
+      <Settings className="w-3 h-3 text-dark-400 mr-1" />
+      <span className="text-[8px] text-dark-400">Configuración</span>
     </div>
-    <div className="flex-1 p-3 bg-white dark:bg-dark-800 flex flex-col justify-center items-center">
-      <div className="scale-75 origin-center border border-dark-100 dark:border-dark-700 rounded-lg p-2 shadow-sm bg-white dark:bg-dark-900">
-        <div className="flex gap-2 mb-2">
-          <div className="w-5 h-5 rounded-md bg-[#F44336] shadow-sm"></div>
-          <div className="w-16 h-2 bg-dark-200 dark:bg-dark-700 rounded-full mt-1.5"></div>
+    {/* Settings content */}
+    <div className="flex-1 p-2 flex flex-col gap-1.5">
+      <div className="flex items-center gap-2">
+        <div className="w-5 h-5 rounded bg-[#F44336] flex items-center justify-center">
+          <span className="text-[8px] text-white font-bold">C</span>
         </div>
-        <div className="w-24 h-6 bg-[#F44336] rounded-md flex items-center justify-center text-[8px] text-white font-bold shadow-[#F44336]/20 shadow-lg">
-          CloudBox
+        <div className="flex flex-col">
+          <span className="text-[8px] font-bold text-dark-700 dark:text-dark-200">CloudBox</span>
+          <span className="text-[6px] text-dark-400">Tu marca aquí</span>
+        </div>
+      </div>
+      <div className="flex items-center justify-between">
+        <span className="text-[7px] text-dark-500">Tema oscuro</span>
+        <div className="w-6 h-3 bg-[#F44336] rounded-full relative">
+          <div className="w-2 h-2 bg-white rounded-full absolute right-0.5 top-0.5"></div>
+        </div>
+      </div>
+      <div className="flex items-center justify-between">
+        <span className="text-[7px] text-dark-500">Color primario</span>
+        <div className="flex gap-0.5">
+          <div className="w-3 h-3 rounded-full bg-[#F44336] ring-1 ring-dark-300"></div>
+          <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+          <div className="w-3 h-3 rounded-full bg-green-500"></div>
         </div>
       </div>
     </div>
@@ -368,19 +448,20 @@ export default function Landing() {
   const flowSteps = [
     { title: 'Sube', desc: 'Drag & drop inteligente con soporte para archivos grandes.', mockup: UploadMiniMockup },
     { title: 'Organiza', desc: 'Mueve y ordena como en tu sistema operativo local.', mockup: OrganizeMiniMockup },
+    { title: 'Reproduce', desc: 'Escucha tu música y explora tu galería de fotos.', mockup: MusicMiniMockup },
     { title: 'Comparte', desc: 'Genera enlaces públicos con contraseña y caducidad.', mockup: ShareMiniMockup },
     { title: 'Administra', desc: 'Personaliza colores y logo desde el panel visual.', mockup: AdminMiniMockup },
   ];
 
   const features = [
-    { icon: Search, title: 'Búsqueda Global', text: 'Indexado instantáneo' },
-    { icon: Shield, title: 'Permisos RBAC', text: 'Control por carpeta' },
-    { icon: Trash2, title: 'Papelera', text: 'Recuperación 30 días' },
-    { icon: Activity, title: 'Logs de Auditoría', text: 'Registro inmutable' },
-    { icon: ImageIcon, title: 'Vistas Previas', text: 'RAW, PDF, Media' },
-    { icon: Globe, title: 'CDN Ready', text: 'Compatible S3' },
-    { icon: Lock, title: 'Enlaces Privados', text: 'Protección con clave' },
-    { icon: Zap, title: 'Rendimiento', text: 'Carga < 100ms' },
+    { icon: Music, title: 'Reproductor de Música', text: 'Streaming integrado' },
+    { icon: ImageIcon, title: 'Galería de Fotos', text: 'Lightbox y navegación' },
+    { icon: Album, title: 'Álbumes', text: 'Organiza tus recuerdos' },
+    { icon: Archive, title: 'Compresión ZIP', text: 'Comprimir y extraer' },
+    { icon: Star, title: 'Favoritos', text: 'Acceso rápido' },
+    { icon: Lock, title: 'Enlaces Privados', text: 'Contraseña y caducidad' },
+    { icon: Trash2, title: 'Papelera', text: 'Recuperación segura' },
+    { icon: Activity, title: 'Logs de Actividad', text: 'Historial completo' },
   ];
 
   return (
@@ -474,7 +555,7 @@ export default function Landing() {
       <main className="pt-36 pb-20">
         {/* Hero Section */}
         {hero.enabled && (
-          <section className="max-w-[1600px] mx-auto px-6 mb-32">
+          <section className="max-w-[1600px] mx-auto px-6 mb-16">
             <div className="grid lg:grid-cols-12 gap-12 items-center">
               <div className="lg:col-span-4 flex flex-col items-start text-left">
                 <Badge className="mb-6 border-[#F44336]/20 bg-[#F44336]/10 text-[#F44336] px-4 py-1.5 text-sm font-semibold">
@@ -503,7 +584,7 @@ export default function Landing() {
                 {/* Trust / Features Mini Line */}
                 <div className="pt-8 border-t border-dark-200 dark:border-dark-700 w-full">
                   <div className="flex flex-wrap gap-3">
-                    {['Subidas por chunks', 'Links con expiración', 'Permisos granulares', 'Logs de actividad'].map((feat, i) => (
+                    {['Subidas por chunks', 'Links con expiración', 'Reproductor de música', 'Galería de fotos'].map((feat, i) => (
                       <Badge key={i} className="bg-transparent border-dark-200 dark:border-dark-700 text-dark-500 py-1 px-3">
                         {feat}
                       </Badge>
@@ -536,7 +617,7 @@ export default function Landing() {
 
         {/* Flow Section */}
         {config.sections.howItWorks.enabled && (
-          <section className="max-w-7xl mx-auto px-6 mb-32">
+          <section className="max-w-[1600px] mx-auto px-6 mb-24">
             <div className="mb-16 text-center md:text-left">
               <h2 className="text-3xl font-bold text-dark-900 dark:text-white mb-4">{config.sections.howItWorks.title}</h2>
               <p className="text-lg text-dark-500 dark:text-dark-400">Diseñado para imitar tu flujo mental, no para interrumpirlo.</p>
@@ -558,7 +639,7 @@ export default function Landing() {
 
         {/* Features Section */}
         {config.sections.features.enabled && (
-          <section id="features" className="max-w-7xl mx-auto px-6 mb-32">
+          <section id="features" className="max-w-[1600px] mx-auto px-6 mb-32">
             <div className="mb-12 text-center">
               <h2 className="text-3xl font-bold text-dark-900 dark:text-white mb-4">{config.sections.features.title}</h2>
             </div>
@@ -578,7 +659,7 @@ export default function Landing() {
 
         {/* Hosted vs Self-Hosted Section */}
         {config.sections.comparison.enabled && (
-          <section className="max-w-7xl mx-auto px-6 mb-32" id="hosted">
+          <section className="max-w-[1600px] mx-auto px-6 mb-32" id="hosted">
             <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
               {/* Hosted Panel */}
               <Panel className="relative p-10 md:p-14 flex flex-col h-full border-[#F44336]/10 shadow-xl shadow-[#F44336]/5">
@@ -643,7 +724,7 @@ export default function Landing() {
 
         {/* Security Section */}
         {config.sections.security.enabled && (
-          <section className="max-w-5xl mx-auto px-6 mb-32">
+          <section className="max-w-[1600px] mx-auto px-6 mb-32">
             <div className="text-center mb-16">
               <h2 className="text-3xl font-bold text-dark-900 dark:text-white">{config.sections.security.title}</h2>
               <p className="text-lg text-dark-500 mt-3">Seguridad activa y auditoría transparente.</p>
@@ -661,7 +742,7 @@ export default function Landing() {
                   {[
                     { user: 'Ana M.', action: 'descargó', file: 'Presupuesto_Final.pdf', time: '2m' },
                     { user: 'Carlos R.', action: 'subió', file: 'Assets_Web.zip', time: '15m' },
-                    { user: 'Admin', action: 'cambió permisos en', file: 'Carpeta /Legal', time: '1h' },
+                    { user: 'Admin', action: 'compartió', file: 'Presentación Q4.pdf', time: '1h' },
                   ].map((log, i) => (
                     <div key={i} className="flex items-center text-sm gap-3 border-b border-dark-100 dark:border-dark-700 pb-3 last:border-0 last:pb-0">
                       <div className="w-8 h-8 rounded-full bg-dark-100 dark:bg-dark-700 flex items-center justify-center text-xs font-bold text-dark-600 dark:text-dark-300">
@@ -681,8 +762,8 @@ export default function Landing() {
                   <div className="w-14 h-14 bg-dark-100 dark:bg-dark-800 rounded-full flex items-center justify-center mb-4">
                     <Shield className="w-7 h-7 text-dark-500 dark:text-dark-400" />
                   </div>
-                  <div className="text-xl font-bold text-dark-900 dark:text-white mb-2">AES-256</div>
-                  <p className="text-sm text-dark-500">Cifrado en tránsito y reposo disponible.</p>
+                  <div className="text-xl font-bold text-dark-900 dark:text-white mb-2">HTTPS</div>
+                  <p className="text-sm text-dark-500">Conexión cifrada en tránsito.</p>
                 </Panel>
                 <Panel className="flex-1 flex flex-col justify-center items-center text-center p-8 border-[#F44336]/10 bg-[#F44336]/5">
                   <div className="w-14 h-14 bg-[#F44336]/10 rounded-full flex items-center justify-center mb-4">
