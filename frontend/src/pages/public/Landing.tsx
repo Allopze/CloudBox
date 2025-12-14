@@ -75,6 +75,78 @@ const Panel = ({ children, className = '', noPadding = false, id }: { children: 
   </div>
 );
 
+// --- Marquee Component (Baked.design inspired) ---
+const Marquee = ({ items, speed = 30 }: { items: string[]; speed?: number }) => {
+  const duplicatedItems = [...items, ...items];
+  return (
+    <div className="relative overflow-hidden py-4 bg-dark-50 dark:bg-dark-800/50 border-y border-dark-100 dark:border-dark-700">
+      <div
+        className="flex gap-8 animate-marquee whitespace-nowrap"
+        style={{ animationDuration: `${speed}s` }}
+      >
+        {duplicatedItems.map((item, i) => (
+          <span key={i} className="text-sm text-dark-500 dark:text-dark-400 font-medium flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#F44336]"></span>
+            {item}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// --- Trust Avatars Component (Granola.ai inspired) ---
+const TrustAvatars = ({ count = 127 }: { count?: number }) => (
+  <div className="flex items-center gap-3">
+    <div className="flex -space-x-2">
+      {['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-orange-500'].map((color, i) => (
+        <div
+          key={i}
+          className={`w-8 h-8 rounded-full ${color} border-2 border-white dark:border-dark-800 flex items-center justify-center text-white text-xs font-bold`}
+        >
+          {String.fromCharCode(65 + i)}
+        </div>
+      ))}
+    </div>
+    <span className="text-sm text-dark-500 dark:text-dark-400">
+      <span className="font-bold text-dark-700 dark:text-dark-200">+{count}</span> usuarios activos
+    </span>
+  </div>
+);
+
+// --- Testimonial Card Component (Picmal.app inspired) ---
+const TestimonialCard = ({ quote, author, role }: { quote: string; author: string; role: string }) => (
+  <div className="p-6 bg-white dark:bg-dark-800 border border-dark-200 dark:border-dark-700 rounded-2xl hover:shadow-lg transition-shadow">
+    <p className="text-dark-600 dark:text-dark-300 mb-4 italic text-sm leading-relaxed">"{quote}"</p>
+    <div className="flex items-center gap-3">
+      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#F44336] to-orange-500 flex items-center justify-center text-white font-bold text-sm">
+        {author.charAt(0)}
+      </div>
+      <div>
+        <div className="font-semibold text-dark-900 dark:text-white text-sm">{author}</div>
+        <div className="text-xs text-dark-500">{role}</div>
+      </div>
+    </div>
+  </div>
+);
+
+// --- FAQ Accordion Item ---
+const FAQItem = ({ question, answer, isOpen, onClick }: { question: string; answer: string; isOpen: boolean; onClick: () => void }) => (
+  <div className="border-b border-dark-200 dark:border-dark-700 last:border-0">
+    <button
+      onClick={onClick}
+      className="w-full flex items-center justify-between py-5 text-left hover:text-[#F44336] transition-colors"
+    >
+      <span className="font-semibold text-dark-900 dark:text-white">{question}</span>
+      <span className={`text-2xl text-dark-400 transition-transform ${isOpen ? 'rotate-45' : ''}`}>+</span>
+    </button>
+    <div className={`overflow-hidden transition-all duration-300 ${isOpen ? 'max-h-40 pb-5' : 'max-h-0'}`}>
+      <p className="text-dark-500 text-sm leading-relaxed">{answer}</p>
+    </div>
+  </div>
+);
+
+
 // --- Brand Logo Component ---
 const BrandLogo = ({ logoSrc, className = "h-8" }: { logoSrc?: string; className?: string }) => (
   <div className={`flex items-center gap-2 ${className}`}>
@@ -408,6 +480,7 @@ export default function Landing() {
   const [loading, setLoading] = useState(true);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [openFAQ, setOpenFAQ] = useState<number | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -581,15 +654,9 @@ export default function Landing() {
                   </Link>
                 </div>
 
-                {/* Trust / Features Mini Line */}
+                {/* Trust Avatars */}
                 <div className="pt-8 border-t border-dark-200 dark:border-dark-700 w-full">
-                  <div className="flex flex-wrap gap-3">
-                    {['Subidas por chunks', 'Links con expiración', 'Reproductor de música', 'Galería de fotos'].map((feat, i) => (
-                      <Badge key={i} className="bg-transparent border-dark-200 dark:border-dark-700 text-dark-500 py-1 px-3">
-                        {feat}
-                      </Badge>
-                    ))}
-                  </div>
+                  <TrustAvatars count={127} />
                 </div>
               </div>
 
@@ -614,6 +681,20 @@ export default function Landing() {
             </div>
           </section>
         )}
+
+        {/* Marquee Social Proof */}
+        <Marquee
+          items={[
+            'Subidas por chunks',
+            'Links con expiración',
+            'Reproductor de música integrado',
+            'Galería de fotos',
+            'Compresión ZIP',
+            'Favoritos',
+            'Panel de administración',
+            '99.9% uptime'
+          ]}
+        />
 
         {/* Flow Section */}
         {config.sections.howItWorks.enabled && (
@@ -656,6 +737,31 @@ export default function Landing() {
             </div>
           </section>
         )}
+
+        {/* Testimonials Section */}
+        <section className="max-w-[1600px] mx-auto px-6 mb-24">
+          <div className="mb-12 text-center">
+            <h2 className="text-3xl font-bold text-dark-900 dark:text-white mb-4">Lo que dicen nuestros usuarios</h2>
+            <p className="text-lg text-dark-500">Profesionales y equipos que confían en CloudBox.</p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-6">
+            <TestimonialCard
+              quote="Perfecto para organizar mis fotos familiares. El reproductor de música es un bonus increíble."
+              author="María L."
+              role="Fotógrafa"
+            />
+            <TestimonialCard
+              quote="Migré desde Google Drive y no me arrepiento. El control sobre mis datos es total."
+              author="Carlos R."
+              role="Desarrollador"
+            />
+            <TestimonialCard
+              quote="La opción self-hosted fue clave para cumplir con las políticas de mi empresa."
+              author="Ana G."
+              role="IT Manager"
+            />
+          </div>
+        </section>
 
         {/* Hosted vs Self-Hosted Section */}
         {config.sections.comparison.enabled && (
@@ -776,6 +882,42 @@ export default function Landing() {
             </div>
           </section>
         )}
+
+        {/* FAQ Section */}
+        <section className="max-w-[1600px] mx-auto px-6 mb-24">
+          <div className="grid md:grid-cols-2 gap-12 items-start">
+            <div>
+              <h2 className="text-3xl font-bold text-dark-900 dark:text-white mb-4">Preguntas frecuentes</h2>
+              <p className="text-lg text-dark-500">Todo lo que necesitas saber sobre CloudBox.</p>
+            </div>
+            <div className="bg-white dark:bg-dark-800 rounded-2xl border border-dark-200 dark:border-dark-700 p-6">
+              <FAQItem
+                question="¿Qué es CloudBox?"
+                answer="CloudBox es una solución de almacenamiento en la nube privada que puedes usar hosted o self-hosted. Incluye reproductor de música, galería de fotos, y más."
+                isOpen={openFAQ === 0}
+                onClick={() => setOpenFAQ(openFAQ === 0 ? null : 0)}
+              />
+              <FAQItem
+                question="¿Puedo autohospedarlo?"
+                answer="¡Sí! CloudBox es open source y puedes desplegarlo en tu propio servidor con Docker. Tenés control total sobre tus datos."
+                isOpen={openFAQ === 1}
+                onClick={() => setOpenFAQ(openFAQ === 1 ? null : 1)}
+              />
+              <FAQItem
+                question="¿Qué formatos soporta el reproductor?"
+                answer="El reproductor soporta MP3, WAV, FLAC, OGG y más. Incluye visualización de carátulas, cola de reproducción y shuffle."
+                isOpen={openFAQ === 2}
+                onClick={() => setOpenFAQ(openFAQ === 2 ? null : 2)}
+              />
+              <FAQItem
+                question="¿Mis archivos están seguros?"
+                answer="Usamos HTTPS para cifrado en tránsito. En la versión self-hosted, vos controlás completamente la seguridad de tus datos."
+                isOpen={openFAQ === 3}
+                onClick={() => setOpenFAQ(openFAQ === 3 ? null : 3)}
+              />
+            </div>
+          </div>
+        </section>
 
         {/* CTA Final */}
         <section className="max-w-4xl mx-auto px-6">
