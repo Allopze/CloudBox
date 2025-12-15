@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState, useRef } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import {
+  Globe,
   Check,
   Menu,
   Moon,
@@ -12,7 +13,6 @@ import {
   LayoutGrid,
   List,
   Plus,
-  Upload,
   Folder,
   FileText,
   Image as ImageIcon,
@@ -27,8 +27,6 @@ import {
   Star,
   Archive,
   Album,
-  Globe,
-  ChevronDown,
   Camera,
   Briefcase,
   Code,
@@ -45,6 +43,8 @@ import { useThemeStore } from '../../stores/themeStore';
 import { useBrandingStore } from '../../stores/brandingStore';
 import { FALLBACK_LANDING_CONFIG } from './landing/defaultConfig';
 import type { LandingConfigV1 } from './landing/types';
+import { MusicPlayerMockup, GalleryMockup, FilesMockup, SharingMockup } from './landing/Mockups';
+import { motion } from 'framer-motion';
 
 // --- Atomic UI Components ---
 
@@ -159,26 +159,30 @@ const UseCaseCard = ({ icon: Icon, title, description, color }: { icon: LucideIc
 // --- Tech Stack Logos Component ---
 const TechStackLogos = () => {
   const technologies = [
-    { name: 'React', color: '#61DAFB', letter: 'R' },
-    { name: 'Node.js', color: '#339933', letter: 'N' },
-    { name: 'TypeScript', color: '#3178C6', letter: 'TS' },
-    { name: 'PostgreSQL', color: '#4169E1', letter: 'PG' },
-    { name: 'Docker', color: '#2496ED', letter: 'D' },
-    { name: 'Vite', color: '#646CFF', letter: 'V' },
+    { name: 'React', src: '/logos/React.svg', href: 'https://react.dev' },
+    { name: 'Node.js', src: '/logos/Node.js.svg', href: 'https://nodejs.org' },
+    { name: 'TypeScript', src: '/logos/Typescript.svg', href: 'https://www.typescriptlang.org' },
+    { name: 'PostgreSQL', src: '/logos/Postgresql.svg', href: 'https://www.postgresql.org' },
+    { name: 'Redis', src: '/logos/Redis.svg', href: 'https://redis.io' },
+    { name: 'Docker', src: '/logos/Docker.svg', href: 'https://www.docker.com' },
+    { name: 'Vite', src: '/logos/Vitejs.svg', href: 'https://vitejs.dev' },
   ];
 
   return (
-    <div className="flex flex-wrap items-center justify-center gap-6 md:gap-10">
+    <div className="flex flex-wrap items-center justify-center gap-8 md:gap-12 grayscale opacity-70 hover:grayscale-0 hover:opacity-100 transition-all duration-500">
       {technologies.map((tech) => (
-        <div key={tech.name} className="flex flex-col items-center gap-2 group cursor-default">
-          <div
-            className="w-14 h-14 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-lg group-hover:scale-110 transition-transform"
-            style={{ backgroundColor: tech.color }}
-          >
-            {tech.letter}
+        <a
+          key={tech.name}
+          href={tech.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex flex-col items-center gap-2 group cursor-pointer"
+          aria-label={`Visit ${tech.name} website`}
+        >
+          <div className="w-12 h-12 md:w-14 md:h-14 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+            <img src={tech.src} alt={tech.name} className="w-full h-full object-contain" />
           </div>
-          <span className="text-xs font-medium text-dark-500 dark:text-dark-400 group-hover:text-dark-700 dark:group-hover:text-dark-200 transition-colors">{tech.name}</span>
-        </div>
+        </a>
       ))}
     </div>
   );
@@ -246,26 +250,26 @@ const FAQItem = ({ question, answer, isOpen, onClick }: { question: string; answ
 
 
 // --- Brand Logo Component ---
-const BrandLogo = ({ logoSrc, className = "h-8" }: { logoSrc?: string; className?: string }) => (
+const BrandLogo = ({ logoSrc, className = "h-10" }: { logoSrc?: string; className?: string }) => (
   <div className={`flex items-center gap-2 ${className}`}>
     {logoSrc ? (
-      <img src={logoSrc} alt="CloudBox" className="h-8 w-auto" />
+      <img src={logoSrc} alt="CloudBox" className="h-10 w-auto" />
     ) : (
       <>
         {/* Light Mode */}
         <div className="dark:hidden flex items-center gap-2">
-          <div className="w-8 h-8 bg-[#F44336] rounded-xl flex items-center justify-center shadow-md shadow-[#F44336]/20">
-            <span className="text-white text-sm font-bold">C</span>
+          <div className="w-10 h-10 bg-[#F44336] rounded-xl flex items-center justify-center shadow-md shadow-[#F44336]/20">
+            <span className="text-white text-lg font-bold">C</span>
           </div>
-          <span className="text-dark-900 font-bold tracking-tight text-xl">CloudBox</span>
+          <span className="text-dark-900 font-bold tracking-tight text-2xl">CloudBox</span>
         </div>
 
         {/* Dark Mode */}
         <div className="hidden dark:flex items-center gap-2">
-          <div className="w-8 h-8 bg-white rounded-xl flex items-center justify-center shadow-md">
-            <span className="text-[#F44336] text-sm font-bold">C</span>
+          <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-md">
+            <span className="text-[#F44336] text-lg font-bold">C</span>
           </div>
-          <span className="text-white font-bold tracking-tight text-xl">CloudBox</span>
+          <span className="text-white font-bold tracking-tight text-2xl">CloudBox</span>
         </div>
       </>
     )}
@@ -273,79 +277,10 @@ const BrandLogo = ({ logoSrc, className = "h-8" }: { logoSrc?: string; className
 );
 
 
-// --- Language Selector Component ---
-const LANGUAGES = [
-  { code: 'es', name: 'Español', flag: '🇪🇸' },
-  { code: 'en', name: 'English', flag: '🇺🇸' },
-  { code: 'fr', name: 'Français', flag: '🇫🇷' },
-  { code: 'de', name: 'Deutsch', flag: '🇩🇪' },
-  { code: 'it', name: 'Italiano', flag: '🇮🇹' },
-  { code: 'pt', name: 'Português', flag: '🇧🇷' },
-];
-
-const LanguageSelector = () => {
-  const { i18n, t } = useTranslation();
-  const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  const currentLang = LANGUAGES.find(l => l.code === i18n.language) || LANGUAGES[0];
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const handleLanguageChange = (langCode: string) => {
-    i18n.changeLanguage(langCode);
-    setIsOpen(false);
-  };
-
-  return (
-    <div className="relative" ref={dropdownRef}>
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium text-dark-600 dark:text-dark-300 hover:bg-dark-100 dark:hover:bg-dark-800 transition-all duration-200"
-        aria-label={t('language.label')}
-      >
-        <Globe className="w-4 h-4" />
-        <span className="hidden sm:inline">{currentLang.flag}</span>
-        <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
-      </button>
-
-      {/* Dropdown */}
-      {isOpen && (
-        <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-dark-800 border border-dark-200 dark:border-dark-700 rounded-xl shadow-xl shadow-dark-200/50 dark:shadow-black/30 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="py-1">
-            {LANGUAGES.map((lang) => (
-              <button
-                key={lang.code}
-                onClick={() => handleLanguageChange(lang.code)}
-                className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${i18n.language === lang.code
-                  ? 'bg-[#F44336]/10 text-[#F44336] font-medium'
-                  : 'text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700'
-                  }`}
-              >
-                <span className="text-lg">{lang.flag}</span>
-                <span>{lang.name}</span>
-                {i18n.language === lang.code && (
-                  <Check className="w-4 h-4 ml-auto text-[#F44336]" />
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
+import LanguageSelector from '../../components/LanguageSelector';
 
 const HeroMockup = ({ isDark, logoLight, logoDark }: { isDark: boolean; logoLight?: string; logoDark?: string }) => {
+
   // Use the appropriate logo based on theme
   const logoSrc = isDark ? logoDark : logoLight;
 
@@ -354,6 +289,18 @@ const HeroMockup = ({ isDark, logoLight, logoDark }: { isDark: boolean; logoLigh
       {/* Header */}
       <div className="h-14 border-b border-dark-100 dark:border-dark-700 flex items-center justify-between px-4 bg-white dark:bg-dark-900 flex-shrink-0">
         <div className="flex items-center gap-4 flex-1">
+          {/* Window Controls */}
+          <div className="flex items-center gap-1.5 mr-4 lg:hidden">
+            <div className="w-2.5 h-2.5 rounded-full bg-[#FF5F57] border border-[#E0443E]/50" />
+            <div className="w-2.5 h-2.5 rounded-full bg-[#FEBC2E] border border-[#D89E24]/50" />
+            <div className="w-2.5 h-2.5 rounded-full bg-[#28C840] border border-[#1AAB29]/50" />
+          </div>
+          <div className="hidden lg:flex items-center gap-1.5 mr-4">
+            <div className="w-3 h-3 rounded-full bg-[#FF5F57] border border-[#E0443E]/50" />
+            <div className="w-3 h-3 rounded-full bg-[#FEBC2E] border border-[#D89E24]/50" />
+            <div className="w-3 h-3 rounded-full bg-[#28C840] border border-[#1AAB29]/50" />
+          </div>
+
           {/* Logo */}
           <div className="flex items-center gap-1.5">
             {logoSrc ? (
@@ -486,238 +433,7 @@ const HeroMockup = ({ isDark, logoLight, logoDark }: { isDark: boolean; logoLigh
   );
 };
 
-// --- Mini Mockups for Flow Section ---
 
-const UploadMiniMockup = () => (
-  <div className="h-36 bg-white dark:bg-dark-900 rounded-lg overflow-hidden flex flex-col">
-    {/* Mini header */}
-    <div className="h-6 bg-dark-50 dark:bg-dark-800 border-b border-dark-100 dark:border-dark-700 flex items-center px-2 gap-1">
-      <div className="w-2 h-2 rounded-full bg-[#F44336]"></div>
-      <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
-      <div className="w-2 h-2 rounded-full bg-green-500"></div>
-      <span className="text-[8px] text-dark-400 ml-2">Mis archivos</span>
-    </div>
-    {/* Upload zone */}
-    <div className="flex-1 p-2 flex items-center justify-center">
-      <div className="w-full h-full border-2 border-dashed border-[#F44336]/40 bg-[#F44336]/5 rounded-lg flex flex-col items-center justify-center gap-1">
-        <Upload className="w-5 h-5 text-[#F44336]" />
-        <span className="text-[8px] text-dark-500 font-medium">Suelta archivos aquí</span>
-        <div className="w-16 h-1 bg-dark-200 dark:bg-dark-700 rounded-full mt-1">
-          <div className="h-full w-2/3 bg-[#F44336] rounded-full animate-pulse"></div>
-        </div>
-      </div>
-    </div>
-  </div>
-);
-
-const OrganizeMiniMockup = () => (
-  <div className="h-36 bg-white dark:bg-dark-900 rounded-lg overflow-hidden flex flex-col">
-    {/* Mini header */}
-    <div className="h-6 bg-dark-50 dark:bg-dark-800 border-b border-dark-100 dark:border-dark-700 flex items-center px-2">
-      <Folder className="w-3 h-3 text-dark-400 mr-1" />
-      <span className="text-[8px] text-dark-400">Mis archivos</span>
-    </div>
-    {/* Folder grid */}
-    <div className="flex-1 p-2 grid grid-cols-3 gap-1">
-      {['Fotos', 'Docs', 'Música'].map((name, i) => (
-        <div key={i} className="flex flex-col items-center p-1 rounded hover:bg-dark-50 dark:hover:bg-dark-800">
-          <div className="w-6 h-6 rounded bg-[#F44336]/10 flex items-center justify-center mb-0.5">
-            <Folder className="w-3.5 h-3.5 text-[#F44336] fill-[#F44336]/80" />
-          </div>
-          <span className="text-[7px] text-dark-600 dark:text-dark-300 truncate w-full text-center">{name}</span>
-        </div>
-      ))}
-      {['Doc.pdf', 'Foto.jpg', 'Data.zip'].map((name, i) => (
-        <div key={i} className="flex flex-col items-center p-1 rounded hover:bg-dark-50 dark:hover:bg-dark-800">
-          <div className="w-6 h-6 rounded bg-blue-500/10 flex items-center justify-center mb-0.5">
-            <FileText className="w-3.5 h-3.5 text-blue-500" />
-          </div>
-          <span className="text-[7px] text-dark-500 truncate w-full text-center">{name}</span>
-        </div>
-      ))}
-    </div>
-  </div>
-);
-
-const ShareMiniMockup = () => (
-  <div className="h-36 bg-white dark:bg-dark-900 rounded-lg overflow-hidden flex flex-col">
-    {/* Modal header */}
-    <div className="h-7 bg-dark-50 dark:bg-dark-800 border-b border-dark-100 dark:border-dark-700 flex items-center justify-between px-2">
-      <span className="text-[8px] font-bold text-dark-700 dark:text-dark-200">Compartir archivo</span>
-      <X className="w-3 h-3 text-dark-400" />
-    </div>
-    {/* Modal content */}
-    <div className="flex-1 p-2 flex flex-col gap-1.5">
-      <div className="flex items-center gap-1">
-        <span className="text-[7px] text-dark-500 w-10">Enlace:</span>
-        <div className="flex-1 h-4 bg-dark-100 dark:bg-dark-800 rounded text-[7px] text-dark-400 px-1 flex items-center font-mono">cloudbox.lat/s/x8kj2...</div>
-      </div>
-      <div className="flex items-center gap-1">
-        <span className="text-[7px] text-dark-500 w-10">Expira:</span>
-        <div className="flex-1 h-4 bg-dark-100 dark:bg-dark-800 rounded text-[7px] text-dark-500 px-1 flex items-center">7 días</div>
-      </div>
-      <div className="flex items-center gap-1">
-        <span className="text-[7px] text-dark-500 w-10">Clave:</span>
-        <div className="flex-1 h-4 bg-dark-100 dark:bg-dark-800 rounded text-[7px] text-dark-500 px-1 flex items-center">••••••</div>
-      </div>
-      <button className="mt-auto h-5 bg-[#F44336] rounded text-[8px] text-white font-medium flex items-center justify-center gap-1">
-        <Check className="w-3 h-3" /> Copiar enlace
-      </button>
-    </div>
-  </div>
-);
-
-const MusicMiniMockup = () => (
-  <div className="h-36 bg-white dark:bg-dark-900 rounded-lg overflow-hidden flex flex-col">
-    {/* Player header */}
-    <div className="h-6 bg-dark-50 dark:bg-dark-800 border-b border-dark-100 dark:border-dark-700 flex items-center px-2">
-      <Music className="w-3 h-3 text-[#F44336] mr-1" />
-      <span className="text-[8px] text-dark-400">Reproductor</span>
-    </div>
-    {/* Player content */}
-    <div className="flex-1 p-2 flex items-center gap-2">
-      {/* Vinyl */}
-      <div className="w-16 h-16 flex-shrink-0">
-        <svg viewBox="0 0 64 64" className="w-full h-full animate-[spin_3s_linear_infinite]">
-          <circle cx="32" cy="32" r="32" fill="#1a1a1a" />
-          <circle cx="32" cy="32" r="28" fill="none" stroke="#2a2a2a" strokeWidth="0.5" />
-          <circle cx="32" cy="32" r="24" fill="none" stroke="#252525" strokeWidth="0.5" />
-          <circle cx="32" cy="32" r="20" fill="none" stroke="#2a2a2a" strokeWidth="0.5" />
-          <circle cx="32" cy="32" r="11" fill="#F44336" />
-          <circle cx="32" cy="32" r="3" fill="white" />
-        </svg>
-      </div>
-      {/* Controls */}
-      <div className="flex-1 flex flex-col min-w-0">
-        <div className="text-[9px] font-bold text-dark-800 dark:text-dark-200 truncate">Mi Canción</div>
-        <div className="text-[7px] text-dark-400 mb-1">1 de 12</div>
-        <div className="w-full h-1 bg-[#F44336]/10 rounded-full mb-1">
-          <div className="h-full w-1/3 bg-[#F44336] rounded-full"></div>
-        </div>
-        <div className="flex items-center justify-center gap-2">
-          <div className="w-3 h-3 text-dark-400"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="19 20 9 12 19 4" /><line x1="5" y1="19" x2="5" y2="5" /></svg></div>
-          <div className="w-5 h-5 rounded-full bg-dark-900 dark:bg-white flex items-center justify-center"><svg className="w-2 h-2 text-white dark:text-dark-900" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg></div>
-          <div className="w-3 h-3 text-dark-400"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="5 4 15 12 5 20" /><line x1="19" y1="5" x2="19" y2="19" /></svg></div>
-        </div>
-      </div>
-    </div>
-  </div>
-);
-
-const AdminMiniMockup = () => (
-  <div className="h-36 bg-white dark:bg-dark-900 rounded-lg overflow-hidden flex flex-col">
-    {/* Settings header */}
-    <div className="h-6 bg-dark-50 dark:bg-dark-800 border-b border-dark-100 dark:border-dark-700 flex items-center px-2">
-      <Settings className="w-3 h-3 text-dark-400 mr-1" />
-      <span className="text-[8px] text-dark-400">Configuración</span>
-    </div>
-    {/* Settings content */}
-    <div className="flex-1 p-2 flex flex-col gap-1.5">
-      <div className="flex items-center gap-2">
-        <div className="w-5 h-5 rounded bg-[#F44336] flex items-center justify-center">
-          <span className="text-[8px] text-white font-bold">C</span>
-        </div>
-        <div className="flex flex-col">
-          <span className="text-[8px] font-bold text-dark-700 dark:text-dark-200">CloudBox</span>
-          <span className="text-[6px] text-dark-400">Tu marca aquí</span>
-        </div>
-      </div>
-      <div className="flex items-center justify-between">
-        <span className="text-[7px] text-dark-500">Tema oscuro</span>
-        <div className="w-6 h-3 bg-[#F44336] rounded-full relative">
-          <div className="w-2 h-2 bg-white rounded-full absolute right-0.5 top-0.5"></div>
-        </div>
-      </div>
-      <div className="flex items-center justify-between">
-        <span className="text-[7px] text-dark-500">Color primario</span>
-        <div className="flex gap-0.5">
-          <div className="w-3 h-3 rounded-full bg-[#F44336] ring-1 ring-dark-300"></div>
-          <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-          <div className="w-3 h-3 rounded-full bg-green-500"></div>
-        </div>
-      </div>
-    </div>
-  </div>
-);
-
-const GalleryMiniMockup = () => (
-  <div className="h-36 bg-white dark:bg-dark-900 rounded-lg overflow-hidden flex flex-col">
-    {/* Gallery header */}
-    <div className="h-6 bg-dark-50 dark:bg-dark-800 border-b border-dark-100 dark:border-dark-700 flex items-center px-2">
-      <ImageIcon className="w-3 h-3 text-[#F44336] mr-1" />
-      <span className="text-[8px] text-dark-400">Galería</span>
-    </div>
-    {/* Photo grid */}
-    <div className="flex-1 p-1.5 grid grid-cols-3 gap-1">
-      {[
-        'bg-gradient-to-br from-blue-400 to-purple-500',
-        'bg-gradient-to-br from-orange-400 to-pink-500',
-        'bg-gradient-to-br from-green-400 to-teal-500',
-        'bg-gradient-to-br from-pink-400 to-rose-500',
-        'bg-gradient-to-br from-yellow-400 to-orange-500',
-        'bg-gradient-to-br from-indigo-400 to-blue-500',
-      ].map((gradient, i) => (
-        <div key={i} className={`${gradient} rounded aspect-square flex items-center justify-center`}>
-          <ImageIcon className="w-3 h-3 text-white/60" />
-        </div>
-      ))}
-    </div>
-  </div>
-);
-
-const FavoritesMiniMockup = () => (
-  <div className="h-36 bg-white dark:bg-dark-900 rounded-lg overflow-hidden flex flex-col">
-    {/* Favorites header */}
-    <div className="h-6 bg-dark-50 dark:bg-dark-800 border-b border-dark-100 dark:border-dark-700 flex items-center px-2">
-      <Star className="w-3 h-3 text-yellow-500 fill-yellow-500 mr-1" />
-      <span className="text-[8px] text-dark-400">Favoritos</span>
-    </div>
-    {/* Favorites list */}
-    <div className="flex-1 p-2 flex flex-col gap-1.5">
-      {[
-        { name: 'Proyecto.pdf', icon: FileText, color: 'text-blue-500' },
-        { name: 'Diseños', icon: Folder, color: 'text-[#F44336]' },
-        { name: 'Música', icon: Music, color: 'text-purple-500' },
-      ].map((item, i) => (
-        <div key={i} className="flex items-center gap-2 p-1 rounded hover:bg-dark-50 dark:hover:bg-dark-800">
-          <item.icon className={`w-4 h-4 ${item.color}`} />
-          <span className="text-[8px] text-dark-700 dark:text-dark-300 flex-1 truncate">{item.name}</span>
-          <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
-        </div>
-      ))}
-    </div>
-  </div>
-);
-
-const TrashMiniMockup = () => (
-  <div className="h-36 bg-white dark:bg-dark-900 rounded-lg overflow-hidden flex flex-col">
-    {/* Trash header */}
-    <div className="h-6 bg-dark-50 dark:bg-dark-800 border-b border-dark-100 dark:border-dark-700 flex items-center justify-between px-2">
-      <div className="flex items-center">
-        <Trash2 className="w-3 h-3 text-dark-400 mr-1" />
-        <span className="text-[8px] text-dark-400">Papelera</span>
-      </div>
-      <span className="text-[6px] text-dark-400 bg-dark-100 dark:bg-dark-700 px-1.5 py-0.5 rounded">3 elementos</span>
-    </div>
-    {/* Trash items */}
-    <div className="flex-1 p-2 flex flex-col gap-1">
-      {[
-        { name: 'Borrador_v1.docx', date: 'Hace 2 días' },
-        { name: 'Imagen_temp.jpg', date: 'Hace 5 días' },
-        { name: 'old_backup.zip', date: 'Hace 1 semana' },
-      ].map((item, i) => (
-        <div key={i} className="flex items-center gap-2 p-1 rounded bg-dark-50/50 dark:bg-dark-800/50">
-          <FileText className="w-3.5 h-3.5 text-dark-400" />
-          <div className="flex-1 min-w-0">
-            <span className="text-[7px] text-dark-600 dark:text-dark-300 truncate block">{item.name}</span>
-            <span className="text-[6px] text-dark-400">{item.date}</span>
-          </div>
-          <button className="text-[6px] text-[#F44336] font-medium">Restaurar</button>
-        </div>
-      ))}
-    </div>
-  </div>
-);
 
 // --- Main Component ---
 
@@ -767,22 +483,13 @@ export default function Landing() {
     [config.sections, t]
   );
 
-  const flowSteps = [
-    { title: 'Sube', desc: 'Drag & drop inteligente con soporte para archivos grandes.', mockup: UploadMiniMockup },
-    { title: 'Organiza', desc: 'Mueve y ordena como en tu sistema operativo local.', mockup: OrganizeMiniMockup },
-    { title: 'Explora', desc: 'Visualiza tus fotos en una galería moderna con lightbox.', mockup: GalleryMiniMockup },
-    { title: 'Reproduce', desc: 'Escucha tu música con reproductor integrado y colas.', mockup: MusicMiniMockup },
-    { title: 'Favoritos', desc: 'Marca archivos importantes para acceso rápido.', mockup: FavoritesMiniMockup },
-    { title: 'Comparte', desc: 'Genera enlaces públicos con contraseña y caducidad.', mockup: ShareMiniMockup },
-    { title: 'Recupera', desc: 'Restaura archivos eliminados desde la papelera.', mockup: TrashMiniMockup },
-    { title: 'Administra', desc: 'Personaliza colores y logo desde el panel visual.', mockup: AdminMiniMockup },
-  ];
+
 
   return (
     <div className="bg-dark-50 dark:bg-dark-900 min-h-screen text-dark-600 dark:text-dark-400 transition-colors duration-300 selection:bg-[#F44336]/30 selection:text-[#F44336]">
 
       {/* Header */}
-      <header className={`fixed top-0 w-full z-50 h-20 border-b transition-all duration-300 ${scrolled ? 'bg-white/90 dark:bg-dark-900/90 backdrop-blur-xl border-dark-200 dark:border-dark-700 shadow-sm' : 'bg-transparent border-transparent'}`}>
+      <header className={`fixed top-0 w-full z-50 h-16 border-b transition-all duration-300 ${scrolled ? 'bg-white/90 dark:bg-dark-900/90 backdrop-blur-xl border-dark-200 dark:border-dark-700 shadow-sm' : 'bg-transparent border-transparent'}`}>
         <div className="max-w-7xl mx-auto px-6 h-full flex items-center justify-between">
 
           {/* Logo */}
@@ -943,25 +650,111 @@ export default function Landing() {
           ]}
         />
 
-        {/* Flow Section */}
+        {/* Flow Section - Zig Zag */}
         {config.sections.howItWorks.enabled && (
-          <section className="max-w-[1600px] mx-auto px-6 mt-20 mb-24">
-            <div className="mb-16 text-center md:text-left">
-              <h2 className="text-3xl font-bold text-dark-900 dark:text-white mb-4">Todo lo que necesitas, en un solo lugar</h2>
-              <p className="text-lg text-dark-500 dark:text-dark-400">Diseñado para imitar tu flujo mental, no para interrumpirlo.</p>
-            </div>
+          <section className="max-w-[1600px] mx-auto px-6 mt-32 mb-40 space-y-32">
 
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
-              {flowSteps.map((item, idx) => (
-                <Panel key={idx} className="group hover:border-[#F44336]/20 transition-all hover:shadow-xl hover:shadow-dark-200/50 dark:hover:shadow-none hover:-translate-y-1">
-                  <div className="mb-6 overflow-hidden rounded-2xl border border-dark-100 dark:border-dark-700">
-                    <item.mockup />
-                  </div>
-                  <h3 className="text-xl font-bold text-dark-900 dark:text-white mb-3">{item.title}</h3>
-                  <p className="text-sm text-dark-500 leading-relaxed">{item.desc}</p>
-                </Panel>
-              ))}
-            </div>
+            {/* Step 1: Files */}
+            <motion.div
+              initial={{ opacity: 0, y: 40 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ duration: 0.7 }}
+              className="grid lg:grid-cols-2 gap-12 items-center"
+            >
+              <div className="order-2 lg:order-1">
+                <div className="h-[400px] md:h-[500px] w-full">
+                  <FilesMockup />
+                </div>
+              </div>
+              <div className="order-1 lg:order-2 pl-0 lg:pl-12">
+                <Badge className="mb-6 border-[#F44336]/20 bg-[#F44336]/10 text-[#F44336] px-4 py-1.5 text-sm font-semibold">Organización</Badge>
+                <h2 className="text-4xl md:text-5xl font-bold text-dark-900 dark:text-white mb-6">Tu espacio de trabajo, <br />reinventado.</h2>
+                <p className="text-xl text-dark-500 dark:text-dark-400 leading-relaxed mb-8">
+                  Arrastra, suelta y organiza. Un sistema de archivos completo en la nube que se siente tan rápido como tu disco local.
+                </p>
+                <ul className="space-y-4">
+                  {['Subidas ilimitadas', 'Vista de lista y cuadrícula', 'Búsqueda instantánea'].map(item => (
+                    <li key={item} className="flex items-center gap-3 text-dark-700 dark:text-dark-300">
+                      <div className="w-6 h-6 rounded-full bg-[#F44336]/10 flex items-center justify-center">
+                        <Check className="w-4 h-4 text-[#F44336]" />
+                      </div>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </motion.div>
+
+            {/* Step 2: Music */}
+            <motion.div
+              initial={{ opacity: 0, y: 40 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ duration: 0.7 }}
+              className="grid lg:grid-cols-2 gap-12 items-center"
+            >
+              <div className="order-1 pr-0 lg:pr-12">
+                <Badge className="mb-6 border-violet-500/20 bg-violet-500/10 text-violet-600 dark:text-violet-400 px-4 py-1.5 text-sm font-semibold">Media</Badge>
+                <h2 className="text-4xl md:text-5xl font-bold text-dark-900 dark:text-white mb-6">Tu música, <br />donde vayas.</h2>
+                <p className="text-xl text-dark-500 dark:text-dark-400 leading-relaxed mb-8">
+                  No es solo almacenamiento. Es un reproductor de streaming completo con soporte para FLAC, listas de reproducción y metadatos.
+                </p>
+                <button className="px-6 py-3 bg-dark-100 dark:bg-dark-800 text-dark-900 dark:text-white rounded-full font-medium hover:bg-dark-200 dark:hover:bg-dark-700 transition-colors">
+                  Ver Demo
+                </button>
+              </div>
+              <div className="order-2">
+                <div className="h-[400px] md:h-[500px] w-full transform lg:translate-x-12 hover:translate-x-0 transition-transform duration-500">
+                  <MusicPlayerMockup />
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Step 3: Gallery */}
+            <motion.div
+              initial={{ opacity: 0, y: 40 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ duration: 0.7 }}
+              className="grid lg:grid-cols-2 gap-12 items-center"
+            >
+              <div className="order-2 lg:order-1">
+                <div className="h-[400px] md:h-[500px] w-full transform lg:-translate-x-12 hover:translate-x-0 transition-transform duration-500">
+                  <GalleryMockup />
+                </div>
+              </div>
+              <div className="order-1 lg:order-2 pl-0 lg:pl-12">
+                <Badge className="mb-6 border-sky-500/20 bg-sky-500/10 text-sky-600 dark:text-sky-400 px-4 py-1.5 text-sm font-semibold">Galería</Badge>
+                <h2 className="text-4xl md:text-5xl font-bold text-dark-900 dark:text-white mb-6">Tus recuerdos <br />en alta definición.</h2>
+                <p className="text-xl text-dark-500 dark:text-dark-400 leading-relaxed mb-8">
+                  Visualiza tus fotos en un lightbox inmersivo. Crea álbumes, comparte colecciones y mantén tus momentos seguros.
+                </p>
+              </div>
+            </motion.div>
+
+            {/* Step 4: Sharing */}
+            <motion.div
+              initial={{ opacity: 0, y: 40 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ duration: 0.7 }}
+              className="grid lg:grid-cols-2 gap-12 items-center"
+            >
+              <div className="order-1 pr-0 lg:pr-12">
+                <Badge className="mb-6 border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-4 py-1.5 text-sm font-semibold">Colaboración</Badge>
+                <h2 className="text-4xl md:text-5xl font-bold text-dark-900 dark:text-white mb-6">Comparte con <br />control total.</h2>
+                <p className="text-xl text-dark-500 dark:text-dark-400 leading-relaxed mb-8">
+                  Genera enlaces públicos protegidos por contraseña. Establece fechas de expiración y límites de descarga.
+                </p>
+              </div>
+              <div className="order-2">
+                <div className="h-[400px] w-full flex items-center justify-center rounded-3xl">
+                  <SharingMockup />
+                </div>
+              </div>
+            </motion.div>
+
           </section>
         )}
 
@@ -983,105 +776,161 @@ export default function Landing() {
             {/* Bento Grid Layout */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 auto-rows-[180px]">
 
-              {/* Feature 1 - Large Card */}
-              <div className="md:col-span-2 md:row-span-2 group relative overflow-hidden rounded-3xl bg-rose-100 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 p-8 cursor-default hover:shadow-xl hover:shadow-rose-500/10 transition-all hover:-translate-y-1">
+              {/* Feature 1 - Large Card (Music) */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5 }}
+                className="md:col-span-2 md:row-span-2 group relative overflow-hidden rounded-3xl bg-white dark:bg-dark-800 border border-dark-200 dark:border-dark-700 p-8 cursor-default transition-all hover:border-dark-300 dark:hover:border-dark-500 hover:shadow-2xl hover:shadow-dark-200/50 dark:hover:shadow-black/50"
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-rose-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
                 <div className="relative z-10 h-full flex flex-col">
-                  <div className="w-14 h-14 bg-rose-200 dark:bg-rose-900/50 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                    <Music className="w-7 h-7 text-rose-600 dark:text-rose-400" />
+                  <div className="w-14 h-14 bg-dark-50 dark:bg-dark-700/50 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300 border border-dark-100 dark:border-dark-600 group-hover:border-rose-500/30">
+                    <Music className="w-7 h-7 text-dark-500 dark:text-dark-400 group-hover:text-rose-500 transition-colors" />
                   </div>
-                  <h3 className="text-2xl font-bold text-rose-900 dark:text-rose-100 mb-3">Reproductor de Música</h3>
-                  <p className="text-rose-700 dark:text-rose-300 text-lg leading-relaxed flex-1">
+                  <h3 className="text-2xl font-bold text-dark-900 dark:text-white mb-3 group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors">Reproductor de Música</h3>
+                  <p className="text-dark-500 dark:text-dark-400 text-lg leading-relaxed flex-1">
                     Streaming integrado con cola de reproducción, shuffle, repeat y visualización de carátulas. Soporta MP3, WAV, FLAC y más.
                   </p>
-                  <div className="flex items-center gap-2 mt-4">
-                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                    <span className="text-rose-600 dark:text-rose-400 text-sm">Reproduciendo ahora</span>
+                  <div className="flex items-center gap-2 mt-4 translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
+                    <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></div>
+                    <span className="text-rose-600 dark:text-rose-400 text-sm font-medium">Reproduciendo ahora</span>
                   </div>
                 </div>
-              </div>
+              </motion.div>
 
-              {/* Feature 2 */}
-              <div className="group relative overflow-hidden rounded-3xl bg-sky-100 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-900/50 p-6 cursor-default hover:shadow-xl hover:shadow-sky-500/10 transition-all hover:-translate-y-1">
+              {/* Feature 2 (Gallery) */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: 0.1 }}
+                className="group relative overflow-hidden rounded-3xl bg-white dark:bg-dark-800 border border-dark-200 dark:border-dark-700 p-6 cursor-default transition-all hover:border-dark-300 dark:hover:border-dark-500 hover:shadow-xl"
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-sky-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
                 <div className="relative z-10 h-full flex flex-col">
-                  <div className="w-12 h-12 bg-sky-200 dark:bg-sky-900/50 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                    <ImageIcon className="w-6 h-6 text-sky-600 dark:text-sky-400" />
+                  <div className="w-12 h-12 bg-dark-50 dark:bg-dark-700/50 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform border border-dark-100 dark:border-dark-600 group-hover:border-sky-500/30">
+                    <ImageIcon className="w-6 h-6 text-dark-500 dark:text-dark-400 group-hover:text-sky-500 transition-colors" />
                   </div>
-                  <h3 className="text-lg font-bold text-sky-900 dark:text-sky-100 mb-2">Galería de Fotos</h3>
-                  <p className="text-sky-700 dark:text-sky-300 text-sm">Lightbox moderno con navegación táctil</p>
+                  <h3 className="text-lg font-bold text-dark-900 dark:text-white mb-2 group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors">Galería de Fotos</h3>
+                  <p className="text-dark-500 dark:text-dark-400 text-sm">Lightbox moderno con navegación táctil</p>
                 </div>
-              </div>
+              </motion.div>
 
-              {/* Feature 3 */}
-              <div className="group relative overflow-hidden rounded-3xl bg-violet-100 dark:bg-violet-950/40 border border-violet-200 dark:border-violet-900/50 p-6 cursor-default hover:shadow-xl hover:shadow-violet-500/10 transition-all hover:-translate-y-1">
+              {/* Feature 3 (Albums) */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+                className="group relative overflow-hidden rounded-3xl bg-white dark:bg-dark-800 border border-dark-200 dark:border-dark-700 p-6 cursor-default transition-all hover:border-dark-300 dark:hover:border-dark-500 hover:shadow-xl"
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
                 <div className="relative z-10 h-full flex flex-col">
-                  <div className="w-12 h-12 bg-violet-200 dark:bg-violet-900/50 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                    <Album className="w-6 h-6 text-violet-600 dark:text-violet-400" />
+                  <div className="w-12 h-12 bg-dark-50 dark:bg-dark-700/50 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform border border-dark-100 dark:border-dark-600 group-hover:border-violet-500/30">
+                    <Album className="w-6 h-6 text-dark-500 dark:text-dark-400 group-hover:text-violet-500 transition-colors" />
                   </div>
-                  <h3 className="text-lg font-bold text-violet-900 dark:text-violet-100 mb-2">Álbumes</h3>
-                  <p className="text-violet-700 dark:text-violet-300 text-sm">Organiza fotos y música en colecciones</p>
+                  <h3 className="text-lg font-bold text-dark-900 dark:text-white mb-2 group-hover:text-violet-600 dark:group-hover:text-violet-400 transition-colors">Álbumes</h3>
+                  <p className="text-dark-500 dark:text-dark-400 text-sm">Organiza fotos y música en colecciones</p>
                 </div>
-              </div>
+              </motion.div>
 
-              {/* Feature 4 */}
-              <div className="group relative overflow-hidden rounded-3xl bg-amber-100 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 p-6 cursor-default hover:shadow-xl hover:shadow-amber-500/10 transition-all hover:-translate-y-1">
+              {/* Feature 4 (ZIP) */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: 0.3 }}
+                className="group relative overflow-hidden rounded-3xl bg-white dark:bg-dark-800 border border-dark-200 dark:border-dark-700 p-6 cursor-default transition-all hover:border-dark-300 dark:hover:border-dark-500 hover:shadow-xl"
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
                 <div className="relative z-10 h-full flex flex-col">
-                  <div className="w-12 h-12 bg-amber-200 dark:bg-amber-900/50 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                    <Archive className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+                  <div className="w-12 h-12 bg-dark-50 dark:bg-dark-700/50 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform border border-dark-100 dark:border-dark-600 group-hover:border-amber-500/30">
+                    <Archive className="w-6 h-6 text-dark-500 dark:text-dark-400 group-hover:text-amber-500 transition-colors" />
                   </div>
-                  <h3 className="text-lg font-bold text-amber-900 dark:text-amber-100 mb-2">Compresión ZIP</h3>
-                  <p className="text-amber-700 dark:text-amber-300 text-sm">Comprime y extrae archivos al instante</p>
+                  <h3 className="text-lg font-bold text-dark-900 dark:text-white mb-2 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">Compresión ZIP</h3>
+                  <p className="text-dark-500 dark:text-dark-400 text-sm">Comprime y extrae archivos al instante</p>
                 </div>
-              </div>
+              </motion.div>
 
-              {/* Feature 5 */}
-              <div className="group relative overflow-hidden rounded-3xl bg-yellow-100 dark:bg-yellow-950/40 border border-yellow-200 dark:border-yellow-900/50 p-6 cursor-default hover:shadow-xl hover:shadow-yellow-500/10 transition-all hover:-translate-y-1">
+              {/* Feature 5 (Favorites) */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: 0.4 }}
+                className="group relative overflow-hidden rounded-3xl bg-white dark:bg-dark-800 border border-dark-200 dark:border-dark-700 p-6 cursor-default transition-all hover:border-dark-300 dark:hover:border-dark-500 hover:shadow-xl"
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
                 <div className="relative z-10 h-full flex flex-col">
-                  <div className="w-12 h-12 bg-yellow-200 dark:bg-yellow-900/50 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                    <Star className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
+                  <div className="w-12 h-12 bg-dark-50 dark:bg-dark-700/50 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform border border-dark-100 dark:border-dark-600 group-hover:border-yellow-500/30">
+                    <Star className="w-6 h-6 text-dark-500 dark:text-dark-400 group-hover:text-yellow-500 transition-colors" />
                   </div>
-                  <h3 className="text-lg font-bold text-yellow-900 dark:text-yellow-100 mb-2">Favoritos</h3>
-                  <p className="text-yellow-700 dark:text-yellow-300 text-sm">Acceso rápido a lo importante</p>
+                  <h3 className="text-lg font-bold text-dark-900 dark:text-white mb-2 group-hover:text-yellow-600 dark:group-hover:text-yellow-400 transition-colors">Favoritos</h3>
+                  <p className="text-dark-500 dark:text-dark-400 text-sm">Acceso rápido a lo importante</p>
                 </div>
-              </div>
+              </motion.div>
 
-              {/* Feature 6 - Wide Card */}
-              <div className="md:col-span-2 group relative overflow-hidden rounded-3xl bg-emerald-100 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 p-6 cursor-default hover:shadow-xl hover:shadow-emerald-500/10 transition-all hover:-translate-y-1">
+              {/* Feature 6 - Wide Card (Private Links) */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: 0.5 }}
+                className="md:col-span-2 group relative overflow-hidden rounded-3xl bg-white dark:bg-dark-800 border border-dark-200 dark:border-dark-700 p-6 cursor-default transition-all hover:border-dark-300 dark:hover:border-dark-500 hover:shadow-xl"
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
                 <div className="relative z-10 h-full flex flex-col md:flex-row md:items-center gap-4">
-                  <div className="w-12 h-12 bg-emerald-200 dark:bg-emerald-900/50 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                    <Lock className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+                  <div className="w-12 h-12 bg-dark-50 dark:bg-dark-700/50 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform border border-dark-100 dark:border-dark-600 group-hover:border-emerald-500/30">
+                    <Lock className="w-6 h-6 text-dark-500 dark:text-dark-400 group-hover:text-emerald-500 transition-colors" />
                   </div>
                   <div className="flex-1">
-                    <h3 className="text-lg font-bold text-emerald-900 dark:text-emerald-100 mb-1">Enlaces Privados</h3>
-                    <p className="text-emerald-700 dark:text-emerald-300 text-sm">Comparte con contraseña, límite de descargas y fecha de expiración</p>
+                    <h3 className="text-lg font-bold text-dark-900 dark:text-white mb-1 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">Enlaces Privados</h3>
+                    <p className="text-dark-500 dark:text-dark-400 text-sm">Comparte con contraseña, límite de descargas y fecha de expiración</p>
                   </div>
-                  <div className="hidden md:flex items-center gap-2 bg-emerald-200 dark:bg-emerald-900/50 rounded-full px-4 py-2">
+                  <div className="hidden md:flex items-center gap-2 bg-dark-50 dark:bg-dark-700/50 border border-dark-100 dark:border-dark-600 rounded-full px-4 py-2 group-hover:border-emerald-500/30 transition-colors">
                     <Shield className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                    <span className="text-emerald-700 dark:text-emerald-300 text-sm">Protegido</span>
+                    <span className="text-dark-600 dark:text-dark-300 text-sm">Protegido</span>
                   </div>
                 </div>
-              </div>
+              </motion.div>
 
-              {/* Feature 7 */}
-              <div className="group relative overflow-hidden rounded-3xl bg-slate-100 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/50 p-6 cursor-default hover:shadow-xl hover:shadow-slate-500/10 transition-all hover:-translate-y-1">
+              {/* Feature 7 (Trash) */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: 0.6 }}
+                className="group relative overflow-hidden rounded-3xl bg-white dark:bg-dark-800 border border-dark-200 dark:border-dark-700 p-6 cursor-default transition-all hover:border-dark-300 dark:hover:border-dark-500 hover:shadow-xl"
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-slate-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
                 <div className="relative z-10 h-full flex flex-col">
-                  <div className="w-12 h-12 bg-slate-200 dark:bg-slate-700/50 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                    <Trash2 className="w-6 h-6 text-slate-600 dark:text-slate-400" />
+                  <div className="w-12 h-12 bg-dark-50 dark:bg-dark-700/50 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform border border-dark-100 dark:border-dark-600 group-hover:border-slate-500/30">
+                    <Trash2 className="w-6 h-6 text-dark-500 dark:text-dark-400 group-hover:text-slate-500 transition-colors" />
                   </div>
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-2">Papelera</h3>
-                  <p className="text-slate-700 dark:text-slate-300 text-sm">Recupera archivos eliminados</p>
+                  <h3 className="text-lg font-bold text-dark-900 dark:text-white mb-2 group-hover:text-slate-600 dark:group-hover:text-slate-400 transition-colors">Papelera</h3>
+                  <p className="text-dark-500 dark:text-dark-400 text-sm">Recupera archivos eliminados</p>
                 </div>
-              </div>
+              </motion.div>
 
-              {/* Feature 8 */}
-              <div className="group relative overflow-hidden rounded-3xl bg-indigo-100 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-900/50 p-6 cursor-default hover:shadow-xl hover:shadow-indigo-500/10 transition-all hover:-translate-y-1">
+              {/* Feature 8 (Logs) */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: 0.7 }}
+                className="group relative overflow-hidden rounded-3xl bg-white dark:bg-dark-800 border border-dark-200 dark:border-dark-700 p-6 cursor-default transition-all hover:border-dark-300 dark:hover:border-dark-500 hover:shadow-xl"
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
                 <div className="relative z-10 h-full flex flex-col">
-                  <div className="w-12 h-12 bg-indigo-200 dark:bg-indigo-900/50 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                    <Activity className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+                  <div className="w-12 h-12 bg-dark-50 dark:bg-dark-700/50 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform border border-dark-100 dark:border-dark-600 group-hover:border-indigo-500/30">
+                    <Activity className="w-6 h-6 text-dark-500 dark:text-dark-400 group-hover:text-indigo-500 transition-colors" />
                   </div>
-                  <h3 className="text-lg font-bold text-indigo-900 dark:text-indigo-100 mb-2">Logs de Actividad</h3>
-                  <p className="text-indigo-700 dark:text-indigo-300 text-sm">Historial completo de acciones</p>
+                  <h3 className="text-lg font-bold text-dark-900 dark:text-white mb-2 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Logs de Actividad</h3>
+                  <p className="text-dark-500 dark:text-dark-400 text-sm">Historial completo de acciones</p>
                 </div>
-              </div>
+              </motion.div>
 
             </div>
           </section>
@@ -1585,11 +1434,26 @@ export default function Landing() {
 
             {/* Bottom bar */}
             <div className="pt-8 border-t border-dark-200 dark:border-dark-700 flex flex-col md:flex-row justify-between items-center gap-4">
-              <p className="text-sm text-dark-400">{t('landing.footer.copyright', { year: new Date().getFullYear() })}</p>
-              <div className="flex items-center gap-6">
-                <a href={config.links.githubUrl} target="_blank" rel="noopener noreferrer" className="text-dark-400 hover:text-dark-900 dark:hover:text-white transition-colors">
-                  <Code className="w-5 h-5" />
-                </a>
+              <p className="text-sm text-dark-400 order-2 md:order-1 flex items-center gap-1">
+                {t('landing.footer.copyright', { year: new Date().getFullYear() })}
+              </p>
+
+              <div className="flex flex-col md:flex-row items-center gap-6 order-1 md:order-2">
+                {/* Legal Links (Mobile/Desktop) */}
+                <div className="flex items-center gap-6 text-sm text-dark-400 font-medium">
+                  <Link to="/terms" className="hover:text-[#F44336] transition-colors">{t('landing.footer.legal.terms')}</Link>
+                  <span className="w-1.5 h-1.5 bg-dark-200 dark:bg-dark-700 rounded-full"></span>
+                  <Link to="/privacy" className="hover:text-[#F44336] transition-colors">{t('landing.footer.legal.privacy')}</Link>
+                </div>
+
+                <div className="w-px h-6 bg-dark-200 dark:bg-dark-700 hidden md:block"></div>
+
+                <div className="flex items-center gap-4">
+                  <LanguageSelector />
+                  <a href={config.links.githubUrl} target="_blank" rel="noopener noreferrer" className="text-dark-400 hover:text-dark-900 dark:hover:text-white transition-colors p-2">
+                    <Code className="w-5 h-5" />
+                  </a>
+                </div>
               </div>
             </div>
           </div>

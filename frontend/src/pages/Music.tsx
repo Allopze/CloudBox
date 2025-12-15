@@ -21,7 +21,8 @@ import AuthenticatedImage from '../components/AuthenticatedImage';
 interface ContextMenuState {
   x: number;
   y: number;
-  track: FileItem;
+  item: FileItem | any;
+  type: 'song' | 'album';
 }
 
 // Generate a consistent gradient color based on the track name
@@ -233,10 +234,10 @@ export default function MusicPage() {
   };
 
   // Context menu handlers
-  const handleContextMenu = (e: React.MouseEvent, track: FileItem) => {
+  const handleContextMenu = (e: React.MouseEvent, item: FileItem | any, type: 'song' | 'album' = 'song') => {
     e.preventDefault();
     e.stopPropagation();
-    setContextMenu({ x: e.clientX, y: e.clientY, track });
+    setContextMenu({ x: e.clientX, y: e.clientY, item, type });
   };
 
   const closeContextMenu = () => setContextMenu(null);
@@ -302,8 +303,26 @@ export default function MusicPage() {
     closeContextMenu();
   };
 
-  const handleDelete = async (track: FileItem) => {
+  const handleDelete = async (item: FileItem | any) => {
+    if (contextMenu?.type === 'album') {
+      try {
+        await api.delete(`/folders/${item.id}`);
+        toast(t('music.albumDeleted'), 'success'); // Verify translation key or use generic
+        const { selectedItems } = useFileStore.getState();
+        if (selectedItems.has(item.id)) {
+          removeFromSelection(item.id);
+        }
+        loadData();
+      } catch {
+        toast(t('music.deleteError'), 'error');
+      }
+      closeContextMenu();
+      return;
+    }
+
     const { selectedItems, clearSelection } = useFileStore.getState();
+    // For songs, item is track
+    const track = item as FileItem;
     const isMultiSelect = selectedItems.size > 1 && selectedItems.has(track.id);
 
     try {
@@ -551,6 +570,7 @@ export default function MusicPage() {
                     // Update URL to include folder ID, enabling drag-and-drop globally
                     setSearchParams({ tab: 'albums', folder: album.id });
                   }}
+                  onContextMenu={(e) => handleContextMenu(e, album, 'album')}
                   className="premium-card group"
                 >
                   {/* Album cover */}
@@ -742,7 +762,8 @@ export default function MusicPage() {
         {contextMenu && (() => {
           // Get current selection state
           const currentSelectedItems = useFileStore.getState().selectedItems;
-          const isMultiSelect = currentSelectedItems.size > 1 && currentSelectedItems.has(contextMenu.track.id);
+          const isAlbum = contextMenu.type === 'album';
+          const isMultiSelect = !isAlbum && currentSelectedItems.size > 1 && currentSelectedItems.has(contextMenu.item.id);
           const selectedCount = isMultiSelect ? currentSelectedItems.size : 1;
 
           const menuWidth = 288;
@@ -775,20 +796,33 @@ export default function MusicPage() {
                 </>
               )}
 
-              {/* Single item actions */}
-              {!isMultiSelect && (
+              {/* Album Actions */}
+              {isAlbum && (
+                <div className="px-2 py-1">
+                  <button
+                    onClick={() => handleDelete(contextMenu.item)}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-red-600 dark:text-red-400 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                    <span>{t('common.delete')}</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Single item actions (Songs) */}
+              {!isMultiSelect && !isAlbum && (
                 <>
                   {/* Play */}
                   <div className="px-2 py-1">
                     <button
-                      onClick={() => handlePlayFromMenu(contextMenu.track)}
+                      onClick={() => handlePlayFromMenu(contextMenu.item)}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
                     >
                       <Play className="w-5 h-5" />
                       <span>{t('music.play')}</span>
                     </button>
                     <button
-                      onClick={() => handleAddToQueue(contextMenu.track)}
+                      onClick={() => handleAddToQueue(contextMenu.item)}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
                     >
                       <ListPlus className="w-5 h-5" />
@@ -801,21 +835,21 @@ export default function MusicPage() {
                   {/* File actions */}
                   <div className="px-2 py-1">
                     <button
-                      onClick={() => handleDownload(contextMenu.track)}
+                      onClick={() => handleDownload(contextMenu.item)}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
                     >
                       <Download className="w-5 h-5" />
                       <span>{t('common.download')}</span>
                     </button>
                     <button
-                      onClick={() => handleShare(contextMenu.track)}
+                      onClick={() => handleShare(contextMenu.item)}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
                     >
                       <Share2 className="w-5 h-5" />
                       <span>{t('common.share')}</span>
                     </button>
                     <button
-                      onClick={() => handleCopyLink(contextMenu.track)}
+                      onClick={() => handleCopyLink(contextMenu.item)}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
                     >
                       <Copy className="w-5 h-5" />
@@ -828,14 +862,14 @@ export default function MusicPage() {
                   {/* Organization */}
                   <div className="px-2 py-1">
                     <button
-                      onClick={() => handleFavoriteFromMenu(contextMenu.track)}
+                      onClick={() => handleFavoriteFromMenu(contextMenu.item)}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
                     >
-                      <Star className={cn('w-5 h-5', contextMenu.track.isFavorite && 'fill-yellow-500 text-yellow-500')} />
-                      <span>{contextMenu.track.isFavorite ? t('music.removeFromFavorites') : t('music.addToFavorites')}</span>
+                      <Star className={cn('w-5 h-5', contextMenu.item.isFavorite && 'fill-yellow-500 text-yellow-500')} />
+                      <span>{contextMenu.item.isFavorite ? t('music.removeFromFavorites') : t('music.addToFavorites')}</span>
                     </button>
                     <button
-                      onClick={() => handleShowInfo(contextMenu.track)}
+                      onClick={() => handleShowInfo(contextMenu.item)}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
                     >
                       <Info className="w-5 h-5" />
@@ -881,7 +915,7 @@ export default function MusicPage() {
               {/* Delete - always visible */}
               <div className="px-2 py-1">
                 <button
-                  onClick={() => handleDelete(contextMenu.track)}
+                  onClick={() => handleDelete(contextMenu.item)}
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                 >
                   <Trash2 className="w-5 h-5" />
