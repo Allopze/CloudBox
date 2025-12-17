@@ -140,6 +140,6 @@ export const uploadChunk = multer({
     },
   }),
   limits: {
-    fileSize: 20 * 1024 * 1024, // 20MB per chunk
+    fileSize: config.limits.maxChunkSize, // Hard cap enforced by server
   },
 });

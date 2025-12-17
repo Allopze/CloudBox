@@ -35,6 +35,7 @@ model User {
   sharedWithMe      ShareCollaborator[]
   shares            Share[]             @relation("ShareOwner")
   storageRequests   StorageRequest[]
+  uploadSessions    UploadSession[]
 
   @@index([email])
   @@index([createdAt])
@@ -90,6 +91,7 @@ model Folder {
   children   Folder[]  @relation("FolderTree")
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   shares     Share[]
+  uploadSessions UploadSession[]
 
   @@unique([name, parentId, userId])
   @@index([userId])
@@ -117,6 +119,7 @@ model File {
   transcodedPath String?
   albumFiles     AlbumFile[]
   chunks         FileChunk[]
+  uploadSessions UploadSession[]
   folder         Folder?         @relation(fields: [folderId], references: [id])
   user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   shares         Share[]
@@ -161,6 +164,27 @@ model FileChunk {
   @@unique([uploadId, chunkIndex])
   @@index([uploadId])
   @@map("file_chunks")
+}
+
+model UploadSession {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @db.Uuid
+  fileId      String?  @db.Uuid
+  filename    String
+  mimeType    String
+  totalChunks Int
+  totalSize   BigInt
+  folderId    String?  @db.Uuid
+  status      String   @default("UPLOADING")
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(6)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  file        File?    @relation(fields: [fileId], references: [id], onDelete: SetNull)
+  folder      Folder?  @relation(fields: [folderId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([status])
+  @@map("upload_sessions")
 }
 
 model Share {

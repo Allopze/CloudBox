@@ -344,7 +344,8 @@ export default function MainLayout() {
               }
 
               setGlobalProgress(uploadedTotal + progress.uploadedSize, totalSize, currentSpeed);
-            }
+            },
+            { relativePath }
           );
         }
 
@@ -541,7 +542,7 @@ export default function MainLayout() {
 
     // Avoid starting from interactive form controls that need clicks to work
     const target = e.target as HTMLElement | null;
-    if (target && (target.closest('input, textarea, select, button, [role="button"], a, [contenteditable="true"], .no-marquee'))) {
+    if (target && (target.closest('input, textarea, select, button, [role="button"], [role="menu"], a, [contenteditable="true"], .no-marquee'))) {
       return;
     }
 

@@ -777,8 +777,9 @@ router.put('/settings/limits', authenticate, requireAdmin, async (req: Request, 
       return;
     }
 
-    if (isNaN(chunkSizeNum) || chunkSizeNum < 1024 * 1024 || chunkSizeNum > 100 * 1024 * 1024) { // 1MB - 100MB
-      res.status(400).json({ error: 'Chunk size must be between 1MB and 100MB' });
+    const maxChunkSize = config.limits.maxChunkSize;
+    if (isNaN(chunkSizeNum) || chunkSizeNum < 1024 * 1024 || chunkSizeNum > maxChunkSize) {
+      res.status(400).json({ error: `Chunk size must be between 1MB and ${Math.floor(maxChunkSize / 1024 / 1024)}MB` });
       return;
     }
 
