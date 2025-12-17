@@ -213,16 +213,24 @@ app.get('/api/config/upload-limits', async (req, res) => {
       limits[s.key.replace('upload_', '')] = s.value;
     });
 
+    const hardMaxChunkSize = config.limits.maxChunkSize;
+    const configuredChunkSize = parseInt(limits['chunk_size'] || '', 10);
+    const defaultChunkSize = 20 * 1024 * 1024; // 20MB default
+    const effectiveChunkSize = Math.min(
+      Number.isFinite(configuredChunkSize) && configuredChunkSize > 0 ? configuredChunkSize : defaultChunkSize,
+      hardMaxChunkSize
+    );
+
     res.json({
       maxFileSize: limits['max_file_size'] || String(config.storage.maxFileSize),
-      chunkSize: limits['chunk_size'] || String(20 * 1024 * 1024), // 20MB default
+      chunkSize: String(effectiveChunkSize),
       concurrentChunks: limits['concurrent_chunks'] || '4',
     });
   } catch (error) {
     // Return defaults on error
     res.json({
       maxFileSize: String(config.storage.maxFileSize),
-      chunkSize: String(20 * 1024 * 1024),
+      chunkSize: String(Math.min(20 * 1024 * 1024, config.limits.maxChunkSize)),
       concurrentChunks: '4',
     });
   }
@@ -493,22 +501,50 @@ const cleanupTrash = async () => {
   }
 };
 
-// Cleanup stale temp storage (run every 6 hours)
+// Cleanup stale temp storage reservations (run every 6 hours)
+// NOTE: tempStorage is used to reserve quota for chunked uploads; never reset it blindly.
 const cleanupTempStorage = async () => {
   try {
-    const { count } = await prisma.user.updateMany({
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000); // 24 hours
+    const fs = await import('fs/promises');
+
+    // Clean up stale upload sessions (failed/abandoned chunked uploads)
+    const staleSessions = await prisma.uploadSession.findMany({
       where: {
-        tempStorage: {
-          gt: 0,
-        },
+        status: { in: ['UPLOADING', 'MERGING'] },
+        createdAt: { lt: cutoff },
       },
-      data: {
-        tempStorage: 0,
+      select: { id: true, userId: true, totalSize: true },
+    });
+
+    for (const session of staleSessions) {
+      await prisma.fileChunk.deleteMany({ where: { uploadId: session.id } }).catch(() => { });
+      await prisma.uploadSession.delete({ where: { id: session.id } }).catch(() => { });
+      await prisma.$executeRaw`
+        UPDATE "users"
+        SET "tempStorage" = GREATEST("tempStorage" - ${session.totalSize}, 0)
+        WHERE "id" = ${session.userId}::uuid
+      `;
+
+      // Best-effort filesystem cleanup (if chunks dir still exists)
+      await fs.rm(getStoragePath('chunks', session.id), { recursive: true, force: true }).catch(() => { });
+    }
+
+    if (staleSessions.length > 0) {
+      logger.info('Cleaned up stale upload sessions', { count: staleSessions.length });
+    }
+
+    // Keep upload session table small (completed sessions older than 7 days)
+    const completedCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const { count: deletedCompleted } = await prisma.uploadSession.deleteMany({
+      where: {
+        status: 'COMPLETED',
+        createdAt: { lt: completedCutoff },
       },
     });
 
-    if (count > 0) {
-      logger.info('Cleaned up temp storage', { usersAffected: count });
+    if (deletedCompleted > 0) {
+      logger.info('Cleaned up completed upload sessions', { count: deletedCompleted });
     }
   } catch (error) {
     logger.error('Temp storage cleanup error', {}, error instanceof Error ? error : new Error(String(error)));
@@ -589,6 +625,21 @@ const cleanupOrphanChunks = async () => {
           await prisma.fileChunk.deleteMany({
             where: { uploadId },
           }).catch(() => { });
+
+          // Release any orphaned reservation tied to this uploadId
+          const session = await prisma.uploadSession.findUnique({
+            where: { id: uploadId },
+            select: { userId: true, totalSize: true, status: true },
+          }).catch(() => null);
+
+          if (session && session.status !== 'COMPLETED') {
+            await prisma.uploadSession.delete({ where: { id: uploadId } }).catch(() => { });
+            await prisma.$executeRaw`
+              UPDATE "users"
+              SET "tempStorage" = GREATEST("tempStorage" - ${session.totalSize}, 0)
+              WHERE "id" = ${session.userId}::uuid
+            `;
+          }
 
           cleanedCount++;
         }

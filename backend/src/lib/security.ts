@@ -170,13 +170,25 @@ export function validateMimeType(mimeType: string, filename: string): boolean {
  * List of dangerous file extensions that should be blocked
  */
 const DANGEROUS_EXTENSIONS = [
+  // Windows executables / shortcuts
+  '.exe', '.dll', '.bat', '.cmd', '.com', '.msi', '.scr', '.pif',
+  '.scf', '.lnk', '.inf', '.reg', '.hta', '.cpl', '.msc',
+
+  // Script/automation
+  '.vbs', '.vbe', '.js', '.jse', '.ws', '.wsf', '.wsc', '.wsh',
+  '.ps1', '.psm1', '.psd1', '.ps1xml', '.pssc', '.psrc',
+  '.msh', '.msh1', '.msh2', '.mshxml', '.msh1xml', '.msh2xml',
+  '.sh', '.bash', '.zsh', '.csh', '.ksh',
+  '.py', '.pyc', '.pyo', '.pyw', '.pyz', '.pyzw',
+  '.pl', '.pm', '.pod', '.t', '.rb', '.rbw', '.cgi',
+
+  // Server-side / web
   '.php', '.phtml', '.php3', '.php4', '.php5', '.phps',
-  '.asp', '.aspx', '.cer', '.csr',
-  '.jsp', '.jspx',
-  '.cgi', '.pl',
+  '.asp', '.aspx', '.jsp', '.jspx',
   '.htaccess', '.htpasswd',
-  '.bat', '.cmd', '.com', '.ps1', '.vbs', '.vbe', '.js', '.jse', '.ws', '.wsf', '.wsc', '.wsh',
-  '.msi', '.scr', '.hta', '.cpl', '.reg',
+
+  // Other
+  '.jar',
 ];
 
 /**

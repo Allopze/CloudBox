@@ -92,6 +92,7 @@ const DANGEROUS_EXTENSIONS = [
   '.scf', '.lnk', '.inf', '.reg', '.hta', '.cpl', '.msc', '.jar',
   '.php', '.phtml', '.php3', '.php4', '.php5', '.phps',
   '.asp', '.aspx', '.cer', '.csr', '.jsp', '.jspx',
+  '.htaccess', '.htpasswd', '.cgi',
   '.sh', '.bash', '.zsh', '.csh', '.ksh',
   '.py', '.pyc', '.pyo', '.pyw', '.pyz', '.pyzw',
   '.pl', '.pm', '.pod', '.t', '.rb', '.rbw',
@@ -135,6 +136,21 @@ export interface ChunkInfo {
 }
 
 export type ProgressCallback = (progress: UploadProgress) => void;
+
+export type UploadOptions = {
+  abortSignal?: AbortSignal;
+  relativePath?: string;
+};
+
+function isAbortSignal(value: unknown): value is AbortSignal {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'aborted' in value &&
+    typeof (value as AbortSignal).aborted === 'boolean' &&
+    typeof (value as AbortSignal).addEventListener === 'function'
+  );
+}
 
 /**
  * Validate a file before upload
@@ -259,7 +275,8 @@ async function uploadChunk(
   uploadId: string,
   file: File,
   folderId: string | null,
-  onProgress?: (chunkIndex: number, loaded: number) => void
+  onProgress?: (chunkIndex: number, loaded: number) => void,
+  abortSignal?: AbortSignal
 ): Promise<{ completed: boolean; file?: any }> {
   const formData = new FormData();
   formData.append('chunk', chunk.blob);
@@ -275,6 +292,7 @@ async function uploadChunk(
 
   const response = await api.post('/files/upload/chunk', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
+    signal: abortSignal,
     onUploadProgress: (progressEvent) => {
       if (onProgress && progressEvent.loaded) {
         onProgress(chunk.index, progressEvent.loaded);
@@ -293,14 +311,19 @@ async function uploadChunkWithRetry(
   uploadId: string,
   file: File,
   folderId: string | null,
-  onProgress?: (chunkIndex: number, loaded: number) => void
+  onProgress?: (chunkIndex: number, loaded: number) => void,
+  abortSignal?: AbortSignal
 ): Promise<{ completed: boolean; file?: any }> {
   let lastError: Error | null = null;
 
   while (chunk.retries < UPLOAD_CONFIG.MAX_RETRIES) {
     try {
-      return await uploadChunk(chunk, uploadId, file, folderId, onProgress);
+      return await uploadChunk(chunk, uploadId, file, folderId, onProgress, abortSignal);
     } catch (error: any) {
+      if (abortSignal?.aborted || error.code === 'ERR_CANCELED' || error.name === 'CanceledError') {
+        throw new Error('Upload cancelled');
+      }
+
       lastError = error;
       chunk.retries++;
 
@@ -333,8 +356,12 @@ export async function uploadFileChunked(
   file: File,
   folderId: string | null,
   onProgress: ProgressCallback,
-  abortSignal?: AbortSignal
+  abortSignalOrOptions?: AbortSignal | UploadOptions
 ): Promise<UploadResult> {
+  const options = isAbortSignal(abortSignalOrOptions) ? { abortSignal: abortSignalOrOptions } : abortSignalOrOptions;
+  const abortSignal = options?.abortSignal;
+  const relativePath = options?.relativePath;
+
   const fileId = `upload_${Date.now()}_${Math.random().toString(36).substring(7)}`;
   const startTime = Date.now();
   let uploadedBytes = 0;
@@ -360,10 +387,13 @@ export async function uploadFileChunked(
     // Initialize chunked upload
     const initResponse = await api.post('/files/upload/init', {
       filename: file.name,
+      relativePath,
       totalChunks: Math.ceil(file.size / UPLOAD_CONFIG.DEFAULT_CHUNK_SIZE),
       totalSize: file.size,
       folderId,
       mimeType: file.type || 'application/octet-stream',
+    }, {
+      signal: abortSignal,
     });
 
     const { uploadId, totalChunks } = initResponse.data;
@@ -431,7 +461,7 @@ export async function uploadFileChunked(
       while (executing.length < UPLOAD_CONFIG.MAX_CONCURRENT_CHUNKS && pendingChunks.length > 0) {
         const chunk = pendingChunks.shift()!;
 
-        const promise = uploadChunkWithRetry(chunk, uploadId, file, folderId, updateProgress)
+        const promise = uploadChunkWithRetry(chunk, uploadId, file, folderId, updateProgress, abortSignal)
           .then((res) => {
             chunk.uploaded = true;
             chunkProgress.set(chunk.index, chunk.size);
@@ -473,6 +503,7 @@ export async function uploadFileChunked(
       file: result.file,
     };
   } catch (error: any) {
+    const cancelled = abortSignal?.aborted || error.code === 'ERR_CANCELED' || error.name === 'CanceledError';
     const errorCode = error.response?.data?.code || UPLOAD_ERROR_CODES.NETWORK_ERROR;
     const errorMessage = error.response?.data?.error || error.message || 'Upload failed';
 
@@ -483,14 +514,14 @@ export async function uploadFileChunked(
       uploadedSize: uploadedBytes,
       progress: Math.round((uploadedBytes / file.size) * 100),
       speed: 0,
-      status: error.message === 'Upload cancelled' ? 'cancelled' : 'error',
-      error: errorMessage,
+      status: cancelled || error.message === 'Upload cancelled' ? 'cancelled' : 'error',
+      error: cancelled ? 'Upload cancelled' : errorMessage,
       errorCode,
     });
 
     return {
       success: false,
-      error: errorMessage,
+      error: cancelled ? 'Upload cancelled' : errorMessage,
       errorCode,
     };
   }
@@ -503,8 +534,10 @@ export async function uploadFileDirect(
   file: File,
   folderId: string | null,
   onProgress: ProgressCallback,
-  abortSignal?: AbortSignal
+  abortSignalOrOptions?: AbortSignal | UploadOptions
 ): Promise<UploadResult> {
+  const options = isAbortSignal(abortSignalOrOptions) ? { abortSignal: abortSignalOrOptions } : abortSignalOrOptions;
+  const abortSignal = options?.abortSignal;
   const fileId = `upload_${Date.now()}_${Math.random().toString(36).substring(7)}`;
   const startTime = Date.now();
 
@@ -567,8 +600,9 @@ export async function uploadFileDirect(
       file: response.data[0],
     };
   } catch (error: any) {
-    const errorCode = error.response?.data?.code || UPLOAD_ERROR_CODES.NETWORK_ERROR;
-    const errorMessage = error.response?.data?.error || error.message || 'Upload failed';
+    const cancelled = abortSignal?.aborted || error.code === 'ERR_CANCELED' || error.name === 'CanceledError';
+    const errorCode = cancelled ? 'CANCELLED' : (error.response?.data?.code || UPLOAD_ERROR_CODES.NETWORK_ERROR);
+    const errorMessage = cancelled ? 'Upload cancelled' : (error.response?.data?.error || error.message || 'Upload failed');
 
     onProgress({
       fileId,
@@ -577,7 +611,7 @@ export async function uploadFileDirect(
       uploadedSize: 0,
       progress: 0,
       speed: 0,
-      status: error.message === 'Upload cancelled' ? 'cancelled' : 'error',
+      status: cancelled || error.message === 'Upload cancelled' ? 'cancelled' : 'error',
       error: errorMessage,
       errorCode,
     });
@@ -597,13 +631,16 @@ export async function uploadFile(
   file: File,
   folderId: string | null,
   onProgress: ProgressCallback,
-  abortSignal?: AbortSignal
+  abortSignalOrOptions?: AbortSignal | UploadOptions
 ): Promise<UploadResult> {
+  const options = isAbortSignal(abortSignalOrOptions) ? { abortSignal: abortSignalOrOptions } : abortSignalOrOptions;
+  const abortSignal = options?.abortSignal;
+
   // Load config dynamically from server
   await ensureConfigLoaded();
 
   if (file.size > UPLOAD_CONFIG.CHUNKED_UPLOAD_THRESHOLD) {
-    return uploadFileChunked(file, folderId, onProgress, abortSignal);
+    return uploadFileChunked(file, folderId, onProgress, options);
   } else {
     return uploadFileDirect(file, folderId, onProgress, abortSignal);
   }

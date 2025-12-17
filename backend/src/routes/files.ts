@@ -43,20 +43,47 @@ import * as cache from '../lib/cache.js';
 
 const router = Router();
 
-// Helper function to cleanup chunks on failure
-async function cleanupChunks(uploadId: string, userId: string, totalSize: number): Promise<void> {
+async function decrementTempStorageSafely(userId: string, amount: bigint): Promise<void> {
   try {
+    await prisma.$executeRaw`
+      UPDATE "users"
+      SET "tempStorage" = GREATEST("tempStorage" - ${amount}, 0)
+      WHERE "id" = ${userId}::uuid
+    `;
+  } catch (error) {
+    logger.warn('Failed to decrement tempStorage', { userId }, error instanceof Error ? error : undefined);
+  }
+}
+
+// Helper function to cleanup chunks + reservation on failure
+async function cleanupChunks(uploadId: string, userId: string): Promise<void> {
+  try {
+    const session = await prisma.uploadSession.findUnique({
+      where: { id: uploadId },
+      select: { userId: true, totalSize: true, status: true },
+    });
+
+    // Never allow a user to affect another user's reservation
+    if (session && session.userId !== userId) {
+      logger.warn('Refusing to cleanup upload session for different user', { uploadId, userId });
+      return;
+    }
+
     // Delete chunk records from database
-    await prisma.fileChunk.deleteMany({ where: { uploadId } });
+    await prisma.fileChunk.deleteMany({ where: { uploadId } }).catch(() => { });
 
     // Delete chunk directory
     await deleteDirectory(getStoragePath('chunks', uploadId));
 
-    // Release reserved tempStorage
-    await prisma.user.update({
-      where: { id: userId },
-      data: { tempStorage: { decrement: totalSize } },
-    }).catch(() => { });
+    // Release reserved tempStorage only if we had a matching, incomplete session
+    if (session && session.status !== 'COMPLETED') {
+      await decrementTempStorageSafely(userId, session.totalSize);
+    }
+
+    // Remove the upload session (keep completed sessions for idempotency)
+    if (!session || session.status !== 'COMPLETED') {
+      await prisma.uploadSession.delete({ where: { id: uploadId } }).catch(() => { });
+    }
 
     logger.info('Cleaned up failed upload chunks', { uploadId, userId });
   } catch (error) {
@@ -75,6 +102,65 @@ async function validateFolderOwnership(folderId: string | null, userId: string):
 
   const folder = await prisma.folder.findFirst({ where: { id: folderId, userId } });
   return !!folder;
+}
+
+async function getOrCreateFolderPath(
+  folderPath: string,
+  baseFolderId: string | null,
+  userId: string,
+  tx: typeof prisma
+): Promise<string | null> {
+  const normalized = folderPath.replace(/\\/g, '/').split('/').filter(Boolean);
+  if (normalized.length === 0) return baseFolderId;
+
+  let currentParentId: string | null = baseFolderId;
+
+  for (const folderName of normalized) {
+    const sanitizedFolderName = sanitizeFilename(folderName);
+
+    // Exclude trashed folders
+    let folder = await tx.folder.findFirst({
+      where: {
+        name: sanitizedFolderName,
+        parentId: currentParentId,
+        userId,
+        isTrash: false,
+      },
+    });
+
+    if (!folder) {
+      try {
+        folder = await tx.folder.create({
+          data: {
+            name: sanitizedFolderName,
+            parentId: currentParentId,
+            userId,
+          },
+        });
+      } catch (createError: any) {
+        // If unique constraint violation (P2002), folder was created by another concurrent request
+        if (createError.code === 'P2002') {
+          folder = await tx.folder.findFirst({
+            where: {
+              name: sanitizedFolderName,
+              parentId: currentParentId,
+              userId,
+              isTrash: false,
+            },
+          });
+          if (!folder) {
+            throw createError;
+          }
+        } else {
+          throw createError;
+        }
+      }
+    }
+
+    currentParentId = folder.id;
+  }
+
+  return currentParentId;
 }
 
 // Upload single/multiple files
@@ -273,15 +359,29 @@ router.post('/upload', authenticate, uploadFile.array('files', UPLOAD_LIMITS.MAX
     }
 
     logger.error('Upload error', { userId: req.user?.userId, error: error.message }, error instanceof Error ? error : undefined);
-    if (error.message === 'Storage quota exceeded' ||
-      error.message.includes('exceeds maximum size limit') ||
-      error.message.includes('exceeds maximum limit') ||
-      error.message.includes('File type not allowed') ||
-      error.message.includes('Invalid file type')) {
-      res.status(400).json({ error: error.message, code: UPLOAD_ERROR_CODES.QUOTA_EXCEEDED });
-    } else {
-      res.status(500).json({ error: 'Failed to upload files' });
+    const message = error.message || 'Failed to upload files';
+
+    if (message === 'Storage quota exceeded') {
+      res.status(400).json({ error: message, code: UPLOAD_ERROR_CODES.QUOTA_EXCEEDED });
+      return;
     }
+
+    if (message === 'File exceeds maximum size limit' || message.includes('exceeds maximum size limit') || message.includes('exceeds maximum limit')) {
+      res.status(400).json({ error: message, code: UPLOAD_ERROR_CODES.FILE_TOO_LARGE });
+      return;
+    }
+
+    if (message.includes('File type not allowed')) {
+      res.status(400).json({ error: message, code: UPLOAD_ERROR_CODES.DANGEROUS_EXTENSION });
+      return;
+    }
+
+    if (message.includes('Invalid file type')) {
+      res.status(400).json({ error: message, code: UPLOAD_ERROR_CODES.INVALID_FILE_TYPE });
+      return;
+    }
+
+    res.status(500).json({ error: 'Failed to upload files' });
   }
 });
 
@@ -459,6 +559,7 @@ router.post('/upload-with-folders', authenticate, uploadFile.array('files', UPLO
             details: { filename: rawFileName, reason: 'dangerous_extension' },
             success: false,
           });
+          await deleteFile(file.path).catch(() => { });
           continue; // Skip dangerous files silently
         }
 
@@ -472,6 +573,7 @@ router.post('/upload-with-folders', authenticate, uploadFile.array('files', UPLO
             details: { filename: rawFileName, mimeType: file.mimetype, reason: 'mime_mismatch' },
             success: false,
           });
+          await deleteFile(file.path).catch(() => { });
           continue; // Skip invalid files
         }
 
@@ -660,17 +762,24 @@ router.post('/upload/validate', authenticate, async (req: Request, res: Response
 // Chunked upload - initialize
 router.post('/upload/init', authenticate, validate(uploadInitSchema), async (req: Request, res: Response) => {
   try {
-    const { filename, totalChunks, totalSize, folderId } = req.body;
+    const {
+      filename: rawFilename,
+      relativePath: rawRelativePath,
+      totalChunks,
+      totalSize,
+      folderId: baseFolderId,
+      mimeType,
+    } = req.body;
     const userId = req.user!.userId;
 
-    // Validate folderId if provided
-    if (folderId && !isValidUUID(folderId)) {
+    // Validate base folderId if provided
+    if (baseFolderId && !isValidUUID(baseFolderId)) {
       res.status(400).json({ error: 'Invalid folder ID format', code: UPLOAD_ERROR_CODES.INVALID_FOLDER });
       return;
     }
 
-    if (folderId) {
-      if (!await validateFolderOwnership(folderId, userId)) {
+    if (baseFolderId) {
+      if (!await validateFolderOwnership(baseFolderId, userId)) {
         res.status(404).json({ error: 'Folder not found', code: UPLOAD_ERROR_CODES.INVALID_FOLDER });
         return;
       }
@@ -685,45 +794,104 @@ router.post('/upload/init', authenticate, validate(uploadInitSchema), async (req
       return;
     }
 
+    const decodedFilename = decodeFilename(rawFilename);
+    const decodedRelativePath = rawRelativePath ? decodeFilename(rawRelativePath) : null;
+    const normalizedRelativePath = decodedRelativePath ? decodedRelativePath.replace(/\\/g, '/') : null;
+    const relativeParts = normalizedRelativePath ? normalizedRelativePath.split('/').filter(Boolean) : [];
+
+    const rawNameFromPath = relativeParts.length > 0 ? relativeParts[relativeParts.length - 1] : decodedFilename;
+    const sanitizedFilename = sanitizeFilename(rawNameFromPath);
+    const folderPath = relativeParts.length > 1 ? relativeParts.slice(0, -1).join('/') : '';
+
     // Validate filename
-    const sanitizedFilename = sanitizeFilename(filename);
     if (isDangerousExtension(sanitizedFilename)) {
       await auditLog({
         action: 'SUSPICIOUS_ACTIVITY',
         userId,
         ipAddress: req.ip || 'unknown',
         userAgent: req.headers['user-agent'],
-        details: { filename, reason: 'dangerous_extension_init' },
+        details: { filename: rawFilename, reason: 'dangerous_extension_init' },
         success: false,
       });
       res.status(400).json({ error: 'File type not allowed', code: UPLOAD_ERROR_CODES.DANGEROUS_EXTENSION });
       return;
     }
 
+    const effectiveMimeType = mimeType || 'application/octet-stream';
+    if (mimeType && !validateMimeType(effectiveMimeType, sanitizedFilename)) {
+      await auditLog({
+        action: 'SUSPICIOUS_ACTIVITY',
+        userId,
+        ipAddress: req.ip || 'unknown',
+        userAgent: req.headers['user-agent'],
+        details: { filename: rawFilename, mimeType, reason: 'mime_mismatch_init' },
+        success: false,
+      });
+      res.status(400).json({ error: 'Invalid file type', code: UPLOAD_ERROR_CODES.INVALID_FILE_TYPE });
+      return;
+    }
+
     // Use transaction to atomically check and reserve space
     const uploadId = await prisma.$transaction(async (tx) => {
-      const user = await tx.user.findUnique({ where: { id: userId } });
+      // Lock user row to prevent concurrent init requests from over-reserving quota
+      const userRows = await tx.$queryRaw<Array<{ storageQuota: bigint; storageUsed: bigint; tempStorage: bigint; maxFileSize: bigint }>>`
+        SELECT "storageQuota", "storageUsed", "tempStorage", "maxFileSize"
+        FROM "users"
+        WHERE "id" = ${userId}::uuid
+        FOR UPDATE
+      `;
+      const user = userRows[0];
       if (!user) {
         throw new Error('User not found');
       }
 
-      if (totalSize > Number(user.maxFileSize)) {
+      const totalSizeBigInt = BigInt(totalSize);
+      if (totalSizeBigInt > user.maxFileSize) {
         throw new Error('File exceeds maximum size limit');
       }
 
       // Calculate remaining quota including temporary reserved storage
-      const remainingQuota = Number(user.storageQuota) - Number(user.storageUsed) - Number(user.tempStorage || 0);
-      if (totalSize > remainingQuota) {
+      const remainingQuota = user.storageQuota - user.storageUsed - (user.tempStorage || 0n);
+      if (totalSizeBigInt > remainingQuota) {
         throw new Error('Storage quota exceeded');
       }
+
+      // Ensure base folder exists (and is not trashed) if provided
+      if (baseFolderId) {
+        const baseFolder = await tx.folder.findFirst({
+          where: { id: baseFolderId, userId, isTrash: false },
+          select: { id: true },
+        });
+        if (!baseFolder) {
+          throw new Error('Folder not found');
+        }
+      }
+
+      const targetFolderId = folderPath
+        ? await getOrCreateFolderPath(folderPath, baseFolderId || null, userId, tx as any)
+        : (baseFolderId || null);
 
       // Reserve space using tempStorage to prevent race condition
       await tx.user.update({
         where: { id: userId },
-        data: { tempStorage: { increment: totalSize } },
+        data: { tempStorage: { increment: totalSizeBigInt } },
       });
 
-      return uuidv4();
+      const newUploadId = uuidv4();
+      await tx.uploadSession.create({
+        data: {
+          id: newUploadId,
+          userId,
+          filename: sanitizedFilename,
+          mimeType: effectiveMimeType,
+          totalChunks,
+          totalSize: totalSizeBigInt,
+          folderId: targetFolderId,
+          status: 'UPLOADING',
+        },
+      });
+
+      return newUploadId;
     });
 
     res.json({ uploadId, totalChunks, reservedSize: totalSize });
@@ -731,6 +899,8 @@ router.post('/upload/init', authenticate, validate(uploadInitSchema), async (req
     logger.error('Init upload error', { userId: req.user?.userId, error: error.message }, error instanceof Error ? error : undefined);
     if (error.message === 'User not found') {
       res.status(404).json({ error: 'User not found' });
+    } else if (error.message === 'Folder not found') {
+      res.status(404).json({ error: 'Folder not found', code: UPLOAD_ERROR_CODES.INVALID_FOLDER });
     } else if (error.message === 'File exceeds maximum size limit') {
       res.status(400).json({ error: error.message, code: UPLOAD_ERROR_CODES.FILE_TOO_LARGE });
     } else if (error.message === 'Storage quota exceeded') {
@@ -744,7 +914,7 @@ router.post('/upload/init', authenticate, validate(uploadInitSchema), async (req
 // Chunked upload - upload chunk
 router.post('/upload/chunk', authenticate, uploadChunk.single('chunk'), validate(uploadChunkSchema), async (req: Request, res: Response) => {
   try {
-    const { uploadId, chunkIndex, totalChunks, filename: rawFilename, mimeType, totalSize, folderId } = req.body;
+    const { uploadId, chunkIndex, totalChunks, filename: rawFilename, mimeType, totalSize } = req.body;
     const filename = decodeFilename(rawFilename);
     const userId = req.user!.userId;
 
@@ -774,6 +944,68 @@ router.post('/upload/chunk', authenticate, uploadChunk.single('chunk'), validate
       return;
     }
 
+    const session = await prisma.uploadSession.findUnique({
+      where: { id: uploadId },
+      select: {
+        userId: true,
+        fileId: true,
+        filename: true,
+        mimeType: true,
+        totalChunks: true,
+        totalSize: true,
+        folderId: true,
+        status: true,
+      },
+    });
+
+    if (!session || session.userId !== userId) {
+      await deleteFile(req.file.path).catch(() => { });
+      res.status(404).json({ error: 'Upload not found', code: UPLOAD_ERROR_CODES.UPLOAD_NOT_FOUND });
+      return;
+    }
+
+    // Idempotency: if already completed, return the final file
+    if (session.status === 'COMPLETED' && session.fileId) {
+      await deleteFile(req.file.path).catch(() => { });
+      const existing = await prisma.file.findFirst({ where: { id: session.fileId, userId } });
+      if (existing) {
+        res.json({
+          completed: true,
+          file: { ...existing, size: existing.size.toString() },
+        });
+        return;
+      }
+      res.json({ completed: true });
+      return;
+    }
+
+    // Validate upload session parameters match
+    if (totalChunksNum !== session.totalChunks) {
+      await deleteFile(req.file.path).catch(() => { });
+      res.status(400).json({ error: 'Total chunks mismatch', code: UPLOAD_ERROR_CODES.CHUNK_MISMATCH });
+      return;
+    }
+
+    const declaredSizeNum = parseInt(totalSize, 10);
+    if (!Number.isFinite(declaredSizeNum) || declaredSizeNum <= 0) {
+      await deleteFile(req.file.path).catch(() => { });
+      res.status(400).json({ error: 'Invalid total size', code: UPLOAD_ERROR_CODES.INVALID_CHUNK });
+      return;
+    }
+
+    if (BigInt(declaredSizeNum) !== session.totalSize) {
+      await deleteFile(req.file.path).catch(() => { });
+      res.status(400).json({ error: 'Total size mismatch', code: UPLOAD_ERROR_CODES.CHUNK_MISMATCH });
+      return;
+    }
+
+    const sanitizedRequestFilename = sanitizeFilename(filename);
+    if (sanitizedRequestFilename !== session.filename) {
+      await deleteFile(req.file.path).catch(() => { });
+      res.status(400).json({ error: 'Filename mismatch', code: UPLOAD_ERROR_CODES.CHUNK_MISMATCH });
+      return;
+    }
+
     // Validate chunk size
     if (req.file.size > UPLOAD_LIMITS.MAX_CHUNK_SIZE) {
       await deleteFile(req.file.path);
@@ -785,51 +1017,121 @@ router.post('/upload/chunk', authenticate, uploadChunk.single('chunk'), validate
     }
 
     // Validate filename and MIME type
-    const sanitizedFilename = sanitizeFilename(filename);
-    if (isDangerousExtension(sanitizedFilename)) {
+    if (isDangerousExtension(session.filename)) {
       await deleteFile(req.file.path);
-      await cleanupChunks(uploadId, userId, parseInt(totalSize, 10));
-      logger.warn('Dangerous extension in chunk upload', { filename: sanitizedFilename, userId });
+      await cleanupChunks(uploadId, userId);
+      logger.warn('Dangerous extension in chunk upload', { filename: session.filename, userId });
       res.status(400).json({ error: 'File type not allowed', code: UPLOAD_ERROR_CODES.DANGEROUS_EXTENSION });
       return;
     }
 
-    if (!validateMimeType(mimeType, sanitizedFilename)) {
+    const effectiveMimeType = session.mimeType || mimeType || 'application/octet-stream';
+    if (!validateMimeType(effectiveMimeType, session.filename)) {
       await deleteFile(req.file.path);
-      await cleanupChunks(uploadId, userId, parseInt(totalSize, 10));
-      logger.warn('MIME type mismatch in chunk upload', { mimeType, filename: sanitizedFilename, userId });
+      await cleanupChunks(uploadId, userId);
+      logger.warn('MIME type mismatch in chunk upload', { mimeType: effectiveMimeType, filename: session.filename, userId });
       res.status(400).json({ error: 'Invalid file type', code: UPLOAD_ERROR_CODES.INVALID_FILE_TYPE });
       return;
     }
 
     const chunkPath = getChunkPath(uploadId, chunkIdx);
     await fs.mkdir(path.dirname(chunkPath), { recursive: true });
-    await moveFileStorage(req.file.path, chunkPath);
 
-    // Save chunk info
-    await prisma.fileChunk.create({
-      data: {
-        uploadId,
-        chunkIndex: chunkIdx,
-        totalChunks: totalChunksNum,
-        path: chunkPath,
-        size: BigInt(req.file.size),
-      },
+    // Idempotency: if this chunk already exists and matches, ignore re-uploads
+    const existingChunk = await prisma.fileChunk.findUnique({
+      where: { uploadId_chunkIndex: { uploadId, chunkIndex: chunkIdx } },
+      select: { path: true, size: true },
     });
+
+    const incomingSize = BigInt(req.file.size);
+    let shouldStoreChunk = true;
+
+    if (existingChunk) {
+      const diskOk = await fileExists(existingChunk.path);
+      const sizeOk = existingChunk.size === incomingSize;
+
+      if (diskOk && sizeOk) {
+        shouldStoreChunk = false;
+      } else {
+        // If the DB record exists but the file is missing or size differs, allow re-upload by deleting the stale record/file.
+        await prisma.fileChunk.delete({ where: { uploadId_chunkIndex: { uploadId, chunkIndex: chunkIdx } } }).catch(() => { });
+        if (diskOk) {
+          await deleteFile(existingChunk.path).catch(() => { });
+        }
+      }
+    }
+
+    if (!shouldStoreChunk) {
+      await deleteFile(req.file.path).catch(() => { });
+    } else {
+      try {
+        await moveFileStorage(req.file.path, chunkPath);
+      } catch (moveError: any) {
+        // If another request already wrote the chunk, treat as idempotent (discard incoming temp chunk)
+        await deleteFile(req.file.path).catch(() => { });
+      }
+
+      // Save chunk info (idempotent on retries)
+      try {
+        await prisma.fileChunk.create({
+          data: {
+            uploadId,
+            chunkIndex: chunkIdx,
+            totalChunks: session.totalChunks,
+            path: chunkPath,
+            size: incomingSize,
+          },
+        });
+      } catch (createError: any) {
+        if (createError.code !== 'P2002') {
+          throw createError;
+        }
+      }
+    }
 
     // Check if all chunks are uploaded
-    const chunks = await prisma.fileChunk.findMany({
-      where: { uploadId },
-      orderBy: { chunkIndex: 'asc' },
-    });
+    const uploadedChunkCount = await prisma.fileChunk.count({ where: { uploadId } });
 
-    if (chunks.length === totalChunksNum) {
+    if (uploadedChunkCount === totalChunksNum) {
+      // Ensure only one request performs the merge
+      const mergeLock = await prisma.uploadSession.updateMany({
+        where: { id: uploadId, userId, status: 'UPLOADING' },
+        data: { status: 'MERGING' },
+      });
+
+      if (mergeLock.count === 0) {
+        const latest = await prisma.uploadSession.findUnique({
+          where: { id: uploadId },
+          select: { status: true, fileId: true },
+        });
+
+        if (latest?.status === 'COMPLETED' && latest.fileId) {
+          const existing = await prisma.file.findFirst({ where: { id: latest.fileId, userId } });
+          if (existing) {
+            res.json({ completed: true, file: { ...existing, size: existing.size.toString() } });
+            return;
+          }
+        }
+
+        res.json({
+          completed: false,
+          uploadedChunks: uploadedChunkCount,
+          totalChunks: totalChunksNum,
+        });
+        return;
+      }
+
+      const chunks = await prisma.fileChunk.findMany({
+        where: { uploadId },
+        orderBy: { chunkIndex: 'asc' },
+      });
+
       // Validate all chunks are present (no gaps)
       const indices = chunks.map(c => c.chunkIndex).sort((a, b) => a - b);
       for (let i = 0; i < indices.length; i++) {
         if (indices[i] !== i) {
           logger.error('Chunk index mismatch during merge', { uploadId, expected: i, got: indices[i] });
-          await cleanupChunks(uploadId, userId, parseInt(totalSize, 10));
+          await cleanupChunks(uploadId, userId);
           res.status(400).json({ error: 'Chunk index mismatch', code: UPLOAD_ERROR_CODES.CHUNK_MISMATCH });
           return;
         }
@@ -837,8 +1139,7 @@ router.post('/upload/chunk', authenticate, uploadChunk.single('chunk'), validate
 
       // Merge chunks using temporary file for atomicity
       const fileId = uuidv4();
-      const sanitizedName = sanitizeFilename(filename);
-      const ext = path.extname(sanitizedName);
+      const ext = path.extname(session.filename);
       const filePath = getUserFilePath(userId, fileId, ext);
       const tempFilePath = getStoragePath('temp', `${uploadId}_merged${ext}`);
 
@@ -864,18 +1165,17 @@ router.post('/upload/chunk', authenticate, uploadChunk.single('chunk'), validate
 
         // SECURITY FIX: Verify actual file size matches declared totalSize
         const mergedStats = await fs.stat(tempFilePath);
-        const actualSize = Number(mergedStats.size);
-        const declaredSize = parseInt(totalSize, 10);
+        const actualSize = BigInt(mergedStats.size);
 
-        if (actualSize !== declaredSize) {
+        if (actualSize !== session.totalSize) {
           await deleteFile(tempFilePath);
-          await cleanupChunks(uploadId, userId, declaredSize);
+          await cleanupChunks(uploadId, userId);
           logger.warn('Chunked upload size mismatch', {
             uploadId,
             userId,
-            declaredSize,
+            declaredSize: session.totalSize,
             actualSize,
-            difference: actualSize - declaredSize,
+            difference: actualSize - session.totalSize,
           });
           res.status(400).json({
             error: 'File size mismatch: declared size does not match actual merged file size',
@@ -886,17 +1186,25 @@ router.post('/upload/chunk', authenticate, uploadChunk.single('chunk'), validate
 
         // Use transaction for database operations
         const dbFile = await prisma.$transaction(async (tx) => {
-          // Verify quota again inside transaction (prevent race condition - Issue #2)
-          const user = await tx.user.findUnique({ where: { id: userId } });
-          if (!user) {
-            throw new Error('User not found');
-          }
+          // Verify quota again using outstanding reservations (prevents drift if tempStorage was reset)
+          const user = await tx.user.findUnique({
+            where: { id: userId },
+            select: { storageQuota: true, storageUsed: true },
+          });
+          if (!user) throw new Error('User not found');
 
-          // Use VERIFIED actualSize for quota check
-          const remainingQuota = Number(user.storageQuota) - Number(user.storageUsed);
-          if (actualSize > remainingQuota) {
-            throw new Error('Storage quota exceeded');
-          }
+          const reservedOther = await tx.uploadSession.aggregate({
+            where: {
+              userId,
+              status: { in: ['UPLOADING', 'MERGING'] },
+              NOT: { id: uploadId },
+            },
+            _sum: { totalSize: true },
+          });
+
+          const otherReserved = reservedOther._sum.totalSize ?? 0n;
+          const remainingQuota = user.storageQuota - user.storageUsed - otherReserved;
+          if (actualSize > remainingQuota) throw new Error('Storage quota exceeded');
 
           // Move temp file to final location (atomic on same filesystem)
           await moveFileStorage(tempFilePath, filePath);
@@ -913,27 +1221,32 @@ router.post('/upload/chunk', authenticate, uploadChunk.single('chunk'), validate
           const file = await tx.file.create({
             data: {
               id: fileId,
-              name: filename,
-              originalName: filename,
-              mimeType,
-              size: BigInt(actualSize),
+              name: session.filename,
+              originalName: session.filename,
+              mimeType: effectiveMimeType,
+              size: actualSize,
               path: filePath,
               thumbnailPath: null,
-              folderId: folderId || null,
+              folderId: session.folderId || null,
               userId,
             },
           });
 
           // Update folder sizes - USE VERIFIED SIZE
-          await updateParentFolderSizes(folderId || null, actualSize, tx, 'increment');
+          await updateParentFolderSizes(session.folderId || null, actualSize, tx, 'increment');
 
-          // Update storage used and release tempStorage - USE VERIFIED SIZE
-          await tx.user.update({
-            where: { id: userId },
-            data: {
-              storageUsed: { increment: actualSize },
-              tempStorage: { decrement: actualSize }, // Release reserved space
-            },
+          // Update storage used and release tempStorage (clamped) - USE VERIFIED SIZE
+          await tx.$executeRaw`
+            UPDATE "users"
+            SET
+              "storageUsed" = "storageUsed" + ${actualSize},
+              "tempStorage" = GREATEST("tempStorage" - ${session.totalSize}, 0)
+            WHERE "id" = ${userId}::uuid
+          `;
+
+          await tx.uploadSession.update({
+            where: { id: uploadId },
+            data: { status: 'COMPLETED', fileId },
           });
 
           // Log activity - USE VERIFIED SIZE
@@ -942,7 +1255,7 @@ router.post('/upload/chunk', authenticate, uploadChunk.single('chunk'), validate
               type: 'UPLOAD',
               userId,
               fileId: file.id,
-              details: JSON.stringify({ name: filename, size: actualSize }),
+              details: JSON.stringify({ name: session.filename, size: actualSize.toString() }),
             },
           });
 
@@ -975,18 +1288,22 @@ router.post('/upload/chunk', authenticate, uploadChunk.single('chunk'), validate
         // Clean up temp file on error
         await deleteFile(tempFilePath).catch(() => { });
         // Transactional cleanup of chunks and reserved storage
-        await cleanupChunks(uploadId, userId, parseInt(totalSize, 10));
+        await cleanupChunks(uploadId, userId);
         throw error;
       }
     } else {
       res.json({
         completed: false,
-        uploadedChunks: chunks.length,
+        uploadedChunks: uploadedChunkCount,
         totalChunks: totalChunksNum,
       });
     }
   } catch (error) {
     logger.error('Chunk upload error', { userId: req.user?.userId }, error instanceof Error ? error : undefined);
+    const tempPath = (req.file as Express.Multer.File | undefined)?.path;
+    if (tempPath) {
+      await deleteFile(tempPath).catch(() => { });
+    }
     res.status(500).json({ error: 'Failed to upload chunk' });
   }
 });

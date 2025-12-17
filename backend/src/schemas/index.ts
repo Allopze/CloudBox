@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { config } from '../config/index.js';
 
 export const registerSchema = z.object({
   body: z.object({
@@ -422,10 +423,10 @@ export const landingSettingsSchema = z.object({
 
 // Common constants for upload validation
 export const UPLOAD_LIMITS = {
-  MAX_FILES_PER_REQUEST: 20,
-  MAX_FILES_FOLDER_UPLOAD: 100,
-  MAX_TOTAL_CHUNKS: 10000,
-  MAX_CHUNK_SIZE: 20 * 1024 * 1024, // 20MB per chunk
+  MAX_FILES_PER_REQUEST: config.limits.maxFilesPerRequest,
+  MAX_FILES_FOLDER_UPLOAD: config.limits.maxFilesFolderUpload,
+  MAX_TOTAL_CHUNKS: config.limits.maxTotalChunks,
+  MAX_CHUNK_SIZE: config.limits.maxChunkSize, // Hard cap enforced by server
   MAX_FILENAME_LENGTH: 255,
   ALLOWED_MIME_PATTERNS: [
     'image/*', 'video/*', 'audio/*', 'text/*',
@@ -459,6 +460,7 @@ export const uploadInitSchema = z.object({
     filename: z.string()
       .min(1, 'Filename is required')
       .max(UPLOAD_LIMITS.MAX_FILENAME_LENGTH, `Filename must not exceed ${UPLOAD_LIMITS.MAX_FILENAME_LENGTH} characters`),
+    relativePath: z.string().max(1024).optional(),
     totalChunks: z.number()
       .int('Total chunks must be an integer')
       .positive('Total chunks must be positive')
