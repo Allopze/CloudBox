@@ -1378,16 +1378,29 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
           where.mimeType = { startsWith: 'audio/' };
           break;
         case 'documents':
-          where.mimeType = {
-            in: [
-              'application/pdf',
-              'application/msword',
-              'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-              'application/vnd.ms-excel',
-              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-              'text/plain',
-            ],
-          };
+          where.OR = [
+            // PDF
+            { mimeType: 'application/pdf' },
+            // Word documents
+            { mimeType: 'application/msword' },
+            { mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
+            { mimeType: 'application/rtf' },
+            // Excel spreadsheets
+            { mimeType: 'application/vnd.ms-excel' },
+            { mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
+            { mimeType: 'text/csv' },
+            // PowerPoint presentations
+            { mimeType: 'application/vnd.ms-powerpoint' },
+            { mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' },
+            // Text files (includes html, css, js, json, xml, markdown, etc.)
+            { mimeType: { startsWith: 'text/' } },
+            // Code and data files
+            { mimeType: 'application/json' },
+            { mimeType: 'application/xml' },
+            { mimeType: 'application/javascript' },
+            { mimeType: 'application/x-javascript' },
+            { mimeType: 'application/typescript' },
+          ];
           break;
       }
     }

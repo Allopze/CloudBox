@@ -13,6 +13,7 @@ import Input from '../components/ui/Input';
 import { motion, AnimatePresence } from 'framer-motion';
 import ShareModal from '../components/modals/ShareModal';
 import AuthenticatedImage from '../components/AuthenticatedImage';
+import ContextMenu, { type ContextMenuItemOrDivider } from '../components/ui/ContextMenu';
 
 interface PhotoContextMenuState {
   x: number;
@@ -591,34 +592,27 @@ export default function Albums() {
   }
 
   // Albums list view
+  const albumsListContextMenuItems: ContextMenuItemOrDivider[] = [
+    {
+      id: 'create-album',
+      label: t('albums.createAlbum'),
+      icon: FolderPlus,
+      onClick: () => setShowCreateModal(true),
+    },
+  ];
+
   return (
     <div
       className="h-full"
       onContextMenu={(e) => {
+        const target = e.target as HTMLElement | null;
+        if (target?.closest?.('a')) return;
         e.preventDefault();
         setContextMenu({ x: e.clientX, y: e.clientY });
       }}
       onClick={() => setContextMenu(null)}
     >
-      {/* Context Menu */}
-      {contextMenu && (
-        <div
-          className="fixed z-50 bg-white dark:bg-dark-800 rounded-xl shadow-lg border border-dark-200 dark:border-dark-700 py-1 min-w-[180px]"
-          style={{ left: contextMenu.x, top: contextMenu.y }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            onClick={() => {
-              setShowCreateModal(true);
-              setContextMenu(null);
-            }}
-            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
-          >
-            <FolderPlus className="w-4 h-4 text-dark-400" />
-            {t('albums.createAlbum')}
-          </button>
-        </div>
-      )}
+      <ContextMenu items={albumsListContextMenuItems} position={contextMenu} onClose={() => setContextMenu(null)} />
 
       {/* Albums grid */}
       {albums.length > 0 && (

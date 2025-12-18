@@ -1,19 +1,18 @@
-import { useState, useRef, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
-import { useThemeStore } from '../stores/themeStore';
-import { useAuthStore } from '../stores/authStore';
-import { useUploadStore } from '../stores/uploadStore';
-import { useFileStore } from '../stores/fileStore';
-import { useGlobalProgressStore } from '../stores/globalProgressStore';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useRef, useEffect, useCallback } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { useThemeStore } from "../stores/themeStore";
+import { useAuthStore } from "../stores/authStore";
+import { useUploadStore } from "../stores/uploadStore";
+import { useFileStore } from "../stores/fileStore";
+import { useGlobalProgressStore } from "../stores/globalProgressStore";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
   Moon,
   Sun,
   Settings,
   ShieldCheck,
-  PanelTop,
   LogOut,
   Plus,
   Upload,
@@ -23,15 +22,15 @@ import {
   X,
   Trash2,
   Download,
-} from 'lucide-react';
-import Dropdown, { DropdownItem, DropdownDivider } from './ui/Dropdown';
-import UploadModal from './modals/UploadModal';
-import UploadFolderModal from './modals/UploadFolderModal';
-import CreateFolderModal from './modals/CreateFolderModal';
-import CreateFileModal from './modals/CreateFileModal';
-import { formatBytes } from '../lib/utils';
-import { api, openSignedFileUrl } from '../lib/api';
-import { toast } from './ui/Toast';
+} from "lucide-react";
+import Dropdown, { DropdownItem, DropdownDivider } from "./ui/Dropdown";
+import UploadModal from "./modals/UploadModal";
+import UploadFolderModal from "./modals/UploadFolderModal";
+import CreateFolderModal from "./modals/CreateFolderModal";
+import CreateFileModal from "./modals/CreateFileModal";
+import { formatBytes } from "../lib/utils";
+import { api, openSignedFileUrl } from "../lib/api";
+import { toast } from "./ui/Toast";
 
 // Issue #18: Debounce hook for search
 function useDebounce<T>(value: T, delay: number): T {
@@ -57,11 +56,13 @@ export default function Header() {
   const { user, logout } = useAuthStore();
   const { isUploading, uploadedBytes, totalBytes, speed } = useUploadStore();
   const { selectedItems, clearSelection } = useFileStore();
-  const { addOperation, incrementProgress, completeOperation, failOperation } = useGlobalProgressStore();
+  const { addOperation, incrementProgress, completeOperation, failOperation } =
+    useGlobalProgressStore();
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [searchParams] = useSearchParams();
-  const currentFolderId = searchParams.get('folder');
+  const currentFolderId = searchParams.get("folder");
+  const urlSearchQuery = searchParams.get("search") || "";
   const userMenuRef = useRef<HTMLDivElement>(null);
   const [isUploadModalOpen, setUploadModalOpen] = useState(false);
   const [isUploadFolderModalOpen, setUploadFolderModalOpen] = useState(false);
@@ -73,15 +74,40 @@ export default function Header() {
   // Issue #18: Debounce search query (300ms delay)
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
-  // Effect to navigate when debounced search changes
+  const buildFilesSearchUrl = useCallback(
+    (query: string) => {
+      const params = new URLSearchParams();
+      const trimmed = query.trim();
+
+      if (currentFolderId) {
+        params.set("folder", currentFolderId);
+      }
+      if (trimmed) {
+        params.set("search", trimmed);
+      }
+
+      const qs = params.toString();
+      return qs ? `/files?${qs}` : "/files";
+    },
+    [currentFolderId],
+  );
+
+  // Keep input in sync with URL (back/forward, refresh, external navigation)
   useEffect(() => {
-    if (debouncedSearchQuery.trim()) {
-      navigate(`/files?search=${encodeURIComponent(debouncedSearchQuery.trim())}`);
-    }
-  }, [debouncedSearchQuery, navigate]);
+    setSearchQuery(urlSearchQuery);
+  }, [urlSearchQuery]);
+
+  // Navigate when debounced search changes
+  useEffect(() => {
+    const trimmed = debouncedSearchQuery.trim();
+    if (trimmed === urlSearchQuery.trim()) return;
+
+    navigate(buildFilesSearchUrl(trimmed), { replace: true });
+  }, [debouncedSearchQuery, urlSearchQuery, buildFilesSearchUrl, navigate]);
 
   // Calculate upload progress percentage
-  const uploadProgress = totalBytes > 0 ? Math.round((uploadedBytes / totalBytes) * 100) : 0;
+  const uploadProgress =
+    totalBytes > 0 ? Math.round((uploadedBytes / totalBytes) * 100) : 0;
 
   // Selection action handlers
   const handleDeleteSelected = async () => {
@@ -90,8 +116,8 @@ export default function Header() {
 
     const opId = addOperation({
       id: `delete-header-${Date.now()}`,
-      type: 'delete',
-      title: t('header.deletingItems', { count: total }),
+      type: "delete",
+      title: t("header.deletingItems", { count: total }),
       totalItems: total,
     });
 
@@ -99,7 +125,10 @@ export default function Header() {
       for (const id of itemIds) {
         const fileEl = document.querySelector(`[data-file-item="${id}"]`);
         const folderEl = document.querySelector(`[data-folder-item="${id}"]`);
-        const itemName = fileEl?.getAttribute('data-file-name') || folderEl?.getAttribute('data-folder-name') || id;
+        const itemName =
+          fileEl?.getAttribute("data-file-name") ||
+          folderEl?.getAttribute("data-folder-name") ||
+          id;
 
         if (fileEl) {
           await api.delete(`/files/${id}`);
@@ -111,11 +140,11 @@ export default function Header() {
 
       completeOperation(opId);
       clearSelection();
-      toast(t('header.itemsMovedToTrash', { count: total }), 'success');
-      window.dispatchEvent(new CustomEvent('workzone-refresh'));
+      toast(t("header.itemsMovedToTrash", { count: total }), "success");
+      window.dispatchEvent(new CustomEvent("workzone-refresh"));
     } catch {
-      failOperation(opId, t('header.deleteError'));
-      toast(t('header.deleteError'), 'error');
+      failOperation(opId, t("header.deleteError"));
+      toast(t("header.deleteError"), "error");
     }
   };
 
@@ -124,7 +153,7 @@ export default function Header() {
     itemIds.forEach((id) => {
       const fileEl = document.querySelector(`[data-file-item="${id}"]`);
       if (fileEl) {
-        void openSignedFileUrl(id, 'download');
+        void openSignedFileUrl(id, "download");
       }
     });
   };
@@ -132,25 +161,28 @@ export default function Header() {
   // Close menus when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+      if (
+        userMenuRef.current &&
+        !userMenuRef.current.contains(e.target as Node)
+      ) {
         setShowUserMenu(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     // Issue #18: Allow immediate search on form submit (Enter key)
-    if (searchQuery.trim()) {
-      navigate(`/files?search=${encodeURIComponent(searchQuery.trim())}`);
-    }
+    const trimmed = searchQuery.trim();
+    if (!trimmed && !urlSearchQuery) return;
+    navigate(buildFilesSearchUrl(trimmed));
   };
 
   const handleLogout = async () => {
     await logout();
-    navigate('/login');
+    navigate("/login");
   };
 
   return (
@@ -162,11 +194,11 @@ export default function Header() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-400" />
             <input
               type="text"
-              placeholder={t('header.search')}
+              placeholder={t("header.search")}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full h-9 pl-9 pr-4 bg-white border border-dark-200 dark:border-dark-700 rounded-full text-sm text-dark-900 placeholder-dark-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              aria-label={t('header.searchFilesAndFolders')}
+              aria-label={t("header.searchFilesAndFolders")}
             />
           </div>
           <Dropdown
@@ -174,30 +206,30 @@ export default function Header() {
               <button
                 type="button"
                 className="h-9 px-4 flex items-center gap-2 rounded-full bg-primary-600 text-white font-semibold text-sm transition-colors shadow-sm hover:bg-primary-700"
-                aria-label={t('header.createNewItem')}
+                aria-label={t("header.createNewItem")}
               >
                 <Plus className="w-4 h-4" />
-                {t('header.new')}
+                {t("header.new")}
               </button>
             }
             align="left"
           >
             <DropdownItem onClick={() => setUploadModalOpen(true)}>
               <Upload className="w-4 h-4 text-dark-500" />
-              {t('header.uploadFile')}
+              {t("header.uploadFile")}
             </DropdownItem>
             <DropdownItem onClick={() => setUploadFolderModalOpen(true)}>
               <FolderOpen className="w-4 h-4 text-dark-500" />
-              {t('header.uploadFolder')}
+              {t("header.uploadFolder")}
             </DropdownItem>
             <DropdownDivider />
             <DropdownItem onClick={() => setCreateFileModalOpen(true)}>
               <FilePlus className="w-4 h-4 text-dark-500" />
-              {t('header.createFile')}
+              {t("header.createFile")}
             </DropdownItem>
             <DropdownItem onClick={() => setCreateFolderModalOpen(true)}>
               <FolderPlus className="w-4 h-4 text-dark-500" />
-              {t('header.createFolder')}
+              {t("header.createFolder")}
             </DropdownItem>
           </Dropdown>
         </div>
@@ -210,31 +242,31 @@ export default function Header() {
             initial={{ opacity: 0, scale: 0.9, x: -20 }}
             animate={{ opacity: 1, scale: 1, x: 0 }}
             exit={{ opacity: 0, scale: 0.9, x: -20 }}
-            transition={{ duration: 0.2, ease: 'easeOut' }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
             className="flex items-center gap-1 px-2 py-1 bg-primary-50 dark:bg-primary-900/30 rounded-full border border-primary-200 dark:border-primary-800"
           >
             <button
               onClick={clearSelection}
               className="p-1.5 text-primary-600 hover:text-primary-700 hover:bg-primary-100 dark:hover:bg-primary-800/50 rounded-full transition-colors"
-              title={t('header.clearSelection')}
+              title={t("header.clearSelection")}
             >
               <X className="w-4 h-4" />
             </button>
             <span className="text-sm font-medium text-primary-700 dark:text-primary-300 px-2">
-              {t('header.itemsSelected', { count: selectedCount })}
+              {t("header.itemsSelected", { count: selectedCount })}
             </span>
             <div className="w-px h-5 bg-primary-200 dark:bg-primary-700" />
             <button
               onClick={handleDownloadSelected}
               className="p-1.5 text-primary-600 hover:text-primary-700 hover:bg-primary-100 dark:hover:bg-primary-800/50 rounded-full transition-colors"
-              title={t('header.downloadSelected')}
+              title={t("header.downloadSelected")}
             >
               <Download className="w-4 h-4" />
             </button>
             <button
               onClick={handleDeleteSelected}
               className="p-1.5 text-red-500 hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900/50 rounded-full transition-colors"
-              title={t('header.deleteSelected')}
+              title={t("header.deleteSelected")}
             >
               <Trash2 className="w-4 h-4" />
             </button>
@@ -253,7 +285,10 @@ export default function Header() {
               />
             </div>
             <span className="text-xs font-medium text-dark-600 dark:text-dark-300 tabular-nums whitespace-nowrap min-w-[90px] text-right">
-              {t('header.uploadProgress', { percent: uploadProgress, speed: formatBytes(speed) })}
+              {t("header.uploadProgress", {
+                percent: uploadProgress,
+                speed: formatBytes(speed),
+              })}
             </span>
           </div>
         )}
@@ -268,8 +303,8 @@ export default function Header() {
         <button
           onClick={toggleTheme}
           className="p-2 text-dark-500 dark:text-white/70 hover:text-dark-900 dark:hover:text-white rounded-lg hover:bg-dark-100 dark:hover:bg-white/10 transition-colors"
-          title={isDark ? t('header.lightMode') : t('header.darkMode')}
-          aria-label={isDark ? t('header.lightMode') : t('header.darkMode')}
+          title={isDark ? t("header.lightMode") : t("header.darkMode")}
+          aria-label={isDark ? t("header.lightMode") : t("header.darkMode")}
         >
           {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
         </button>
@@ -279,7 +314,7 @@ export default function Header() {
           <button
             onClick={() => setShowUserMenu(!showUserMenu)}
             className="p-1 rounded-full hover:bg-dark-100 dark:hover:bg-white/10 transition-colors"
-            aria-label={t('header.userMenu')}
+            aria-label={t("header.userMenu")}
             aria-expanded={showUserMenu}
             aria-haspopup="menu"
           >
@@ -303,7 +338,7 @@ export default function Header() {
                 initial={{ opacity: 0, y: -10, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                transition={{ duration: 0.15, ease: 'easeOut' }}
+                transition={{ duration: 0.15, ease: "easeOut" }}
                 className="absolute right-0 mt-2 w-48 bg-white dark:bg-dark-900 rounded-lg shadow-lg border border-dark-200 dark:border-dark-700 py-1 z-50 text-dark-900 dark:text-white"
               >
                 <div className="px-4 py-2 border-b border-dark-200 dark:border-dark-700">
@@ -316,37 +351,25 @@ export default function Header() {
                 </div>
                 <button
                   onClick={() => {
-                    navigate('/settings');
+                    navigate("/settings");
                     setShowUserMenu(false);
                   }}
                   className="w-full flex items-center gap-2 px-4 py-2 text-sm text-dark-700 dark:text-white hover:bg-dark-50 dark:hover:bg-white/10 transition-colors"
                 >
                   <Settings className="w-4 h-4" />
-                  {t('header.settings')}
+                  {t("header.settings")}
                 </button>
-                {user?.role === 'ADMIN' && (
-                  <>
-                    <button
-                      onClick={() => {
-                        navigate('/admin');
-                        setShowUserMenu(false);
-                      }}
-                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-dark-700 dark:text-white hover:bg-dark-50 dark:hover:bg-white/10 transition-colors"
-                    >
-                      <ShieldCheck className="w-4 h-4" />
-                      {t('header.admin')}
-                    </button>
-                    <button
-                      onClick={() => {
-                        navigate('/admin/landing');
-                        setShowUserMenu(false);
-                      }}
-                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-dark-700 dark:text-white hover:bg-dark-50 dark:hover:bg-white/10 transition-colors"
-                    >
-                      <PanelTop className="w-4 h-4" />
-                      {t('header.landingEditor')}
-                    </button>
-                  </>
+                {user?.role === "ADMIN" && (
+                  <button
+                    onClick={() => {
+                      navigate("/admin");
+                      setShowUserMenu(false);
+                    }}
+                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-dark-700 dark:text-white hover:bg-dark-50 dark:hover:bg-white/10 transition-colors"
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                    {t("header.admin")}
+                  </button>
                 )}
                 <div className="border-t border-dark-200 dark:border-dark-700 mt-1 pt-1">
                   <button
@@ -354,7 +377,7 @@ export default function Header() {
                     className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
                   >
                     <LogOut className="w-4 h-4" />
-                    {t('header.logout')}
+                    {t("header.logout")}
                   </button>
                 </div>
               </motion.div>
@@ -366,25 +389,33 @@ export default function Header() {
         isOpen={isUploadModalOpen}
         onClose={() => setUploadModalOpen(false)}
         folderId={currentFolderId}
-        onSuccess={() => window.dispatchEvent(new CustomEvent('workzone-refresh'))}
+        onSuccess={() =>
+          window.dispatchEvent(new CustomEvent("workzone-refresh"))
+        }
       />
       <UploadFolderModal
         isOpen={isUploadFolderModalOpen}
         onClose={() => setUploadFolderModalOpen(false)}
         folderId={currentFolderId}
-        onSuccess={() => window.dispatchEvent(new CustomEvent('workzone-refresh'))}
+        onSuccess={() =>
+          window.dispatchEvent(new CustomEvent("workzone-refresh"))
+        }
       />
       <CreateFolderModal
         isOpen={isCreateFolderModalOpen}
         onClose={() => setCreateFolderModalOpen(false)}
         parentId={currentFolderId}
-        onSuccess={() => window.dispatchEvent(new CustomEvent('workzone-refresh'))}
+        onSuccess={() =>
+          window.dispatchEvent(new CustomEvent("workzone-refresh"))
+        }
       />
       <CreateFileModal
         isOpen={isCreateFileModalOpen}
         onClose={() => setCreateFileModalOpen(false)}
         folderId={currentFolderId}
-        onSuccess={() => window.dispatchEvent(new CustomEvent('workzone-refresh'))}
+        onSuccess={() =>
+          window.dispatchEvent(new CustomEvent("workzone-refresh"))
+        }
       />
     </header>
   );

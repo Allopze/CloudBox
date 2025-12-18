@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import type { FileItem, Folder } from '../types';
 
 interface FileState {
@@ -32,113 +33,125 @@ interface FileState {
   clearClipboard: () => void;
 }
 
-export const useFileStore = create<FileState>((set) => ({
-  selectedItems: new Set(),
-  lastSelectedId: null,
-  viewMode: 'grid',
-  sortBy: 'name',
-  sortOrder: 'asc',
-  breadcrumbs: [],
-  activeTab: 'all',
-  clipboard: {
-    items: [],
-    operation: null,
-  },
+export const useFileStore = create<FileState>()(
+  persist(
+    (set) => ({
+      selectedItems: new Set(),
+      lastSelectedId: null,
+      viewMode: 'grid',
+      sortBy: 'name',
+      sortOrder: 'asc',
+      breadcrumbs: [],
+      activeTab: 'all',
+      clipboard: {
+        items: [],
+        operation: null,
+      },
 
-  toggleSelection: (id) => {
-    set((state) => {
-      const newSelection = new Set(state.selectedItems);
-      if (newSelection.has(id)) {
-        newSelection.delete(id);
-      } else {
-        newSelection.add(id);
-      }
-      return { selectedItems: newSelection, lastSelectedId: id };
-    });
-  },
+      toggleSelection: (id) => {
+        set((state) => {
+          const newSelection = new Set(state.selectedItems);
+          if (newSelection.has(id)) {
+            newSelection.delete(id);
+          } else {
+            newSelection.add(id);
+          }
+          return { selectedItems: newSelection, lastSelectedId: id };
+        });
+      },
 
-  addToSelection: (id) => {
-    set((state) => {
-      const newSelection = new Set(state.selectedItems);
-      newSelection.add(id);
-      return { selectedItems: newSelection, lastSelectedId: id };
-    });
-  },
+      addToSelection: (id) => {
+        set((state) => {
+          const newSelection = new Set(state.selectedItems);
+          newSelection.add(id);
+          return { selectedItems: newSelection, lastSelectedId: id };
+        });
+      },
 
-  removeFromSelection: (id) => {
-    set((state) => {
-      const newSelection = new Set(state.selectedItems);
-      newSelection.delete(id);
-      return { selectedItems: newSelection };
-    });
-  },
+      removeFromSelection: (id) => {
+        set((state) => {
+          const newSelection = new Set(state.selectedItems);
+          newSelection.delete(id);
+          return { selectedItems: newSelection };
+        });
+      },
 
-  selectRange: (ids, targetId) => {
-    set((state) => {
-      const lastId = state.lastSelectedId;
-      if (!lastId) {
-        return { selectedItems: new Set([targetId]), lastSelectedId: targetId };
-      }
+      selectRange: (ids, targetId) => {
+        set((state) => {
+          const lastId = state.lastSelectedId;
+          if (!lastId) {
+            return { selectedItems: new Set([targetId]), lastSelectedId: targetId };
+          }
 
-      const lastIndex = ids.indexOf(lastId);
-      const targetIndex = ids.indexOf(targetId);
+          const lastIndex = ids.indexOf(lastId);
+          const targetIndex = ids.indexOf(targetId);
 
-      if (lastIndex === -1 || targetIndex === -1) {
-        return { selectedItems: new Set([targetId]), lastSelectedId: targetId };
-      }
+          if (lastIndex === -1 || targetIndex === -1) {
+            return { selectedItems: new Set([targetId]), lastSelectedId: targetId };
+          }
 
-      const start = Math.min(lastIndex, targetIndex);
-      const end = Math.max(lastIndex, targetIndex);
-      const rangeIds = ids.slice(start, end + 1);
+          const start = Math.min(lastIndex, targetIndex);
+          const end = Math.max(lastIndex, targetIndex);
+          const rangeIds = ids.slice(start, end + 1);
 
-      const newSelection = new Set(state.selectedItems);
-      rangeIds.forEach(id => newSelection.add(id));
+          const newSelection = new Set(state.selectedItems);
+          rangeIds.forEach((id) => newSelection.add(id));
 
-      return { selectedItems: newSelection, lastSelectedId: targetId };
-    });
-  },
+          return { selectedItems: newSelection, lastSelectedId: targetId };
+        });
+      },
 
-  selectSingle: (id) => {
-    set({ selectedItems: new Set([id]), lastSelectedId: id });
-  },
+      selectSingle: (id) => {
+        set({ selectedItems: new Set([id]), lastSelectedId: id });
+      },
 
-  selectAll: (ids) => {
-    set({ selectedItems: new Set(ids) });
-  },
+      selectAll: (ids) => {
+        set({ selectedItems: new Set(ids) });
+      },
 
-  clearSelection: () => {
-    set({ selectedItems: new Set(), lastSelectedId: null });
-  },
+      clearSelection: () => {
+        set({ selectedItems: new Set(), lastSelectedId: null });
+      },
 
-  setViewMode: (mode) => {
-    set({ viewMode: mode });
-  },
+      setViewMode: (mode) => {
+        set({ viewMode: mode });
+      },
 
-  setSortBy: (sort) => {
-    set({ sortBy: sort });
-  },
+      setSortBy: (sort) => {
+        set({ sortBy: sort });
+      },
 
-  setSortOrder: (order) => {
-    set({ sortOrder: order });
-  },
+      setSortOrder: (order) => {
+        set({ sortOrder: order });
+      },
 
-  setBreadcrumbs: (crumbs) => {
-    set({ breadcrumbs: crumbs });
-  },
+      setBreadcrumbs: (crumbs) => {
+        set({ breadcrumbs: crumbs });
+      },
 
-  setActiveTab: (tab) => {
-    set({ activeTab: tab });
-  },
+      setActiveTab: (tab) => {
+        set({ activeTab: tab });
+      },
 
-  copyToClipboard: (items) => {
-    set({ clipboard: { items, operation: 'copy' } });
-  },
+      copyToClipboard: (items) => {
+        set({ clipboard: { items, operation: 'copy' } });
+      },
 
-  cutToClipboard: (items) => {
-    set({ clipboard: { items, operation: 'cut' } });
-  },
+      cutToClipboard: (items) => {
+        set({ clipboard: { items, operation: 'cut' } });
+      },
 
-  clearClipboard: () => {
-    set({ clipboard: { items: [], operation: null } });
-  },
-}));
+      clearClipboard: () => {
+        set({ clipboard: { items: [], operation: null } });
+      },
+    }),
+    {
+      name: 'file-preferences',
+      partialize: (state) => ({
+        viewMode: state.viewMode,
+        sortBy: state.sortBy,
+        sortOrder: state.sortOrder,
+      }),
+    }
+  )
+);

@@ -21,6 +21,7 @@ import {
 import { toast } from '../components/ui/Toast';
 import { formatDate } from '../lib/utils';
 import Dropdown, { DropdownItem, DropdownDivider } from '../components/ui/Dropdown';
+import ContextMenu, { type ContextMenuItemOrDivider } from '../components/ui/ContextMenu';
 import { motion, useReducedMotion } from 'framer-motion';
 import { waveIn } from '../lib/animations';
 
@@ -113,15 +114,6 @@ export default function Shared() {
   };
 
   const closeContextMenu = () => setContextMenu(null);
-
-  // Close context menu when clicking outside
-  useEffect(() => {
-    const handleClick = () => closeContextMenu();
-    if (contextMenu) {
-      document.addEventListener('click', handleClick);
-      return () => document.removeEventListener('click', handleClick);
-    }
-  }, [contextMenu]);
 
   if (loading) {
     return (
@@ -265,6 +257,7 @@ export default function Shared() {
               <motion.div
                 key={share.id}
                 {...waveIn(index, reducedMotion)}
+                onContextMenu={(e) => handleContextMenu(e, share, false)}
                 className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-dark-50 dark:hover:bg-dark-800 transition-colors"
               >
                 <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
@@ -315,6 +308,41 @@ export default function Shared() {
           )}
         </div>
       )}
+
+      <ContextMenu
+        items={
+          contextMenu
+            ? ([
+                {
+                  id: 'open',
+                  label: t(contextMenu.isOwnShare ? 'shared.openLink' : 'shared.open'),
+                  icon: ExternalLink,
+                  onClick: () => openShareLink(contextMenu.share),
+                },
+                {
+                  id: 'copy',
+                  label: t('shared.copyLink'),
+                  icon: Copy,
+                  onClick: () => copyShareLink(contextMenu.share),
+                },
+                ...(contextMenu.isOwnShare
+                  ? ([
+                      { id: 'divider-delete', divider: true as const },
+                      {
+                        id: 'delete',
+                        label: t('common.delete'),
+                        icon: Trash2,
+                        danger: true,
+                        onClick: () => deleteShare(contextMenu.share.id),
+                      },
+                    ] as ContextMenuItemOrDivider[])
+                  : []),
+              ] as ContextMenuItemOrDivider[])
+            : []
+        }
+        position={contextMenu ? { x: contextMenu.x, y: contextMenu.y } : null}
+        onClose={closeContextMenu}
+      />
     </div>
   );
 }

@@ -67,12 +67,28 @@ We use a modern, strictly-typed stack to ensure reliability and ease of maintena
 
 Detailed documentation is available in the `docs/` directory to help you get started and understand the system architecture.
 
+### Getting Started
 - [**📥 Getting Started**](./docs/getting_started.md): Installation, environment setup, and running the app locally.
+- [**⚙️ Environment Variables**](./docs/environment_variables.md): Complete reference for all configuration options.
+- [**🔧 Troubleshooting**](./docs/troubleshooting.md): Solutions for common issues.
+
+### Architecture & API
 - [**🏗️ Architecture**](./docs/architecture.md): Deep dive into the system design, components, and security.
 - [**🔌 API Overview**](./docs/api_overview.md): Reference for the REST API endpoints.
+- [**🔐 Admin API**](./docs/admin_api.md): Complete admin endpoint documentation.
+- [**📡 WebSockets**](./docs/websockets.md): Real-time events with Socket.IO.
+- [**⚡ Background Queues**](./docs/queues.md): Bull queues for media processing.
+
+### Development
 - [**🗄️ Database Schema**](./docs/database_schema.md): Explanation of the data models.
 - [**🎨 Frontend Guide**](./docs/frontend_guide.md): Guide for frontend development and structure.
-- [**🚢 Deployment**](./docs/deployment.md): Production Docker, tunneling/proxying, backups.
+- [**🌍 Internationalization**](./docs/i18n.md): Multi-language support (i18n) guide.
+- [**🧪 Testing**](./docs/testing.md): Running and writing tests.
+
+### Operations
+- [**🚢 Deployment**](./docs/deployment.md): Production Docker, tunneling/proxying.
+- [**💾 Backup & Restore**](./docs/backup.md): Backup procedures and disaster recovery.
+- [**🛡️ Security Hardening**](./docs/security_hardening.md): Best practices for production security.
 
 ---
 

@@ -37,12 +37,10 @@ const Music = lazy(() => import('./pages/Music'));
 // Admin pages (lazy-loaded)
 const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
 const AdminUsers = lazy(() => import('./pages/admin/AdminUsers'));
-const AdminLanding = lazy(() => import('./pages/admin/AdminLanding'));
 
 // Public pages (lazy since not part of main app flow)
 const PublicShare = lazy(() => import('./pages/public/PublicShare'));
 const LegalPage = lazy(() => import('./pages/public/LegalPage'));
-const Landing = lazy(() => import('./pages/public/Landing'));
 
 // Components
 import ProtectedRoute from './components/ProtectedRoute';
@@ -93,7 +91,6 @@ function App() {
     <ErrorBoundary>
       <Routes>
         {/* Public routes */}
-        <Route path="/landing" element={<Suspense fallback={<PageLoader />}><Landing /></Suspense>} />
         <Route path="/share/:token" element={<PublicShare />} />
 
         <Route element={<LegalLayout />}>
@@ -129,7 +126,6 @@ function App() {
           {/* Admin routes */}
           <Route path="admin" element={<AdminRoute><Suspense fallback={<PageLoader />}><AdminDashboard /></Suspense></AdminRoute>} />
           <Route path="admin/users" element={<AdminRoute><Suspense fallback={<PageLoader />}><AdminUsers /></Suspense></AdminRoute>} />
-          <Route path="admin/landing" element={<AdminRoute><Suspense fallback={<PageLoader />}><AdminLanding /></Suspense></AdminRoute>} />
         </Route>
 
         {/* Fallback */}
