@@ -1,8 +1,7 @@
 import { ReactNode } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { Loader2 } from 'lucide-react';
-import Landing from '../pages/public/Landing';
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -10,7 +9,6 @@ interface ProtectedRouteProps {
 
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { isAuthenticated, isLoading } = useAuthStore();
-  const location = useLocation();
 
   if (isLoading) {
     return (
@@ -21,9 +19,6 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   }
 
   if (!isAuthenticated) {
-    if (location.pathname === '/') {
-      return <Landing />;
-    }
     return <Navigate to="/login" replace />;
   }
 

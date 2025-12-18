@@ -21,6 +21,7 @@ import { initSessionStore, getSessionStats } from './lib/sessionStore.js';
 import { initBullBoard, closeBullBoard } from './lib/bullBoard.js';
 import { authenticate, requireAdmin } from './middleware/auth.js';
 import { initRateLimitRedis, getRateLimitStats } from './lib/security.js';
+import { metricsMiddleware, metricsHandler } from './lib/metrics.js';
 
 // Routes
 import authRoutes from './routes/auth.js';
@@ -240,6 +241,9 @@ app.get('/api/config/upload-limits', async (req, res) => {
 app.get('/api/health/ping', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
+
+// Prometheus metrics endpoint (admin only)
+app.get('/api/metrics', authenticate, requireAdmin, metricsHandler);
 
 // Detailed health check endpoint (admin only - exposes infrastructure details)
 app.get('/api/health', authenticate, requireAdmin, async (req, res) => {

@@ -95,14 +95,14 @@ export default function ContextMenu({ items, position, onClose }: ContextMenuPro
 
         // Delay adding listeners to avoid immediate close
         const timeoutId = setTimeout(() => {
-            document.addEventListener('mousedown', handleClickOutside);
+            document.addEventListener('mousedown', handleClickOutside, true);
             document.addEventListener('scroll', handleScroll, true);
             document.addEventListener('contextmenu', handleContextMenu, true);
         }, 0);
 
         return () => {
             clearTimeout(timeoutId);
-            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('mousedown', handleClickOutside, true);
             document.removeEventListener('scroll', handleScroll, true);
             document.removeEventListener('contextmenu', handleContextMenu, true);
         };

@@ -19,9 +19,10 @@ import { useGlobalProgressStore } from '../stores/globalProgressStore';
 import { useAuthStore } from '../stores/authStore';
 import { cn } from '../lib/utils';
 import { uploadFile } from '../lib/chunkedUpload';
-import { PanelLeftClose, PanelLeft, Grid, List, SortAsc, SortDesc, Check, Link as LinkIcon, Users, Image, Star, Video, Camera, FolderOpen, Settings, ShieldCheck, Upload, FolderPlus, Trash2, Music, Disc, Plus, ArrowLeft, FilePlus, FolderUp, CheckSquare, RefreshCw, FileText, FileSpreadsheet, Presentation, FileCode } from 'lucide-react';
+import { PanelLeftClose, PanelLeft, Grid, List, SortAsc, SortDesc, Check, Link as LinkIcon, Users, Image, Star, Video, Camera, FolderOpen, Settings, ShieldCheck, Upload, FolderPlus, Trash2, Music, Disc, Plus, ArrowLeft, FilePlus, FolderUp, CheckSquare, RefreshCw, FileSpreadsheet, Presentation, FileCode, Files, File, AlignLeft } from 'lucide-react';
 import { Album } from '../types';
 import Dropdown, { DropdownItem, DropdownDivider } from '../components/ui/Dropdown';
+import ContextMenu, { type ContextMenuItemOrDivider } from '../components/ui/ContextMenu';
 import { api } from '../lib/api';
 import { toast } from '../components/ui/Toast';
 
@@ -389,18 +390,6 @@ export default function MainLayout() {
     };
   }, [handleDragEnter, handleDragLeave, handleDragOver, handleDrop, onMarqueeMouseDown]);
 
-  // Close context menu on any click outside
-  useEffect(() => {
-    const handleClickOutside = () => setContextMenu(null);
-
-    if (contextMenu) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-      };
-    }
-  }, [contextMenu]);
-
   // Global keyboard shortcuts for selection
   useEffect(() => {
     const handleKeyDown = async (e: KeyboardEvent) => {
@@ -410,8 +399,18 @@ export default function MainLayout() {
         return;
       }
 
+      const isMenuShortcut =
+        e.key === 'Escape' ||
+        e.key === 'Delete' ||
+        ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a');
+
+      if (isMenuShortcut && document.querySelector('[role="menu"]')) {
+        e.preventDefault();
+        return;
+      }
+
       // Ctrl/Cmd + A: Select all
-      if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
         e.preventDefault();
         const allItems = Array.from(document.querySelectorAll('[data-file-item], [data-folder-item]'));
         const ids = allItems.map(el => el.getAttribute('data-file-item') || el.getAttribute('data-folder-item')).filter(Boolean) as string[];
@@ -770,7 +769,14 @@ export default function MainLayout() {
 
   const handleContextMenu = (e: React.MouseEvent) => {
     if (!showContextMenu) return;
+
+    const target = e.target as HTMLElement | null;
+    const isOnItem = !!target?.closest?.('[data-file-item], [data-folder-item]');
+    if (isOnItem) return;
+
     e.preventDefault();
+    e.stopPropagation();
+    clearSelection();
     setContextMenu({ x: e.clientX, y: e.clientY });
   };
 
@@ -826,6 +832,60 @@ export default function MainLayout() {
   const triggerRefresh = () => {
     window.dispatchEvent(new CustomEvent('workzone-refresh'));
   };
+
+  const workzoneContextMenuItems: ContextMenuItemOrDivider[] = [
+    ...(isFilesPage
+      ? [
+        {
+          id: 'select-all',
+          label: t('layout.selectAll'),
+          icon: CheckSquare,
+          onClick: () => window.dispatchEvent(new CustomEvent('workzone-select-all')),
+        },
+        { id: 'divider-select-all', divider: true as const },
+      ]
+      : []),
+    {
+      id: 'upload-file',
+      label: t('layout.addFile'),
+      icon: Upload,
+      onClick: () => setUploadModalOpen(true),
+    },
+    ...(isFilesPage
+      ? [
+        {
+          id: 'upload-folder',
+          label: t('layout.addFolder'),
+          icon: FolderUp,
+          onClick: handleFolderUpload,
+        },
+      ]
+      : []),
+    ...(isFilesPage
+      ? [
+        { id: 'divider-create', divider: true as const },
+        {
+          id: 'create-file',
+          label: t('header.createFile'),
+          icon: FilePlus,
+          onClick: () => setCreateFileModalOpen(true),
+        },
+        {
+          id: 'create-folder',
+          label: t('header.createFolder'),
+          icon: FolderPlus,
+          onClick: () => setCreateFolderModalOpen(true),
+        },
+        { id: 'divider-refresh', divider: true as const },
+        {
+          id: 'refresh',
+          label: t('layout.refresh'),
+          icon: RefreshCw,
+          onClick: triggerRefresh,
+        },
+      ]
+      : []),
+  ];
 
   return (
     <DndContextProvider onRefresh={triggerRefresh}>
@@ -1018,7 +1078,7 @@ export default function MainLayout() {
                       )}
                       aria-label={t('layout.viewAllDocuments')}
                     >
-                      <FileText className="w-5 h-5" />
+                      <Files className="w-5 h-5" />
                       {t('layout.all')}
                     </button>
                     <button
@@ -1031,7 +1091,7 @@ export default function MainLayout() {
                       )}
                       aria-label={t('layout.viewPDFs')}
                     >
-                      <FileText className="w-5 h-5" />
+                      <File className="w-5 h-5" />
                       {t('layout.pdfs')}
                     </button>
                     <button
@@ -1044,7 +1104,7 @@ export default function MainLayout() {
                       )}
                       aria-label={t('layout.viewTextDocs')}
                     >
-                      <FileText className="w-5 h-5" />
+                      <AlignLeft className="w-5 h-5" />
                       {t('layout.text')}
                     </button>
                     <button
@@ -1289,125 +1349,11 @@ export default function MainLayout() {
                 />
               </main>
 
-              {/* Context Menu */}
-              {contextMenu && (() => {
-                const menuWidth = 220;
-                const menuHeight = 280;
-                const padding = 16;
-
-                let left = contextMenu.x;
-                let top = contextMenu.y;
-
-                if (left + menuWidth > window.innerWidth - padding) {
-                  left = contextMenu.x - menuWidth;
-                }
-                if (top + menuHeight > window.innerHeight - padding) {
-                  top = contextMenu.y - menuHeight;
-                }
-                if (left < padding) left = padding;
-                if (top < padding) top = padding;
-
-                return (
-                  <div
-                    className="fixed z-50 bg-white dark:bg-dark-800 rounded-xl shadow-lg border border-dark-200 dark:border-dark-700 py-1 min-w-[180px]"
-                    style={{ left, top }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {/* Seleccionar todo */}
-                    {isFilesPage && (
-                      <>
-                        <button
-                          onMouseDown={(e) => {
-                            e.stopPropagation();
-                            // Dispatch event to select all in Files page
-                            window.dispatchEvent(new CustomEvent('workzone-select-all'));
-                            closeContextMenu();
-                          }}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
-                        >
-                          <CheckSquare className="w-4 h-4 text-dark-400" />
-                          {t('layout.selectAll')}
-                        </button>
-                        <div className="h-px bg-dark-100 dark:bg-dark-700 my-1.5" />
-                      </>
-                    )}
-
-                    {/* Añadir archivos/carpetas */}
-                    <button
-                      onMouseDown={(e) => {
-                        e.stopPropagation();
-                        setUploadModalOpen(true);
-                        closeContextMenu();
-                      }}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
-                    >
-                      <Upload className="w-4 h-4 text-dark-400" />
-                      {t('layout.addFile')}
-                    </button>
-                    {isFilesPage && (
-                      <button
-                        onMouseDown={(e) => {
-                          e.stopPropagation();
-                          handleFolderUpload();
-                        }}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
-                      >
-                        <FolderUp className="w-4 h-4 text-dark-400" />
-                        {t('layout.addFolder')}
-                      </button>
-                    )}
-
-                    {isFilesPage && (
-                      <>
-                        <div className="h-px bg-dark-100 dark:bg-dark-700 my-1.5" />
-
-                        {/* Crear archivo/carpeta */}
-                        <button
-                          onMouseDown={(e) => {
-                            e.stopPropagation();
-                            setCreateFileModalOpen(true);
-                            closeContextMenu();
-                          }}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
-                        >
-                          <FilePlus className="w-4 h-4 text-dark-400" />
-                          {t('header.createFile')}
-                        </button>
-                        <button
-                          onMouseDown={(e) => {
-                            e.stopPropagation();
-                            setCreateFolderModalOpen(true);
-                            closeContextMenu();
-                          }}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
-                        >
-                          <FolderPlus className="w-4 h-4 text-dark-400" />
-                          {t('header.createFolder')}
-                        </button>
-
-                        <div className="h-px bg-dark-100 dark:bg-dark-700 my-1.5" />
-
-                        {/* Actualizar */}
-                        <button
-                          onMouseDown={(e) => {
-                            e.stopPropagation();
-                            triggerRefresh();
-                            closeContextMenu();
-                          }}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700"
-                        >
-                          <RefreshCw className="w-4 h-4 text-dark-400" />
-                          {t('layout.refresh')}
-                        </button>
-                      </>
-                    )}
-                  </div>
-                );
-              })()}
             </div>
           </div>
         </div>
         <UploadProgress />
+        <ContextMenu items={workzoneContextMenuItems} position={contextMenu} onClose={closeContextMenu} />
 
         {/* Drag and Drop Overlay */}
         {isDragging && (

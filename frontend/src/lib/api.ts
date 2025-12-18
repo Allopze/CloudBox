@@ -152,8 +152,26 @@ api.interceptors.response.use(
     }
 
     const originalRequest = error.config;
+    const requestUrl = (typeof originalRequest?.url === 'string' ? originalRequest.url : '') || '';
+    const isAuthRequest =
+      requestUrl.includes('/auth/login') ||
+      requestUrl.includes('/auth/register') ||
+      requestUrl.includes('/auth/google') ||
+      requestUrl.includes('/auth/refresh') ||
+      requestUrl.includes('/auth/logout');
 
     if (error.response?.status === 401 && !originalRequest._retry) {
+      // Never try to refresh tokens for auth endpoints (prevents login/register errors from being swallowed).
+      if (isAuthRequest) {
+        return Promise.reject(error);
+      }
+
+      const token = localStorage.getItem('accessToken');
+      // If there's no access token, don't attempt refresh; let callers handle the 401.
+      if (!token) {
+        return Promise.reject(error);
+      }
+
       if (isRefreshing) {
         // Wait for the refresh to complete
         return new Promise((resolve, reject) => {

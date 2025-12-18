@@ -1,5 +1,4 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { createPortal } from 'react-dom';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { api, openSignedFileUrl } from '../lib/api';
@@ -8,7 +7,7 @@ import { useFileStore } from '../stores/fileStore';
 import { useGlobalProgressStore } from '../stores/globalProgressStore';
 import FileCard from '../components/files/FileCard';
 import FolderCard from '../components/files/FolderCard';
-import { Loader2, Upload, FolderUp, FolderPlus, FilePlus, RefreshCw, CheckSquare } from 'lucide-react';
+import { Loader2, FolderPlus } from 'lucide-react';
 import { toast } from '../components/ui/Toast';
 import { cn, isImage, isVideo, isDocument } from '../lib/utils';
 import UploadModal from '../components/modals/UploadModal';
@@ -21,7 +20,7 @@ import ImageGallery from '../components/gallery/ImageGallery';
 import VideoPreview from '../components/gallery/VideoPreview';
 import DocumentViewer from '../components/gallery/DocumentViewer';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { waveIn } from '../lib/animations';
 
 export default function Files() {
@@ -43,11 +42,6 @@ export default function Files() {
   const [deleteConfirmData, setDeleteConfirmData] = useState<{ files: FileItem[]; folders: Folder[] } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedFileForAction, setSelectedFileForAction] = useState<FileItem | null>(null);
-
-  // Workzone context menu state
-  const [workzoneContextMenu, setWorkzoneContextMenu] = useState<{ x: number; y: number } | null>(null);
-  const contextMenuRef = useRef<HTMLDivElement>(null);
-  const folderInputRef = useRef<HTMLInputElement>(null);
 
   // Gallery states
   const [galleryOpen, setGalleryOpen] = useState(false);
@@ -281,83 +275,6 @@ export default function Files() {
     return () => window.removeEventListener('workzone-select-all', handleSelectAll);
   }, [allItemIds, selectAll]);
 
-  // Close context menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
-        setWorkzoneContextMenu(null);
-      }
-    };
-    const handleScroll = () => setWorkzoneContextMenu(null);
-
-    if (workzoneContextMenu) {
-      document.addEventListener('mousedown', handleClickOutside);
-      document.addEventListener('scroll', handleScroll, true);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-        document.removeEventListener('scroll', handleScroll, true);
-      };
-    }
-  }, [workzoneContextMenu]);
-
-  // Handle workzone context menu (right-click on empty area)
-  const handleWorkzoneContextMenu = useCallback((e: React.MouseEvent) => {
-    // Only show if clicking on the container, not on items
-    const target = e.target as HTMLElement;
-    const isOnItem = target.closest('[data-file-item]') || target.closest('[data-folder-item]');
-
-    if (!isOnItem) {
-      e.preventDefault();
-      setWorkzoneContextMenu({ x: e.clientX, y: e.clientY });
-      clearSelection();
-    }
-  }, [clearSelection]);
-
-  // Handle folder upload
-  const handleFolderUpload = useCallback(() => {
-    setWorkzoneContextMenu(null);
-    folderInputRef.current?.click();
-  }, []);
-
-  const handleFolderInputChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const fileList = e.target.files;
-    if (!fileList || fileList.length === 0) return;
-
-    const filesWithPaths: { file: File; path: string }[] = [];
-
-    for (let i = 0; i < fileList.length; i++) {
-      const file = fileList[i];
-      // webkitRelativePath contains the folder structure
-      const path = (file as any).webkitRelativePath || file.name;
-      filesWithPaths.push({ file, path });
-    }
-
-    // Upload with folder structure
-    const formData = new FormData();
-    filesWithPaths.forEach(({ file, path }) => {
-      formData.append('files', file);
-      formData.append('paths', path);
-    });
-
-    if (folderId) {
-      formData.append('folderId', folderId);
-    }
-
-    try {
-      toast(t('files.uploadingFiles', { count: filesWithPaths.length }), 'info');
-      await api.post('/files/upload-with-folders', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      toast(t('files.folderUploaded'), 'success');
-      loadData();
-    } catch (error: any) {
-      toast(error.response?.data?.error || t('files.folderUploadError'), 'error');
-    }
-
-    // Reset input
-    e.target.value = '';
-  }, [folderId, loadData]);
-
   // Handle file click for gallery
   const handleFileClick = useCallback((file: FileItem) => {
     if (isImage(file.mimeType)) {
@@ -374,22 +291,7 @@ export default function Files() {
   }, [imageFiles]);
 
   return (
-    <div
-      className="min-h-[400px]"
-      onContextMenu={handleWorkzoneContextMenu}
-    >
-      {/* Hidden folder input */}
-      <input
-        ref={folderInputRef}
-        type="file"
-        className="hidden"
-        // @ts-ignore - webkitdirectory is not in types but works in browsers
-        webkitdirectory=""
-        directory=""
-        multiple
-        onChange={handleFolderInputChange}
-        aria-label={t('files.uploadFolder')}
-      />
+    <div className="min-h-[400px]">
 
       {/* Contenido */}
       {loading ? (
@@ -446,96 +348,6 @@ export default function Files() {
           ))}
         </div>
       )}
-
-      {/* Workzone Context Menu */}
-      <AnimatePresence>
-        {workzoneContextMenu && createPortal(
-          <motion.div
-            ref={contextMenuRef}
-            initial={{ opacity: 0, scale: 0.9, y: -10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: -10 }}
-            transition={{ duration: 0.15, ease: 'easeOut' }}
-            className="fixed z-[9999] min-w-[180px] bg-white dark:bg-dark-800 rounded-xl shadow-lg border border-dark-200 dark:border-dark-700 py-1 overflow-hidden"
-            style={{
-              top: Math.min(workzoneContextMenu.y, window.innerHeight - 300),
-              left: Math.min(workzoneContextMenu.x, window.innerWidth - 220)
-            }}
-          >
-            {/* Select All */}
-            {allItemIds.length > 0 && (
-              <>
-                <button
-                  onClick={() => {
-                    setWorkzoneContextMenu(null);
-                    selectAll(allItemIds);
-                  }}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
-                >
-                  <CheckSquare className="w-4 h-4" />
-                  <span>{t('layout.selectAll')}</span>
-                </button>
-                <div className="h-px bg-dark-200 dark:bg-dark-700 my-2" />
-              </>
-            )}
-
-            <button
-              onClick={() => {
-                setWorkzoneContextMenu(null);
-                setUploadModalOpen(true);
-              }}
-              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
-            >
-              <Upload className="w-4 h-4" />
-              <span>{t('layout.addFile')}</span>
-            </button>
-            <button
-              onClick={handleFolderUpload}
-              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
-            >
-              <FolderUp className="w-4 h-4" />
-              <span>{t('layout.addFolder')}</span>
-            </button>
-
-            <div className="h-px bg-dark-200 dark:bg-dark-700 my-2" />
-
-            <button
-              onClick={() => {
-                setWorkzoneContextMenu(null);
-                setCreateFileModalOpen(true);
-              }}
-              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
-            >
-              <FilePlus className="w-4 h-4" />
-              <span>{t('header.createFile')}</span>
-            </button>
-            <button
-              onClick={() => {
-                setWorkzoneContextMenu(null);
-                setCreateFolderModalOpen(true);
-              }}
-              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
-            >
-              <FolderPlus className="w-4 h-4" />
-              <span>{t('header.createFolder')}</span>
-            </button>
-
-            <div className="h-px bg-dark-200 dark:bg-dark-700 my-2" />
-
-            <button
-              onClick={() => {
-                setWorkzoneContextMenu(null);
-                loadData();
-              }}
-              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
-            >
-              <RefreshCw className="w-4 h-4" />
-              <span>{t('layout.refresh')}</span>
-            </button>
-          </motion.div>,
-          document.body
-        )}
-      </AnimatePresence>
 
       {/* Modales */}
       <UploadModal
