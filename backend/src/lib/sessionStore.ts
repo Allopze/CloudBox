@@ -47,8 +47,13 @@ let isConnected = false;
 
 /**
  * Initialize Redis connection for sessions
+ * 
+ * SECURITY: In production, Redis is strongly recommended for session management.
+ * Without Redis, instant session invalidation won't work (requires polling on refresh).
  */
 export async function initSessionStore(): Promise<boolean> {
+  const isProduction = process.env.NODE_ENV === 'production';
+
   try {
     // @ts-ignore - ioredis types issue with ESM
     redis = new Redis({
@@ -66,9 +71,21 @@ export async function initSessionStore(): Promise<boolean> {
     logger.info('Session store initialized with Redis');
     return true;
   } catch (error) {
-    logger.warn('Session store initialization failed, using database fallback', {
-      error: error instanceof Error ? error.message : 'Unknown',
-    });
+    const errorMessage = error instanceof Error ? error.message : 'Unknown';
+
+    // In production, warn loudly (session store is important but not critical)
+    if (isProduction) {
+      logger.error('Session store initialization failed - instant session invalidation will not work', {
+        error: errorMessage,
+        hint: 'Set REDIS_HOST and REDIS_PORT environment variables for optimal security.',
+        fallback: 'Sessions will use database fallback, but logout-all-devices will be delayed until token refresh.',
+      });
+    } else {
+      logger.warn('Session store initialization failed, using database fallback (development mode)', {
+        error: errorMessage,
+      });
+    }
+
     redis = null;
     isConnected = false;
     return false;
@@ -195,9 +212,9 @@ export async function getSession(userId: string, sessionId: string): Promise<Ses
   try {
     const sessionKey = `${userId}:${sessionId}`;
     const data = await redis!.get(sessionKey);
-    
+
     if (!data) return null;
-    
+
     return JSON.parse(data) as SessionData;
   } catch (error) {
     logger.debug('Failed to get session', { userId, sessionId });
@@ -242,7 +259,7 @@ export async function invalidateSession(userId: string, sessionId: string): Prom
   try {
     const sessionKey = `${userId}:${sessionId}`;
     await redis!.del(sessionKey);
-    
+
     const userSessionsKey = `list:${userId}`;
     await redis!.srem(userSessionsKey, sessionId);
 
@@ -301,7 +318,7 @@ export async function getUserSessions(userId: string): Promise<SessionData[]> {
     }
 
     // Sort by last used (most recent first)
-    sessions.sort((a, b) => 
+    sessions.sort((a, b) =>
       new Date(b.lastUsed).getTime() - new Date(a.lastUsed).getTime()
     );
 
@@ -381,7 +398,7 @@ export async function getSessionStats(): Promise<{
     // Use DBSIZE for O(1) operation instead of KEYS which blocks Redis
     // This gives total keys in the DB, which for session store is mostly sessions
     const dbSize = await redis!.dbsize();
-    
+
     // Note: This is an estimate since it includes 'list:' keys too
     // For exact count, we'd need SCAN but that's slower
     // The session keyPrefix makes this a reasonable approximation

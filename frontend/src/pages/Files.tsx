@@ -219,7 +219,7 @@ export default function Files() {
 
       const [filesRes, foldersRes] = await Promise.all([
         api.get('/files', { params }),
-        api.get('/folders', { params: { parentId: effectiveFolderId } }),
+        api.get('/folders', { params: { parentId: effectiveFolderId, ...(searchQuery && { search: searchQuery }) } }),
       ]);
 
       setFiles(filesRes.data.files || []);

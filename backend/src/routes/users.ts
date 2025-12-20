@@ -17,7 +17,7 @@ const router = Router();
 router.get('/me', authenticate, async (req: Request, res: Response) => {
   try {
     const userId = req.user!.userId;
-    
+
     // Try to get user from cache first
     const cachedUser = await cache.getUser(userId);
     if (cachedUser) {
@@ -37,6 +37,7 @@ router.get('/me', authenticate, async (req: Request, res: Response) => {
         emailVerified: true,
         storageQuota: true,
         storageUsed: true,
+        maxFileSize: true,
         createdAt: true,
       },
     });
@@ -50,6 +51,7 @@ router.get('/me', authenticate, async (req: Request, res: Response) => {
       ...user,
       storageQuota: user.storageQuota.toString(),
       storageUsed: user.storageUsed.toString(),
+      maxFileSize: user.maxFileSize.toString(),
     };
 
     // Cache the user info
@@ -94,6 +96,7 @@ router.patch('/me', authenticate, validate(updateProfileSchema), async (req: Req
         emailVerified: true,
         storageQuota: true,
         storageUsed: true,
+        maxFileSize: true,
       },
     });
 
@@ -104,6 +107,7 @@ router.patch('/me', authenticate, validate(updateProfileSchema), async (req: Req
       ...user,
       storageQuota: user.storageQuota.toString(),
       storageUsed: user.storageUsed.toString(),
+      maxFileSize: user.maxFileSize.toString(),
     });
   } catch (error) {
     console.error('Update profile error:', error);

@@ -25,13 +25,14 @@ export default defineConfig({
                 'src/types/**',
                 'node_modules/**',
             ],
-            // Thresholds (optional - can be enabled later)
-            // thresholds: {
-            //     lines: 50,
-            //     functions: 50,
-            //     branches: 50,
-            //     statements: 50,
-            // },
+            // Coverage thresholds - CI will fail if coverage drops below these values
+            // Start with conservative thresholds and increase as coverage improves
+            thresholds: {
+                lines: 40,
+                functions: 40,
+                branches: 30,
+                statements: 40,
+            },
         },
     },
 });

@@ -1,748 +1,768 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import {
-  X,
-  Download,
-  Share2,
-  ZoomIn,
-  ZoomOut,
-  ChevronLeft,
-  ChevronRight,
-  Loader2,
-  FileText,
-  Maximize2,
-  Minimize2,
-} from 'lucide-react';
-import { FileItem } from '../../types';
-import { getFileUrl, api } from '../../lib/api';
-import mammoth from 'mammoth';
+import { useTranslation } from 'react-i18next';
 import { Document, Page, pdfjs } from 'react-pdf';
-import DOMPurify from 'dompurify';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
+import {
+    ChevronLeft,
+    Search,
+    Share2,
+    Download,
+    Info,
+    Layers,
+    Bookmark,
+    Maximize2,
+    Minimize2,
+    Plus,
+    Minus,
+    X,
+    FileText,
+    ChevronRight,
+    Copy,
+    Loader2,
+    AlertCircle
+} from 'lucide-react';
+import { FileItem } from '../../types';
+import { cn, formatBytes, formatDateTime } from '../../lib/utils';
+import { getSignedFileUrl, api } from '../../lib/api';
 
-// Configure PDF.js worker using Vite's ?url import
+// Configure PDF.js worker
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
-// Type for spreadsheet data from backend
-interface SpreadsheetData {
-  html: string;
-  sheetNames: string[];
-  currentSheet: number;
-}
-
 interface DocumentViewerProps {
-  file: FileItem | null;
-  isOpen: boolean;
-  onClose: () => void;
-  onShare?: (file: FileItem) => void;
-  onDownload?: (file: FileItem) => void;
-  files?: FileItem[];
-  onNavigate?: (file: FileItem) => void;
+    file: FileItem | null;
+    isOpen: boolean;
+    onClose: () => void;
+    files?: FileItem[];
+    onNavigate?: (file: FileItem) => void;
+    onShare?: (file: FileItem) => void;
+    onDownload?: (file: FileItem) => void;
 }
 
-type DocumentType = 'pdf' | 'word' | 'text' | 'code' | 'spreadsheet' | 'unknown';
+type LeftTabType = 'thumbnails' | 'index' | 'bookmarks';
+type DocumentType = 'pdf' | 'text' | 'office' | 'unknown';
 
-const getDocumentType = (mimeType: string, fileName: string): DocumentType => {
-  if (mimeType === 'application/pdf') return 'pdf';
-  if (
-    mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-    mimeType === 'application/msword' ||
-    fileName.endsWith('.docx') ||
-    fileName.endsWith('.doc')
-  ) {
-    return 'word';
-  }
-  if (
-    mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
-    mimeType === 'application/vnd.ms-excel' ||
-    fileName.endsWith('.xlsx') ||
-    fileName.endsWith('.xls') ||
-    fileName.endsWith('.csv')
-  ) {
-    return 'spreadsheet';
-  }
-  if (
-    mimeType.startsWith('text/') ||
-    fileName.endsWith('.txt') ||
-    fileName.endsWith('.md') ||
-    fileName.endsWith('.json') ||
-    fileName.endsWith('.xml') ||
-    fileName.endsWith('.yaml') ||
-    fileName.endsWith('.yml')
-  ) {
-    return 'text';
-  }
-  if (
-    fileName.endsWith('.js') ||
-    fileName.endsWith('.ts') ||
-    fileName.endsWith('.tsx') ||
-    fileName.endsWith('.jsx') ||
-    fileName.endsWith('.py') ||
-    fileName.endsWith('.java') ||
-    fileName.endsWith('.c') ||
-    fileName.endsWith('.cpp') ||
-    fileName.endsWith('.h') ||
-    fileName.endsWith('.cs') ||
-    fileName.endsWith('.php') ||
-    fileName.endsWith('.rb') ||
-    fileName.endsWith('.go') ||
-    fileName.endsWith('.rs') ||
-    fileName.endsWith('.swift') ||
-    fileName.endsWith('.kt') ||
-    fileName.endsWith('.html') ||
-    fileName.endsWith('.css') ||
-    fileName.endsWith('.scss') ||
-    fileName.endsWith('.sql')
-  ) {
-    return 'code';
-  }
-  return 'unknown';
-};
+interface ContextMenuState {
+    show: boolean;
+    x: number;
+    y: number;
+    selection: boolean;
+}
+
+// Helper to determine document type
+function getDocumentType(mimeType: string, fileName: string): DocumentType {
+    if (mimeType === 'application/pdf' || fileName.endsWith('.pdf')) {
+        return 'pdf';
+    }
+    if (mimeType.startsWith('text/') || fileName.endsWith('.txt') || fileName.endsWith('.md') ||
+        fileName.endsWith('.json') || fileName.endsWith('.xml') || fileName.endsWith('.csv')) {
+        return 'text';
+    }
+    if (mimeType.includes('word') || mimeType.includes('excel') || mimeType.includes('powerpoint') ||
+        mimeType.includes('spreadsheet') || mimeType.includes('presentation') ||
+        fileName.endsWith('.doc') || fileName.endsWith('.docx') ||
+        fileName.endsWith('.xls') || fileName.endsWith('.xlsx') ||
+        fileName.endsWith('.ppt') || fileName.endsWith('.pptx')) {
+        return 'office';
+    }
+    return 'unknown';
+}
 
 export default function DocumentViewer({
-  file,
-  isOpen,
-  onClose,
-  onShare,
-  onDownload,
-  files = [],
-  onNavigate,
+    file,
+    isOpen,
+    onClose,
+    files = [],
+    onNavigate,
+    onShare,
+    onDownload
 }: DocumentViewerProps) {
-  const { t } = useTranslation();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [content, setContent] = useState<string>('');
-  const [spreadsheetData, setSpreadsheetData] = useState<SpreadsheetData | null>(null);
+    const { t } = useTranslation();
 
-  const sanitizedHtmlContent = useMemo(() => {
-    return DOMPurify.sanitize(content, { USE_PROFILES: { html: true } });
-  }, [content]);
+    // --- State ---
+    const [isLeftPanelOpen, setLeftPanelOpen] = useState(true);
+    const [isRightPanelOpen, setRightPanelOpen] = useState(false);
+    const [isFocusMode, setFocusMode] = useState(false);
+    const [isSearchOpen, setSearchOpen] = useState(false);
+    const [zoom, setZoom] = useState(100);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [activeLeftTab, setActiveLeftTab] = useState<LeftTabType>('thumbnails');
+    const [showBottomBar, setShowBottomBar] = useState(true);
+    const [showContextMenu, setShowContextMenu] = useState<ContextMenuState>({ show: false, x: 0, y: 0, selection: false });
 
-  const sanitizedSpreadsheetHtml = useMemo(() => {
-    return spreadsheetData
-      ? DOMPurify.sanitize(spreadsheetData.html, { USE_PROFILES: { html: true } })
-      : '';
-  }, [spreadsheetData?.html]);
-  const [zoom, setZoom] = useState(100);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [numPages, setNumPages] = useState<number>(0);
-  const [currentPage, setCurrentPage] = useState(1);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const pdfContainerRef = useRef<HTMLDivElement>(null);
+    // Document loading state
+    const [signedUrl, setSignedUrl] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
+    const [numPages, setNumPages] = useState<number>(0);
+    const [textContent, setTextContent] = useState<string | null>(null);
 
-  const documentType = file ? getDocumentType(file.mimeType, file.name) : 'unknown';
-  const currentIndex = files.findIndex((f) => f.id === file?.id);
-  const hasPrev = currentIndex > 0;
-  const hasNext = currentIndex < files.length - 1;
+    const canvasRef = useRef<HTMLDivElement>(null);
+    const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const onDocumentLoadSuccess = useCallback(({ numPages }: { numPages: number }) => {
-    setNumPages(numPages);
-    setLoading(false);
-  }, []);
+    // Determine document type
+    const documentType = useMemo(() => {
+        if (!file) return 'unknown';
+        return getDocumentType(file.mimeType, file.name);
+    }, [file]);
 
-  const onDocumentLoadError = useCallback(() => {
-    setError(t('gallery.loadError'));
-    setLoading(false);
-  }, [t]);
+    // Current file index in the files array
+    const currentFileIndex = useMemo(() => {
+        if (!file || files.length === 0) return -1;
+        return files.findIndex(f => f.id === file.id);
+    }, [file, files]);
 
-  // State for tracking Word-to-PDF conversion
-  const [conversionStatus, setConversionStatus] = useState<'idle' | 'converting' | 'ready'>('idle');
-  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+    // PDF options with auth header
+    const pdfOptions = useMemo(() => {
+        if (!signedUrl) return null;
+        return {
+            url: signedUrl,
+            cMapUrl: 'https://unpkg.com/pdfjs-dist@5.4.296/cmaps/',
+            cMapPacked: true,
+        };
+    }, [signedUrl]);
 
-  useEffect(() => {
-    if (!isOpen || !file) return;
-
-    setLoading(true);
-    setError(null);
-    setContent('');
-    setSpreadsheetData(null);
-    setZoom(100);
-    setCurrentPage(1);
-    setNumPages(0);
-    setConversionStatus('idle');
-    setPdfPreviewUrl(null);
-
-    let pollInterval: ReturnType<typeof setInterval> | null = null;
-    let isMounted = true;
-    const maxPollTime = 120000; // 2 minute timeout
-    const startTime = Date.now();
-
-    const loadDocument = async () => {
-      try {
-        switch (documentType) {
-          case 'pdf':
-            // PDF will be rendered via react-pdf
-            // Loading state will be handled by onDocumentLoadSuccess
-            break;
-
-          case 'word':
-            // Use LibreOffice PDF preview for better fidelity
-            try {
-              const previewResponse = await api.get(`/files/${file.id}/pdf-preview`, {
-                // Don't throw on 202 status
-                validateStatus: (status) => status >= 200 && status < 300
-              });
-
-              if (previewResponse.status === 202) {
-                // Conversion in progress or queued - poll for completion
-                if (!isMounted) return;
-                setConversionStatus('converting');
-                setContent(t('gallery.convertingDocument') || 'Converting document to PDF...');
-
-                pollInterval = setInterval(async () => {
-                  // Check timeout
-                  if (Date.now() - startTime > maxPollTime) {
-                    if (pollInterval) clearInterval(pollInterval);
-                    if (!isMounted) return;
-                    setError(t('gallery.conversionTimeout') || 'Conversion timed out');
-                    setLoading(false);
-                    return;
-                  }
-
-                  try {
-                    const statusResponse = await api.get(`/files/${file.id}/pdf-preview/status`);
-                    if (!isMounted) return;
-
-                    if (statusResponse.data.status === 'completed') {
-                      if (pollInterval) clearInterval(pollInterval);
-                      // Set URL to use PDF viewer for the converted document
-                      setPdfPreviewUrl(getFileUrl(file.id, 'view').replace('/view', '/pdf-preview'));
-                      setConversionStatus('ready');
-                      setContent('');
-                      // Don't set loading to false - let PDF viewer handle it
-                    } else if (statusResponse.data.status === 'failed') {
-                      if (pollInterval) clearInterval(pollInterval);
-                      // Fallback to mammoth conversion
-                      console.warn('PDF conversion failed, falling back to mammoth');
-                      try {
-                        const wordResponse = await api.get(`/files/${file.id}/view`, {
-                          responseType: 'arraybuffer',
-                        });
-                        const arrayBuffer = wordResponse.data;
-                        const result = await mammoth.convertToHtml({ arrayBuffer });
-                        if (isMounted) {
-                          setContent(result.value);
-                          setConversionStatus('idle');
-                          setLoading(false);
-                        }
-                      } catch {
-                        if (isMounted) {
-                          setError(t('gallery.errorLoading'));
-                          setLoading(false);
-                        }
-                      }
-                    }
-                  } catch {
-                    if (pollInterval) clearInterval(pollInterval);
-                    if (!isMounted) return;
-                    setError(t('gallery.errorLoading'));
-                    setLoading(false);
-                  }
-                }, 2000);
-
-                return; // Keep loading state until conversion completes
-              } else {
-                // PDF preview is ready, use it
-                if (!isMounted) return;
-                setPdfPreviewUrl(getFileUrl(file.id, 'view').replace('/view', '/pdf-preview'));
-                setConversionStatus('ready');
-                // Don't set loading to false - let PDF viewer handle it
-              }
-            } catch (err: unknown) {
-              // Fallback to mammoth for clients without LibreOffice
-              console.warn('PDF preview not available, using fallback:', err);
-              try {
-                const wordResponse = await api.get(`/files/${file.id}/view`, {
-                  responseType: 'arraybuffer',
-                });
-                const arrayBuffer = wordResponse.data;
-                const result = await mammoth.convertToHtml({ arrayBuffer });
-                if (isMounted) {
-                  setContent(result.value);
-                  setLoading(false);
-                }
-              } catch {
-                if (isMounted) {
-                  setError(t('gallery.errorLoading'));
-                  setLoading(false);
-                }
-              }
-            }
-            break;
-
-          case 'text':
-          case 'code': {
-            // Fetch text content with auth
-            const textResponse = await api.get(`/files/${file.id}/view`, {
-              responseType: 'text',
-            });
-            if (!isMounted) return;
-            const text = textResponse.data;
-            setContent(text);
-            setLoading(false);
-            break;
-          }
-
-          case 'spreadsheet':
-            // Use backend to convert Excel to HTML with styles
-            try {
-              const response = await api.get(`/files/${file.id}/excel-html?sheet=0`);
-              if (!isMounted) return;
-              setSpreadsheetData(response.data);
-            } catch (err) {
-              if (!isMounted) return;
-              console.error('Error loading spreadsheet:', err);
-              setError(t('gallery.errorLoadingSpreadsheet'));
-            }
-            setLoading(false);
-            break;
-
-          default:
-            setError(t('gallery.unsupportedDocument'));
-            setLoading(false);
+    // Fetch signed URL when file changes
+    useEffect(() => {
+        if (!isOpen || !file) {
+            setSignedUrl(null);
+            return;
         }
-      } catch (err) {
-        if (!isMounted) return;
-        console.error('Error loading document:', err);
-        setError(t('gallery.errorLoading'));
-        setLoading(false);
-      }
+
+        setIsLoading(true);
+        setLoadError(null);
+        setTextContent(null);
+        setCurrentPage(1);
+        setNumPages(0);
+
+        const loadDocument = async () => {
+            try {
+                if (documentType === 'pdf') {
+                    const url = await getSignedFileUrl(file.id, 'view');
+                    setSignedUrl(url);
+                } else if (documentType === 'text') {
+                    // For text files, fetch content directly
+                    const response = await api.get(`/files/${file.id}/view`, {
+                        responseType: 'text',
+                    });
+                    setTextContent(response.data);
+                    setIsLoading(false);
+                } else if (documentType === 'office') {
+                    // For office documents, we'll show a download prompt
+                    setIsLoading(false);
+                } else {
+                    setIsLoading(false);
+                }
+            } catch (error) {
+                console.error('Error loading document:', error);
+                setLoadError(t('documentViewer.loadError', 'Failed to load document'));
+                setIsLoading(false);
+            }
+        };
+
+        loadDocument();
+    }, [isOpen, file, documentType, t]);
+
+    // --- Keyboard Shortcuts ---
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+                e.preventDefault();
+                setSearchOpen(true);
+            }
+            if (e.key === 'Escape') {
+                if (isSearchOpen) {
+                    setSearchOpen(false);
+                } else if (isFocusMode) {
+                    setFocusMode(false);
+                } else {
+                    onClose();
+                }
+            }
+            if (e.key === '+' || e.key === '=') setZoom(prev => Math.min(prev + 10, 300));
+            if (e.key === '-') setZoom(prev => Math.max(prev - 10, 25));
+            if (e.key === 'ArrowLeft' && files.length > 0 && currentFileIndex > 0) {
+                onNavigate?.(files[currentFileIndex - 1]);
+            }
+            if (e.key === 'ArrowRight' && files.length > 0 && currentFileIndex < files.length - 1) {
+                onNavigate?.(files[currentFileIndex + 1]);
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isOpen, isSearchOpen, isFocusMode, onClose, files, currentFileIndex, onNavigate]);
+
+    // Handle Bottom Bar Visibility on Scroll
+    const handleScroll = () => {
+        setShowBottomBar(true);
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        timeoutRef.current = setTimeout(() => setShowBottomBar(false), 3000);
     };
 
-    loadDocument();
+    const toggleFocusMode = () => setFocusMode(!isFocusMode);
 
-    // Cleanup function
-    return () => {
-      isMounted = false;
-      if (pollInterval) {
-        clearInterval(pollInterval);
-      }
-    };
-  }, [isOpen, file, documentType, t]);
+    // PDF load handlers
+    const onDocumentLoadSuccess = useCallback(({ numPages }: { numPages: number }) => {
+        setNumPages(numPages);
+        setIsLoading(false);
+    }, []);
 
-  useEffect(() => {
-    if (!isOpen) return;
+    const onDocumentLoadError = useCallback((error: Error) => {
+        console.error('PDF load error:', error);
+        setLoadError(t('documentViewer.pdfError', 'Failed to load PDF'));
+        setIsLoading(false);
+    }, [t]);
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      switch (e.key) {
-        case 'Escape':
-          onClose();
-          break;
-        case 'ArrowLeft':
-          if (documentType === 'pdf' && currentPage > 1) {
-            setCurrentPage(prev => prev - 1);
-          } else if (hasPrev && onNavigate) {
-            onNavigate(files[currentIndex - 1]);
-          }
-          break;
-        case 'ArrowRight':
-          if (documentType === 'pdf' && currentPage < numPages) {
-            setCurrentPage(prev => prev + 1);
-          } else if (hasNext && onNavigate) {
-            onNavigate(files[currentIndex + 1]);
-          }
-          break;
-        case 'ArrowUp':
-          if (documentType === 'pdf' && currentPage > 1) {
-            setCurrentPage(prev => prev - 1);
-          }
-          break;
-        case 'ArrowDown':
-          if (documentType === 'pdf' && currentPage < numPages) {
-            setCurrentPage(prev => prev + 1);
-          }
-          break;
-        case '+':
-        case '=':
-          e.preventDefault();
-          setZoom((prev) => Math.min(prev + 25, 200));
-          break;
-        case '-':
-          e.preventDefault();
-          setZoom((prev) => Math.max(prev - 25, 50));
-          break;
-      }
-    };
+    // Navigate to page
+    const goToPage = useCallback((page: number) => {
+        if (page >= 1 && page <= numPages) {
+            setCurrentPage(page);
+            // Scroll to the page
+            const pageElement = document.getElementById(`pdf-page-${page}`);
+            if (pageElement) {
+                pageElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }
+    }, [numPages]);
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose, hasPrev, hasNext, currentIndex, files, onNavigate, documentType, currentPage, numPages]);
+    // Navigate between documents
+    const goToPrevDocument = useCallback(() => {
+        if (currentFileIndex > 0) {
+            onNavigate?.(files[currentFileIndex - 1]);
+        }
+    }, [currentFileIndex, files, onNavigate]);
 
-  const toggleFullscreen = () => {
-    if (!containerRef.current) return;
+    const goToNextDocument = useCallback(() => {
+        if (currentFileIndex < files.length - 1) {
+            onNavigate?.(files[currentFileIndex + 1]);
+        }
+    }, [currentFileIndex, files, onNavigate]);
 
-    if (!document.fullscreenElement) {
-      containerRef.current.requestFullscreen();
-      setIsFullscreen(true);
-    } else {
-      document.exitFullscreen();
-      setIsFullscreen(false);
-    }
-  };
+    if (!isOpen || !file) return null;
 
-  const switchSheet = async (sheetIndex: number) => {
-    if (!spreadsheetData || !file) return;
+    // Calculate page width based on zoom
+    const pageWidth = (800 * zoom) / 100;
 
-    try {
-      setLoading(true);
-      const response = await api.get(`/files/${file.id}/excel-html?sheet=${sheetIndex}`);
-      setSpreadsheetData(response.data);
-    } catch (err) {
-      console.error('Error switching sheet:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    return createPortal(
+        <div className={cn(
+            "fixed inset-0 z-50 flex flex-col bg-[#F5F5F7] dark:bg-dark-900 text-gray-900 dark:text-gray-100 font-sans overflow-hidden transition-colors duration-500",
+            isFocusMode && "bg-white dark:bg-dark-800"
+        )}>
 
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
+            {/* Top Bar */}
+            {!isFocusMode && (
+                <header
+                    className="h-[56px] border-b border-gray-200 dark:border-dark-700 bg-white dark:bg-dark-800 flex items-center justify-between px-4 z-40 shrink-0"
+                    onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setShowContextMenu({ ...showContextMenu, show: false }); }}
+                >
+                    <div className="flex items-center gap-3 w-1/3">
+                        <button
+                            onClick={onClose}
+                            className="p-1.5 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
+                            title={t('common.back', 'Back')}
+                        >
+                            <ChevronLeft size={20} />
+                        </button>
+                        {/* Document navigation */}
+                        {files.length > 1 && (
+                            <div className="hidden md:flex items-center gap-1 text-sm text-gray-500">
+                                <button
+                                    onClick={goToPrevDocument}
+                                    disabled={currentFileIndex <= 0}
+                                    className="p-1 hover:bg-gray-100 dark:hover:bg-dark-700 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                                >
+                                    <ChevronLeft size={16} />
+                                </button>
+                                <span>{currentFileIndex + 1} / {files.length}</span>
+                                <button
+                                    onClick={goToNextDocument}
+                                    disabled={currentFileIndex >= files.length - 1}
+                                    className="p-1 hover:bg-gray-100 dark:hover:bg-dark-700 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                                >
+                                    <ChevronRight size={16} />
+                                </button>
+                            </div>
+                        )}
+                    </div>
 
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, []);
+                    <div className="flex flex-col items-center justify-center w-1/3 text-center">
+                        <h1 className="text-sm font-semibold truncate max-w-[200px] md:max-w-full">{file.name}</h1>
+                        <span className="text-[10px] uppercase tracking-widest text-gray-400 font-medium">
+                            {formatBytes(file.size)}
+                        </span>
+                    </div>
 
-  if (!isOpen || !file) return null;
+                    <div className="flex items-center justify-end gap-1 w-1/3">
+                        {documentType === 'pdf' && (
+                            <button
+                                onClick={() => setSearchOpen(!isSearchOpen)}
+                                className={cn(
+                                    "p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg transition-colors",
+                                    isSearchOpen ? "text-primary-600" : "text-gray-600 dark:text-gray-400"
+                                )}
+                                title={t('documentViewer.search', 'Search (Ctrl+F)')}
+                            >
+                                <Search size={18} />
+                            </button>
+                        )}
+                        {onShare && file && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); if (file) onShare(file); }}
+                                className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg transition-colors text-gray-600 dark:text-gray-400"
+                                title={t('common.share', 'Share')}
+                                aria-label={t('common.share', 'Share')}
+                            >
+                                <Share2 size={18} />
+                            </button>
+                        )}
+                        {onDownload && file && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); if (file) onDownload(file); }}
+                                className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg transition-colors text-gray-600 dark:text-gray-400"
+                                title={t('common.download', 'Download')}
+                                aria-label={t('common.download', 'Download')}
+                            >
+                                <Download size={18} />
+                            </button>
+                        )}
+                        <div className="w-[1px] h-4 bg-gray-200 dark:bg-dark-600 mx-1" />
+                        <button
+                            onClick={() => setRightPanelOpen(!isRightPanelOpen)}
+                            className={cn(
+                                "p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg transition-colors",
+                                isRightPanelOpen ? "text-primary-600 bg-primary-50 dark:bg-primary-900/20" : "text-gray-600 dark:text-gray-400"
+                            )}
+                            title={t('documentViewer.details', 'Details')}
+                        >
+                            <Info size={18} />
+                        </button>
+                    </div>
+                </header>
+            )}
 
-  const fileUrl = getFileUrl(file.id, 'view');
+            {/* Main Container */}
+            <main className="flex flex-1 overflow-hidden relative">
 
-  // PDF options with auth header
-  const pdfOptions = {
-    url: fileUrl,
-    httpHeaders: {
-      Authorization: `Bearer ${localStorage.getItem('accessToken') || ''}`,
-    },
-  };
+                {/* Left Sidebar (Collapsible) - Only for PDFs */}
+                {!isFocusMode && documentType === 'pdf' && numPages > 0 && (
+                    <aside
+                        className={cn(
+                            "transition-all duration-300 border-r border-gray-200 dark:border-dark-700 bg-white dark:bg-dark-800 flex flex-col z-30 shadow-sm",
+                            isLeftPanelOpen ? "w-[200px]" : "w-0 overflow-hidden border-none"
+                        )}
+                        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                    >
+                        <div className="flex border-b border-gray-100 dark:border-dark-700">
+                            <button
+                                onClick={() => setActiveLeftTab('thumbnails')}
+                                className={cn(
+                                    "flex-1 py-3 text-xs font-medium flex items-center justify-center gap-2 border-b-2 transition-all",
+                                    activeLeftTab === 'thumbnails' ? "border-primary-600 text-primary-600" : "border-transparent text-gray-400 hover:text-gray-600"
+                                )}
+                                title={t('documentViewer.thumbnails', 'Thumbnails')}
+                            >
+                                <Layers size={14} />
+                            </button>
+                            <button
+                                onClick={() => setActiveLeftTab('bookmarks')}
+                                className={cn(
+                                    "flex-1 py-3 text-xs font-medium flex items-center justify-center gap-2 border-b-2 transition-all",
+                                    activeLeftTab === 'bookmarks' ? "border-primary-600 text-primary-600" : "border-transparent text-gray-400 hover:text-gray-600"
+                                )}
+                                title={t('documentViewer.bookmarks', 'Bookmarks')}
+                            >
+                                <Bookmark size={14} />
+                            </button>
+                        </div>
 
-  const renderContent = () => {
-    if (error) {
-      return (
-        <div className="flex flex-col items-center justify-center h-full gap-4">
-          <FileText className="w-16 h-16 text-white/40" />
-          <p className="text-white/60 text-center max-w-md">{error}</p>
-          {onDownload && (
-            <button
-              onClick={() => onDownload(file)}
-              className="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg transition-colors"
-            >
-              {t('gallery.downloadFile')}
-            </button>
-          )}
-        </div>
-      );
-    }
+                        <div className="flex-1 overflow-y-auto p-2 scrollbar-thin scrollbar-thumb-gray-200 hover:scrollbar-thumb-gray-300">
+                            {activeLeftTab === 'thumbnails' && pdfOptions && (
+                                <Document
+                                    file={pdfOptions}
+                                    loading={null}
+                                    error={null}
+                                    className="grid grid-cols-1 gap-3"
+                                >
+                                    {Array.from({ length: Math.min(numPages, 50) }).map((_, i) => (
+                                        <button
+                                            key={i}
+                                            onClick={() => goToPage(i + 1)}
+                                            className={cn(
+                                                "flex flex-col items-center gap-1 group cursor-pointer p-1 rounded-lg transition-colors",
+                                                currentPage === i + 1 ? "bg-primary-50 dark:bg-primary-900/20" : "hover:bg-gray-50 dark:hover:bg-dark-700"
+                                            )}
+                                        >
+                                            <div className={cn(
+                                                "w-full aspect-[3/4] bg-white dark:bg-dark-700 border rounded overflow-hidden shadow-sm",
+                                                currentPage === i + 1
+                                                    ? "border-primary-600 ring-1 ring-primary-600"
+                                                    : "border-gray-200 dark:border-dark-600"
+                                            )}>
+                                                <Page
+                                                    pageNumber={i + 1}
+                                                    width={140}
+                                                    renderTextLayer={false}
+                                                    renderAnnotationLayer={false}
+                                                    loading={
+                                                        <div className="w-full h-full flex items-center justify-center">
+                                                            <span className="text-lg font-bold text-gray-300">{i + 1}</span>
+                                                        </div>
+                                                    }
+                                                />
+                                            </div>
+                                            <span className={cn(
+                                                "text-[10px] font-bold tracking-tight",
+                                                currentPage === i + 1 ? "text-primary-600" : "text-gray-400"
+                                            )}>
+                                                {i + 1}
+                                            </span>
+                                        </button>
+                                    ))}
+                                </Document>
+                            )}
 
-    // Show loading for non-PDF documents (but not for Word docs showing PDF conversion)
-    if (loading && documentType !== 'pdf' && conversionStatus !== 'converting') {
-      return (
-        <div className="flex flex-col items-center justify-center h-full gap-4">
-          <Loader2 className="w-12 h-12 text-primary-500 animate-spin" />
-          <p className="text-white/60">{t('gallery.loading')}</p>
-        </div>
-      );
-    }
+                            {activeLeftTab === 'bookmarks' && (
+                                <div className="flex flex-col items-center justify-center h-full text-gray-400 text-sm py-8">
+                                    <Bookmark size={24} className="mb-2 opacity-50" />
+                                    <span>{t('documentViewer.noBookmarks', 'No bookmarks')}</span>
+                                </div>
+                            )}
+                        </div>
+                    </aside>
+                )}
 
-    switch (documentType) {
-      case 'pdf':
-        return (
-          <div
-            ref={pdfContainerRef}
-            className="h-full overflow-auto flex flex-col items-center py-4"
-          >
-            <Document
-              file={pdfOptions}
-              onLoadSuccess={onDocumentLoadSuccess}
-              onLoadError={onDocumentLoadError}
-              loading={
-                <div className="flex flex-col items-center justify-center h-64 gap-4">
-                  <Loader2 className="w-12 h-12 text-primary-500 animate-spin" />
-                  <p className="text-white/60">{t('gallery.loadingPdf')}</p>
+                {/* Floating Panel Handle Left */}
+                {!isFocusMode && documentType === 'pdf' && numPages > 0 && (
+                    <button
+                        onClick={() => setLeftPanelOpen(!isLeftPanelOpen)}
+                        className={cn(
+                            "absolute top-1/2 -translate-y-1/2 z-40 bg-white dark:bg-dark-800 border border-gray-200 dark:border-dark-600 shadow-md p-1 rounded-r-lg hover:text-primary-600 transition-all",
+                            isLeftPanelOpen ? "translate-x-[199px]" : "translate-x-0 left-0"
+                        )}
+                    >
+                        {isLeftPanelOpen ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
+                    </button>
+                )}
+
+                {/* Canvas Area */}
+                <div
+                    ref={canvasRef}
+                    onScroll={handleScroll}
+                    className="flex-1 overflow-y-auto scroll-smooth flex flex-col items-center py-8 relative select-text bg-gray-100 dark:bg-dark-900"
+                    onContextMenu={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const selection = window.getSelection()?.toString();
+                        setShowContextMenu({ show: true, x: e.clientX, y: e.clientY, selection: !!selection });
+                    }}
+                    onClick={() => setShowContextMenu({ ...showContextMenu, show: false })}
+                >
+                    {/* Search Box */}
+                    {isSearchOpen && (
+                        <div className="sticky top-0 z-50 w-full flex justify-center px-4 pointer-events-none mb-4">
+                            <div className="bg-white dark:bg-dark-800 border border-gray-200 dark:border-dark-600 shadow-2xl rounded-xl p-2 flex items-center gap-2 pointer-events-auto min-w-[320px]">
+                                <Search size={16} className="text-gray-400 ml-2" />
+                                <input
+                                    autoFocus
+                                    type="text"
+                                    placeholder={t('documentViewer.searchPlaceholder', 'Search in document...')}
+                                    className="flex-1 text-sm bg-transparent border-none focus:ring-0 placeholder:text-gray-400"
+                                />
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); setSearchOpen(false); }}
+                                    className="p-1.5 hover:bg-gray-100 dark:hover:bg-dark-700 rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                    title={t('common.close', 'Close')}
+                                >
+                                    <X size={16} />
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Loading State */}
+                    {isLoading && (
+                        <div className="flex-1 flex items-center justify-center">
+                            <div className="flex flex-col items-center gap-4">
+                                <Loader2 className="w-10 h-10 animate-spin text-primary-600" />
+                                <span className="text-sm text-gray-500">{t('documentViewer.loading', 'Loading document...')}</span>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Error State */}
+                    {loadError && (
+                        <div className="flex-1 flex items-center justify-center">
+                            <div className="flex flex-col items-center gap-4 text-center max-w-md">
+                                <AlertCircle className="w-12 h-12 text-red-500" />
+                                <p className="text-gray-700 dark:text-gray-300">{loadError}</p>
+                                {onDownload && (
+                                    <button
+                                        onClick={() => onDownload(file)}
+                                        className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                                    >
+                                        {t('common.download', 'Download')}
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* PDF Content */}
+                    {documentType === 'pdf' && pdfOptions && !loadError && (
+                        <Document
+                            file={pdfOptions}
+                            onLoadSuccess={onDocumentLoadSuccess}
+                            onLoadError={onDocumentLoadError}
+                            loading={null}
+                            className="flex flex-col items-center gap-4"
+                        >
+                            {Array.from({ length: numPages }).map((_, i) => (
+                                <div
+                                    key={i}
+                                    id={`pdf-page-${i + 1}`}
+                                    className="bg-white shadow-lg"
+                                    style={{ maxWidth: '95vw' }}
+                                >
+                                    <Page
+                                        pageNumber={i + 1}
+                                        width={pageWidth}
+                                        renderTextLayer={true}
+                                        renderAnnotationLayer={true}
+                                        onRenderSuccess={() => {
+                                            // Update current page based on visibility
+                                        }}
+                                    />
+                                </div>
+                            ))}
+                        </Document>
+                    )}
+
+                    {/* Text Content */}
+                    {documentType === 'text' && textContent && !loadError && (
+                        <div
+                            className="bg-white dark:bg-dark-800 shadow-lg rounded-lg p-8 mx-4"
+                            style={{ width: `${pageWidth}px`, maxWidth: '95vw', minHeight: '60vh' }}
+                        >
+                            <pre className="whitespace-pre-wrap font-mono text-sm text-gray-800 dark:text-gray-200 overflow-x-auto">
+                                {textContent}
+                            </pre>
+                        </div>
+                    )}
+
+                    {/* Office Documents - Download Prompt */}
+                    {documentType === 'office' && !isLoading && !loadError && (
+                        <div className="flex-1 flex items-center justify-center">
+                            <div className="flex flex-col items-center gap-6 text-center max-w-md p-8 bg-white dark:bg-dark-800 rounded-xl shadow-lg">
+                                <FileText className="w-16 h-16 text-gray-400" />
+                                <div>
+                                    <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-2">
+                                        {file.name}
+                                    </h3>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                                        {t('documentViewer.officePreviewNotSupported', 'Preview is not available for this file type. Please download the file to view it.')}
+                                    </p>
+                                </div>
+                                {onDownload && (
+                                    <button
+                                        onClick={() => onDownload(file)}
+                                        className="flex items-center gap-2 px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
+                                    >
+                                        <Download size={18} />
+                                        {t('common.download', 'Download')}
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Page Floating Indicator */}
+                    {documentType === 'pdf' && numPages > 0 && (
+                        <div className={cn(
+                            "fixed bottom-24 bg-white/90 dark:bg-dark-800/90 backdrop-blur-sm border border-gray-200 dark:border-dark-600 text-[11px] font-semibold text-gray-600 dark:text-gray-300 px-3 py-1.5 rounded-full shadow-lg transition-opacity duration-500 z-50",
+                            showBottomBar ? "opacity-100" : "opacity-0"
+                        )}>
+                            {t('documentViewer.pageOf', 'Page {{current}} of {{total}}', { current: currentPage, total: numPages })}
+                        </div>
+                    )}
                 </div>
-              }
-              className="flex flex-col items-center gap-4"
-            >
-              <Page
-                pageNumber={currentPage}
-                scale={zoom / 100}
-                renderTextLayer={true}
-                renderAnnotationLayer={true}
-                className="shadow-2xl"
-              />
-            </Document>
-          </div>
-        );
 
-      case 'word':
-        // Show conversion in progress
-        if (conversionStatus === 'converting') {
-          return (
-            <div className="flex flex-col items-center justify-center h-full gap-4">
-              <Loader2 className="w-12 h-12 text-primary-500 animate-spin" />
-              <p className="text-white/60">{t('gallery.convertingDocument') || 'Converting document to PDF...'}</p>
-            </div>
-          );
-        }
+                {/* Right Sidebar (Info) */}
+                {!isFocusMode && (
+                    <aside
+                        className={cn(
+                            "transition-all duration-300 border-l border-gray-200 dark:border-dark-700 bg-white dark:bg-dark-800 flex flex-col z-30 shadow-sm",
+                            isRightPanelOpen ? "w-[280px]" : "w-0 overflow-hidden border-none"
+                        )}
+                        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                    >
+                        <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-dark-700">
+                            <h3 className="text-sm font-semibold flex items-center gap-2 text-gray-700 dark:text-gray-200">
+                                <Info size={16} className="text-gray-400" /> {t('documentViewer.details', 'Details')}
+                            </h3>
+                            <button onClick={() => setRightPanelOpen(false)} className="p-1 hover:bg-gray-100 dark:hover:bg-dark-700 rounded transition-colors text-gray-400">
+                                <X size={18} />
+                            </button>
+                        </div>
 
-        // Show converted PDF
-        if (conversionStatus === 'ready' && pdfPreviewUrl) {
-          const pdfPreviewOptions = {
-            url: pdfPreviewUrl,
-            httpHeaders: {
-              Authorization: `Bearer ${localStorage.getItem('accessToken') || ''}`,
-            },
-          };
-          return (
-            <div
-              ref={pdfContainerRef}
-              className="h-full overflow-auto flex flex-col items-center py-4"
-            >
-              <Document
-                file={pdfPreviewOptions}
-                onLoadSuccess={onDocumentLoadSuccess}
-                onLoadError={onDocumentLoadError}
-                loading={
-                  <div className="flex flex-col items-center justify-center h-64 gap-4">
-                    <Loader2 className="w-12 h-12 text-primary-500 animate-spin" />
-                    <p className="text-white/60">{t('gallery.loadingPdf')}</p>
-                  </div>
-                }
-                className="flex flex-col items-center gap-4"
-              >
-                <Page
-                  pageNumber={currentPage}
-                  scale={zoom / 100}
-                  renderTextLayer={true}
-                  renderAnnotationLayer={true}
-                  className="shadow-2xl"
-                />
-              </Document>
-            </div>
-          );
-        }
+                        <div className="flex-1 overflow-y-auto p-4 space-y-6 scrollbar-thin scrollbar-thumb-gray-200 hover:scrollbar-thumb-gray-300">
+                            {/* File Info Section */}
+                            <section className="space-y-4">
+                                <div className="flex items-start gap-3">
+                                    <div className="p-2.5 bg-primary-50 dark:bg-primary-900/20 rounded-lg text-primary-600">
+                                        <FileText size={20} />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <h4 className="text-sm font-medium leading-none mb-1 truncate">{file.name}</h4>
+                                        <p className="text-xs text-gray-500">{file.mimeType}</p>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4 pt-2">
+                                    <div>
+                                        <h4 className="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-1">{t('common.size', 'Size')}</h4>
+                                        <p className="text-xs text-gray-700 dark:text-gray-300">{formatBytes(file.size)}</p>
+                                    </div>
+                                    {documentType === 'pdf' && numPages > 0 && (
+                                        <div>
+                                            <h4 className="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-1">{t('documentViewer.pages', 'Pages')}</h4>
+                                            <p className="text-xs text-gray-700 dark:text-gray-300">{numPages}</p>
+                                        </div>
+                                    )}
+                                </div>
+                                <div>
+                                    <h4 className="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-1">{t('common.modified', 'Modified')}</h4>
+                                    <p className="text-xs text-gray-700 dark:text-gray-300">{formatDateTime(file.updatedAt)}</p>
+                                </div>
+                                <div>
+                                    <h4 className="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-1">{t('common.created', 'Created')}</h4>
+                                    <p className="text-xs text-gray-700 dark:text-gray-300">{formatDateTime(file.createdAt)}</p>
+                                </div>
+                            </section>
+                        </div>
+                    </aside>
+                )}
+            </main>
 
-        // Fallback: HTML content from mammoth
-        return (
-          <div
-            className="w-full h-full overflow-auto bg-white rounded-lg p-8 preview-zoom-text"
-            style={{ '--preview-zoom': `${zoom}%` } as React.CSSProperties}
-          >
-            <div
-              className="prose prose-sm max-w-none"
-              dangerouslySetInnerHTML={{ __html: sanitizedHtmlContent }}
-            />
-          </div>
-        );
-
-      case 'text':
-        return (
-          <div
-            className="w-full h-full overflow-auto bg-white dark:bg-dark-900 rounded-lg p-6 preview-zoom-text"
-            style={{ '--preview-zoom': `${zoom}%` } as React.CSSProperties}
-          >
-            <pre className="whitespace-pre-wrap font-sans text-dark-900 dark:text-white">
-              {content}
-            </pre>
-          </div>
-        );
-
-      case 'code':
-        return (
-          <div
-            className="w-full h-full overflow-auto bg-dark-900 rounded-lg p-6 preview-zoom-text"
-            style={{ '--preview-zoom': `${zoom}%` } as React.CSSProperties}
-          >
-            <pre className="whitespace-pre-wrap font-mono text-sm text-green-400">
-              {content}
-            </pre>
-          </div>
-        );
-
-      case 'spreadsheet':
-        if (!spreadsheetData) return null;
-        return (
-          <div className="w-full h-full overflow-hidden bg-white rounded-lg flex flex-col">
-            {/* Sheet tabs */}
-            {spreadsheetData.sheetNames.length > 1 && (
-              <div className="flex-shrink-0 flex gap-1 p-2 bg-gray-100 border-b overflow-x-auto">
-                {spreadsheetData.sheetNames.map((name, index) => (
-                  <button
-                    key={name}
-                    onClick={() => switchSheet(index)}
-                    className={`px-3 py-1.5 text-sm rounded whitespace-nowrap transition-colors ${spreadsheetData.currentSheet === index
-                      ? 'bg-green-500 text-white'
-                      : 'bg-white text-gray-700 hover:bg-gray-200'
-                      }`}
-                  >
-                    {name}
-                  </button>
-                ))}
-              </div>
-            )}
-            {/* Excel HTML content */}
-            <div
-              className="flex-1 overflow-auto p-2 preview-zoom-transform"
-              style={{ '--preview-scale': zoom / 100 } as React.CSSProperties}
-              dangerouslySetInnerHTML={{ __html: sanitizedSpreadsheetHtml }}
-            />
-          </div>
-        );
-
-      default:
-        return (
-          <div className="flex flex-col items-center justify-center h-full gap-4">
-            <FileText className="w-16 h-16 text-white/40" />
-            <p className="text-white/60">{t('gallery.unsupportedType')}</p>
-          </div>
-        );
-    }
-  };
-
-  return createPortal(
-    <div
-      ref={containerRef}
-      className="fixed inset-0 z-50 bg-black/95 flex flex-col"
-      onClick={(e) => {
-        if (e.target === containerRef.current) {
-          onClose();
-        }
-      }}
-    >
-      {/* Top bar */}
-      <div className="flex-shrink-0 p-4 bg-gradient-to-b from-black/80 to-transparent">
-        <div className="flex items-center justify-between max-w-screen-xl mx-auto">
-          <div className="text-white flex-1 min-w-0">
-            <h3 className="font-medium truncate">{file.name}</h3>
-            <div className="flex items-center gap-2 text-sm text-gray-400">
-              {documentType === 'pdf' && numPages > 0 && (
-                <span>{t('gallery.pageOf', { current: currentPage, total: numPages })}</span>
-              )}
-              {files.length > 1 && documentType !== 'pdf' && (
-                <span>{currentIndex + 1} / {files.length}</span>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {/* PDF Page navigation */}
-            {documentType === 'pdf' && numPages > 1 && (
-              <>
-                <button
-                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                  disabled={currentPage <= 1}
-                  className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50"
-                  title={t('gallery.previousPage')}
+            {/* Bottom Bar (Auto-hide Floating) */}
+            {documentType === 'pdf' && numPages > 0 && (
+                <footer
+                    className={cn(
+                        "fixed bottom-6 left-1/2 -translate-x-1/2 z-50 transition-all duration-500",
+                        (showBottomBar || isFocusMode) ? "translate-y-0 opacity-100" : "translate-y-12 opacity-0"
+                    )}
                 >
-                  <ChevronLeft className="w-5 h-5" />
-                </button>
-                <span className="text-white/80 text-sm min-w-[60px] text-center">
-                  {currentPage} / {numPages}
-                </span>
+                    <div className="bg-white/95 dark:bg-dark-800/95 backdrop-blur-md border border-gray-200 dark:border-dark-600 shadow-2xl rounded-2xl h-[48px] px-2 flex items-center gap-4">
+                        {/* Zoom controls */}
+                        <div className="flex items-center gap-1 bg-gray-50 dark:bg-dark-700 rounded-xl p-1 shrink-0">
+                            <button
+                                onClick={() => setZoom(prev => Math.max(prev - 10, 25))}
+                                className="p-1.5 hover:bg-white dark:hover:bg-dark-600 hover:shadow-sm rounded-lg text-gray-600 dark:text-gray-300 transition-all"
+                                title={t('gallery.zoomOut', 'Zoom out')}
+                            >
+                                <Minus size={14} />
+                            </button>
+                            <button className="px-2 text-xs font-bold text-gray-700 dark:text-gray-200 min-w-[45px] text-center">
+                                {zoom}%
+                            </button>
+                            <button
+                                onClick={() => setZoom(prev => Math.min(prev + 10, 300))}
+                                className="p-1.5 hover:bg-white dark:hover:bg-dark-600 hover:shadow-sm rounded-lg text-gray-600 dark:text-gray-300 transition-all"
+                                title={t('gallery.zoomIn', 'Zoom in')}
+                            >
+                                <Plus size={14} />
+                            </button>
+                        </div>
+
+                        {/* Page Slider */}
+                        <div className="flex items-center gap-3 px-2">
+                            <span className="text-[10px] font-bold text-gray-400 w-8 text-right">1</span>
+                            <input
+                                type="range"
+                                min={1}
+                                max={numPages}
+                                value={currentPage}
+                                onChange={(e) => goToPage(parseInt(e.target.value))}
+                                className="w-32 h-1.5 bg-gray-100 dark:bg-dark-600 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-primary-600 [&::-webkit-slider-thumb]:rounded-full"
+                            />
+                            <span className="text-[10px] font-bold text-gray-400 w-8">{numPages}</span>
+                        </div>
+
+                        {/* Focus mode toggle */}
+                        <button
+                            onClick={toggleFocusMode}
+                            className={cn(
+                                "p-2 rounded-xl transition-all",
+                                isFocusMode ? "bg-primary-600 text-white" : "hover:bg-gray-100 dark:hover:bg-dark-700 text-gray-600 dark:text-gray-300"
+                            )}
+                            title={isFocusMode ? t('documentViewer.exitFocusMode', 'Exit focus mode') : t('documentViewer.focusMode', 'Focus mode')}
+                        >
+                            {isFocusMode ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+                        </button>
+                    </div>
+                </footer>
+            )}
+
+            {/* Focus Mode Exit Button */}
+            {isFocusMode && (
                 <button
-                  onClick={() => setCurrentPage(prev => Math.min(numPages, prev + 1))}
-                  disabled={currentPage >= numPages}
-                  className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50"
-                  title={t('gallery.nextPage')}
+                    onClick={toggleFocusMode}
+                    className="fixed top-6 right-6 z-[60] bg-white/50 dark:bg-dark-800/50 hover:bg-white dark:hover:bg-dark-800 border border-gray-200 dark:border-dark-600 text-gray-900 dark:text-gray-100 px-4 py-2 rounded-full shadow-xl text-xs font-bold transition-all flex items-center gap-2 backdrop-blur-md"
                 >
-                  <ChevronRight className="w-5 h-5" />
+                    <X size={14} /> {t('documentViewer.exitFocus', 'Exit focus')}
                 </button>
-                <div className="w-px h-6 bg-white/20 mx-2" />
-              </>
             )}
 
-            {/* Zoom controls */}
-            <button
-              onClick={() => setZoom((prev) => Math.max(prev - 25, 50))}
-              disabled={zoom <= 50}
-              className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50"
-              title={t('gallery.zoomOut')}
-            >
-              <ZoomOut className="w-5 h-5" />
-            </button>
-            <span className="text-white/80 text-sm min-w-[50px] text-center">{zoom}%</span>
-            <button
-              onClick={() => setZoom((prev) => Math.min(prev + 25, 200))}
-              disabled={zoom >= 200}
-              className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50"
-              title={t('gallery.zoomIn')}
-            >
-              <ZoomIn className="w-5 h-5" />
-            </button>
-
-            <div className="w-px h-6 bg-white/20 mx-2" />
-
-            <button
-              onClick={toggleFullscreen}
-              className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-              title={isFullscreen ? t('gallery.exitFullscreen') : t('gallery.fullscreen')}
-            >
-              {isFullscreen ? (
-                <Minimize2 className="w-5 h-5" />
-              ) : (
-                <Maximize2 className="w-5 h-5" />
-              )}
-            </button>
-
-            {onDownload && (
-              <button
-                onClick={() => onDownload(file)}
-                className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-                title={t('gallery.download')}
-              >
-                <Download className="w-5 h-5" />
-              </button>
+            {/* Custom Context Menu */}
+            {showContextMenu.show && (
+                <div
+                    className="fixed z-[100] bg-white dark:bg-dark-800 border border-gray-200 dark:border-dark-600 shadow-2xl rounded-xl py-1.5 min-w-[160px] select-none"
+                    style={{ top: showContextMenu.y, left: showContextMenu.x }}
+                >
+                    {showContextMenu.selection ? (
+                        <>
+                            <button
+                                onClick={() => {
+                                    navigator.clipboard.writeText(window.getSelection()?.toString() || '');
+                                    setShowContextMenu({ ...showContextMenu, show: false });
+                                }}
+                                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-primary-50 dark:hover:bg-primary-900/20 hover:text-primary-600 transition-colors"
+                            >
+                                <Copy size={14} /> {t('common.copy', 'Copy')}
+                            </button>
+                        </>
+                    ) : (
+                        <>
+                            {onDownload && file && (
+                                <button
+                                    onClick={() => {
+                                        if (file) onDownload(file);
+                                        setShowContextMenu({ ...showContextMenu, show: false });
+                                    }}
+                                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-primary-50 dark:hover:bg-primary-900/20 hover:text-primary-600 transition-colors"
+                                >
+                                    <Download size={14} /> {t('common.download', 'Download')}
+                                </button>
+                            )}
+                            {onShare && file && (
+                                <button
+                                    onClick={() => {
+                                        if (file) onShare(file);
+                                        setShowContextMenu({ ...showContextMenu, show: false });
+                                    }}
+                                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-primary-50 dark:hover:bg-primary-900/20 hover:text-primary-600 transition-colors"
+                                >
+                                    <Share2 size={14} /> {t('common.share', 'Share')}
+                                </button>
+                            )}
+                        </>
+                    )}
+                </div>
             )}
-            {onShare && (
-              <button
-                onClick={() => onShare(file)}
-                className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-                title={t('gallery.share')}
-              >
-                <Share2 className="w-5 h-5" />
-              </button>
-            )}
-            <button
-              onClick={onClose}
-              className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-              title={t('gallery.closeEsc')}
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Document content */}
-      <div className="flex-1 relative overflow-hidden p-4">
-        <div className="h-full max-w-5xl mx-auto">{renderContent()}</div>
-
-        {/* Navigation arrows for documents */}
-        {files.length > 1 && documentType !== 'pdf' && (
-          <>
-            {hasPrev && onNavigate && (
-              <button
-                onClick={() => onNavigate(files[currentIndex - 1])}
-                className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-black/50 hover:bg-black/70 text-white rounded-full transition-all"
-                title={t('gallery.previous')}
-              >
-                <ChevronLeft className="w-6 h-6" />
-              </button>
-            )}
-            {hasNext && onNavigate && (
-              <button
-                onClick={() => onNavigate(files[currentIndex + 1])}
-                className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-black/50 hover:bg-black/70 text-white rounded-full transition-all"
-                title={t('gallery.next')}
-              >
-                <ChevronRight className="w-6 h-6" />
-              </button>
-            )}
-          </>
-        )}
-      </div>
-    </div>,
-    document.body
-  );
+        </div>,
+        document.body
+    );
 }

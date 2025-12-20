@@ -1356,14 +1356,14 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
       isTrash: false,
     };
 
-    if (folderId === 'null' || folderId === '') {
+    // When searching, ignore folderId to search across all folders (global search)
+    // When not searching, respect the folder navigation
+    if (search) {
+      where.name = { contains: search as string, mode: 'insensitive' };
+    } else if (folderId === 'null' || folderId === '') {
       where.folderId = null;
     } else if (folderId) {
       where.folderId = folderId;
-    }
-
-    if (search) {
-      where.name = { contains: search as string };
     }
 
     if (type) {
@@ -1373,6 +1373,13 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
           break;
         case 'videos':
           where.mimeType = { startsWith: 'video/' };
+          break;
+        case 'media':
+          // Media includes both images and videos (for gallery 'all' tab)
+          where.OR = [
+            { mimeType: { startsWith: 'image/' } },
+            { mimeType: { startsWith: 'video/' } },
+          ];
           break;
         case 'audio':
           where.mimeType = { startsWith: 'audio/' };
@@ -1515,6 +1522,36 @@ router.patch('/:id/rename', authenticate, validate(renameFileSchema), async (req
   } catch (error) {
     logger.error('Rename file error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to rename file' });
+  }
+});
+
+// Toggle favorite status
+router.patch('/:id/favorite', authenticate, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user!.userId;
+
+    const file = await prisma.file.findFirst({
+      where: { id, userId, isTrash: false },
+    });
+
+    if (!file) {
+      res.status(404).json({ error: 'File not found' });
+      return;
+    }
+
+    const updated = await prisma.file.update({
+      where: { id },
+      data: { isFavorite: !file.isFavorite },
+    });
+
+    // Invalidate cache after favorite change
+    await cache.invalidateAfterFileChange(userId, id);
+
+    res.json({ ...updated, size: updated.size.toString() });
+  } catch (error) {
+    logger.error('Toggle favorite error', {}, error instanceof Error ? error : undefined);
+    res.status(500).json({ error: 'Failed to toggle favorite' });
   }
 });
 

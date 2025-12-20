@@ -40,6 +40,10 @@ tar -czvf cloudbox_files_$(date +%Y%m%d).tar.gz /path/to/storage
 
 ## Automated Daily Backups
 
+> [!IMPORTANT]
+> **Before going to production**, verify your backup can be restored successfully.
+> See [Backup & Restore Runbook](./runbooks/backup_restore.md) for detailed procedures.
+
 Add to crontab (`crontab -e`):
 
 ```cron

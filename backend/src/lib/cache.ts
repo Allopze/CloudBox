@@ -41,10 +41,19 @@ let isConnected = false;
 
 /**
  * Initialize Redis connection for caching
+ * 
+ * SECURITY: In production, Redis is strongly recommended for caching.
+ * Without Redis, all queries hit the database directly, impacting performance.
  */
 export async function initCache(): Promise<boolean> {
+  const isProduction = process.env.NODE_ENV === 'production';
+
   if (!CACHE_CONFIG.enabled) {
-    logger.info('Cache is disabled by configuration');
+    if (isProduction) {
+      logger.warn('Cache is disabled by configuration in production - this may impact performance');
+    } else {
+      logger.info('Cache is disabled by configuration');
+    }
     return false;
   }
 
@@ -66,9 +75,20 @@ export async function initCache(): Promise<boolean> {
     logger.info('Cache initialized with Redis');
     return true;
   } catch (error) {
-    logger.warn('Cache initialization failed, running without cache', {
-      error: error instanceof Error ? error.message : 'Unknown',
-    });
+    const errorMessage = error instanceof Error ? error.message : 'Unknown';
+
+    // In production, warn loudly but don't crash (cache is optional, rate limiting is not)
+    if (isProduction) {
+      logger.error('Cache initialization failed in production - database queries will not be cached', {
+        error: errorMessage,
+        hint: 'Set REDIS_HOST and REDIS_PORT environment variables for optimal performance.',
+      });
+    } else {
+      logger.warn('Cache initialization failed, running without cache (development mode)', {
+        error: errorMessage,
+      });
+    }
+
     redis = null;
     isConnected = false;
     return false;
