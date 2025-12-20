@@ -98,6 +98,7 @@ export default function Documents() {
   const [infoDoc, setInfoDoc] = useState<FileItem | null>(null);
 
   const tab = searchParams.get('tab') || 'all';
+  const searchQuery = searchParams.get('search') || '';
 
   const { viewMode, sortBy, sortOrder, selectedItems, addToSelection, removeFromSelection, selectRange, selectSingle, lastSelectedId, clearSelection } = useFileStore();
 
@@ -176,6 +177,7 @@ export default function Documents() {
           type: 'documents',
           sortBy,
           sortOrder,
+          ...(searchQuery && { search: searchQuery }),
         },
       });
       const allDocs = response.data.files || [];
@@ -186,7 +188,7 @@ export default function Documents() {
     } finally {
       setLoading(false);
     }
-  }, [sortBy, sortOrder, filterByCategory]);
+  }, [sortBy, sortOrder, filterByCategory, searchQuery]);
 
   useEffect(() => {
     loadData();
@@ -325,10 +327,18 @@ export default function Documents() {
                 }
               };
 
+              const waveInProps = waveIn(index, reducedMotion);
+              const baseAnimate = typeof waveInProps.animate === 'object' ? waveInProps.animate : {};
+
               return (
                 <motion.div
                   key={doc.id}
-                  {...waveIn(index, reducedMotion)}
+                  initial={waveInProps.initial}
+                  animate={{
+                    ...baseAnimate,
+                    scale: isSelected ? 0.95 : 1
+                  }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                   data-file-item={doc.id}
                   onClick={handleDocClick}
                   onDoubleClick={() => handlePreview(doc)}
@@ -492,62 +502,56 @@ export default function Documents() {
               {!isMultiSelect && (
                 <>
                   {/* Vista previa */}
-                  <div className="px-2 py-1">
-                    <button
-                      onClick={() => { handlePreview(contextMenu.doc); closeContextMenu(); }}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
-                    >
-                      <Eye className="w-5 h-5" />
-                      <span>{t('documents.preview')}</span>
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => { handlePreview(contextMenu.doc); closeContextMenu(); }}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
+                  >
+                    <Eye className="w-4 h-4" />
+                    <span>{t('documents.preview')}</span>
+                  </button>
 
                   <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
 
                   {/* Acciones de archivo */}
-                  <div className="px-2 py-1">
-                    <button
-                      onClick={() => handleDownload(contextMenu.doc)}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
-                    >
-                      <Download className="w-5 h-5" />
-                      <span>{t('common.download')}</span>
-                    </button>
-                    <button
-                      onClick={() => handleShare(contextMenu.doc)}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
-                    >
-                      <Share2 className="w-5 h-5" />
-                      <span>{t('common.share')}</span>
-                    </button>
-                    <button
-                      onClick={() => handleCopyLink(contextMenu.doc)}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
-                    >
-                      <Copy className="w-5 h-5" />
-                      <span>{t('common.copyLink')}</span>
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => handleDownload(contextMenu.doc)}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>{t('common.download')}</span>
+                  </button>
+                  <button
+                    onClick={() => handleShare(contextMenu.doc)}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
+                  >
+                    <Share2 className="w-4 h-4" />
+                    <span>{t('common.share')}</span>
+                  </button>
+                  <button
+                    onClick={() => handleCopyLink(contextMenu.doc)}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
+                  >
+                    <Copy className="w-4 h-4" />
+                    <span>{t('common.copyLink')}</span>
+                  </button>
 
                   <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
 
                   {/* Organización */}
-                  <div className="px-2 py-1">
-                    <button
-                      onClick={() => handleFavorite(contextMenu.doc)}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
-                    >
-                      <Star className={cn('w-5 h-5', contextMenu.doc.isFavorite && 'fill-yellow-500 text-yellow-500')} />
-                      <span>{contextMenu.doc.isFavorite ? t('common.removeFromFavorites') : t('common.addToFavorites')}</span>
-                    </button>
-                    <button
-                      onClick={() => handleShowInfo(contextMenu.doc)}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
-                    >
-                      <Info className="w-5 h-5" />
-                      <span>{t('common.info')}</span>
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => handleFavorite(contextMenu.doc)}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
+                  >
+                    <Star className={cn('w-4 h-4', contextMenu.doc.isFavorite && 'fill-yellow-500 text-yellow-500')} />
+                    <span>{contextMenu.doc.isFavorite ? t('common.removeFromFavorites') : t('common.addToFavorites')}</span>
+                  </button>
+                  <button
+                    onClick={() => handleShowInfo(contextMenu.doc)}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
+                  >
+                    <Info className="w-4 h-4" />
+                    <span>{t('common.info')}</span>
+                  </button>
 
                   <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
                 </>
@@ -556,33 +560,29 @@ export default function Documents() {
               {/* Multi-select actions */}
               {isMultiSelect && (
                 <>
-                  <div className="px-2 py-1">
-                    <button
-                      onClick={() => {
-                        const selected = documents.filter(d => currentSelectedItems.has(d.id));
-                        selected.forEach(d => handleDownload(d));
-                      }}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
-                    >
-                      <Download className="w-5 h-5" />
-                      <span>{t('documents.downloadCount', { count: selectedCount })}</span>
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => {
+                      const selected = documents.filter(d => currentSelectedItems.has(d.id));
+                      selected.forEach(d => handleDownload(d));
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>{t('documents.downloadCount', { count: selectedCount })}</span>
+                  </button>
 
                   <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
                 </>
               )}
 
               {/* Eliminar - siempre visible */}
-              <div className="px-2 py-1">
-                <button
-                  onClick={() => handleDelete(contextMenu.doc)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                >
-                  <Trash2 className="w-5 h-5" />
-                  <span>{isMultiSelect ? t('documents.deleteCount', { count: selectedCount }) : t('common.delete')}</span>
-                </button>
-              </div>
+              <button
+                onClick={() => handleDelete(contextMenu.doc)}
+                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>{isMultiSelect ? t('documents.deleteCount', { count: selectedCount }) : t('common.delete')}</span>
+              </button>
             </motion.div>
           );
         })()}

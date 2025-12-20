@@ -65,6 +65,7 @@ export default function MusicPage() {
   const [infoTrack, setInfoTrack] = useState<FileItem | null>(null);
 
   const tab = searchParams.get('tab') || 'all';
+  const searchQuery = searchParams.get('search') || '';
 
   const {
     currentTrack,
@@ -74,16 +75,23 @@ export default function MusicPage() {
     setQueue,
   } = useMusicStore();
 
-  const { selectedItems, addToSelection, removeFromSelection, selectRange, selectSingle, lastSelectedId, clearSelection } = useFileStore();
+  const { selectedItems, addToSelection, removeFromSelection, selectRange, selectSingle, lastSelectedId, clearSelection, sortBy, sortOrder } = useFileStore();
 
   const loadData = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     try {
-      const params: Record<string, string> = { type: 'audio', sortBy: 'name', sortOrder: 'asc' };
+      // Map sortBy to API-compatible values
+      const apiSortBy = sortBy === 'date' ? 'createdAt' : sortBy;
+      const params: Record<string, string> = { type: 'audio', sortBy: apiSortBy, sortOrder };
 
       // Filter by favorites if on favorites tab
       if (tab === 'favorites') {
         params.favorite = 'true';
+      }
+
+      // Add search query for global search
+      if (searchQuery) {
+        params.search = searchQuery;
       }
 
       const [filesRes, foldersRes] = await Promise.all([
@@ -145,7 +153,7 @@ export default function MusicPage() {
         setLoading(false);
       }
     }
-  }, [setQueue, tab]);
+  }, [setQueue, tab, sortBy, sortOrder, searchQuery]);
 
   useEffect(() => {
     const abortController = new AbortController();
@@ -479,18 +487,30 @@ export default function MusicPage() {
             {albumTracks.map((track, index) => {
               const isCurrentTrack = currentTrack?.id === track.id;
               const [fromColor, toColor] = getGradientColors(track.name);
+              const isTrackSelected = selectedItems.has(track.id);
+
+              const waveInProps = waveIn(index, reducedMotion);
+              const baseAnimate = typeof waveInProps.animate === 'object' ? waveInProps.animate : {};
 
               return (
-                <div
+                <motion.div
                   key={track.id}
+                  initial={waveInProps.initial}
+                  animate={{
+                    ...baseAnimate,
+                    scale: isTrackSelected ? 0.98 : 1
+                  }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                  data-file-item={track.id}
                   onClick={() => {
                     setQueue(albumTracks);
                     playTrack(track);
                   }}
                   className={cn(
-                    'flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors',
+                    'flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors group',
                     'hover:bg-dark-100 dark:hover:bg-dark-800',
-                    isCurrentTrack && 'bg-dark-100 dark:bg-dark-800'
+                    isCurrentTrack && 'bg-dark-100 dark:bg-dark-800',
+                    isTrackSelected && 'bg-primary-50/40 dark:bg-primary-900/30 border border-primary-500/50'
                   )}
                 >
                   <span className="w-6 text-center text-sm text-dark-400">
@@ -547,7 +567,7 @@ export default function MusicPage() {
                       {formatTime(trackDurations[track.id])}
                     </span>
                   )}
-                </div>
+                </motion.div>
               );
             })}
           </div>
@@ -560,19 +580,40 @@ export default function MusicPage() {
       <div className="pb-24">
         {albumGroups.length > 0 ? (
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-            {albumGroups.map((album) => {
+            {albumGroups.map((album, index) => {
               const [fromColor, toColor] = getGradientColors(album.name);
+              const isAlbumSelected = selectedItems.has(album.id);
+
+              const waveInProps = waveIn(index, reducedMotion);
+              const baseAnimate = typeof waveInProps.animate === 'object' ? waveInProps.animate : {};
 
               return (
-                <div
+                <motion.div
                   key={album.id}
+                  initial={waveInProps.initial}
+                  animate={{
+                    ...baseAnimate,
+                    scale: isAlbumSelected ? 0.95 : 1
+                  }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                  data-folder-item={album.id}
                   onClick={() => {
                     // Update URL to include folder ID, enabling drag-and-drop globally
                     setSearchParams({ tab: 'albums', folder: album.id });
                   }}
                   onContextMenu={(e) => handleContextMenu(e, album, 'album')}
-                  className="premium-card group"
+                  className={cn(
+                    'premium-card group',
+                    isAlbumSelected && 'selected'
+                  )}
                 >
+                  {/* Selection indicator */}
+                  {isAlbumSelected && (
+                    <div className="absolute top-2 left-2 w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center shadow-lg z-20">
+                      <Check className="w-4 h-4 text-white" />
+                    </div>
+                  )}
+
                   {/* Album cover */}
                   <div className={cn(
                     'premium-card-thumbnail',
@@ -600,7 +641,7 @@ export default function MusicPage() {
                       <span>{t('music.songsCount', { count: album.tracks.length })}</span>
                     </div>
                   </div>
-                </div>
+                </motion.div>
               );
             })}
           </div>
@@ -649,10 +690,18 @@ export default function MusicPage() {
               }
             };
 
+            const waveInProps = waveIn(index, reducedMotion);
+            const baseAnimate = typeof waveInProps.animate === 'object' ? waveInProps.animate : {};
+
             return (
               <motion.div
                 key={track.id}
-                {...waveIn(index, reducedMotion)}
+                initial={waveInProps.initial}
+                animate={{
+                  ...baseAnimate,
+                  scale: isSelected ? 0.95 : 1
+                }}
+                transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                 data-file-item={track.id}
                 onClick={handleTrackClick}
                 onDoubleClick={() => playTrack(track)}
@@ -798,84 +847,76 @@ export default function MusicPage() {
 
               {/* Album Actions */}
               {isAlbum && (
-                <div className="px-2 py-1">
-                  <button
-                    onClick={() => handleDelete(contextMenu.item)}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-red-600 dark:text-red-400 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                    <span>{t('common.delete')}</span>
-                  </button>
-                </div>
+                <button
+                  onClick={() => handleDelete(contextMenu.item)}
+                  className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>{t('common.delete')}</span>
+                </button>
               )}
 
               {/* Single item actions (Songs) */}
               {!isMultiSelect && !isAlbum && (
                 <>
                   {/* Play */}
-                  <div className="px-2 py-1">
-                    <button
-                      onClick={() => handlePlayFromMenu(contextMenu.item)}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
-                    >
-                      <Play className="w-5 h-5" />
-                      <span>{t('music.play')}</span>
-                    </button>
-                    <button
-                      onClick={() => handleAddToQueue(contextMenu.item)}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
-                    >
-                      <ListPlus className="w-5 h-5" />
-                      <span>{t('music.addToQueue')}</span>
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => handlePlayFromMenu(contextMenu.item)}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
+                  >
+                    <Play className="w-4 h-4" />
+                    <span>{t('music.play')}</span>
+                  </button>
+                  <button
+                    onClick={() => handleAddToQueue(contextMenu.item)}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
+                  >
+                    <ListPlus className="w-4 h-4" />
+                    <span>{t('music.addToQueue')}</span>
+                  </button>
 
                   <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
 
                   {/* File actions */}
-                  <div className="px-2 py-1">
-                    <button
-                      onClick={() => handleDownload(contextMenu.item)}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
-                    >
-                      <Download className="w-5 h-5" />
-                      <span>{t('common.download')}</span>
-                    </button>
-                    <button
-                      onClick={() => handleShare(contextMenu.item)}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
-                    >
-                      <Share2 className="w-5 h-5" />
-                      <span>{t('common.share')}</span>
-                    </button>
-                    <button
-                      onClick={() => handleCopyLink(contextMenu.item)}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
-                    >
-                      <Copy className="w-5 h-5" />
-                      <span>{t('music.copyLink')}</span>
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => handleDownload(contextMenu.item)}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>{t('common.download')}</span>
+                  </button>
+                  <button
+                    onClick={() => handleShare(contextMenu.item)}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
+                  >
+                    <Share2 className="w-4 h-4" />
+                    <span>{t('common.share')}</span>
+                  </button>
+                  <button
+                    onClick={() => handleCopyLink(contextMenu.item)}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
+                  >
+                    <Copy className="w-4 h-4" />
+                    <span>{t('music.copyLink')}</span>
+                  </button>
 
                   <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
 
                   {/* Organization */}
-                  <div className="px-2 py-1">
-                    <button
-                      onClick={() => handleFavoriteFromMenu(contextMenu.item)}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
-                    >
-                      <Star className={cn('w-5 h-5', contextMenu.item.isFavorite && 'fill-yellow-500 text-yellow-500')} />
-                      <span>{contextMenu.item.isFavorite ? t('music.removeFromFavorites') : t('music.addToFavorites')}</span>
-                    </button>
-                    <button
-                      onClick={() => handleShowInfo(contextMenu.item)}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
-                    >
-                      <Info className="w-5 h-5" />
-                      <span>{t('common.info')}</span>
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => handleFavoriteFromMenu(contextMenu.item)}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
+                  >
+                    <Star className={cn('w-4 h-4', contextMenu.item.isFavorite && 'fill-yellow-500 text-yellow-500')} />
+                    <span>{contextMenu.item.isFavorite ? t('music.removeFromFavorites') : t('music.addToFavorites')}</span>
+                  </button>
+                  <button
+                    onClick={() => handleShowInfo(contextMenu.item)}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
+                  >
+                    <Info className="w-4 h-4" />
+                    <span>{t('common.info')}</span>
+                  </button>
 
                   <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
                 </>
@@ -884,44 +925,40 @@ export default function MusicPage() {
               {/* Multi-select actions */}
               {isMultiSelect && (
                 <>
-                  <div className="px-2 py-1">
-                    <button
-                      onClick={() => {
-                        const selected = tracks.filter(t => currentSelectedItems.has(t.id));
-                        selected.forEach(t => handleAddToQueue(t));
-                        closeContextMenu();
-                      }}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
-                    >
-                      <ListPlus className="w-5 h-5" />
-                      <span>{t('music.addCountToQueue', { count: selectedCount })}</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        const selected = tracks.filter(t => currentSelectedItems.has(t.id));
-                        selected.forEach(t => handleDownload(t));
-                      }}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
-                    >
-                      <Download className="w-5 h-5" />
-                      <span>{t('music.downloadSongs', { count: selectedCount })}</span>
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => {
+                      const selected = tracks.filter(t => currentSelectedItems.has(t.id));
+                      selected.forEach(t => handleAddToQueue(t));
+                      closeContextMenu();
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
+                  >
+                    <ListPlus className="w-4 h-4" />
+                    <span>{t('music.addCountToQueue', { count: selectedCount })}</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      const selected = tracks.filter(t => currentSelectedItems.has(t.id));
+                      selected.forEach(t => handleDownload(t));
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>{t('music.downloadSongs', { count: selectedCount })}</span>
+                  </button>
 
                   <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
                 </>
               )}
 
               {/* Delete - always visible */}
-              <div className="px-2 py-1">
-                <button
-                  onClick={() => handleDelete(contextMenu.item)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                >
-                  <Trash2 className="w-5 h-5" />
-                  <span>{isMultiSelect ? t('music.deleteSongs', { count: selectedCount }) : t('common.delete')}</span>
-                </button>
-              </div>
+              <button
+                onClick={() => handleDelete(contextMenu.item)}
+                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>{isMultiSelect ? t('music.deleteSongs', { count: selectedCount }) : t('common.delete')}</span>
+              </button>
             </motion.div>
           );
         })()}

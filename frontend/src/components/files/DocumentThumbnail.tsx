@@ -256,7 +256,7 @@ const DocumentThumbnail = memo(function DocumentThumbnail({
 
   // Default fallback with icon (also used for spreadsheets)
   return (
-    <div className={`relative w-full h-full ${bgColor} ${className}`}>
+    <div className={`relative w-full h-full ${thumbnailUrl ? '' : bgColor} ${className}`}>
       {thumbnailUrl ? (
         <img
           src={thumbnailUrl}
@@ -270,6 +270,12 @@ const DocumentThumbnail = memo(function DocumentThumbnail({
           <span className="text-white/90 text-xs font-bold tracking-wider">
             {label || ext}
           </span>
+        </div>
+      )}
+      {/* Extension badge - show when there's a thumbnail */}
+      {thumbnailUrl && (label || ext) && (
+        <div className={`absolute bottom-2 left-2 px-2 py-0.5 rounded text-[10px] font-bold text-white ${bgColor} shadow-sm`}>
+          {label || ext}
         </div>
       )}
     </div>

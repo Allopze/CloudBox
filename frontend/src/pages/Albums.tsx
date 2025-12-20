@@ -83,10 +83,10 @@ export default function Albums() {
 
   useEffect(() => {
     const abortController = new AbortController();
-    
+
     setLoading(true);
     clearSelection();
-    
+
     const loadData = async () => {
       try {
         if (albumId) {
@@ -100,9 +100,9 @@ export default function Albums() {
         }
       }
     };
-    
+
     loadData();
-    
+
     return () => {
       abortController.abort();
     };
@@ -434,9 +434,9 @@ export default function Albums() {
               <div className="px-2 py-1">
                 <button
                   onClick={() => handleViewPhoto(photoContextMenu.photo)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
+                  className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
                 >
-                  <Eye className="w-5 h-5" />
+                  <Eye className="w-4 h-4" />
                   <span>{t('albums.viewImage')}</span>
                 </button>
               </div>
@@ -447,23 +447,23 @@ export default function Albums() {
               <div className="px-2 py-1">
                 <button
                   onClick={() => handleDownloadPhoto(photoContextMenu.photo)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
+                  className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
                 >
-                  <Download className="w-5 h-5" />
+                  <Download className="w-4 h-4" />
                   <span>{t('common.download')}</span>
                 </button>
                 <button
                   onClick={() => handleSharePhoto(photoContextMenu.photo)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
+                  className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
                 >
-                  <Share2 className="w-5 h-5" />
+                  <Share2 className="w-4 h-4" />
                   <span>{t('common.share')}</span>
                 </button>
                 <button
                   onClick={() => handleCopyPhotoLink(photoContextMenu.photo)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
+                  className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
                 >
-                  <Copy className="w-5 h-5" />
+                  <Copy className="w-4 h-4" />
                   <span>{t('common.copyLink')}</span>
                 </button>
               </div>
@@ -474,16 +474,16 @@ export default function Albums() {
               <div className="px-2 py-1">
                 <button
                   onClick={() => handleFavoritePhoto(photoContextMenu.photo)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
+                  className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
                 >
-                  <Star className={cn('w-5 h-5', photoContextMenu.photo.isFavorite && 'fill-yellow-500 text-yellow-500')} />
+                  <Star className={cn('w-4 h-4', photoContextMenu.photo.isFavorite && 'fill-yellow-500 text-yellow-500')} />
                   <span>{photoContextMenu.photo.isFavorite ? t('common.removeFromFavorites') : t('common.addToFavorites')}</span>
                 </button>
                 <button
                   onClick={() => handleShowPhotoInfo(photoContextMenu.photo)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
+                  className="w-full flex items-center gap-3 px-3 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700 transition-colors"
                 >
-                  <Info className="w-5 h-5" />
+                  <Info className="w-4 h-4" />
                   <span>{t('common.info')}</span>
                 </button>
               </div>
@@ -494,9 +494,9 @@ export default function Albums() {
               <div className="px-2 py-1">
                 <button
                   onClick={() => handleRemovePhotoFromMenu(photoContextMenu.photo)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                  className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-4 h-4" />
                   <span>{t('albums.removeFromAlbum')}</span>
                 </button>
               </div>

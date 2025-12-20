@@ -80,10 +80,10 @@ router.post('/', authenticate, validate(createFolderSchema), async (req: Request
 router.get('/', authenticate, async (req: Request, res: Response) => {
   try {
     const userId = req.user!.userId;
-    const { parentId, favorites } = req.query;
+    const { parentId, favorites, search } = req.query;
 
-    // Try cache for non-filtered requests (root folders without favorites filter)
-    const canUseCache = !favorites && (parentId === 'null' || parentId === '' || !parentId);
+    // Try cache for non-filtered requests (root folders without favorites filter and no search)
+    const canUseCache = !favorites && !search && (parentId === 'null' || parentId === '' || !parentId);
 
     if (canUseCache) {
       const cachedFolders = await cache.getFolders(userId);
@@ -99,7 +99,11 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
       isTrash: false,
     };
 
-    if (parentId === 'null' || parentId === '') {
+    // When searching, ignore parentId to search across all folders (global search)
+    // When not searching, respect the folder navigation
+    if (search) {
+      where.name = { contains: search as string, mode: 'insensitive' };
+    } else if (parentId === 'null' || parentId === '') {
       where.parentId = null;
     } else if (parentId) {
       where.parentId = parentId;

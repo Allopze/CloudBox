@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useThemeStore } from "../stores/themeStore";
 import { useAuthStore } from "../stores/authStore";
@@ -74,36 +74,50 @@ export default function Header() {
   // Issue #18: Debounce search query (300ms delay)
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
-  const buildFilesSearchUrl = useCallback(
+  const location = useLocation();
+
+  // Build search URL for current page context
+  const buildSearchUrl = useCallback(
     (query: string) => {
       const params = new URLSearchParams();
       const trimmed = query.trim();
 
-      if (currentFolderId) {
+      // Preserve current folder if on files page
+      if (currentFolderId && location.pathname === '/files') {
         params.set("folder", currentFolderId);
       }
       if (trimmed) {
         params.set("search", trimmed);
       }
 
+      // Stay on current page - only navigate for pages that support search
+      const searchablePaths = ['/files', '/photos', '/music', '/documents'];
+      const currentPath = searchablePaths.includes(location.pathname)
+        ? location.pathname
+        : '/files';
+
       const qs = params.toString();
-      return qs ? `/files?${qs}` : "/files";
+      return qs ? `${currentPath}?${qs}` : currentPath;
     },
-    [currentFolderId],
+    [currentFolderId, location.pathname],
   );
 
   // Keep input in sync with URL (back/forward, refresh, external navigation)
+  // Also clear search when navigating to a different page
   useEffect(() => {
     setSearchQuery(urlSearchQuery);
-  }, [urlSearchQuery]);
+  }, [urlSearchQuery, location.pathname]);
 
-  // Navigate when debounced search changes
+  // Navigate when debounced search changes - only on searchable pages
   useEffect(() => {
+    const searchablePaths = ['/files', '/photos', '/music', '/documents'];
+    if (!searchablePaths.includes(location.pathname)) return;
+
     const trimmed = debouncedSearchQuery.trim();
     if (trimmed === urlSearchQuery.trim()) return;
 
-    navigate(buildFilesSearchUrl(trimmed), { replace: true });
-  }, [debouncedSearchQuery, urlSearchQuery, buildFilesSearchUrl, navigate]);
+    navigate(buildSearchUrl(trimmed), { replace: true });
+  }, [debouncedSearchQuery, urlSearchQuery, buildSearchUrl, navigate, location.pathname]);
 
   // Calculate upload progress percentage
   const uploadProgress =
@@ -177,7 +191,7 @@ export default function Header() {
     // Issue #18: Allow immediate search on form submit (Enter key)
     const trimmed = searchQuery.trim();
     if (!trimmed && !urlSearchQuery) return;
-    navigate(buildFilesSearchUrl(trimmed));
+    navigate(buildSearchUrl(trimmed));
   };
 
   const handleLogout = async () => {

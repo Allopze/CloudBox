@@ -13,6 +13,7 @@ import {
   Move,
   FileArchive,
   Info,
+  Eye,
 } from 'lucide-react';
 import { formatBytes, formatDate, cn } from '../../lib/utils';
 import { api, openSignedFileUrl } from '../../lib/api';
@@ -210,6 +211,8 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview, on
 
   // Context menu items configuration
   const contextMenuItems: ContextMenuItemOrDivider[] = useMemo(() => [
+    { id: 'open', label: t('fileCard.open'), icon: Eye, onClick: () => { setContextMenu(null); handleDoubleClick(); } },
+    ContextMenuDividerItem(),
     { id: 'download', label: t('fileCard.download'), icon: Download, onClick: handleDownload },
     { id: 'favorite', label: file.isFavorite ? t('fileCard.removeFromFavorites') : t('fileCard.addToFavorites'), icon: Star, onClick: handleFavorite },
     { id: 'share', label: t('fileCard.share'), icon: Share2, onClick: () => setShowShareModal(true) },
@@ -233,7 +236,7 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview, on
       },
       danger: true,
     },
-  ], [t, file.isFavorite, handleDownload, handleFavorite, contextMenuSelection, file.id]);
+  ], [t, file.isFavorite, handleDownload, handleFavorite, handleDoubleClick, contextMenuSelection, file.id]);
 
   const closeContextMenu = () => setContextMenu(null);
 

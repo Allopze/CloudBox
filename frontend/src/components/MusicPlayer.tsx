@@ -108,6 +108,8 @@ const VinylDisc = ({
           src={thumbnailUrl}
           alt={t('player.albumCover')}
           className="w-full h-full object-cover"
+          draggable="false"
+          onDragStart={(e) => e.preventDefault()}
         />
       </div>
 
@@ -397,7 +399,7 @@ export default function MusicPlayer() {
       {/* Floating player */}
       <div
         ref={playerRef}
-        className="fixed z-50 select-none"
+        className="fixed z-50 select-none no-marquee"
         style={{
           left: position.x,
           top: position.y,
@@ -441,6 +443,8 @@ export default function MusicPlayer() {
                             endpoint="thumbnail"
                             alt={track.name}
                             className="w-full h-full object-cover"
+                            draggable={false}
+                            onDragStart={(e) => e.preventDefault()}
                           />
                         ) : index === currentIndex && isPlaying ? (
                           <div className="flex items-center gap-0.5">

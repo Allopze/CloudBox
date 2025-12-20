@@ -1,4 +1,4 @@
-import { useCallback, useState, useMemo, useRef } from 'react';
+import { useCallback, useState, useMemo, useRef, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useDropzone } from 'react-dropzone';
@@ -13,6 +13,7 @@ import {
   uploadFile as chunkedUploadFile,
   validateFiles,
   UPLOAD_CONFIG,
+  ensureConfigLoaded,
   formatSpeed,
   type UploadProgress,
 } from '../../lib/chunkedUpload';
@@ -49,13 +50,21 @@ export default function UploadModal({
   const [searchParams] = useSearchParams();
   const { user, refreshUser } = useAuthStore();
   const abortControllerRef = useRef<AbortController | null>(null);
+  const [configLoaded, setConfigLoaded] = useState(false);
 
-  // User quota info for validation
+  // Load upload config from server when modal opens
+  useEffect(() => {
+    if (isOpen && !configLoaded) {
+      ensureConfigLoaded().then(() => setConfigLoaded(true));
+    }
+  }, [isOpen, configLoaded]);
+
+  // User quota info for validation - use global MAX_FILE_SIZE from server config
   const userQuota = useMemo(() => ({
     storageUsed: Number(user?.storageUsed || 0),
     storageQuota: Number(user?.storageQuota || 0),
-    maxFileSize: Number(user?.maxFileSize || 100 * 1024 * 1024),
-  }), [user]);
+    maxFileSize: UPLOAD_CONFIG.MAX_FILE_SIZE,
+  }), [user, configLoaded]);
 
   const getCurrentFolderId = () => {
     if (propFolderId !== undefined) return propFolderId || null;
@@ -275,13 +284,7 @@ export default function UploadModal({
             ? t('modals.upload.dropHere')
             : t('modals.upload.dragOrClick')}
         </p>
-        <p className="text-sm text-dark-500 mt-2">{t('modals.upload.maxSize')}</p>
-        <p className="text-xs text-dark-400 mt-1">
-          {t('modals.upload.parallelInfo', {
-            files: UPLOAD_CONFIG.MAX_CONCURRENT_FILES,
-            chunks: UPLOAD_CONFIG.MAX_CONCURRENT_CHUNKS
-          })}
-        </p>
+        <p className="text-sm text-dark-500 mt-2">{t('modals.upload.maxSize', { size: formatBytes(userQuota.maxFileSize) })}</p>
       </div>
 
       {/* File list */}
@@ -321,17 +324,7 @@ export default function UploadModal({
                         <span>{formatSpeed(fileUpload.speed)}</span>
                       </>
                     )}
-                    {fileUpload.chunksTotal && fileUpload.chunksTotal > 1 && (
-                      <>
-                        <span>•</span>
-                        <span>
-                          {t('modals.upload.chunks', {
-                            uploaded: fileUpload.chunksUploaded || 0,
-                            total: fileUpload.chunksTotal
-                          })}
-                        </span>
-                      </>
-                    )}
+
                   </div>
                   {fileUpload.status === 'uploading' && (
                     <Progress value={fileUpload.progress} size="sm" className="mt-2" />

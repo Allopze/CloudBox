@@ -95,6 +95,6 @@ export const config = {
     maxFilesPerRequest: parseInt(process.env.MAX_FILES_PER_REQUEST || '20'),
     maxFilesFolderUpload: parseInt(process.env.MAX_FILES_FOLDER_UPLOAD || '100'),
     maxTotalChunks: parseInt(process.env.MAX_TOTAL_CHUNKS || '10000'),
-    maxChunkSize: parseInt(process.env.MAX_CHUNK_SIZE || String(20 * 1024 * 1024)), // 20MB
+    maxChunkSize: parseInt(process.env.MAX_CHUNK_SIZE || String(100 * 1024 * 1024)), // 100MB max chunk size
   },
 };

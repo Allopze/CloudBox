@@ -19,6 +19,7 @@ const DEFAULT_CONFIG = {
   MAX_RETRIES: 3,
   RETRY_BASE_DELAY: 1000, // 1 second
   CHUNKED_UPLOAD_THRESHOLD: 10 * 1024 * 1024, // 10MB
+  MAX_FILE_SIZE: 50 * 1024 * 1024 * 1024, // 50GB default
 };
 
 // Dynamic configuration (loaded from server)
@@ -40,6 +41,7 @@ async function loadUploadConfig(): Promise<void> {
       ...DEFAULT_CONFIG,
       DEFAULT_CHUNK_SIZE: parseInt(data.chunkSize) || DEFAULT_CONFIG.DEFAULT_CHUNK_SIZE,
       MAX_CONCURRENT_CHUNKS: parseInt(data.concurrentChunks) || DEFAULT_CONFIG.MAX_CONCURRENT_CHUNKS,
+      MAX_FILE_SIZE: parseInt(data.maxFileSize) || DEFAULT_CONFIG.MAX_FILE_SIZE,
     };
     configLoaded = true;
   } catch (error) {
