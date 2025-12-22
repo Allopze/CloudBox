@@ -2375,8 +2375,14 @@ router.post('/:id/signed-url', authenticate, async (req: Request, res: Response)
       where: { expiresAt: { lt: new Date() } },
     }).catch(() => { });
 
+    // Build a signed URL that is valid for the *current* public API origin.
+    // Using req.protocol/host avoids relying on FRONTEND_URL being a proxy for /api
+    // (common when frontend and backend are hosted on different origins).
+    const host = req.get('host');
+    const origin = host ? `${req.protocol}://${host}` : config.frontendUrl.replace(/\/$/, '');
+
     res.json({
-      signedUrl: `${config.frontendUrl.replace(/\/$/, '')}/api/files/${id}/${action}?sig=${token}`,
+      signedUrl: `${origin.replace(/\/$/, '')}/api/files/${id}/${action}?sig=${token}`,
       expiresAt: expiresAt.toISOString(),
     });
   } catch (error) {

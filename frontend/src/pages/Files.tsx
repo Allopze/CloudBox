@@ -7,9 +7,10 @@ import { useFileStore } from '../stores/fileStore';
 import { useGlobalProgressStore } from '../stores/globalProgressStore';
 import FileCard from '../components/files/FileCard';
 import FolderCard from '../components/files/FolderCard';
-import { Loader2, FolderPlus } from 'lucide-react';
+import VirtualizedGrid from '../components/ui/VirtualizedGrid';
+import { FolderPlus } from 'lucide-react';
 import { toast } from '../components/ui/Toast';
-import { cn, isImage, isVideo, isDocument } from '../lib/utils';
+import { isImage, isVideo, isDocument } from '../lib/utils';
 import UploadModal from '../components/modals/UploadModal';
 import CreateFolderModal from '../components/modals/CreateFolderModal';
 import CreateFileModal from '../components/modals/CreateFileModal';
@@ -20,15 +21,13 @@ import ImageGallery from '../components/gallery/ImageGallery';
 import VideoPreview from '../components/gallery/VideoPreview';
 import DocumentViewer from '../components/gallery/DocumentViewer';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
-import { motion, useReducedMotion } from 'framer-motion';
-import { waveIn } from '../lib/animations';
+import { SkeletonGrid } from '../components/ui/Skeleton';
 
 export default function Files() {
   const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const folderId = searchParams.get('folder');
   const searchQuery = searchParams.get('search');
-  const reducedMotion = useReducedMotion();
 
   const [files, setFiles] = useState<FileItem[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
@@ -295,9 +294,7 @@ export default function Files() {
 
       {/* Contenido */}
       {loading ? (
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
-        </div>
+        <SkeletonGrid count={12} view={viewMode} />
       ) : files.length === 0 && folders.length === 0 ? (
         /* Empty state */
         <div className="flex flex-col items-center justify-center h-64 text-dark-500">
@@ -306,46 +303,32 @@ export default function Files() {
           <p className="text-sm">{searchQuery ? t('files.tryDifferentSearch') : t('files.uploadOrCreate')}</p>
         </div>
       ) : (
-        <div
-          className={cn(
-            viewMode === 'grid'
-              ? 'grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3'
-              : 'space-y-1'
-          )}
-        >
-          {/* Carpetas primero */}
-          {folders.map((folder, index) => (
-            <motion.div
-              key={folder.id}
-              {...waveIn(index, reducedMotion)}
-              className={viewMode === 'grid' ? undefined : 'w-full'}
-            >
-              <FolderCard
-                folder={folder}
-                view={viewMode}
-                onRefresh={loadData}
-              />
-            </motion.div>
-          ))}
-
-          {/* Luego archivos */}
-          {files.map((file, index) => (
-            <motion.div
-              key={file.id}
-              {...waveIn(folders.length + index, reducedMotion)}
-              className={viewMode === 'grid' ? undefined : 'w-full'}
-            >
-              <FileCard
-                file={file}
-                view={viewMode}
-                onRefresh={loadData}
-                onPreview={handleFileClick}
-                onFavoriteToggle={(fileId, isFavorite) => {
-                  setFiles(prev => prev.map(f => f.id === fileId ? { ...f, isFavorite } : f));
-                }}
-              />
-            </motion.div>
-          ))}
+        <div>
+          <VirtualizedGrid
+            items={[...folders, ...files]}
+            viewMode={viewMode}
+            scrollElementId="main-content"
+            estimateListItemHeight={60}
+            renderItem={(item, _index, _style) => (
+              'parentId' in item ? (
+                <FolderCard
+                  folder={item as Folder}
+                  view={viewMode}
+                  onRefresh={loadData}
+                />
+              ) : (
+                <FileCard
+                  file={item as FileItem}
+                  view={viewMode}
+                  onRefresh={loadData}
+                  onPreview={handleFileClick}
+                  onFavoriteToggle={(fileId, isFavorite) => {
+                    setFiles(prev => prev.map(f => f.id === fileId ? { ...f, isFavorite } : f));
+                  }}
+                />
+              )
+            )}
+          />
         </div>
       )}
 

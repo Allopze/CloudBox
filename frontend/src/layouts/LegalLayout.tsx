@@ -38,7 +38,7 @@ export default function LegalLayout() {
                                 <>
                                     {/* Light Mode */}
                                     <div className="dark:hidden flex items-center gap-2">
-                                        <div className="w-10 h-10 bg-[#F44336] rounded-xl flex items-center justify-center shadow-md shadow-[#F44336]/20">
+                                        <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center shadow-md shadow-primary-600/20">
                                             <span className="text-white text-lg font-bold">C</span>
                                         </div>
                                         <span className="text-dark-900 font-bold tracking-tight text-2xl">CloudBox</span>
@@ -47,7 +47,7 @@ export default function LegalLayout() {
                                     {/* Dark Mode */}
                                     <div className="hidden dark:flex items-center gap-2">
                                         <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-md">
-                                            <span className="text-[#F44336] text-lg font-bold">C</span>
+                                            <span className="text-primary-600 text-lg font-bold">C</span>
                                         </div>
                                         <span className="text-white font-bold tracking-tight text-2xl">CloudBox</span>
                                     </div>
@@ -61,8 +61,8 @@ export default function LegalLayout() {
                         <Link
                             to="/terms"
                             className={cn(
-                                "transition-colors hover:text-[#F44336]", // Matched hover color
-                                !isPrivacy ? "text-[#F44336]" : "text-dark-600 dark:text-dark-400" // Use specific red for active
+                                "transition-colors hover:text-primary-600",
+                                !isPrivacy ? "text-primary-600" : "text-dark-600 dark:text-dark-400"
                             )}
                         >
                             {t('legal.termsOfService', 'Términos y Condiciones')}
@@ -70,8 +70,8 @@ export default function LegalLayout() {
                         <Link
                             to="/privacy"
                             className={cn(
-                                "transition-colors hover:text-[#F44336]", // Matched hover color
-                                isPrivacy ? "text-[#F44336]" : "text-dark-600 dark:text-dark-400"
+                                "transition-colors hover:text-primary-600",
+                                isPrivacy ? "text-primary-600" : "text-dark-600 dark:text-dark-400"
                             )}
                         >
                             {t('legal.privacyPolicy', 'Política de Privacidad')}

@@ -55,6 +55,44 @@ const activityColors: Record<ActivityType, string> = {
 
 import { cn } from '../lib/utils';
 
+// Helper function to format activity details from JSON to readable text
+function formatActivityDetails(details: string | null, type: ActivityType): string | null {
+  if (!details) return null;
+
+  try {
+    const parsed = JSON.parse(details);
+
+    // Handle different types of details
+    if (parsed.name) {
+      // File/folder name with optional size
+      if (parsed.size) {
+        return parsed.name;
+      }
+      return parsed.name;
+    }
+
+    // For login activities, don't show the JSON details
+    if (type.includes('LOGIN') || parsed.email || parsed.ipAddress) {
+      return null;
+    }
+
+    // For share activities
+    if (parsed.type && (parsed.hasPassword !== undefined)) {
+      return null;
+    }
+
+    // For other structured data, try to extract meaningful info
+    if (parsed.count !== undefined) {
+      return null; // Don't show count-only details
+    }
+
+    return null;
+  } catch {
+    // If not valid JSON, return as-is (it's already a string)
+    return details;
+  }
+}
+
 interface DashboardStats {
   totalFiles: number;
   totalFolders: number;
@@ -293,6 +331,9 @@ export default function Dashboard() {
             <ActivityIcon className="w-5 h-5" />
             {t('dashboard.recentActivity')}
           </h2>
+          <Link to="/admin?tab=audit" className="text-sm text-primary-600 hover:text-primary-700">
+            {t('dashboard.viewAll')}
+          </Link>
         </div>
         {activities.length > 0 ? (
           <div className="space-y-2">
@@ -316,9 +357,9 @@ export default function Dashboard() {
                     <p className="text-sm font-medium text-dark-900 dark:text-white">
                       {label}
                     </p>
-                    {activity.details && (
+                    {formatActivityDetails(activity.details, activity.type) && (
                       <p className="text-xs text-dark-500 dark:text-dark-400 truncate">
-                        {activity.details}
+                        {formatActivityDetails(activity.details, activity.type)}
                       </p>
                     )}
                   </div>

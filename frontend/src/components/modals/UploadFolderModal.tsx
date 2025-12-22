@@ -125,7 +125,7 @@ export default function UploadFolderModal({
       const relativePath = file.path || (file as any).webkitRelativePath || file.name;
       // Remove leading slash if present (from drag & drop)
       const cleanPath = relativePath.startsWith('/') ? relativePath.slice(1) : relativePath;
-      
+
       return {
         id: Math.random().toString(36).substring(2),
         file,
@@ -149,7 +149,7 @@ export default function UploadFolderModal({
 
   const uploadFile = async (fileItem: FolderUploadItem, targetFolderId: string | undefined) => {
     const formData = new FormData();
-    formData.append('file', fileItem.file);
+    formData.append('files', fileItem.file);
     if (targetFolderId) {
       formData.append('folderId', targetFolderId);
     }

@@ -5,7 +5,7 @@ import { api, getSignedFileUrl, openSignedFileUrl } from '../lib/api';
 import { FileItem, Album } from '../types';
 import { useFileStore } from '../stores/fileStore';
 import {
-  Loader2, X, ChevronLeft, ChevronRight, Download, Trash2, Star, Check,
+  X, ChevronLeft, ChevronRight, Download, Trash2, Star, Check,
   Share2, Info, Copy, Edit3, Images, FolderPlus,
   ImagePlus, ExternalLink, Plus
 } from 'lucide-react';
@@ -13,13 +13,14 @@ import { toast } from '../components/ui/Toast';
 import { formatDate, cn } from '../lib/utils';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { waveIn } from '../lib/animations';
+import { motion, AnimatePresence } from 'framer-motion';
 import ShareModal from '../components/modals/ShareModal';
 import RenameModal from '../components/modals/RenameModal';
 import ConfirmModal from '../components/ui/ConfirmModal';
 import VideoPreview from '../components/gallery/VideoPreview';
 import AuthenticatedImage from '../components/AuthenticatedImage';
+import VirtualizedGrid from '../components/ui/VirtualizedGrid';
+import { SkeletonGrid } from '../components/ui/Skeleton';
 
 type TabType = 'all' | 'favorites' | 'videos' | 'screenshots';
 
@@ -36,7 +37,6 @@ export default function Photos() {
   const [searchParams] = useSearchParams();
   const activeTab = (searchParams.get('tab') || 'all') as TabType;
   const searchQuery = searchParams.get('search') || '';
-  const reducedMotion = useReducedMotion();
 
   const [photos, setPhotos] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -379,11 +379,7 @@ export default function Photos() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
-      </div>
-    );
+    return <div className="p-4"><SkeletonGrid count={12} view="grid" /></div>;
   }
 
   return (
@@ -435,8 +431,11 @@ export default function Photos() {
           );
         })()
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-          {photos.map((photo, index) => {
+        <VirtualizedGrid
+          items={photos}
+          viewMode="grid"
+          scrollElementId="main-content"
+          renderItem={(photo, index, style) => {
             const isSelected = selectedItems.has(photo.id);
 
             const handleClick = (e: React.MouseEvent) => {
@@ -464,13 +463,15 @@ export default function Photos() {
             };
 
             return (
-              <motion.div key={photo.id} {...waveIn(index, reducedMotion)}>
+              <div style={style}>
                 <motion.div
+                  key={photo.id}
                   data-file-item={photo.id}
                   onClick={handleClick}
                   onDoubleClick={() => openLightbox(photo, index)}
                   onContextMenu={(e) => handleContextMenu(e, photo)}
                   animate={isSelected ? { scale: 0.95 } : { scale: 1 }}
+                  whileHover={{ scale: 1.02 }}
                   transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                   className={cn(
                     'premium-card group',
@@ -512,10 +513,10 @@ export default function Photos() {
                     </div>
                   </div>
                 </motion.div>
-              </motion.div>
+              </div>
             );
-          })}
-        </div>
+          }}
+        />
       )}
 
       {/* Lightbox */}
@@ -977,8 +978,8 @@ export default function Photos() {
               {/* Album list */}
               <div className="max-h-80 overflow-y-auto">
                 {loadingAlbums ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="w-6 h-6 animate-spin text-primary-600" />
+                  <div className="p-4">
+                    <SkeletonGrid count={3} view="list" />
                   </div>
                 ) : albums.length === 0 ? (
                   <div className="text-center py-8 text-dark-500 dark:text-dark-400">

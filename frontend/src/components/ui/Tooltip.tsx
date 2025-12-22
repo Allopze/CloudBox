@@ -36,6 +36,7 @@ export default function Tooltip({
     const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
     const tooltipRef = useRef<HTMLDivElement>(null);
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const tooltipId = useRef(`tooltip-${Math.random().toString(36).substring(7)}`);
 
     const calculatePosition = useCallback((rect: DOMRect): TooltipCoords | null => {
         const tooltipWidth = tooltipRef.current?.offsetWidth || 80;
@@ -179,6 +180,7 @@ export default function Tooltip({
     // Clone children to add event handlers directly
     const childElement = children as React.ReactElement;
     const enhancedChildren = React.cloneElement(childElement, {
+        'aria-describedby': isVisible ? tooltipId.current : undefined,
         onMouseEnter: (e: React.MouseEvent) => {
             showTooltip(e);
             // Call original handler if exists
@@ -193,6 +195,28 @@ export default function Tooltip({
                 childElement.props.onMouseLeave(e);
             }
         },
+        onFocus: (e: React.FocusEvent) => {
+            // Show tooltip on focus for keyboard users
+            const target = e.currentTarget as HTMLElement;
+            const rect = target.getBoundingClientRect();
+            setTargetRect(rect);
+            const newCoords = calculatePosition(rect);
+            if (newCoords) {
+                setCoords(newCoords);
+                setIsVisible(true);
+            }
+            // Call original handler if exists
+            if (childElement.props.onFocus) {
+                childElement.props.onFocus(e);
+            }
+        },
+        onBlur: (e: React.FocusEvent) => {
+            hideTooltip();
+            // Call original handler if exists
+            if (childElement.props.onBlur) {
+                childElement.props.onBlur(e);
+            }
+        },
     });
 
     return (
@@ -204,6 +228,8 @@ export default function Tooltip({
                     {isVisible && coords && (
                         <motion.div
                             ref={tooltipRef}
+                            id={tooltipId.current}
+                            role="tooltip"
                             initial={{ opacity: 0, scale: 0.9 }}
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.9 }}

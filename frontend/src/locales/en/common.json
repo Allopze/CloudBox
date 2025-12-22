@@ -1300,5 +1300,8 @@
     "favorite": "Favorite",
     "inTrash": "In trash",
     "files": "Files"
+  },
+  "accessibility": {
+    "skipToMainContent": "Skip to main content"
   }
 }

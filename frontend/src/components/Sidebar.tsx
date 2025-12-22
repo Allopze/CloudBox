@@ -25,6 +25,7 @@ import {
   Trash2,
   Settings,
 } from 'lucide-react';
+import MobileDrawer from './ui/MobileDrawer';
 
 // Icon mapping
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -48,7 +49,12 @@ function TrashDroppable({ children }: { children: (state: { setNodeRef: (node: H
   return <>{children({ setNodeRef, isOver })}</>;
 }
 
-export default function Sidebar() {
+interface SidebarProps {
+  mobileOpen: boolean;
+  setMobileOpen: (open: boolean) => void;
+}
+
+export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps) {
   const { t } = useTranslation();
   const { user, refreshUser } = useAuthStore();
   const { sidebarOpen } = useUIStore();
@@ -420,57 +426,77 @@ export default function Sidebar() {
     );
   };
 
+  // Refactored Sidebar Content for reuse
+  const SidebarContent = () => (
+    <>
+      {/* Logo */}
+      <div className="h-14 px-3 flex items-center justify-center flex-shrink-0">
+        {((isDark ? branding.logoDarkUrl : branding.logoLightUrl) || branding.logoUrl) ? (
+          <img
+            src={(isDark ? branding.logoDarkUrl : branding.logoLightUrl) || branding.logoUrl}
+            alt="Logo"
+            className="h-10 object-contain"
+          />
+        ) : (
+          <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center">
+            <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" />
+            </svg>
+          </div>
+        )}
+      </div>
+
+      {/* Main Navigation */}
+      <nav className="flex-1 px-3 py-2 space-y-1 overflow-y-auto mt-10">
+        {navItems.map((item, index) => renderNavItem(item, index, 'main'))}
+      </nav>
+
+      {/* Bottom Navigation */}
+      <div className="px-3 py-2 space-y-1">
+        {bottomNavItems.map((item, index) => renderNavItem(item, index, 'bottom'))}
+      </div>
+
+      {/* Storage info */}
+      <div className="p-4 border-t border-dark-200 dark:border-dark-700">
+        <p className="text-xs text-dark-500 dark:text-white/70 mb-2">{t('sidebar.storage')}</p>
+        <div className="w-full h-1.5 bg-dark-200 dark:bg-white/10 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-primary-500 rounded-full transition-all"
+            style={{ width: `${Math.min(storageUsedPercent, 100)}%` }}
+          />
+        </div>
+        <p className="mt-2 text-xs text-dark-500 dark:text-white/70">
+          {formatBytes(user?.storageUsed || 0)} / {formatBytes(user?.storageQuota || 0)}
+        </p>
+      </div>
+    </>
+  );
+
   return (
     <>
       {renderDragPreview()}
       {renderTrashContextMenu()}
+
+      {/* Desktop Sidebar - Hidden on mobile */}
       <aside
         className={cn(
-          'w-48 bg-dark-100 dark:bg-dark-800 text-dark-900 dark:text-white flex flex-col h-screen overflow-hidden transition-all duration-300',
+          'hidden md:flex w-48 bg-dark-100 dark:bg-dark-800 text-dark-900 dark:text-white flex-col h-screen overflow-hidden transition-all duration-300',
           !sidebarOpen && 'w-0 opacity-0'
         )}
       >
-        {/* Logo */}
-        <div className="h-14 px-3 flex items-center justify-center flex-shrink-0">
-          {((isDark ? branding.logoDarkUrl : branding.logoLightUrl) || branding.logoUrl) ? (
-            <img
-              src={(isDark ? branding.logoDarkUrl : branding.logoLightUrl) || branding.logoUrl}
-              alt="Logo"
-              className="h-10 object-contain"
-            />
-          ) : (
-            <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center">
-              <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" />
-              </svg>
-            </div>
-          )}
-        </div>
-
-        {/* Main Navigation */}
-        <nav className="flex-1 px-3 py-2 space-y-1 overflow-y-auto mt-10">
-          {navItems.map((item, index) => renderNavItem(item, index, 'main'))}
-        </nav>
-
-        {/* Bottom Navigation */}
-        <div className="px-3 py-2 space-y-1">
-          {bottomNavItems.map((item, index) => renderNavItem(item, index, 'bottom'))}
-        </div>
-
-        {/* Storage info */}
-        <div className="p-4 border-t border-dark-200 dark:border-dark-700">
-          <p className="text-xs text-dark-500 dark:text-white/70 mb-2">{t('sidebar.storage')}</p>
-          <div className="w-full h-1.5 bg-dark-200 dark:bg-white/10 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-primary-500 rounded-full transition-all"
-              style={{ width: `${Math.min(storageUsedPercent, 100)}%` }}
-            />
-          </div>
-          <p className="mt-2 text-xs text-dark-500 dark:text-white/70">
-            {formatBytes(user?.storageUsed || 0)} / {formatBytes(user?.storageQuota || 0)}
-          </p>
-        </div>
+        <SidebarContent />
       </aside>
+
+      {/* Mobile Drawer - Visible on mobile */}
+      <MobileDrawer
+        isOpen={mobileOpen}
+        onClose={() => setMobileOpen(false)}
+        className="md:hidden bg-dark-100 dark:bg-dark-800 text-dark-900 dark:text-white"
+      >
+        <div className="flex flex-col h-full">
+          <SidebarContent />
+        </div>
+      </MobileDrawer>
     </>
   );
 }

@@ -352,7 +352,7 @@ export default function Login() {
           type="submit"
           loading={isLoggingIn}
           disabled={isLocked}
-          className="w-full rounded-full bg-red-500 hover:bg-red-600 focus:ring-red-500"
+          className="w-full rounded-full bg-primary-600 hover:bg-primary-700 focus:ring-primary-500"
         >
           {isLocked ? t('auth.wait', { time: formatTime(countdown) }) : t('auth.loginButton')}
         </Button>

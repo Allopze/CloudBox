@@ -1,4 +1,4 @@
-import { ReactNode, useEffect } from 'react';
+import { ReactNode, useEffect, useRef, useCallback } from 'react';
 import { X } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
@@ -19,19 +19,74 @@ export default function Modal({
   size = 'md',
   showCloseButton = true,
 }: ModalProps) {
+  const modalRef = useRef<HTMLDivElement>(null);
+  const previousActiveElement = useRef<HTMLElement | null>(null);
+  const titleId = useRef(`modal-title-${Math.random().toString(36).substring(7)}`);
+
+  // Focus trap - get all focusable elements within the modal
+  const getFocusableElements = useCallback(() => {
+    if (!modalRef.current) return [];
+    return Array.from(
+      modalRef.current.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      )
+    ).filter((el) => !el.hasAttribute('disabled') && el.offsetParent !== null);
+  }, []);
+
+  // Handle Tab key for focus trap
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      onClose();
+      return;
+    }
+
+    if (e.key === 'Tab') {
+      const focusable = getFocusableElements();
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    }
+  }, [onClose, getFocusableElements]);
+
   useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
     if (isOpen) {
-      document.addEventListener('keydown', handleEscape);
+      // Store the currently focused element to restore later
+      previousActiveElement.current = document.activeElement as HTMLElement;
+      document.addEventListener('keydown', handleKeyDown);
       document.body.style.overflow = 'hidden';
+
+      // Focus the first focusable element in the modal
+      requestAnimationFrame(() => {
+        const focusable = getFocusableElements();
+        if (focusable.length > 0) {
+          focusable[0].focus();
+        } else {
+          modalRef.current?.focus();
+        }
+      });
     }
     return () => {
-      document.removeEventListener('keydown', handleEscape);
+      document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = '';
+      // Restore focus to the previously focused element
+      if (previousActiveElement.current && !isOpen) {
+        previousActiveElement.current.focus();
+      }
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, handleKeyDown, getFocusableElements]);
 
   if (!isOpen) return null;
 
@@ -43,15 +98,23 @@ export default function Modal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={title ? titleId.current : undefined}
+    >
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/50 backdrop-blur-sm"
         onClick={onClose}
+        aria-hidden="true"
       />
 
       {/* Modal */}
       <div
+        ref={modalRef}
+        tabIndex={-1}
         className={cn(
           'relative bg-white dark:bg-dark-800 rounded-3xl shadow-2xl w-full mx-4 animate-modal-in',
           sizes[size]
@@ -61,7 +124,10 @@ export default function Modal({
         {(title || showCloseButton) && (
           <div className="flex items-center justify-between px-8 py-6 border-b">
             {title && (
-              <h2 className="text-xl font-semibold text-dark-900 dark:text-white">
+              <h2
+                id={titleId.current}
+                className="text-xl font-semibold text-dark-900 dark:text-white"
+              >
                 {title}
               </h2>
             )}
@@ -69,6 +135,7 @@ export default function Modal({
               <button
                 onClick={onClose}
                 className="p-2.5 -m-2 text-dark-500 hover:text-dark-900 dark:hover:text-white rounded-xl hover:bg-dark-100 dark:hover:bg-dark-700 transition-colors"
+                aria-label="Close modal"
               >
                 <X className="w-6 h-6" />
               </button>
@@ -82,3 +149,4 @@ export default function Modal({
     </div>
   );
 }
+

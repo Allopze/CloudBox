@@ -33,7 +33,7 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  
+
   // Storage request state
   const [showStorageModal, setShowStorageModal] = useState(false);
   const [requestedQuota, setRequestedQuota] = useState('10737418240');
@@ -42,7 +42,7 @@ export default function Settings() {
   const [storageRequests, setStorageRequests] = useState<StorageRequest[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(false);
   const [showRequestsHistory, setShowRequestsHistory] = useState(false);
-  
+
   // Admin storage quota state
   const [adminQuota, setAdminQuota] = useState(user?.storageQuota || '10737418240');
   const [savingQuota, setSavingQuota] = useState(false);
@@ -179,7 +179,7 @@ export default function Settings() {
       const response = await api.patch('/users/me/storage-quota', {
         storageQuota: adminQuota,
       });
-      updateUser({ 
+      updateUser({
         storageQuota: response.data.storageQuota,
         storageUsed: response.data.storageUsed,
       });
@@ -240,7 +240,7 @@ export default function Settings() {
       {/* Mi Perfil Section */}
       <section className="bg-white dark:bg-dark-800 rounded-2xl border border-dark-100 dark:border-dark-700 p-6 mb-6">
         <div className="flex items-center gap-2 mb-1">
-          <User className="w-4 h-4 text-[#FF3B3B]" />
+          <User className="w-4 h-4 text-primary-600" />
           <h2 className="text-lg font-semibold text-dark-900 dark:text-white">{t('settings.myProfile')}</h2>
         </div>
         <p className="text-sm text-dark-500 dark:text-dark-400 mb-6">{t('settings.updateInfo')}</p>
@@ -252,13 +252,13 @@ export default function Settings() {
             {user?.avatar ? (
               <img src={user.avatar} alt={user.name} className="w-12 h-12 rounded-full object-cover" />
             ) : (
-              <div className="w-12 h-12 rounded-full bg-[#FF3B3B] flex items-center justify-center">
+              <div className="w-12 h-12 rounded-full bg-primary-600 flex items-center justify-center">
                 <span className="text-lg font-bold text-white">?</span>
               </div>
             )}
-            <Button 
-              variant="secondary" 
-              size="sm" 
+            <Button
+              variant="secondary"
+              size="sm"
               icon={uploadingAvatar ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
               onClick={handleAvatarClick}
               disabled={uploadingAvatar}
@@ -343,7 +343,7 @@ export default function Settings() {
       {/* Seguridad Section */}
       <section className="bg-white dark:bg-dark-800 rounded-2xl border border-dark-100 dark:border-dark-700 p-6 mb-6">
         <div className="flex items-center gap-2 mb-1">
-          <Lock className="w-4 h-4 text-[#FF3B3B]" />
+          <Lock className="w-4 h-4 text-primary-600" />
           <h2 className="text-lg font-semibold text-dark-900 dark:text-white">{t('settings.security')}</h2>
         </div>
         <p className="text-sm text-dark-500 dark:text-dark-400 mb-6">{t('settings.securityDescription')}</p>
@@ -376,7 +376,7 @@ export default function Settings() {
       {/* Apariencia Section */}
       <section className="bg-white dark:bg-dark-800 rounded-2xl border border-dark-100 dark:border-dark-700 p-6 mb-6">
         <div className="flex items-center gap-2 mb-1">
-          <Sun className="w-4 h-4 text-[#FF3B3B]" />
+          <Sun className="w-4 h-4 text-primary-600" />
           <h2 className="text-lg font-semibold text-dark-900 dark:text-white">{t('settings.appearance')}</h2>
         </div>
         <p className="text-sm text-dark-500 dark:text-dark-400 mb-4">{t('settings.customizeInterface')}</p>
@@ -384,18 +384,16 @@ export default function Settings() {
         <div className="flex items-center gap-3 mb-6">
           <button
             onClick={() => isDark && toggleTheme()}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 transition-all ${
-              !isDark ? 'border-[#FF3B3B] bg-[#FF3B3B]/5' : 'border-dark-200 dark:border-dark-700'
-            }`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 transition-all ${!isDark ? 'border-primary-600 bg-primary-50' : 'border-dark-200 dark:border-dark-700'
+              }`}
           >
             <Sun className="w-4 h-4" />
             <span className="text-sm font-medium">{t('settings.light')}</span>
           </button>
           <button
             onClick={() => !isDark && toggleTheme()}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 transition-all ${
-              isDark ? 'border-[#FF3B3B] bg-[#FF3B3B]/5' : 'border-dark-200 dark:border-dark-700'
-            }`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 transition-all ${isDark ? 'border-primary-600 bg-primary-50 dark:bg-primary-900/20' : 'border-dark-200 dark:border-dark-700'
+              }`}
           >
             <Moon className="w-4 h-4" />
             <span className="text-sm font-medium">{t('settings.dark')}</span>
@@ -405,7 +403,7 @@ export default function Settings() {
         {/* Language selector */}
         <div className="pt-4 border-t border-dark-100 dark:border-dark-700">
           <div className="flex items-center gap-2 mb-3">
-            <Globe className="w-4 h-4 text-[#FF3B3B]" />
+            <Globe className="w-4 h-4 text-primary-600" />
             <span className="text-sm font-medium text-dark-700 dark:text-dark-300">{t('language.label')}</span>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -413,11 +411,10 @@ export default function Settings() {
               <button
                 key={lang}
                 onClick={() => i18n.changeLanguage(lang)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 transition-all ${
-                  i18n.language === lang || i18n.language.startsWith(lang + '-')
-                    ? 'border-[#FF3B3B] bg-[#FF3B3B]/5 text-[#FF3B3B]'
-                    : 'border-dark-200 dark:border-dark-700 text-dark-700 dark:text-dark-300 hover:border-dark-300 dark:hover:border-dark-600'
-                }`}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 transition-all ${i18n.language === lang || i18n.language.startsWith(lang + '-')
+                  ? 'border-primary-600 bg-primary-50 dark:bg-primary-900/20 text-primary-600'
+                  : 'border-dark-200 dark:border-dark-700 text-dark-700 dark:text-dark-300 hover:border-dark-300 dark:hover:border-dark-600'
+                  }`}
               >
                 <span className="text-sm font-medium">{t(`language.${lang}`)}</span>
               </button>
@@ -429,7 +426,7 @@ export default function Settings() {
       {/* Almacenamiento Section */}
       <section className="bg-white dark:bg-dark-800 rounded-2xl border border-dark-100 dark:border-dark-700 p-6">
         <div className="flex items-center gap-2 mb-1">
-          <HardDrive className="w-4 h-4 text-[#FF3B3B]" />
+          <HardDrive className="w-4 h-4 text-primary-600" />
           <h2 className="text-lg font-semibold text-dark-900 dark:text-white">{t('settings.storageSection')}</h2>
         </div>
         <p className="text-sm text-dark-500 dark:text-dark-400 mb-4">{t('settings.storageDescription')}</p>
@@ -441,7 +438,7 @@ export default function Settings() {
               <span className="text-dark-400">/ {formatBytes(user?.storageQuota || 0)} ({storageUsedPercent}%)</span>
             </div>
             <div className="w-full h-2 bg-dark-100 dark:bg-dark-700 rounded-full overflow-hidden">
-              <div className="h-full bg-[#FF3B3B] rounded-full" style={{ width: `${storageUsedPercent}%` }} />
+              <div className="h-full bg-primary-600 rounded-full" style={{ width: `${storageUsedPercent}%` }} />
             </div>
           </div>
           <Button variant="secondary" size="sm" onClick={handleOpenStorageModal}>
@@ -458,7 +455,7 @@ export default function Settings() {
             >
               {showRequestsHistory ? t('settings.hideHistory') : t('settings.viewHistory')}
             </button>
-            
+
             {showRequestsHistory && (
               <div className="mt-3 space-y-2">
                 {loadingRequests ? (
@@ -508,7 +505,7 @@ export default function Settings() {
             <p className="text-sm text-dark-500 dark:text-dark-400">
               {t('settings.adminQuotaDescription')}
             </p>
-            
+
             <div>
               <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">
                 {t('settings.newQuota')}

@@ -3,7 +3,7 @@
 ## Quick Reference
 
 ```bash
-npm run dev              # Start frontend (5173) + backend (3001)
+npm run dev              # Start frontend (5000) + backend (3001)
 npm run setup            # Install deps, generate Prisma, push DB, seed
 cd backend && npm test   # Run Vitest tests
 npm run db:studio        # Open Prisma Studio

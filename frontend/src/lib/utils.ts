@@ -35,18 +35,20 @@ export function formatBytes(bytes: number | string, decimals = 2): string {
   return parseFloat((b / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
 
-export function formatDate(date: string | Date): string {
+export function formatDate(date: string | Date, locale?: string): string {
   const d = new Date(date);
-  return d.toLocaleDateString('es-ES', {
+  const userLocale = locale || navigator.language || 'en-US';
+  return d.toLocaleDateString(userLocale, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
   });
 }
 
-export function formatDateTime(date: string | Date): string {
+export function formatDateTime(date: string | Date, locale?: string): string {
   const d = new Date(date);
-  return d.toLocaleString('es-ES', {
+  const userLocale = locale || navigator.language || 'en-US';
+  return d.toLocaleString(userLocale, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',

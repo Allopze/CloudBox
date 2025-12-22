@@ -6,8 +6,10 @@ import { FileItem } from '../types';
 import { useFileStore } from '../stores/fileStore';
 import FileCard from '../components/files/FileCard';
 import DocumentThumbnail from '../components/files/DocumentThumbnail';
+import VirtualizedGrid from '../components/ui/VirtualizedGrid';
+import { SkeletonGrid } from '../components/ui/Skeleton';
 import {
-  Loader2, FileText, FileSpreadsheet, File, Eye, Check,
+  FileText, FileSpreadsheet, File, Eye, Check,
   Download, Share2, Trash2, Info, Copy, Star, Code, Presentation
 } from 'lucide-react';
 import { toast } from '../components/ui/Toast';
@@ -15,8 +17,8 @@ import { cn, formatBytes, formatDate } from '../lib/utils';
 import UploadModal from '../components/modals/UploadModal';
 import DocumentViewer from '../components/gallery/DocumentViewer';
 import ShareModal from '../components/modals/ShareModal';
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { waveIn } from '../lib/animations';
+import { motion, AnimatePresence } from 'framer-motion';
+
 import Button from '../components/ui/Button';
 
 interface ContextMenuState {
@@ -85,7 +87,6 @@ const getExtension = (fileName: string) => {
 
 export default function Documents() {
   const { t } = useTranslation();
-  const reducedMotion = useReducedMotion();
   const [searchParams] = useSearchParams();
   const [documents, setDocuments] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -287,57 +288,64 @@ export default function Documents() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
-      </div>
-    );
+    return <div className="p-4"><SkeletonGrid count={12} view={viewMode} /></div>;
   }
 
   return (
     <div>
       {/* Content - Visual card grid view */}
       {documents.length > 0 ? (
-        viewMode === 'grid' ? (
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-            {documents.map((doc, index) => {
-              const isSelected = selectedItems.has(doc.id);
-
-              const handleDocClick = (e: React.MouseEvent) => {
-                // Shift+Click: Range selection
-                if (e.shiftKey && lastSelectedId) {
-                  const ids = documents.map(d => d.id);
-                  selectRange(ids, doc.id);
-                }
-                // Ctrl/Meta+Click: Toggle selection
-                else if (e.ctrlKey || e.metaKey) {
-                  if (isSelected) {
-                    removeFromSelection(doc.id);
-                  } else {
-                    addToSelection(doc.id);
-                  }
-                }
-                // Simple click with selection: select single
-                else if (selectedItems.size > 0 && !isSelected) {
-                  selectSingle(doc.id);
-                }
-                // Simple click: preview document
-                else {
-                  handlePreview(doc);
-                }
-              };
-
-              const waveInProps = waveIn(index, reducedMotion);
-              const baseAnimate = typeof waveInProps.animate === 'object' ? waveInProps.animate : {};
-
+        <VirtualizedGrid
+          items={documents}
+          viewMode={viewMode}
+          scrollElementId="main-content"
+          estimateListItemHeight={60}
+          renderItem={(doc, _index, style) => {
+            if (viewMode === 'list') {
               return (
+                <div style={style}>
+                  <FileCard
+                    file={doc}
+                    view={viewMode}
+                    onRefresh={loadData}
+                    onPreview={handlePreview}
+                  />
+                </div>
+              );
+            }
+
+            // Grid view with custom card
+            const isSelected = selectedItems.has(doc.id);
+            const handleDocClick = (e: React.MouseEvent) => {
+              // Shift+Click: Range selection
+              if (e.shiftKey && lastSelectedId) {
+                const ids = documents.map(d => d.id);
+                selectRange(ids, doc.id);
+              }
+              // Ctrl/Meta+Click: Toggle selection
+              else if (e.ctrlKey || e.metaKey) {
+                if (isSelected) {
+                  removeFromSelection(doc.id);
+                } else {
+                  addToSelection(doc.id);
+                }
+              }
+              // Simple click with selection: select single
+              else if (selectedItems.size > 0 && !isSelected) {
+                selectSingle(doc.id);
+              }
+              // Simple click: preview document
+              else {
+                handlePreview(doc);
+              }
+            };
+
+            return (
+              <div style={style}>
                 <motion.div
                   key={doc.id}
-                  initial={waveInProps.initial}
-                  animate={{
-                    ...baseAnimate,
-                    scale: isSelected ? 0.95 : 1
-                  }}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: isSelected ? 0.95 : 1 }}
                   transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                   data-file-item={doc.id}
                   onClick={handleDocClick}
@@ -383,23 +391,10 @@ export default function Documents() {
                     </div>
                   </div>
                 </motion.div>
-              );
-            })}
-          </div>
-        ) : (
-          // List view - use FileCard for consistency
-          <div className="space-y-1">
-            {documents.map((doc) => (
-              <FileCard
-                key={doc.id}
-                file={doc}
-                view={viewMode}
-                onRefresh={loadData}
-                onPreview={handlePreview}
-              />
-            ))}
-          </div>
-        )
+              </div>
+            );
+          }}
+        />
       ) : (
         (() => {
           // Get icon and text based on current tab

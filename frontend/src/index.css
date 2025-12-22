@@ -27,7 +27,29 @@
   ::-webkit-scrollbar-thumb:hover {
     @apply bg-dark-400 dark:bg-dark-500;
   }
+
+  /* Consistent focus-visible styles for accessibility */
+  :focus-visible {
+    @apply outline-none ring-2 ring-primary-500 ring-offset-2;
+    @apply ring-offset-white dark:ring-offset-dark-900;
+  }
+
+  /* For buttons and interactive elements that need a more subtle focus ring */
+  button:focus-visible,
+  a:focus-visible,
+  [role="button"]:focus-visible,
+  [role="menuitem"]:focus-visible,
+  [tabindex]:focus-visible {
+    @apply outline-none ring-2 ring-primary-500/70 ring-offset-1;
+    @apply ring-offset-white dark:ring-offset-dark-900;
+  }
+
+  /* Reset focus-visible for elements that handle their own focus styles */
+  .custom-focus:focus-visible {
+    @apply ring-0 ring-offset-0;
+  }
 }
+
 
 @layer components {
   .btn {
@@ -90,12 +112,13 @@
     @apply border-primary-500 bg-primary-50 dark:bg-primary-900/20;
   }
 
-  /* Minimalist file/folder cards - completely square */
+  /* Minimalist file/folder cards - fill container height */
   .premium-card {
     @apply relative rounded-xl cursor-pointer touch-none;
     @apply transition-all duration-200 ease-out;
     @apply bg-transparent border border-transparent;
-    @apply aspect-square overflow-hidden;
+    @apply overflow-hidden;
+    height: 250px;
   }
 
   .premium-card:hover:not(.selected):not(.dragging) {
@@ -294,8 +317,31 @@
     }
   }
 
+  /* Modal animations */
+  .animate-modal-in {
+    animation: modalIn 0.2s ease-out forwards;
+  }
+
+  @keyframes modalIn {
+    from {
+      opacity: 0;
+      transform: scale(0.95) translateY(-10px);
+    }
+
+    to {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+
   /* Reduced motion */
   @media (prefers-reduced-motion: reduce) {
+    .animate-modal-in {
+      animation: none !important;
+      opacity: 1 !important;
+      transform: none !important;
+    }
+
     .animate-toast-slide-in {
       animation: none !important;
       opacity: 1 !important;
