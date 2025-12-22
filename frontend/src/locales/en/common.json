@@ -585,7 +585,8 @@
     "folder": "Folder",
     "size": "Size",
     "modified": "Modified",
-    "created": "Created"
+    "created": "Created",
+    "noMoreItems": "No more items to load"
   },
   "documentViewer": {
     "details": "Details",

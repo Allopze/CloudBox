@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { api, getSignedFileUrl, openSignedFileUrl } from '../lib/api';
@@ -53,6 +53,12 @@ export default function MusicPage() {
   const [trackDurations, setTrackDurations] = useState<Record<string, number>>({});
   const [selectedAlbum, setSelectedAlbum] = useState<string | null>(null);
 
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+
   // Create album modal state
   const [createAlbumOpen, setCreateAlbumOpen] = useState(false);
   const [newAlbumName, setNewAlbumName] = useState('');
@@ -77,12 +83,24 @@ export default function MusicPage() {
 
   const { selectedItems, addToSelection, removeFromSelection, selectRange, selectSingle, lastSelectedId, clearSelection, sortBy, sortOrder } = useFileStore();
 
-  const loadData = useCallback(async (signal?: AbortSignal) => {
-    setLoading(true);
+  const loadData = useCallback(async (signal?: AbortSignal, pageNum: number = 1, append: boolean = false) => {
+    if (append) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+      setPage(1);
+      setHasMore(true);
+    }
     try {
       // Map sortBy to API-compatible values
       const apiSortBy = sortBy === 'date' ? 'createdAt' : sortBy;
-      const params: Record<string, string> = { type: 'audio', sortBy: apiSortBy, sortOrder };
+      const params: Record<string, string> = {
+        type: 'audio',
+        sortBy: apiSortBy,
+        sortOrder,
+        page: pageNum.toString(),
+        limit: '50'
+      };
 
       // Filter by favorites if on favorites tab
       if (tab === 'favorites') {
@@ -94,24 +112,40 @@ export default function MusicPage() {
         params.search = searchQuery;
       }
 
-      const [filesRes, foldersRes] = await Promise.all([
-        api.get('/files', { params, signal }),
-        api.get('/folders', { signal })
-      ]);
+      const filesRes = await api.get('/files', { params, signal });
 
       // Don't update state if the request was aborted
       if (signal?.aborted) return;
 
       const audioFiles = filesRes.data.files || [];
-      setTracks(audioFiles);
-      setQueue(audioFiles);
+      const pagination = filesRes.data.pagination;
 
-      // Store all folders
-      const foldersData = Array.isArray(foldersRes.data) ? foldersRes.data : (foldersRes.data.folders || []);
-      setFolders(foldersData);
+      // Update hasMore based on pagination
+      if (pagination) {
+        setHasMore(pagination.page < pagination.totalPages);
+        setPage(pagination.page);
+      } else {
+        setHasMore(audioFiles.length === 50);
+      }
 
-      // Load durations for all tracks
-      // Load durations sequentially to avoid memory leaks
+      if (append) {
+        setTracks(prev => [...prev, ...audioFiles]);
+        // musicStore.setQueue expects an array, not a callback
+        const currentQueue = useMusicStore.getState().queue;
+        setQueue([...currentQueue, ...audioFiles]);
+      } else {
+        setTracks(audioFiles);
+        setQueue(audioFiles);
+
+        // Fetch folders only on initial load
+        const foldersRes = await api.get('/folders', { signal });
+        if (!signal?.aborted) {
+          const foldersData = Array.isArray(foldersRes.data) ? foldersRes.data : (foldersRes.data.folders || []);
+          setFolders(foldersData);
+        }
+      }
+
+      // Load durations for new tracks
       const loadDurations = async () => {
         const audio = new Audio();
         audio.volume = 0;
@@ -151,9 +185,40 @@ export default function MusicPage() {
     } finally {
       if (!signal?.aborted) {
         setLoading(false);
+        setLoadingMore(false);
       }
     }
   }, [setQueue, tab, sortBy, sortOrder, searchQuery]);
+
+  // Load more function for pagination
+  const loadMore = useCallback(() => {
+    if (!loadingMore && hasMore && !loading) {
+      loadData(undefined, page + 1, true);
+    }
+  }, [loadData, page, loadingMore, hasMore, loading]);
+
+  // Infinite scroll observer
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore && !loading) {
+          loadMore();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    const currentRef = loadMoreRef.current;
+    if (currentRef) {
+      observer.observe(currentRef);
+    }
+
+    return () => {
+      if (currentRef) {
+        observer.unobserve(currentRef);
+      }
+    };
+  }, [hasMore, loadingMore, loading, loadMore]);
 
   useEffect(() => {
     const abortController = new AbortController();
@@ -804,6 +869,18 @@ export default function MusicPage() {
             </div>
           );
         })()
+      )}
+
+      {/* Load More Sentinel */}
+      {tracks.length > 0 && (
+        <div ref={loadMoreRef} className="flex justify-center py-8">
+          {loadingMore && (
+            <Loader2 className="w-6 h-6 animate-spin text-primary-600" />
+          )}
+          {!hasMore && tracks.length >= 50 && (
+            <p className="text-sm text-dark-400">{t('common.noMoreItems')}</p>
+          )}
+        </div>
       )}
 
       {/* Context Menu */}

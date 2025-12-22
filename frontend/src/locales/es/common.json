@@ -656,7 +656,8 @@
     "folder": "Carpeta",
     "size": "Tamaño",
     "modified": "Modificado",
-    "created": "Creado"
+    "created": "Creado",
+    "noMoreItems": "No hay más elementos para cargar"
   },
   "documentViewer": {
     "details": "Detalles",

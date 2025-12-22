@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, openSignedFileUrl } from '../lib/api';
 import { FileItem, Folder } from '../types';
@@ -22,6 +22,12 @@ export default function Favorites() {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+
   // Preview states
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [galleryIndex, setGalleryIndex] = useState(0);
@@ -36,23 +42,74 @@ export default function Favorites() {
     return files.filter(f => isImage(f.mimeType));
   }, [files]);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (pageNum: number = 1, append: boolean = false) => {
+    if (append) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+      setPage(1);
+      setHasMore(true);
+    }
     try {
-      const [filesRes, foldersRes] = await Promise.all([
-        api.get('/files', { params: { favorites: true, sortBy, sortOrder } }),
-        api.get('/folders', { params: { favorites: true } }),
-      ]);
+      const filesRes = await api.get('/files', { params: { favorites: true, sortBy, sortOrder, page: pageNum.toString(), limit: '50' } });
 
-      setFiles(filesRes.data.files || []);
-      setFolders(foldersRes.data.filter((f: Folder) => f.isFavorite) || []);
+      const newFiles = filesRes.data.files || [];
+      const pagination = filesRes.data.pagination;
+
+      // Update hasMore based on pagination
+      if (pagination) {
+        setHasMore(pagination.page < pagination.totalPages);
+        setPage(pagination.page);
+      } else {
+        setHasMore(newFiles.length === 50);
+      }
+
+      if (append) {
+        setFiles(prev => [...prev, ...newFiles]);
+      } else {
+        // Fetch folders only on initial load
+        const foldersRes = await api.get('/folders', { params: { favorites: true } });
+        setFiles(newFiles);
+        setFolders(foldersRes.data.filter((f: Folder) => f.isFavorite) || []);
+      }
     } catch (error) {
       console.error('Failed to load favorites:', error);
       toast(t('favorites.loadError'), 'error');
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }, [sortBy, sortOrder]);
+
+  // Load more function for pagination
+  const loadMore = useCallback(() => {
+    if (!loadingMore && hasMore && !loading) {
+      loadData(page + 1, true);
+    }
+  }, [loadData, page, loadingMore, hasMore, loading]);
+
+  // Infinite scroll observer
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore && !loading) {
+          loadMore();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    const currentRef = loadMoreRef.current;
+    if (currentRef) {
+      observer.observe(currentRef);
+    }
+
+    return () => {
+      if (currentRef) {
+        observer.unobserve(currentRef);
+      }
+    };
+  }, [hasMore, loadingMore, loading, loadMore]);
 
   useEffect(() => {
     loadData();
@@ -137,6 +194,18 @@ export default function Favorites() {
               />
             </motion.div>
           ))}
+        </div>
+      )}
+
+      {/* Load More Sentinel */}
+      {(files.length > 0 || folders.length > 0) && (
+        <div ref={loadMoreRef} className="flex justify-center py-8">
+          {loadingMore && (
+            <Loader2 className="w-6 h-6 animate-spin text-primary-600" />
+          )}
+          {!hasMore && files.length >= 50 && (
+            <p className="text-sm text-dark-400">{t('common.noMoreItems')}</p>
+          )}
         </div>
       )}
 
