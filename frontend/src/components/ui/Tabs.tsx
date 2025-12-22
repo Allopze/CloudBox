@@ -34,6 +34,7 @@ interface TabListProps {
 export function TabList({ children, className }: TabListProps) {
   return (
     <div
+      role="tablist"
       className={cn(
         'flex border-b border-dark-200 dark:border-dark-700',
         className
@@ -59,6 +60,9 @@ export function Tab({ value, children, className }: TabProps) {
 
   return (
     <button
+      role="tab"
+      aria-selected={isActive}
+      tabIndex={isActive ? 0 : -1}
       onClick={() => {
         setActiveTab(value);
         onChange?.(value);
@@ -90,5 +94,5 @@ export function TabPanel({ value, children, className }: TabPanelProps) {
 
   if (activeTab !== value) return null;
 
-  return <div className={cn('py-4', className)}>{children}</div>;
+  return <div role="tabpanel" tabIndex={0} className={cn('py-4', className)}>{children}</div>;
 }

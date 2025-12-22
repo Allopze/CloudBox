@@ -130,7 +130,7 @@ Detailed documentation is available in the `docs/` directory to help you get sta
     npm run dev
     ```
 
-    - Frontend: `http://localhost:5173`
+    - Frontend: `http://localhost:5000`
     - Backend: `http://localhost:3001`
 
 ---

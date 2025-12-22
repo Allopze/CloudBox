@@ -2,9 +2,9 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { OAuth2Client } from 'google-auth-library';
 import prisma from '../lib/prisma.js';
-import { 
-  generateAccessToken, 
-  generateRefreshToken, 
+import {
+  generateAccessToken,
+  generateRefreshToken,
   verifyRefreshToken,
   generateRandomToken,
   hashToken,
@@ -31,6 +31,7 @@ import {
   resetPasswordSchema,
   verifyEmailSchema,
 } from '../schemas/index.js';
+import * as cache from '../lib/cache.js';
 
 const router = Router();
 const googleClient = new OAuth2Client(config.google.clientId);
@@ -84,7 +85,7 @@ const storeRefreshTokenWithSession = async (
 ): Promise<string | null> => {
   // Store in database (always)
   await storeRefreshToken(userId, token, jti, familyId, expiresAt);
-  
+
   // Create Redis session for instant invalidation (if available)
   const sessionId = await createSession(userId, hashToken(token), deviceInfo);
   return sessionId;
@@ -167,7 +168,7 @@ async function recordLoginAttempt(
     where: {
       createdAt: { lt: cutoff },
     },
-  }).catch(() => {}); // Ignore cleanup errors
+  }).catch(() => { }); // Ignore cleanup errors
 }
 
 // Get client IP address - using imported function from audit.ts
@@ -260,11 +261,11 @@ router.post('/login', validate(loginSchema), async (req: Request, res: Response)
     // Check for lockout
     const lockoutStatus = await checkLockout(email, ipAddress);
     if (lockoutStatus.isLocked) {
-      const retryAfter = lockoutStatus.lockoutEnd 
+      const retryAfter = lockoutStatus.lockoutEnd
         ? Math.max(0, lockoutStatus.lockoutEnd.getTime() - Date.now())
         : LOCKOUT_DURATION;
       const minutesRemaining = Math.ceil(retryAfter / 60000);
-      
+
       await auditLog({
         action: 'LOGIN_FAILED',
         ipAddress,
@@ -272,8 +273,8 @@ router.post('/login', validate(loginSchema), async (req: Request, res: Response)
         details: { email, reason: 'lockout', minutesRemaining },
         success: false,
       });
-      
-      res.status(429).json({ 
+
+      res.status(429).json({
         error: `Demasiados intentos fallidos. Intenta de nuevo en ${minutesRemaining} minutos.`,
         code: 'TOO_MANY_ATTEMPTS',
         lockoutEnd: lockoutStatus.lockoutEnd,
@@ -285,7 +286,7 @@ router.post('/login', validate(loginSchema), async (req: Request, res: Response)
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
       await recordLoginAttempt(email, ipAddress, false, userAgent);
-      
+
       await auditLog({
         action: 'LOGIN_FAILED',
         ipAddress,
@@ -293,8 +294,8 @@ router.post('/login', validate(loginSchema), async (req: Request, res: Response)
         details: { email, reason: 'user_not_found' },
         success: false,
       });
-      
-      res.status(401).json({ 
+
+      res.status(401).json({
         error: 'Email o contraseña incorrectos.',
         code: 'INVALID_CREDENTIALS',
         remainingAttempts: lockoutStatus.remainingAttempts - 1,
@@ -306,7 +307,7 @@ router.post('/login', validate(loginSchema), async (req: Request, res: Response)
       // User exists but registered with Google OAuth
       // Security: Use generic error message to prevent user enumeration
       await recordLoginAttempt(email, ipAddress, false, userAgent);
-      
+
       await auditLog({
         action: 'LOGIN_FAILED',
         userId: user.id,
@@ -315,8 +316,8 @@ router.post('/login', validate(loginSchema), async (req: Request, res: Response)
         details: { email, reason: 'oauth_account_password_login' },
         success: false,
       });
-      
-      res.status(401).json({ 
+
+      res.status(401).json({
         error: 'Email o contraseña incorrectos.',
         code: 'INVALID_CREDENTIALS',
         remainingAttempts: lockoutStatus.remainingAttempts - 1,
@@ -328,7 +329,7 @@ router.post('/login', validate(loginSchema), async (req: Request, res: Response)
     if (!validPassword) {
       await recordLoginAttempt(email, ipAddress, false, userAgent);
       const newLockoutStatus = await checkLockout(email, ipAddress);
-      
+
       await auditLog({
         action: 'LOGIN_FAILED',
         userId: user.id,
@@ -337,8 +338,8 @@ router.post('/login', validate(loginSchema), async (req: Request, res: Response)
         details: { email, reason: 'invalid_password' },
         success: false,
       });
-      
-      res.status(401).json({ 
+
+      res.status(401).json({
         error: 'Email o contraseña incorrectos.',
         code: 'INVALID_CREDENTIALS',
         remainingAttempts: newLockoutStatus.remainingAttempts,
@@ -348,7 +349,7 @@ router.post('/login', validate(loginSchema), async (req: Request, res: Response)
 
     // Successful login - record it
     await recordLoginAttempt(email, ipAddress, true, userAgent);
-    
+
     await auditLog({
       action: 'LOGIN_SUCCESS',
       userId: user.id,
@@ -357,6 +358,9 @@ router.post('/login', validate(loginSchema), async (req: Request, res: Response)
       details: { email },
       success: true,
     });
+
+    // Invalidate all user cache on login to ensure fresh state
+    await cache.invalidateAllUserCache(user.id);
 
     const accessToken = generateAccessToken({
       userId: user.id,
@@ -441,6 +445,9 @@ router.post('/google', validate(googleAuthSchema), async (req: Request, res: Res
       });
     }
 
+    // Invalidate all user cache on login to ensure fresh state
+    await cache.invalidateAllUserCache(user.id);
+
     const accessToken = generateAccessToken({
       userId: user.id,
       email: user.email,
@@ -508,7 +515,7 @@ router.post('/refresh', async (req: Request, res: Response) => {
     }
 
     const tokenHash = hashToken(refreshToken);
-    
+
     // Security: Look up by jti (more secure than full token comparison)
     const storedToken = await prisma.refreshToken.findUnique({
       where: { jti: payload.jti },
@@ -523,7 +530,7 @@ router.post('/refresh', async (req: Request, res: Response) => {
           where: { familyId: storedToken.familyId },
           data: { revokedAt: new Date() },
         });
-        
+
         await auditLog({
           action: 'SECURITY_ALERT',
           userId: storedToken.userId,
@@ -533,7 +540,7 @@ router.post('/refresh', async (req: Request, res: Response) => {
           success: false,
         });
       }
-      
+
       clearAuthCookies(res);
       res.status(401).json({ error: 'Token has been revoked. Please login again.' });
       return;
@@ -599,8 +606,8 @@ router.post('/refresh', async (req: Request, res: Response) => {
       const session = await findSessionByRefreshToken(storedToken.user.id, tokenHash);
       if (session) {
         await updateSessionRefreshToken(
-          storedToken.user.id, 
-          session.sessionId, 
+          storedToken.user.id,
+          session.sessionId,
           hashToken(newRefreshToken)
         );
       }
@@ -631,7 +638,7 @@ router.post('/logout', authenticate, async (req: Request, res: Response) => {
       try {
         const payload = verifyRefreshToken(refreshToken);
         const tokenHash = hashToken(refreshToken);
-        
+
         // Revoke entire token family on logout
         if (payload.familyId) {
           await prisma.refreshToken.updateMany({
@@ -639,7 +646,7 @@ router.post('/logout', authenticate, async (req: Request, res: Response) => {
             data: { revokedAt: new Date() },
           });
         }
-        
+
         // Invalidate Redis session for this token
         if (isSessionStoreAvailable()) {
           const session = await findSessionByRefreshToken(userId, tokenHash);
@@ -651,6 +658,9 @@ router.post('/logout', authenticate, async (req: Request, res: Response) => {
         // Token invalid, just continue with logout
       }
     }
+
+    // Invalidate all user cache on logout
+    await cache.invalidateAllUserCache(userId);
 
     // Security: Clear httpOnly cookie
     clearAuthCookies(res);
@@ -785,30 +795,30 @@ router.get('/verify-email/:token', validate(verifyEmailSchema), async (req: Requ
 router.get('/sessions', authenticate, async (req: Request, res: Response) => {
   try {
     const userId = req.user!.userId;
-    
+
     if (!isSessionStoreAvailable()) {
-      res.json({ 
+      res.json({
         sessions: [],
         message: 'Session tracking not available (Redis required)',
       });
       return;
     }
-    
+
     // Import getUserSessions dynamically to avoid circular dependency issues
     const { getUserSessions } = await import('../lib/sessionStore.js');
     const sessions = await getUserSessions(userId);
-    
+
     // Mark the current session
-    const currentTokenHash = req.cookies.refreshToken 
-      ? hashToken(req.cookies.refreshToken) 
+    const currentTokenHash = req.cookies.refreshToken
+      ? hashToken(req.cookies.refreshToken)
       : null;
-    
+
     const sessionsWithCurrent = sessions.map(session => ({
       ...session,
       isCurrent: session.refreshToken === currentTokenHash,
       refreshToken: undefined, // Don't expose the hash
     }));
-    
+
     res.json({ sessions: sessionsWithCurrent });
   } catch (error) {
     console.error('Get sessions error:', error);
@@ -821,14 +831,14 @@ router.delete('/sessions/:sessionId', authenticate, async (req: Request, res: Re
   try {
     const userId = req.user!.userId;
     const { sessionId } = req.params;
-    
+
     if (!isSessionStoreAvailable()) {
       res.status(400).json({ error: 'Session management not available (Redis required)' });
       return;
     }
-    
+
     const success = await invalidateSession(userId, sessionId);
-    
+
     if (success) {
       res.json({ message: 'Session terminated successfully' });
     } else {
@@ -844,22 +854,22 @@ router.delete('/sessions/:sessionId', authenticate, async (req: Request, res: Re
 router.post('/sessions/logout-all', authenticate, async (req: Request, res: Response) => {
   try {
     const userId = req.user!.userId;
-    
+
     // Invalidate all database tokens
     await prisma.refreshToken.updateMany({
       where: { userId, revokedAt: null },
       data: { revokedAt: new Date() },
     });
-    
+
     // Invalidate all Redis sessions
     if (isSessionStoreAvailable()) {
       const count = await invalidateAllSessions(userId);
-      res.json({ 
+      res.json({
         message: 'All sessions terminated successfully',
         terminatedCount: count,
       });
     } else {
-      res.json({ 
+      res.json({
         message: 'Database tokens invalidated, but instant session termination not available (Redis required)',
       });
     }

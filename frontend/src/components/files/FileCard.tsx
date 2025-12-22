@@ -188,6 +188,21 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview, on
     }
   };
 
+  // Handle keyboard navigation - Enter to open, Space to select
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleDoubleClick();
+    } else if (e.key === ' ') {
+      e.preventDefault();
+      if (isSelected) {
+        removeFromSelection(file.id);
+      } else {
+        addToSelection(file.id);
+      }
+    }
+  };
+
   const handleDownload = useCallback(() => {
     setContextMenu(null);
     void openSignedFileUrl(file.id, 'download');
@@ -291,6 +306,7 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview, on
           data-file-data={dragData}
           onClick={handleClick}
           onDoubleClick={handleDoubleClick}
+          onKeyDown={handleKeyDown}
           onContextMenu={handleContextMenu}
           tabIndex={0}
           className={cn(
@@ -339,6 +355,7 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview, on
         data-file-data={dragData}
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
+        onKeyDown={handleKeyDown}
         onContextMenu={handleContextMenu}
         tabIndex={0}
         className={cn(

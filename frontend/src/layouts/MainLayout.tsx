@@ -23,6 +23,7 @@ import { PanelLeftClose, PanelLeft, Grid, List, SortAsc, SortDesc, Check, Link a
 import { Album } from '../types';
 import Dropdown, { DropdownItem, DropdownDivider } from '../components/ui/Dropdown';
 import ContextMenu, { type ContextMenuItemOrDivider } from '../components/ui/ContextMenu';
+import SkipLink from '../components/ui/SkipLink';
 import { api } from '../lib/api';
 import { toast } from '../components/ui/Toast';
 
@@ -96,6 +97,7 @@ export default function MainLayout() {
 
   const { t } = useTranslation();
   const { sidebarOpen, toggleSidebar } = useUIStore();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const viewMode = useFileStore((state) => state.viewMode);
   const setViewMode = useFileStore((state) => state.setViewMode);
   const sortBy = useFileStore((state) => state.sortBy);
@@ -114,6 +116,13 @@ export default function MainLayout() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { albumId } = useParams<{ albumId: string }>();
+
+  // When using a shared scroll container for multiple pages, preserve-scroll can
+  // make some pages appear "blank" if the previous page was scrolled past the
+  // new page's content. Reset scroll on route changes.
+  useEffect(() => {
+    workzoneRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [location.pathname]);
 
   // Page detection
   const isAdminPage = location.pathname.startsWith('/admin');
@@ -889,21 +898,15 @@ export default function MainLayout() {
 
   return (
     <DndContextProvider onRefresh={triggerRefresh}>
-      <div className="flex h-screen bg-dark-100 dark:bg-dark-800">
-        {/* Sidebar */}
-        <div
-          className={cn(
-            'transition-all duration-300 ease-in-out',
-            sidebarOpen ? 'w-48' : 'w-0'
-          )}
-        >
-          <Sidebar />
-        </div>
+      <SkipLink />
+      <div className="flex h-screen bg-dark-100 dark:bg-dark-800 overflow-hidden font-sans select-none">
+        <Sidebar mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
 
-        {/* Main content area */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Header */}
-          <Header />
+        <div className="flex-1 flex flex-col min-w-0">
+          <Header onMobileMenuToggle={() => setMobileMenuOpen(true)} />
+
+          {/* Progress bar at the top - Fixed height to prevent layout shift */}
+          <div className="h-1 bg-dark-100 dark:bg-dark-800"></div>
 
           {/* Content area */}
           <div className="flex-1 flex flex-col overflow-hidden p-3 pt-0 gap-3">
@@ -1329,8 +1332,10 @@ export default function MainLayout() {
               onClick={closeContextMenu}
             >
               <main
+                id="main-content"
+                tabIndex={-1}
                 ref={workzoneRef}
-                className="flex-1 overflow-y-auto overflow-x-hidden p-4 relative"
+                className="flex-1 overflow-y-auto overflow-x-hidden p-4 pb-8 relative focus:outline-none"
                 onMouseDown={onMarqueeMouseDown}
                 onMouseMove={onMarqueeMouseMove}
                 onMouseUp={onMarqueeMouseUp}
@@ -1350,6 +1355,7 @@ export default function MainLayout() {
               </main>
 
             </div>
+
           </div>
         </div>
         <UploadProgress />
@@ -1401,7 +1407,7 @@ export default function MainLayout() {
         />
 
       </div>
-    </DndContextProvider>
+    </DndContextProvider >
   );
 }
 type AnyMouseEvent = MouseEvent | ReactMouseEvent;

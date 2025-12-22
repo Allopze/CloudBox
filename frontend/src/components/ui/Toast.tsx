@@ -92,7 +92,7 @@ function ToastItem({ toast }: { toast: Toast }) {
   return (
     <div
       className={cn(
-        'flex items-center gap-3 p-4 rounded-lg border shadow-lg animate-slide-in',
+        'flex items-center gap-3 p-4 rounded-lg border shadow-lg animate-toast-slide-in',
         styles[toast.type]
       )}
     >

@@ -101,11 +101,13 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
 
     // When searching, ignore parentId to search across all folders (global search)
     // When not searching, respect the folder navigation
+    // When searching, ignore parentId to search across all folders (global search)
+    // When not searching, respect the folder navigation
     if (search) {
       where.name = { contains: search as string, mode: 'insensitive' };
-    } else if (parentId === 'null' || parentId === '') {
+    } else if (parentId === 'null' || parentId === '' || parentId === undefined) {
       where.parentId = null;
-    } else if (parentId) {
+    } else {
       where.parentId = parentId;
     }
 
