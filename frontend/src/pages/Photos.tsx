@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { api, getSignedFileUrl, openSignedFileUrl } from '../lib/api';
@@ -7,7 +7,7 @@ import { useFileStore } from '../stores/fileStore';
 import {
   X, ChevronLeft, ChevronRight, Download, Trash2, Star, Check,
   Share2, Info, Copy, Edit3, Images, FolderPlus,
-  ImagePlus, ExternalLink, Plus
+  ImagePlus, ExternalLink, Plus, Loader2
 } from 'lucide-react';
 import { toast } from '../components/ui/Toast';
 import { formatDate, cn } from '../lib/utils';
@@ -42,6 +42,12 @@ export default function Photos() {
   const [loading, setLoading] = useState(true);
   const [selectedPhoto, setSelectedPhoto] = useState<FileItem | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
   // Context menu state
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -81,10 +87,21 @@ export default function Photos() {
   const { selectedItems, addToSelection, removeFromSelection, selectRange, selectSingle, lastSelectedId, clearSelection } = useFileStore();
 
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (pageNum: number = 1, append: boolean = false) => {
+    if (append) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+      setPage(1);
+      setHasMore(true);
+    }
     try {
-      let params: any = { sortBy: 'createdAt', sortOrder: 'desc' };
+      let params: any = {
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
+        page: pageNum.toString(),
+        limit: '50'
+      };
 
       if (activeTab === 'all') {
         params.type = 'media'; // Both images and videos
@@ -104,19 +121,63 @@ export default function Photos() {
 
       const response = await api.get('/files', { params });
       let files = response.data.files || [];
+      const pagination = response.data.pagination;
+
+      // Update hasMore based on pagination
+      if (pagination) {
+        setHasMore(pagination.page < pagination.totalPages);
+        setPage(pagination.page);
+      } else {
+        setHasMore(files.length === 50);
+      }
 
       if (activeTab === 'favorites') {
         files = files.filter((f: FileItem) => f.isFavorite);
       }
 
-      setPhotos(files);
+      if (append) {
+        setPhotos(prev => [...prev, ...files]);
+      } else {
+        setPhotos(files);
+      }
     } catch (error) {
       console.error('Failed to load photos:', error);
       toast(t('photos.loadError'), 'error');
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }, [activeTab, searchQuery]);
+
+  // Load more function for pagination
+  const loadMore = useCallback(() => {
+    if (!loadingMore && hasMore && !loading) {
+      loadData(page + 1, true);
+    }
+  }, [loadData, page, loadingMore, hasMore, loading]);
+
+  // Infinite scroll observer
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore && !loading) {
+          loadMore();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    const currentRef = loadMoreRef.current;
+    if (currentRef) {
+      observer.observe(currentRef);
+    }
+
+    return () => {
+      if (currentRef) {
+        observer.unobserve(currentRef);
+      }
+    };
+  }, [hasMore, loadingMore, loading, loadMore]);
 
   useEffect(() => {
     loadData();
@@ -517,6 +578,18 @@ export default function Photos() {
             );
           }}
         />
+      )}
+
+      {/* Load More Sentinel */}
+      {photos.length > 0 && (
+        <div ref={loadMoreRef} className="flex justify-center py-8">
+          {loadingMore && (
+            <Loader2 className="w-6 h-6 animate-spin text-primary-600" />
+          )}
+          {!hasMore && photos.length >= 50 && (
+            <p className="text-sm text-dark-400">{t('common.noMoreItems')}</p>
+          )}
+        </div>
       )}
 
       {/* Lightbox */}

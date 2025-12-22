@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { api, openSignedFileUrl } from '../lib/api';
@@ -8,7 +8,7 @@ import { useGlobalProgressStore } from '../stores/globalProgressStore';
 import FileCard from '../components/files/FileCard';
 import FolderCard from '../components/files/FolderCard';
 import VirtualizedGrid from '../components/ui/VirtualizedGrid';
-import { FolderPlus } from 'lucide-react';
+import { FolderPlus, Loader2 } from 'lucide-react';
 import { toast } from '../components/ui/Toast';
 import { isImage, isVideo, isDocument } from '../lib/utils';
 import UploadModal from '../components/modals/UploadModal';
@@ -47,6 +47,12 @@ export default function Files() {
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [videoPreviewFile, setVideoPreviewFile] = useState<FileItem | null>(null);
   const [documentPreviewFile, setDocumentPreviewFile] = useState<FileItem | null>(null);
+
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
   const viewMode = useFileStore((state) => state.viewMode);
   const sortBy = useFileStore((state) => state.sortBy);
@@ -201,8 +207,14 @@ export default function Files() {
     enabled: !galleryOpen && !videoPreviewFile,
   });
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (pageNum: number = 1, append: boolean = false) => {
+    if (append) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+      setPage(1);
+      setHasMore(true);
+    }
     try {
       const effectiveFolderId = folderId ?? 'null';
 
@@ -210,26 +222,43 @@ export default function Files() {
         sortBy,
         sortOrder,
         folderId: effectiveFolderId,
+        page: pageNum.toString(),
+        limit: '50',
       };
 
       if (searchQuery) {
         params.search = searchQuery;
       }
 
-      const [filesRes, foldersRes] = await Promise.all([
-        api.get('/files', { params }),
-        api.get('/folders', { params: { parentId: effectiveFolderId, ...(searchQuery && { search: searchQuery }) } }),
-      ]);
+      // Folders: only fetch on first page (they're usually few)
+      const filesRes = await api.get('/files', { params });
 
-      setFiles(filesRes.data.files || []);
-      setFolders(foldersRes.data || []);
+      const newFiles = filesRes.data.files || [];
+      const pagination = filesRes.data.pagination;
 
-      // Cargar breadcrumbs si estamos en una carpeta
-      if (folderId) {
+      // Update hasMore based on pagination
+      if (pagination) {
+        setHasMore(pagination.page < pagination.totalPages);
+        setPage(pagination.page);
+      } else {
+        setHasMore(newFiles.length === 50);
+      }
+
+      if (append) {
+        setFiles(prev => [...prev, ...newFiles]);
+      } else {
+        // Fetch folders only on initial load
+        const foldersRes = await api.get('/folders', { params: { parentId: effectiveFolderId, ...(searchQuery && { search: searchQuery }) } });
+        setFiles(newFiles);
+        setFolders(foldersRes.data || []);
+      }
+
+      // Load breadcrumbs only on first page
+      if (!append && folderId) {
         const folderRes = await api.get(`/folders/${folderId}`);
         const crumbs = folderRes.data?.breadcrumb ?? [];
         setBreadcrumbs(crumbs);
-      } else {
+      } else if (!append) {
         setBreadcrumbs([]);
       }
     } catch (error) {
@@ -237,8 +266,39 @@ export default function Files() {
       toast(t('files.errorLoading'), 'error');
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }, [folderId, searchQuery, sortBy, sortOrder, setBreadcrumbs]);
+
+  // Load more function for pagination
+  const loadMore = useCallback(() => {
+    if (!loadingMore && hasMore && !loading) {
+      loadData(page + 1, true);
+    }
+  }, [loadData, page, loadingMore, hasMore, loading]);
+
+  // Infinite scroll observer
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore && !loading) {
+          loadMore();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    const currentRef = loadMoreRef.current;
+    if (currentRef) {
+      observer.observe(currentRef);
+    }
+
+    return () => {
+      if (currentRef) {
+        observer.unobserve(currentRef);
+      }
+    };
+  }, [hasMore, loadingMore, loading, loadMore]);
 
   useEffect(() => {
     loadData();
@@ -329,6 +389,18 @@ export default function Files() {
               )
             )}
           />
+        </div>
+      )}
+
+      {/* Load More Sentinel */}
+      {(files.length > 0 || folders.length > 0) && (
+        <div ref={loadMoreRef} className="flex justify-center py-8">
+          {loadingMore && (
+            <Loader2 className="w-6 h-6 animate-spin text-primary-600" />
+          )}
+          {!hasMore && files.length >= 50 && (
+            <p className="text-sm text-dark-400">{t('common.noMoreItems')}</p>
+          )}
         </div>
       )}
 

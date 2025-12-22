@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { api, getSignedFileUrl, openSignedFileUrl } from '../lib/api';
@@ -10,7 +10,7 @@ import VirtualizedGrid from '../components/ui/VirtualizedGrid';
 import { SkeletonGrid } from '../components/ui/Skeleton';
 import {
   FileText, FileSpreadsheet, File, Eye, Check,
-  Download, Share2, Trash2, Info, Copy, Star, Code, Presentation
+  Download, Share2, Trash2, Info, Copy, Star, Code, Presentation, Loader2
 } from 'lucide-react';
 import { toast } from '../components/ui/Toast';
 import { cn, formatBytes, formatDate } from '../lib/utils';
@@ -98,6 +98,14 @@ export default function Documents() {
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [infoDoc, setInfoDoc] = useState<FileItem | null>(null);
 
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  // Store unfiltered docs for append
+  const [allDocs, setAllDocs] = useState<FileItem[]>([]);
+
   const tab = searchParams.get('tab') || 'all';
   const searchQuery = searchParams.get('search') || '';
 
@@ -170,26 +178,84 @@ export default function Documents() {
     });
   }, [tab]);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (pageNum: number = 1, append: boolean = false) => {
+    if (append) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+      setPage(1);
+      setHasMore(true);
+    }
     try {
       const response = await api.get('/files', {
         params: {
           type: 'documents',
           sortBy,
           sortOrder,
+          page: pageNum.toString(),
+          limit: '50',
           ...(searchQuery && { search: searchQuery }),
         },
       });
-      const allDocs = response.data.files || [];
-      setDocuments(filterByCategory(allDocs));
+      const docs = response.data.files || [];
+      const pagination = response.data.pagination;
+
+      // Update hasMore based on pagination
+      if (pagination) {
+        setHasMore(pagination.page < pagination.totalPages);
+        setPage(pagination.page);
+      } else {
+        setHasMore(docs.length === 50);
+      }
+
+      if (append) {
+        setAllDocs(prev => {
+          const newAllDocs = [...prev, ...docs];
+          setDocuments(filterByCategory(newAllDocs));
+          return newAllDocs;
+        });
+      } else {
+        setAllDocs(docs);
+        setDocuments(filterByCategory(docs));
+      }
     } catch (error) {
       console.error('Failed to load documents:', error);
       toast(t('documents.loadError'), 'error');
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }, [sortBy, sortOrder, filterByCategory, searchQuery]);
+
+  // Load more function for pagination
+  const loadMore = useCallback(() => {
+    if (!loadingMore && hasMore && !loading) {
+      loadData(page + 1, true);
+    }
+  }, [loadData, page, loadingMore, hasMore, loading]);
+
+  // Infinite scroll observer
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore && !loading) {
+          loadMore();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    const currentRef = loadMoreRef.current;
+    if (currentRef) {
+      observer.observe(currentRef);
+    }
+
+    return () => {
+      if (currentRef) {
+        observer.unobserve(currentRef);
+      }
+    };
+  }, [hasMore, loadingMore, loading, loadMore]);
 
   useEffect(() => {
     loadData();
@@ -453,6 +519,18 @@ export default function Documents() {
             </div>
           );
         })()
+      )}
+
+      {/* Load More Sentinel */}
+      {documents.length > 0 && (
+        <div ref={loadMoreRef} className="flex justify-center py-8">
+          {loadingMore && (
+            <Loader2 className="w-6 h-6 animate-spin text-primary-600" />
+          )}
+          {!hasMore && documents.length >= 50 && (
+            <p className="text-sm text-dark-400">{t('common.noMoreItems')}</p>
+          )}
+        </div>
       )}
 
       {/* Context Menu */}
