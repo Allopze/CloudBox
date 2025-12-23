@@ -8,6 +8,7 @@ import UploadProgress from '../components/UploadProgress';
 import UploadModal from '../components/modals/UploadModal';
 import CreateFolderModal from '../components/modals/CreateFolderModal';
 import CreateFileModal from '../components/modals/CreateFileModal';
+import VerificationLockModal from '../components/modals/VerificationLockModal';
 import DndContextProvider from '../components/dnd/DndContextProvider';
 import Breadcrumbs from '../components/files/Breadcrumbs';
 import { useUIStore } from '../stores/uiStore';
@@ -1405,6 +1406,7 @@ export default function MainLayout() {
           folderId={currentFolderId}
           onSuccess={triggerRefresh}
         />
+        <VerificationLockModal />
 
       </div>
     </DndContextProvider >

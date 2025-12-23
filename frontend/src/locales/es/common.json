@@ -913,6 +913,8 @@
       "password": "Contraseña",
       "senderName": "Nombre remitente",
       "senderEmail": "Email remitente",
+      "testRecipient": "Destinatario de prueba",
+      "testEmailRequired": "Por favor ingresa una dirección de email para la prueba",
       "sendTest": "Enviar prueba",
       "save": "Guardar Email"
     },
@@ -934,6 +936,7 @@
       "save": "Guardar",
       "welcome": "Bienvenida",
       "resetPassword": "Restablecer Contraseña",
+      "testTemplate": "Email de Prueba",
       "selectToEdit": "Selecciona una plantilla para editarla",
       "newVariable": "Nueva Variable",
       "editVariable": "Editar Variable",

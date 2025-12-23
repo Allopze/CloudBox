@@ -185,6 +185,40 @@ const DEFAULT_TEMPLATES: Record<string, { subject: string; body: string; variabl
 </html>`,
     variables: ['{{name}}', '{{resetUrl}}'],
   },
+  test: {
+    subject: 'CloudBox Test Email',
+    body: `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { text-align: center; padding: 20px 0; }
+    .content { background: #f9fafb; border-radius: 12px; padding: 30px; margin: 20px 0; }
+    .success { background: #d1fae5; border-left: 4px solid #10b981; padding: 12px; border-radius: 0 8px 8px 0; margin: 20px 0; }
+    .footer { text-align: center; color: #6b7280; font-size: 14px; margin-top: 30px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1 style="color: #dc2626; margin: 0;">CloudBox</h1>
+  </div>
+  <div class="content">
+    <h2>Email de Prueba ✅</h2>
+    <div class="success">
+      <strong>¡SMTP configurado correctamente!</strong>
+    </div>
+    <p>Este es un email de prueba enviado desde CloudBox.</p>
+    <p><strong>Enviado a:</strong> {{email}}</p>
+    <p><strong>Fecha:</strong> {{date}}</p>
+  </div>
+  <div class="footer">
+    <p>© CloudBox - Tu nube personal</p>
+  </div>
+</body>
+</html>`,
+    variables: ['{{email}}', '{{date}}'],
+  },
 };
 
 export default function AdminDashboard() {
@@ -277,6 +311,8 @@ export default function AdminDashboard() {
 
   const [savingSystem, setSavingSystem] = useState(false);
   const [savingSmtp, setSavingSmtp] = useState(false);
+  const [testingSmtp, setTestingSmtp] = useState(false);
+  const [smtpTestEmail, setSmtpTestEmail] = useState('');
   const [savingBranding, setSavingBranding] = useState(false);
   const [uploading, setUploading] = useState<Record<string, boolean>>({});
 
@@ -535,11 +571,24 @@ export default function AdminDashboard() {
   };
 
   const testSmtp = async () => {
+    if (!smtpTestEmail.trim()) {
+      toast(t('admin.email.testEmailRequired'), 'error');
+      return;
+    }
+    setTestingSmtp(true);
     try {
-      await api.post('/admin/settings/smtp/test');
-      toast(t('admin.testEmailSent'), 'success');
-    } catch (error) {
-      toast(t('admin.testEmailError'), 'error');
+      const response = await api.post('/admin/settings/smtp/test', { email: smtpTestEmail.trim() });
+      const details = response.data.details;
+      if (details?.messageId) {
+        toast(`${t('admin.testEmailSent')} (ID: ${details.messageId})`, 'success');
+      } else {
+        toast(t('admin.testEmailSent'), 'success');
+      }
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.error || t('admin.testEmailError');
+      toast(errorMsg, 'error');
+    } finally {
+      setTestingSmtp(false);
     }
   };
 
@@ -1331,9 +1380,30 @@ export default function AdminDashboard() {
           />
         </div>
 
-        <div className="flex justify-end gap-3 pt-4 border-t border-dark-100 dark:border-dark-700">
-          <Button variant="secondary" onClick={testSmtp}>{t('admin.email.sendTest')}</Button>
-          <Button onClick={saveSmtpSettings} loading={savingSmtp} icon={<Save className="w-4 h-4" />}>
+        <div className="flex items-end justify-end gap-3 pt-4 border-t border-dark-100 dark:border-dark-700">
+          <Input
+            label={t('admin.email.testRecipient')}
+            type="email"
+            value={smtpTestEmail}
+            onChange={(e) => setSmtpTestEmail(e.target.value)}
+            placeholder="test@example.com"
+            className="w-64"
+          />
+          <Button
+            variant="secondary"
+            onClick={testSmtp}
+            loading={testingSmtp}
+            icon={<Send className="w-4 h-4" />}
+            className="shrink-0 whitespace-nowrap"
+          >
+            {t('admin.email.sendTest')}
+          </Button>
+          <Button
+            onClick={saveSmtpSettings}
+            loading={savingSmtp}
+            icon={<Save className="w-4 h-4" />}
+            className="shrink-0 whitespace-nowrap"
+          >
             {t('admin.email.save')}
           </Button>
         </div>
