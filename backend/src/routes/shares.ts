@@ -408,7 +408,7 @@ router.get('/public/:token', shareRateLimiter(), optionalAuth, async (req: Reque
         name: share.file?.name || share.folder?.name,
         hasPassword: !!share.password,
         expiresAt: share.expiresAt,
-        allowDownload: true, // Assuming true if not specified in schema, or add field
+        allowDownload: share.allowDownload,
         downloadLimit: share.downloadLimit,
         downloadCount: share.downloadCount,
       },
@@ -699,11 +699,11 @@ router.get('/public/:token/download', shareRateLimiter(), async (req: Request, r
       return;
     }
 
-    if (share.password) {
-      if (!password || typeof password !== 'string') {
-        res.status(401).json({ error: 'Password required' });
-        return;
-      }
+      if (share.password) {
+        if (!password || typeof password !== 'string') {
+          res.status(401).json({ error: 'Password required' });
+          return;
+        }
 
       const valid = await bcrypt.compare(password, share.password);
       if (!valid) {
@@ -825,10 +825,15 @@ router.get('/public/:token/files/:fileId/download', shareRateLimiter(), async (r
         return;
       }
       // SECURITY FIX: Clear rate limit on successful password
-      res.locals.recordPasswordSuccess?.();
-    }
+        res.locals.recordPasswordSuccess?.();
+      }
 
-    // Verify file belongs to shared folder (recursively)
+      if (!share.allowDownload) {
+        res.status(403).json({ error: 'Downloads are disabled for this share' });
+        return;
+      }
+
+      // Verify file belongs to shared folder (recursively)
     // For simplicity, we just check if the file exists and is not in trash, 
     // and we trust the ID if we want to be fast, BUT we must ensure it's inside the shared folder.
     // A robust way is to traverse up from file.folderId until we hit share.folderId.
@@ -895,6 +900,324 @@ router.get('/public/:token/files/:fileId/download', shareRateLimiter(), async (r
   } catch (error) {
     logger.error('Download shared file error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to download file' });
+  }
+});
+
+// ==========================================
+// PRIVATE SHARE ACCESS FOR COLLABORATORS
+// ==========================================
+
+// Get share access for a collaborator - returns share details and content
+router.get('/:id/access', authenticate, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user!.userId;
+
+    // Find the share
+    const share = await prisma.share.findUnique({
+      where: { id },
+      include: {
+        file: { select: { id: true, name: true, mimeType: true, size: true, updatedAt: true, thumbnailPath: true } },
+        folder: { select: { id: true, name: true } },
+        owner: { select: { id: true, name: true, email: true, avatar: true } },
+        collaborators: {
+          include: {
+            user: { select: { id: true, name: true, email: true, avatar: true } },
+          },
+        },
+      },
+    });
+
+    if (!share) {
+      res.status(404).json({ error: 'Share not found' });
+      return;
+    }
+
+    // Check if user is owner or collaborator
+    const isOwner = share.ownerId === userId;
+    const collaboration = share.collaborators.find(c => c.userId === userId);
+
+    if (!isOwner && !collaboration) {
+      res.status(403).json({ error: 'Access denied' });
+      return;
+    }
+
+    // Check if share is expired
+    if (share.expiresAt && share.expiresAt < new Date()) {
+      res.status(410).json({ error: 'Share has expired' });
+      return;
+    }
+
+    // Get contents if folder share
+    let files: any[] = [];
+    let folders: any[] = [];
+
+    if (share.folderId) {
+      [files, folders] = await Promise.all([
+        prisma.file.findMany({
+          where: { folderId: share.folderId, isTrash: false },
+          select: { id: true, name: true, mimeType: true, size: true, updatedAt: true, thumbnailPath: true },
+        }),
+        prisma.folder.findMany({
+          where: { parentId: share.folderId, isTrash: false },
+          select: { id: true, name: true, updatedAt: true },
+        }),
+      ]);
+    } else if (share.file) {
+      files = [share.file];
+    }
+
+    res.json({
+      share: {
+        id: share.id,
+        type: share.type,
+        name: share.file?.name || share.folder?.name,
+        fileId: share.fileId,
+        folderId: share.folderId,
+        allowDownload: share.allowDownload,
+        expiresAt: share.expiresAt,
+        owner: share.owner,
+      },
+      permission: isOwner ? 'OWNER' : collaboration?.permission || 'VIEWER',
+      files: files.map(f => ({ ...f, size: f.size?.toString() })),
+      folders,
+    });
+  } catch (error) {
+    logger.error('Get share access error', {}, error instanceof Error ? error : undefined);
+    res.status(500).json({ error: 'Failed to get share access' });
+  }
+});
+
+// View/stream file from private share (for collaborators)
+router.get('/:id/files/:fileId/view', authenticate, async (req: Request, res: Response) => {
+  try {
+    const { id, fileId } = req.params;
+    const userId = req.user!.userId;
+
+    if (!isValidUUID(fileId)) {
+      res.status(400).json({ error: 'Invalid file ID format' });
+      return;
+    }
+
+    // Find the share and verify access
+    const share = await prisma.share.findUnique({
+      where: { id },
+      include: {
+        collaborators: true,
+      },
+    });
+
+    if (!share) {
+      res.status(404).json({ error: 'Share not found' });
+      return;
+    }
+
+    // Check if user is owner or collaborator
+    const isOwner = share.ownerId === userId;
+    const isCollaborator = share.collaborators.some(c => c.userId === userId);
+
+    if (!isOwner && !isCollaborator) {
+      res.status(403).json({ error: 'Access denied' });
+      return;
+    }
+
+    // Check if share is expired
+    if (share.expiresAt && share.expiresAt < new Date()) {
+      res.status(410).json({ error: 'Share has expired' });
+      return;
+    }
+
+    // Get the file
+    const file = await prisma.file.findUnique({
+      where: { id: fileId },
+      select: { id: true, name: true, path: true, mimeType: true, isTrash: true, folderId: true },
+    });
+
+    if (!file || file.isTrash) {
+      res.status(404).json({ error: 'File not found' });
+      return;
+    }
+
+    // Verify file belongs to share
+    if (share.fileId && share.fileId !== fileId) {
+      res.status(403).json({ error: 'File does not belong to this share' });
+      return;
+    }
+
+    if (share.folderId) {
+      const isChild = await fileBelongsToSharedFolder(file.folderId, share.folderId);
+      if (!isChild) {
+        res.status(403).json({ error: 'File does not belong to this share' });
+        return;
+      }
+    }
+
+    if (!await fileExists(file.path)) {
+      res.status(404).json({ error: 'File not found on disk' });
+      return;
+    }
+
+    const stat = await fs.stat(file.path);
+    await streamFile(req, res, file, stat);
+  } catch (error) {
+    logger.error('View private share file error', {}, error instanceof Error ? error : undefined);
+    res.status(500).json({ error: 'Failed to view file' });
+  }
+});
+
+// Download file from private share (for collaborators)
+router.get('/:id/files/:fileId/download', authenticate, async (req: Request, res: Response) => {
+  try {
+    const { id, fileId } = req.params;
+    const userId = req.user!.userId;
+
+    if (!isValidUUID(fileId)) {
+      res.status(400).json({ error: 'Invalid file ID format' });
+      return;
+    }
+
+    // Find the share and verify access
+    const share = await prisma.share.findUnique({
+      where: { id },
+      include: {
+        collaborators: true,
+      },
+    });
+
+    if (!share) {
+      res.status(404).json({ error: 'Share not found' });
+      return;
+    }
+
+    // Check allowDownload flag
+    if (!share.allowDownload) {
+      res.status(403).json({ error: 'Downloads are disabled for this share' });
+      return;
+    }
+
+    // Check if user is owner or collaborator
+    const isOwner = share.ownerId === userId;
+    const isCollaborator = share.collaborators.some(c => c.userId === userId);
+
+    if (!isOwner && !isCollaborator) {
+      res.status(403).json({ error: 'Access denied' });
+      return;
+    }
+
+    // Check if share is expired
+    if (share.expiresAt && share.expiresAt < new Date()) {
+      res.status(410).json({ error: 'Share has expired' });
+      return;
+    }
+
+    // Get the file
+    const file = await prisma.file.findUnique({
+      where: { id: fileId },
+    });
+
+    if (!file || file.isTrash) {
+      res.status(404).json({ error: 'File not found' });
+      return;
+    }
+
+    // Verify file belongs to share
+    if (share.fileId && share.fileId !== fileId) {
+      res.status(403).json({ error: 'File does not belong to this share' });
+      return;
+    }
+
+    if (share.folderId) {
+      const isChild = await fileBelongsToSharedFolder(file.folderId, share.folderId);
+      if (!isChild) {
+        res.status(403).json({ error: 'File does not belong to this share' });
+        return;
+      }
+    }
+
+    if (!await fileExists(file.path)) {
+      res.status(404).json({ error: 'File not found on disk' });
+      return;
+    }
+
+    // Safe filename encoding for Content-Disposition
+    const safeFilename = encodeURIComponent(file.name).replace(/['()]/g, escape);
+    res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"; filename*=UTF-8''${safeFilename}`);
+    res.setHeader('Content-Type', file.mimeType);
+    res.sendFile(file.path);
+  } catch (error) {
+    logger.error('Download private share file error', {}, error instanceof Error ? error : undefined);
+    res.status(500).json({ error: 'Failed to download file' });
+  }
+});
+
+// Get thumbnail from private share (for collaborators)
+router.get('/:id/files/:fileId/thumbnail', authenticate, async (req: Request, res: Response) => {
+  try {
+    const { id, fileId } = req.params;
+    const userId = req.user!.userId;
+
+    if (!isValidUUID(fileId)) {
+      res.status(400).json({ error: 'Invalid file ID format' });
+      return;
+    }
+
+    // Find the share and verify access
+    const share = await prisma.share.findUnique({
+      where: { id },
+      include: {
+        collaborators: true,
+      },
+    });
+
+    if (!share) {
+      res.status(404).json({ error: 'Share not found' });
+      return;
+    }
+
+    // Check if user is owner or collaborator
+    const isOwner = share.ownerId === userId;
+    const isCollaborator = share.collaborators.some(c => c.userId === userId);
+
+    if (!isOwner && !isCollaborator) {
+      res.status(403).json({ error: 'Access denied' });
+      return;
+    }
+
+    // Get the file
+    const file = await prisma.file.findUnique({
+      where: { id: fileId },
+      select: { id: true, name: true, folderId: true, thumbnailPath: true, isTrash: true },
+    });
+
+    if (!file || file.isTrash) {
+      res.status(404).json({ error: 'File not found' });
+      return;
+    }
+
+    // Verify file belongs to share
+    if (share.fileId && share.fileId !== fileId) {
+      res.status(403).json({ error: 'File does not belong to this share' });
+      return;
+    }
+
+    if (share.folderId) {
+      const isChild = await fileBelongsToSharedFolder(file.folderId, share.folderId);
+      if (!isChild) {
+        res.status(403).json({ error: 'File does not belong to this share' });
+        return;
+      }
+    }
+
+    if (!file.thumbnailPath || !await fileExists(file.thumbnailPath)) {
+      res.status(404).json({ error: 'Thumbnail not found' });
+      return;
+    }
+
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.sendFile(file.thumbnailPath);
+  } catch (error) {
+    logger.error('Thumbnail private share file error', {}, error instanceof Error ? error : undefined);
+    res.status(500).json({ error: 'Failed to get thumbnail' });
   }
 });
 

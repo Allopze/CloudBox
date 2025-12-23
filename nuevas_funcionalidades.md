@@ -83,6 +83,16 @@ CloudBox es un monorepo con backend Express + Prisma y frontend React/Vite. Sopo
   2) Integración con API.
   3) Mensajes de éxito/error.
 
+## Top 5 siguientes (tras implementar el Top 3)
+
+| Prioridad | Nombre | Valor | Esfuerzo | Riesgo | Evidencia/Dependencias | MVP |
+|---|---|---|---|---|---|---|
+| 1 | 2FA TOTP opcional | Alto | M | Medio | No hay 2FA en `backend/src/routes/auth.ts` ni campos en `backend/prisma/schema.prisma` | Alta de TOTP + verificacion en login + codigos de respaldo |
+| 2 | Auditoria admin visible | Medio-Alto | S/M | Bajo | Actividad en `backend/prisma/schema.prisma` y endpoint en `backend/src/routes/activity.ts`; UI solo en `frontend/src/pages/Dashboard.tsx` | Vista admin con filtros basicos y export |
+| 3 | Acciones masivas completas | Medio | M | Bajo | Toolbar solo delete en `frontend/src/components/files/FileToolbar.tsx`; faltan endpoints bulk en `backend/src/routes/files.ts`/`backend/src/routes/folders.ts` | Mover/compartir/favorito en seleccion multiple |
+| 4 | Etiquetas de usuario para archivos | Medio | M | Medio | Solo se muestran `metadata.tags` en `frontend/src/components/gallery/MediaViewer/DetailsPanel.tsx`; no hay modelo en `backend/prisma/schema.prisma` | CRUD tags y filtro por tag |
+| 5 | Busqueda full-text y filtros | Alto | L | Alto | Busqueda por nombre en `backend/src/routes/files.ts` y `backend/src/routes/folders.ts` | FTS por nombre/metadata + filtros por tipo |
+
 ## No recomiendo hacer ahora
 - Cliente de sync completo tipo Dropbox: alto esfuerzo, requiere agentes locales y conflictos complejos.
 - Migrar a storage S3 obligatorio: rompe autohospedaje simple y requiere infra externa.

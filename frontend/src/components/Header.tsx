@@ -83,9 +83,18 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
 
   // Build search URL for current page context
   const buildSearchUrl = useCallback(
-    (query: string) => {
+    (query: string, goToSearchPage = false) => {
       const params = new URLSearchParams();
       const trimmed = query.trim();
+
+      // If explicitly going to search page or on non-searchable page
+      if (goToSearchPage) {
+        if (trimmed) {
+          params.set("q", trimmed);
+        }
+        const qs = params.toString();
+        return qs ? `/search?${qs}` : '/search';
+      }
 
       // Preserve current folder if on files page
       if (currentFolderId && location.pathname === '/files') {
@@ -96,10 +105,10 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
       }
 
       // Stay on current page - only navigate for pages that support search
-      const searchablePaths = ['/files', '/photos', '/music', '/documents'];
+      const searchablePaths = ['/files', '/photos', '/music', '/documents', '/search'];
       const currentPath = searchablePaths.includes(location.pathname)
         ? location.pathname
-        : '/files';
+        : '/search'; // Default to dedicated search page
 
       const qs = params.toString();
       return qs ? `${currentPath}?${qs}` : currentPath;
@@ -110,19 +119,40 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
   // Keep input in sync with URL (back/forward, refresh, external navigation)
   // Also clear search when navigating to a different page
   useEffect(() => {
-    setSearchQuery(urlSearchQuery);
-  }, [urlSearchQuery, location.pathname]);
+    // On /search page, use 'q' param; elsewhere use 'search' param
+    if (location.pathname === '/search') {
+      const qParam = searchParams.get('q') || '';
+      setSearchQuery(qParam);
+    } else {
+      setSearchQuery(urlSearchQuery);
+    }
+  }, [urlSearchQuery, location.pathname, searchParams]);
 
   // Navigate when debounced search changes - only on searchable pages
   useEffect(() => {
-    const searchablePaths = ['/files', '/photos', '/music', '/documents'];
+    const searchablePaths = ['/files', '/photos', '/music', '/documents', '/search'];
     if (!searchablePaths.includes(location.pathname)) return;
 
     const trimmed = debouncedSearchQuery.trim();
+
+    // For /search page, check 'q' param instead of 'search'
+    if (location.pathname === '/search') {
+      const urlQ = searchParams.get('q') || '';
+      if (trimmed === urlQ.trim()) return;
+      const params = new URLSearchParams(searchParams);
+      if (trimmed) {
+        params.set('q', trimmed);
+      } else {
+        params.delete('q');
+      }
+      navigate(`/search?${params.toString()}`, { replace: true });
+      return;
+    }
+
     if (trimmed === urlSearchQuery.trim()) return;
 
     navigate(buildSearchUrl(trimmed), { replace: true });
-  }, [debouncedSearchQuery, urlSearchQuery, buildSearchUrl, navigate, location.pathname]);
+  }, [debouncedSearchQuery, urlSearchQuery, buildSearchUrl, navigate, location.pathname, searchParams]);
 
   // Calculate upload progress percentage
   const uploadProgress =

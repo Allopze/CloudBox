@@ -60,6 +60,7 @@ export interface Share {
   expiresAt: string | null;
   downloadLimit: number | null;
   downloadCount: number;
+  allowDownload: boolean;
   createdAt: string;
   updatedAt: string;
   file?: FileItem | null;

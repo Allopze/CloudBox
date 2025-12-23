@@ -98,6 +98,21 @@ export default function DocumentViewer({
     const [loadError, setLoadError] = useState<string | null>(null);
     const [numPages, setNumPages] = useState<number>(0);
     const [textContent, setTextContent] = useState<string | null>(null);
+    const shareId = (file as any)?.shareId as string | undefined;
+    const blobUrlRef = useRef<string | null>(null);
+
+    const revokeBlobUrl = useCallback(() => {
+        if (blobUrlRef.current) {
+            URL.revokeObjectURL(blobUrlRef.current);
+            blobUrlRef.current = null;
+        }
+    }, []);
+
+    // Office PDF conversion state
+    const [isConverting, setIsConverting] = useState(false);
+    const [conversionMessage, setConversionMessage] = useState<string | null>(null);
+    const [conversionFailed, setConversionFailed] = useState(false);
+    const conversionPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     const canvasRef = useRef<HTMLDivElement>(null);
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -127,43 +142,186 @@ export default function DocumentViewer({
     // Fetch signed URL when file changes
     useEffect(() => {
         if (!isOpen || !file) {
+            revokeBlobUrl();
             setSignedUrl(null);
             return;
         }
 
         setIsLoading(true);
         setLoadError(null);
+        setSignedUrl(null);
         setTextContent(null);
         setCurrentPage(1);
         setNumPages(0);
+        setIsConverting(false);
+        setConversionMessage(null);
+        setConversionFailed(false);
+        revokeBlobUrl();
 
-        const loadDocument = async () => {
-            try {
-                if (documentType === 'pdf') {
-                    const url = await getSignedFileUrl(file.id, 'view');
-                    setSignedUrl(url);
-                } else if (documentType === 'text') {
-                    // For text files, fetch content directly
-                    const response = await api.get(`/files/${file.id}/view`, {
-                        responseType: 'text',
-                    });
-                    setTextContent(response.data);
+        // Clear any existing polling
+        if (conversionPollingRef.current) {
+            clearInterval(conversionPollingRef.current);
+            conversionPollingRef.current = null;
+        }
+
+            const loadDocument = async () => {
+                try {
+                    if (documentType === 'pdf') {
+                        if (shareId) {
+                            const response = await api.get(`/shares/${shareId}/files/${file.id}/view`, {
+                                responseType: 'arraybuffer',
+                            });
+                            const blob = new Blob([response.data], { type: 'application/pdf' });
+                            const url = URL.createObjectURL(blob);
+                            blobUrlRef.current = url;
+                            setSignedUrl(url);
+                        } else {
+                            const url = await getSignedFileUrl(file.id, 'view');
+                            setSignedUrl(url);
+                        }
+                    } else if (documentType === 'text') {
+                        // For text files, fetch content directly
+                        const viewUrl = shareId
+                            ? `/shares/${shareId}/files/${file.id}/view`
+                            : `/files/${file.id}/view`;
+                        const response = await api.get(viewUrl, {
+                            responseType: 'text',
+                        });
+                        setTextContent(response.data);
+                        setIsLoading(false);
+                    } else if (documentType === 'office') {
+                        if (shareId) {
+                            setConversionFailed(true);
+                            setConversionMessage(t('documentViewer.officePreviewNotSupported', 'Preview is not available for this file type. Please download the file to view it.'));
+                            setIsLoading(false);
+                        } else {
+                            // For office documents, try to get PDF preview
+                            await loadOfficePdfPreview();
+                        }
+                    } else {
+                        setIsLoading(false);
+                    }
+                } catch (error) {
+                    console.error('Error loading document:', error);
+                    setLoadError(t('documentViewer.loadError', 'Failed to load document'));
                     setIsLoading(false);
-                } else if (documentType === 'office') {
-                    // For office documents, we'll show a download prompt
+                }
+            };
+
+        // Function to load Office PDF preview with polling
+        const loadOfficePdfPreview = async () => {
+            try {
+                setIsConverting(true);
+                setConversionMessage(t('gallery.convertingDocument', 'Converting document to PDF...'));
+
+                const fetchPdfPreview = async () => {
+                    revokeBlobUrl();
+                    const pdfResponse = await api.get(`/document-preview/${file.id}/pdf-preview`, {
+                        responseType: 'arraybuffer',
+                    });
+                    const blob = new Blob([pdfResponse.data], { type: 'application/pdf' });
+                    const url = URL.createObjectURL(blob);
+                    blobUrlRef.current = url;
+                    setSignedUrl(url);
+                };
+
+                const response = await api.get(`/document-preview/${file.id}/pdf-preview`, {
+                    validateStatus: (status) => status < 500, // Don't throw on 202/404
+                });
+
+                if (response.status === 200) {
+                    await fetchPdfPreview();
+                    setIsConverting(false);
+                    setConversionMessage(null);
+                } else if (response.status === 202) {
+                    // Conversion in progress - start polling
+                    const status = response.data?.status;
+                    if (status === 'queued') {
+                        setConversionMessage(t('gallery.conversionQueued', 'Document is being prepared...'));
+                    } else {
+                        setConversionMessage(t('gallery.convertingDocument', 'Converting document to PDF...'));
+                    }
+                    startConversionPolling(fetchPdfPreview);
+                } else if (response.status === 404 || response.status === 503) {
+                    // Conversion service unavailable or file not found
+                    setConversionFailed(true);
+                    setIsConverting(false);
                     setIsLoading(false);
                 } else {
+                    // Other error
+                    setConversionFailed(true);
+                    setIsConverting(false);
                     setIsLoading(false);
                 }
             } catch (error) {
-                console.error('Error loading document:', error);
-                setLoadError(t('documentViewer.loadError', 'Failed to load document'));
+                console.error('Error requesting PDF preview:', error);
+                setConversionFailed(true);
+                setIsConverting(false);
                 setIsLoading(false);
             }
         };
 
+        // Polling function for conversion status
+        const startConversionPolling = (fetchPdfPreview: () => Promise<void>) => {
+            let attempts = 0;
+            const maxAttempts = 60; // 60 * 2s = 2 minutes max
+
+            conversionPollingRef.current = setInterval(async () => {
+                attempts++;
+                if (attempts > maxAttempts) {
+                    // Timeout
+                    if (conversionPollingRef.current) {
+                        clearInterval(conversionPollingRef.current);
+                    }
+                    setConversionMessage(t('gallery.conversionTimeout', 'Conversion took too long. Please download the file.'));
+                    setConversionFailed(true);
+                    setIsConverting(false);
+                    setIsLoading(false);
+                    return;
+                }
+
+                try {
+                    const statusResponse = await api.get(`/document-preview/${file.id}/pdf-preview/status`, {
+                        validateStatus: (status) => status < 500,
+                    });
+
+                    const status = statusResponse.data?.status;
+
+                    if (status === 'completed') {
+                        if (conversionPollingRef.current) {
+                            clearInterval(conversionPollingRef.current);
+                        }
+                        await fetchPdfPreview();
+                        setIsConverting(false);
+                        setConversionMessage(null);
+                    } else if (status === 'failed') {
+                        if (conversionPollingRef.current) {
+                            clearInterval(conversionPollingRef.current);
+                        }
+                        setConversionMessage(t('gallery.conversionFailed', 'Failed to convert document.'));
+                        setConversionFailed(true);
+                        setIsConverting(false);
+                        setIsLoading(false);
+                    } else {
+                        // Still processing
+                        setConversionMessage(t('gallery.convertingDocument', 'Converting document to PDF...'));
+                    }
+                } catch (error) {
+                    console.error('Error polling conversion status:', error);
+                }
+            }, 2000);
+        };
+
         loadDocument();
-    }, [isOpen, file, documentType, t]);
+
+        // Cleanup
+        return () => {
+            if (conversionPollingRef.current) {
+                clearInterval(conversionPollingRef.current);
+            }
+            revokeBlobUrl();
+        };
+    }, [isOpen, file, documentType, t, shareId, revokeBlobUrl]);
 
     // --- Keyboard Shortcuts ---
     useEffect(() => {
@@ -554,30 +712,79 @@ export default function DocumentViewer({
                         </div>
                     )}
 
-                    {/* Office Documents - Download Prompt */}
-                    {documentType === 'office' && !isLoading && !loadError && (
-                        <div className="flex-1 flex items-center justify-center">
-                            <div className="flex flex-col items-center gap-6 text-center max-w-md p-8 bg-white dark:bg-dark-800 rounded-xl shadow-lg">
-                                <FileText className="w-16 h-16 text-gray-400" />
-                                <div>
-                                    <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-2">
-                                        {file.name}
-                                    </h3>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                                        {t('documentViewer.officePreviewNotSupported', 'Preview is not available for this file type. Please download the file to view it.')}
-                                    </p>
+                    {/* Office Documents - Converting or PDF Preview or Download Prompt */}
+                    {documentType === 'office' && !loadError && (
+                        <>
+                            {/* Conversion in progress */}
+                            {isConverting && (
+                                <div className="flex-1 flex items-center justify-center">
+                                    <div className="flex flex-col items-center gap-4 text-center max-w-md p-8 bg-white dark:bg-dark-800 rounded-xl shadow-lg">
+                                        <Loader2 className="w-12 h-12 text-primary-600 animate-spin" />
+                                        <div>
+                                            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-2">
+                                                {file.name}
+                                            </h3>
+                                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                                                {conversionMessage || t('gallery.convertingDocument', 'Converting document to PDF...')}
+                                            </p>
+                                        </div>
+                                    </div>
                                 </div>
-                                {onDownload && (
-                                    <button
-                                        onClick={() => onDownload(file)}
-                                        className="flex items-center gap-2 px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
-                                    >
-                                        <Download size={18} />
-                                        {t('common.download', 'Download')}
-                                    </button>
-                                )}
-                            </div>
-                        </div>
+                            )}
+
+                            {/* Converted PDF Preview */}
+                            {!isConverting && signedUrl && pdfOptions && (
+                                <Document
+                                    file={pdfOptions}
+                                    onLoadSuccess={onDocumentLoadSuccess}
+                                    onLoadError={onDocumentLoadError}
+                                    loading={null}
+                                    className="flex flex-col items-center gap-4"
+                                >
+                                    {Array.from({ length: numPages }).map((_, i) => (
+                                        <div
+                                            key={i}
+                                            id={`pdf-page-${i + 1}`}
+                                            className="bg-white shadow-lg"
+                                            style={{ maxWidth: '95vw' }}
+                                        >
+                                            <Page
+                                                pageNumber={i + 1}
+                                                width={pageWidth}
+                                                renderTextLayer={true}
+                                                renderAnnotationLayer={true}
+                                            />
+                                        </div>
+                                    ))}
+                                </Document>
+                            )}
+
+                            {/* Conversion failed - Download Prompt */}
+                            {!isConverting && conversionFailed && !signedUrl && (
+                                <div className="flex-1 flex items-center justify-center">
+                                    <div className="flex flex-col items-center gap-6 text-center max-w-md p-8 bg-white dark:bg-dark-800 rounded-xl shadow-lg">
+                                        <FileText className="w-16 h-16 text-gray-400" />
+                                        <div>
+                                            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-2">
+                                                {file.name}
+                                            </h3>
+                                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                                                {conversionMessage || t('documentViewer.officePreviewNotSupported', 'Preview is not available for this file type. Please download the file to view it.')}
+                                            </p>
+                                        </div>
+                                        {onDownload && (
+                                            <button
+                                                onClick={() => onDownload(file)}
+                                                className="flex items-center gap-2 px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
+                                            >
+                                                <Download size={18} />
+                                                {t('common.download', 'Download')}
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </>
                     )}
 
                     {/* Page Floating Indicator */}
