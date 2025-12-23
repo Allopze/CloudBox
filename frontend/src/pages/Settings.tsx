@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../stores/authStore';
 import { useThemeStore } from '../stores/themeStore';
@@ -6,7 +6,7 @@ import { api } from '../lib/api';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Modal from '../components/ui/Modal';
-import { Lock, Upload, Save, Moon, Sun, Calendar, Shield as ShieldIcon, User, HardDrive, Clock, CheckCircle, XCircle, Loader2, Globe } from 'lucide-react';
+import { Lock, Upload, Save, Moon, Sun, Calendar, Shield as ShieldIcon, User, HardDrive, Clock, CheckCircle, XCircle, Loader2, Globe, Smartphone, Trash2, Monitor } from 'lucide-react';
 import { toast } from '../components/ui/Toast';
 import { formatBytes } from '../lib/utils';
 
@@ -18,6 +18,15 @@ interface StorageRequest {
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   adminResponse: string | null;
   createdAt: string;
+}
+
+interface Session {
+  id: string;
+  deviceInfo: string;
+  ipAddress: string;
+  lastActive: string;
+  createdAt: string;
+  isCurrent: boolean;
 }
 
 export default function Settings() {
@@ -47,7 +56,65 @@ export default function Settings() {
   const [adminQuota, setAdminQuota] = useState(user?.storageQuota || '10737418240');
   const [savingQuota, setSavingQuota] = useState(false);
 
+  // Session management state
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [loadingSessions, setLoadingSessions] = useState(false);
+  const [terminatingSession, setTerminatingSession] = useState<string | null>(null);
+  const [terminatingAll, setTerminatingAll] = useState(false);
+  const [sessionsAvailable, setSessionsAvailable] = useState(true);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Load sessions on mount
+  const loadSessions = useCallback(async () => {
+    setLoadingSessions(true);
+    try {
+      const response = await api.get('/auth/sessions');
+      if (response.data.message?.includes('not available')) {
+        setSessionsAvailable(false);
+        setSessions([]);
+      } else {
+        setSessionsAvailable(true);
+        setSessions(response.data.sessions || []);
+      }
+    } catch (error) {
+      console.error('Failed to load sessions:', error);
+      setSessionsAvailable(false);
+    } finally {
+      setLoadingSessions(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadSessions();
+  }, [loadSessions]);
+
+  const handleTerminateSession = async (sessionId: string) => {
+    setTerminatingSession(sessionId);
+    try {
+      await api.delete(`/auth/sessions/${sessionId}`);
+      toast(t('settings.sessionTerminated'), 'success');
+      setSessions(prev => prev.filter(s => s.id !== sessionId));
+    } catch (error: any) {
+      toast(error.response?.data?.error || t('settings.sessionTerminateError'), 'error');
+    } finally {
+      setTerminatingSession(null);
+    }
+  };
+
+  const handleTerminateAllSessions = async () => {
+    setTerminatingAll(true);
+    try {
+      await api.post('/auth/sessions/logout-all');
+      toast(t('settings.allSessionsTerminated'), 'success');
+      // Keep only current session in the list
+      setSessions(prev => prev.filter(s => s.isCurrent));
+    } catch (error: any) {
+      toast(error.response?.data?.error || t('settings.sessionTerminateError'), 'error');
+    } finally {
+      setTerminatingAll(false);
+    }
+  };
 
   const handleUpdateProfile = async () => {
     setSaving(true);
@@ -371,6 +438,93 @@ export default function Settings() {
         <Button onClick={handleChangePassword} loading={savingPassword} variant="secondary" icon={<Lock className="w-4 h-4" />}>
           {t('settings.changePassword')}
         </Button>
+      </section>
+
+      {/* Sessions Section */}
+      <section className="bg-white dark:bg-dark-800 rounded-2xl border border-dark-100 dark:border-dark-700 p-6 mb-6">
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-2">
+            <Smartphone className="w-4 h-4 text-primary-600" />
+            <h2 className="text-lg font-semibold text-dark-900 dark:text-white">{t('settings.sessions')}</h2>
+          </div>
+          {sessions.length > 1 && sessionsAvailable && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleTerminateAllSessions}
+              loading={terminatingAll}
+              icon={<Trash2 className="w-4 h-4" />}
+              className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+            >
+              {t('settings.terminateAll')}
+            </Button>
+          )}
+        </div>
+        <p className="text-sm text-dark-500 dark:text-dark-400 mb-4">{t('settings.sessionsDescription')}</p>
+
+        {!sessionsAvailable ? (
+          <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+            <p className="text-sm text-yellow-700 dark:text-yellow-500">
+              {t('settings.sessionsNotAvailable')}
+            </p>
+          </div>
+        ) : loadingSessions ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-6 h-6 animate-spin text-primary-600" />
+          </div>
+        ) : sessions.length === 0 ? (
+          <p className="text-sm text-dark-500 text-center py-4">{t('settings.noSessions')}</p>
+        ) : (
+          <div className="space-y-3">
+            {sessions.map((session) => (
+              <div
+                key={session.id}
+                className={`flex items-center justify-between p-4 rounded-xl border ${session.isCurrent
+                    ? 'border-primary-200 bg-primary-50 dark:border-primary-800 dark:bg-primary-900/20'
+                    : 'border-dark-100 dark:border-dark-700 bg-dark-50 dark:bg-dark-900'
+                  }`}
+              >
+                <div className="flex items-center gap-4">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${session.isCurrent
+                      ? 'bg-primary-100 dark:bg-primary-900/30'
+                      : 'bg-dark-100 dark:bg-dark-800'
+                    }`}>
+                    <Monitor className={`w-5 h-5 ${session.isCurrent ? 'text-primary-600' : 'text-dark-500'
+                      }`} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-dark-900 dark:text-white">
+                        {session.deviceInfo || t('settings.unknownDevice')}
+                      </p>
+                      {session.isCurrent && (
+                        <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-primary-600 text-white">
+                          {t('settings.currentSession')}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-dark-500 dark:text-dark-400 mt-1">
+                      <span>{session.ipAddress}</span>
+                      <span>•</span>
+                      <span>{t('settings.lastActive')}: {new Date(session.lastActive).toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+                {!session.isCurrent && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleTerminateSession(session.id)}
+                    loading={terminatingSession === session.id}
+                    className="text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                  >
+                    {t('settings.terminate')}
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       {/* Apariencia Section */}

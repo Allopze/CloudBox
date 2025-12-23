@@ -36,6 +36,7 @@ model User {
   shares            Share[]             @relation("ShareOwner")
   storageRequests   StorageRequest[]
   uploadSessions    UploadSession[]
+  tags              Tag[]
 
   @@index([email])
   @@index([createdAt])
@@ -124,6 +125,7 @@ model File {
   user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   shares         Share[]
   transcodingJob TranscodingJob?
+  fileTags       FileTag[]
 
   @@index([userId])
   @@index([folderId])
@@ -370,3 +372,33 @@ model LegalPage {
 
   @@map("legal_pages")
 }
+
+model Tag {
+  id        String    @id @default(uuid()) @db.Uuid
+  name      String
+  color     String?
+  userId    String    @db.Uuid
+  createdAt DateTime  @default(now()) @db.Timestamptz(6)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fileTags  FileTag[]
+
+  @@unique([name, userId])
+  @@index([userId])
+  @@map("tags")
+}
+
+model FileTag {
+  id        String   @id @default(uuid()) @db.Uuid
+  fileId    String   @db.Uuid
+  tagId     String   @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  file      File     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([fileId, tagId])
+  @@index([fileId])
+  @@index([tagId])
+  @@map("file_tags")
+}
+
+

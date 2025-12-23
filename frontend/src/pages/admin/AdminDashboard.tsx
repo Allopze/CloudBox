@@ -28,6 +28,11 @@ import {
   Send,
   RotateCcw,
   Plus,
+  Activity,
+  Download,
+  ChevronLeft,
+  ChevronRight,
+  Filter,
 } from 'lucide-react';
 import { toast } from '../../components/ui/Toast';
 import Button from '../../components/ui/Button';
@@ -370,6 +375,31 @@ export default function AdminDashboard() {
   const [uploadChunkValue, setUploadChunkValue] = useState(uploadChunkParsed.value);
   const [uploadChunkUnit, setUploadChunkUnit] = useState(uploadChunkParsed.unit);
 
+  // Activity logs state
+  interface ActivityLog {
+    id: string;
+    type: string;
+    userId: string;
+    fileId: string | null;
+    folderId: string | null;
+    details: string | null;
+    createdAt: string;
+    user?: { id: string; name: string; email: string };
+  }
+  interface ActivityFilters {
+    userId: string;
+    type: string;
+    dateFrom: string;
+    dateTo: string;
+  }
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [activityFilters, setActivityFilters] = useState<ActivityFilters>({ userId: '', type: '', dateFrom: '', dateTo: '' });
+  const [activityUsers, setActivityUsers] = useState<{ id: string; name: string; email: string }[]>([]);
+  const [activityTypes, setActivityTypes] = useState<string[]>([]);
+  const [activityPagination, setActivityPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 0 });
+  const [exportingActivity, setExportingActivity] = useState(false);
+
   const quotaParsed = bytesToUnit(systemSettings.defaultStorageQuota);
   const [quotaValue, setQuotaValue] = useState(quotaParsed.value);
   const [quotaUnit, setQuotaUnit] = useState(quotaParsed.unit);
@@ -526,6 +556,74 @@ export default function AdminDashboard() {
       setSavingUploadLimits(false);
     }
   };
+
+  // Activity logs handlers
+  const loadActivityLogs = useCallback(async (page = 1, filters: ActivityFilters) => {
+    setActivityLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.append('page', page.toString());
+      params.append('limit', '20');
+      if (filters.userId) params.append('userId', filters.userId);
+      if (filters.type) params.append('type', filters.type);
+      if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
+      if (filters.dateTo) params.append('dateTo', filters.dateTo);
+
+      const response = await api.get(`/activity/admin?${params.toString()}`);
+      setActivityLogs(response.data.activities);
+      setActivityUsers(response.data.users || []);
+      setActivityTypes(response.data.activityTypes || []);
+      setActivityPagination(response.data.pagination);
+    } catch (error) {
+      console.error('Failed to load activity logs:', error);
+      toast(t('admin.activity.loadError'), 'error');
+    } finally {
+      setActivityLoading(false);
+    }
+  }, [t]);
+
+  const updateActivityFilters = (patch: Partial<ActivityFilters>) => {
+    setActivityFilters((prev) => {
+      const next = { ...prev, ...patch };
+      void loadActivityLogs(1, next);
+      return next;
+    });
+  };
+
+  const exportActivityLogs = async () => {
+    setExportingActivity(true);
+    try {
+      const params = new URLSearchParams();
+      if (activityFilters.userId) params.append('userId', activityFilters.userId);
+      if (activityFilters.type) params.append('type', activityFilters.type);
+      if (activityFilters.dateFrom) params.append('dateFrom', activityFilters.dateFrom);
+      if (activityFilters.dateTo) params.append('dateTo', activityFilters.dateTo);
+
+      const response = await api.get(`/activity/admin/export?${params.toString()}`, {
+        responseType: 'blob',
+      });
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `activity_log_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast(t('admin.activity.exportSuccess'), 'success');
+    } catch (error) {
+      console.error('Failed to export activity logs:', error);
+      toast(t('admin.activity.exportError'), 'error');
+    } finally {
+      setExportingActivity(false);
+    }
+  };
+
+  // Load activity logs on mount
+  useEffect(() => {
+    loadActivityLogs(1, activityFilters);
+  }, [loadActivityLogs]);
 
   const saveBrandingSettings = async () => {
     setSavingBranding(true);
@@ -2230,6 +2328,137 @@ export default function AdminDashboard() {
           )
         }
       </section >
+
+      {/* Activity Logs Section */}
+      <section className="bg-white dark:bg-dark-800 rounded-2xl border border-dark-100 dark:border-dark-700 p-6 mb-6">
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-2">
+            <Activity className="w-4 h-4 text-[#FF3B3B]" />
+            <h2 className="text-lg font-semibold text-dark-900 dark:text-white">{t('admin.activity.title')}</h2>
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={<Download className="w-4 h-4" />}
+            onClick={exportActivityLogs}
+            loading={exportingActivity}
+          >
+            {t('admin.activity.export')}
+          </Button>
+        </div>
+        <p className="text-sm text-dark-500 dark:text-dark-400 mb-4">{t('admin.activity.description')}</p>
+
+        {/* Filters */}
+        <div className="grid grid-cols-4 gap-4 mb-4">
+          <select
+            className="input"
+            value={activityFilters.userId}
+            onChange={(e) => updateActivityFilters({ userId: e.target.value })}
+          >
+            <option value="">{t('admin.activity.allUsers')}</option>
+            {activityUsers.map(u => (
+              <option key={u.id} value={u.id}>{u.name}</option>
+            ))}
+          </select>
+          <select
+            className="input"
+            value={activityFilters.type}
+            onChange={(e) => updateActivityFilters({ type: e.target.value })}
+          >
+            <option value="">{t('admin.activity.allActions')}</option>
+            {activityTypes.map(t => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+          <input
+            type="date"
+            className="input"
+            value={activityFilters.dateFrom}
+            onChange={(e) => updateActivityFilters({ dateFrom: e.target.value })}
+            placeholder={t('admin.activity.dateFrom')}
+          />
+          <input
+            type="date"
+            className="input"
+            value={activityFilters.dateTo}
+            onChange={(e) => updateActivityFilters({ dateTo: e.target.value })}
+            placeholder={t('admin.activity.dateTo')}
+          />
+        </div>
+
+        {/* Activity Table */}
+        {activityLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#FF3B3B]"></div>
+          </div>
+        ) : (
+          <>
+            <div className="rounded-xl border border-dark-200 dark:border-dark-700 overflow-x-auto mb-4">
+              <table className="w-full">
+                <thead className="bg-dark-50 dark:bg-dark-900">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-dark-500 uppercase tracking-wider">{t('admin.activity.date')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-dark-500 uppercase tracking-wider">{t('admin.activity.user')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-dark-500 uppercase tracking-wider">{t('admin.activity.action')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-dark-500 uppercase tracking-wider">{t('admin.activity.details')}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-dark-200 dark:divide-dark-700 bg-white dark:bg-dark-800">
+                  {activityLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-4 py-8 text-center text-dark-500">{t('admin.activity.noLogs')}</td>
+                    </tr>
+                  ) : activityLogs.map((log) => (
+                    <tr key={log.id} className="hover:bg-dark-50 dark:hover:bg-dark-700/50">
+                      <td className="px-4 py-3 text-sm text-dark-600 dark:text-dark-300 whitespace-nowrap">
+                        {formatDate(log.createdAt)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="text-sm font-medium text-dark-900 dark:text-white">{log.user?.name || 'Unknown'}</div>
+                        <div className="text-xs text-dark-500">{log.user?.email}</div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="px-2 py-1 text-xs font-medium rounded-full bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400">
+                          {log.type}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-dark-600 dark:text-dark-300 max-w-xs truncate">
+                        {log.details || '-'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            {activityPagination.totalPages > 1 && (
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-dark-500">
+                  {t('admin.activity.showing', { from: (activityPagination.page - 1) * activityPagination.limit + 1, to: Math.min(activityPagination.page * activityPagination.limit, activityPagination.total), total: activityPagination.total })}
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    icon={<ChevronLeft className="w-4 h-4" />}
+                    onClick={() => loadActivityLogs(activityPagination.page - 1, activityFilters)}
+                    disabled={activityPagination.page <= 1}
+                  />
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    icon={<ChevronRight className="w-4 h-4" />}
+                    onClick={() => loadActivityLogs(activityPagination.page + 1, activityFilters)}
+                    disabled={activityPagination.page >= activityPagination.totalPages}
+                  />
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </section>
+
 
       {/* Create user modal */}
       < Modal

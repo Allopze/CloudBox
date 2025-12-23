@@ -11,7 +11,7 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
     const { page = '1', limit = '50', type } = req.query;
 
     const where: any = { userId };
-    
+
     if (type) {
       where.type = type;
     }
@@ -159,6 +159,156 @@ router.get('/dashboard', authenticate, async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Get dashboard error:', error);
     res.status(500).json({ error: 'Failed to get dashboard data' });
+  }
+});
+
+// Admin: Get all activity logs with filters
+router.get('/admin', authenticate, async (req: Request, res: Response) => {
+  try {
+    // Check if user is admin
+    if (req.user!.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const {
+      page = '1',
+      limit = '50',
+      type,
+      userId,
+      dateFrom,
+      dateTo
+    } = req.query;
+
+    const where: any = {};
+
+    if (type) {
+      where.type = type;
+    }
+
+    if (userId) {
+      where.userId = userId;
+    }
+
+    if (dateFrom || dateTo) {
+      where.createdAt = {};
+      if (dateFrom) {
+        where.createdAt.gte = new Date(dateFrom as string);
+      }
+      if (dateTo) {
+        where.createdAt.lte = new Date(dateTo as string);
+      }
+    }
+
+    const pageNum = parseInt(page as string);
+    const limitNum = Math.min(parseInt(limit as string), 100); // Max 100 per page
+
+    const [activities, total, users] = await Promise.all([
+      prisma.activity.findMany({
+        where,
+        skip: (pageNum - 1) * limitNum,
+        take: limitNum,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          user: {
+            select: { id: true, name: true, email: true },
+          },
+        },
+      }),
+      prisma.activity.count({ where }),
+      // Get all users for filter dropdown
+      prisma.user.findMany({
+        select: { id: true, name: true, email: true },
+        orderBy: { name: 'asc' },
+      }),
+    ]);
+
+    // Get unique activity types for filter dropdown
+    const activityTypes = await prisma.activity.findMany({
+      distinct: ['type'],
+      select: { type: true },
+    });
+
+    res.json({
+      activities,
+      users,
+      activityTypes: activityTypes.map(a => a.type),
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum),
+      },
+    });
+  } catch (error) {
+    console.error('Get admin activity error:', error);
+    res.status(500).json({ error: 'Failed to get activity logs' });
+  }
+});
+
+// Admin: Export activity logs as CSV
+router.get('/admin/export', authenticate, async (req: Request, res: Response) => {
+  try {
+    // Check if user is admin
+    if (req.user!.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { type, userId, dateFrom, dateTo } = req.query;
+
+    const where: any = {};
+
+    if (type) {
+      where.type = type;
+    }
+
+    if (userId) {
+      where.userId = userId;
+    }
+
+    if (dateFrom || dateTo) {
+      where.createdAt = {};
+      if (dateFrom) {
+        where.createdAt.gte = new Date(dateFrom as string);
+      }
+      if (dateTo) {
+        where.createdAt.lte = new Date(dateTo as string);
+      }
+    }
+
+    const activities = await prisma.activity.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: 10000, // Max 10k records for export
+      include: {
+        user: {
+          select: { name: true, email: true },
+        },
+      },
+    });
+
+    // Generate CSV
+    const headers = ['Date', 'User', 'Email', 'Action', 'File ID', 'Folder ID', 'Details'];
+    const rows = activities.map(a => [
+      new Date(a.createdAt).toISOString(),
+      a.user?.name || 'Unknown',
+      a.user?.email || 'Unknown',
+      a.type,
+      a.fileId || '',
+      a.folderId || '',
+      a.details || '',
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')),
+    ].join('\n');
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename=activity_log_${new Date().toISOString().split('T')[0]}.csv`);
+    res.send(csvContent);
+  } catch (error) {
+    console.error('Export activity error:', error);
+    res.status(500).json({ error: 'Failed to export activity logs' });
   }
 });
 

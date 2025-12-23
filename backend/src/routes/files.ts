@@ -1458,7 +1458,7 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
 });
 
 // Get single file
-router.get('/:id', authenticate, async (req: Request, res: Response) => {
+router.get('/:id([0-9a-fA-F-]{36})', authenticate, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const userId = req.user!.userId;
@@ -2391,4 +2391,350 @@ router.post('/:id/signed-url', authenticate, async (req: Request, res: Response)
   }
 });
 
+// Bulk move files
+router.post('/bulk/move', authenticate, async (req: Request, res: Response) => {
+  try {
+    const { fileIds, folderId } = req.body;
+    const userId = req.user!.userId;
+
+    if (!Array.isArray(fileIds) || fileIds.length === 0) {
+      res.status(400).json({ error: 'fileIds array is required' });
+      return;
+    }
+
+    // Validate destination folder if provided
+    if (folderId) {
+      const folder = await prisma.folder.findFirst({
+        where: { id: folderId, userId },
+      });
+      if (!folder) {
+        res.status(404).json({ error: 'Destination folder not found' });
+        return;
+      }
+    }
+
+    // Get files to move
+    const files = await prisma.file.findMany({
+      where: { id: { in: fileIds }, userId },
+    });
+
+    if (files.length === 0) {
+      res.status(404).json({ error: 'No files found' });
+      return;
+    }
+
+    // Move files in transaction
+    await prisma.$transaction(async (tx) => {
+      for (const file of files) {
+        // Update old folder size
+        if (file.folderId) {
+          await updateParentFolderSizes(file.folderId, file.size, tx, 'decrement');
+        }
+        // Update new folder size
+        if (folderId) {
+          await updateParentFolderSizes(folderId, file.size, tx, 'increment');
+        }
+      }
+
+      await tx.file.updateMany({
+        where: { id: { in: fileIds }, userId },
+        data: { folderId: folderId || null },
+      });
+    });
+
+    // Create activity log
+    await prisma.activity.create({
+      data: {
+        type: 'MOVE',
+        userId,
+        details: JSON.stringify({ fileIds, to: folderId, count: files.length }),
+      },
+    });
+
+    // Invalidate cache
+    await cache.invalidateAfterFileChange(userId);
+
+    res.json({ message: `${files.length} files moved successfully` });
+  } catch (error) {
+    logger.error('Bulk move error', {}, error instanceof Error ? error : undefined);
+    res.status(500).json({ error: 'Failed to move files' });
+  }
+});
+
+// Bulk favorite files
+router.post('/bulk/favorite', authenticate, async (req: Request, res: Response) => {
+  try {
+    const { fileIds, isFavorite } = req.body;
+    const userId = req.user!.userId;
+
+    if (!Array.isArray(fileIds) || fileIds.length === 0) {
+      res.status(400).json({ error: 'fileIds array is required' });
+      return;
+    }
+
+    const result = await prisma.file.updateMany({
+      where: { id: { in: fileIds }, userId, isTrash: false },
+      data: { isFavorite: isFavorite === true },
+    });
+
+    // Invalidate cache
+    await cache.invalidateAfterFileChange(userId);
+
+    res.json({ message: `${result.count} files updated`, count: result.count });
+  } catch (error) {
+    logger.error('Bulk favorite error', {}, error instanceof Error ? error : undefined);
+    res.status(500).json({ error: 'Failed to update favorites' });
+  }
+});
+
+// Bulk delete files (move to trash)
+router.post('/bulk/delete', authenticate, async (req: Request, res: Response) => {
+  try {
+    const { fileIds, permanent } = req.body;
+    const userId = req.user!.userId;
+
+    if (!Array.isArray(fileIds) || fileIds.length === 0) {
+      res.status(400).json({ error: 'fileIds array is required' });
+      return;
+    }
+
+    const files = await prisma.file.findMany({
+      where: { id: { in: fileIds }, userId },
+    });
+
+    if (files.length === 0) {
+      res.status(404).json({ error: 'No files found' });
+      return;
+    }
+
+    if (permanent === true) {
+      // Permanent delete
+      for (const file of files) {
+        await deleteFile(file.path);
+        if (file.thumbnailPath) {
+          await deleteFile(file.thumbnailPath);
+        }
+      }
+
+      await prisma.$transaction(async (tx) => {
+        await tx.file.deleteMany({
+          where: { id: { in: fileIds }, userId },
+        });
+
+        // Update storage
+        const totalSize = files.reduce((sum, f) => sum + Number(f.size), 0);
+        await tx.user.update({
+          where: { id: userId },
+          data: { storageUsed: { decrement: totalSize } },
+        });
+
+        // Update folder sizes
+        for (const file of files) {
+          if (file.folderId) {
+            await updateParentFolderSizes(file.folderId, file.size, tx, 'decrement');
+          }
+        }
+      });
+    } else {
+      // Move to trash
+      await prisma.file.updateMany({
+        where: { id: { in: fileIds }, userId },
+        data: { isTrash: true, trashedAt: new Date() },
+      });
+    }
+
+    // Create activity log
+    await prisma.activity.create({
+      data: {
+        type: 'DELETE',
+        userId,
+        details: JSON.stringify({ fileIds, permanent, count: files.length }),
+      },
+    });
+
+    // Invalidate cache
+    await cache.invalidateAfterFileChange(userId);
+
+    res.json({ message: `${files.length} files deleted successfully` });
+  } catch (error) {
+    logger.error('Bulk delete error', {}, error instanceof Error ? error : undefined);
+    res.status(500).json({ error: 'Failed to delete files' });
+  }
+});
+
+// Advanced search endpoint
+router.get('/search', authenticate, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+    const {
+      q,
+      type,
+      dateFrom,
+      dateTo,
+      sizeMin,
+      sizeMax,
+      tagId,
+      favorite,
+      page = '1',
+      limit = '50',
+      sortBy = 'createdAt',
+      sortOrder = 'desc',
+    } = req.query;
+
+    const pageNum = parseInt(page as string);
+    const limitNum = Math.min(parseInt(limit as string) || 50, 100);
+
+    const where: any = {
+      userId,
+      isTrash: false,
+    };
+
+    // Text search in name
+    if (q && typeof q === 'string' && q.trim()) {
+      where.name = { contains: q.trim(), mode: 'insensitive' };
+    }
+
+    // Type filter
+    if (type) {
+      switch (type) {
+        case 'images':
+          where.mimeType = { startsWith: 'image/' };
+          break;
+        case 'videos':
+          where.mimeType = { startsWith: 'video/' };
+          break;
+        case 'audio':
+          where.mimeType = { startsWith: 'audio/' };
+          break;
+        case 'documents':
+          where.OR = [
+            { mimeType: 'application/pdf' },
+            { mimeType: 'application/msword' },
+            { mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
+            { mimeType: 'application/vnd.ms-excel' },
+            { mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
+            { mimeType: 'application/vnd.ms-powerpoint' },
+            { mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' },
+            { mimeType: { startsWith: 'text/' } },
+          ];
+          break;
+      }
+    }
+
+    // Date range filter
+    if (dateFrom || dateTo) {
+      where.createdAt = {};
+      if (dateFrom) {
+        where.createdAt.gte = new Date(dateFrom as string);
+      }
+      if (dateTo) {
+        where.createdAt.lte = new Date(dateTo as string);
+      }
+    }
+
+    // Size range filter (in bytes)
+    if (sizeMin || sizeMax) {
+      where.size = {};
+      if (sizeMin) {
+        where.size.gte = BigInt(sizeMin as string);
+      }
+      if (sizeMax) {
+        where.size.lte = BigInt(sizeMax as string);
+      }
+    }
+
+    // Favorite filter
+    if (favorite === 'true') {
+      where.isFavorite = true;
+    }
+
+    // Tag filter
+    let fileIds: string[] | undefined;
+    if (tagId) {
+      const fileTags = await prisma.fileTag.findMany({
+        where: { tagId: tagId as string },
+        select: { fileId: true },
+      });
+      fileIds = fileTags.map(ft => ft.fileId);
+      if (fileIds.length === 0) {
+        // No files with this tag
+        res.json({
+          files: [],
+          folders: [],
+          pagination: { page: pageNum, limit: limitNum, total: 0, totalPages: 0 },
+        });
+        return;
+      }
+      where.id = { in: fileIds };
+    }
+
+    // Build orderBy
+    const validSortFields = ['name', 'createdAt', 'updatedAt', 'size'];
+    const sortField = validSortFields.includes(sortBy as string) ? sortBy : 'createdAt';
+    const orderDirection = sortOrder === 'asc' ? 'asc' : 'desc';
+
+    // Search files
+    const [files, totalFiles] = await Promise.all([
+      prisma.file.findMany({
+        where,
+        skip: (pageNum - 1) * limitNum,
+        take: limitNum,
+        orderBy: { [sortField as string]: orderDirection },
+        include: {
+          folder: { select: { id: true, name: true } },
+        },
+      }),
+      prisma.file.count({ where }),
+    ]);
+
+    // Also search folders if text search
+    let folders: any[] = [];
+    let totalFolders = 0;
+    if (q && typeof q === 'string' && q.trim()) {
+      const folderWhere: any = {
+        userId,
+        isTrash: false,
+        name: { contains: q.trim(), mode: 'insensitive' },
+      };
+
+      if (favorite === 'true') {
+        folderWhere.isFavorite = true;
+      }
+
+      [folders, totalFolders] = await Promise.all([
+        prisma.folder.findMany({
+          where: folderWhere,
+          take: 20, // Limit folder results
+          orderBy: { name: 'asc' },
+        }),
+        prisma.folder.count({ where: folderWhere }),
+      ]);
+    }
+
+    res.json({
+      files: files.map((f: any) => ({
+        ...f,
+        size: f.size.toString(),
+        folderName: f.folder?.name || null,
+      })),
+      folders: folders.map((f: any) => ({
+        ...f,
+        size: f.size?.toString() ?? '0',
+      })),
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        totalFiles,
+        totalFolders,
+        total: totalFiles + totalFolders,
+        totalPages: Math.ceil(totalFiles / limitNum),
+      },
+    });
+  } catch (error) {
+    logger.error('Search error', {}, error instanceof Error ? error : undefined);
+    res.status(500).json({ error: 'Failed to search files' });
+  }
+});
+
 export default router;
+

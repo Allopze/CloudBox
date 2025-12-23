@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { api } from '../lib/api';
-import { Share } from '../types';
+import { Share, FileItem } from '../types';
 import {
   Loader2,
   Share2,
@@ -16,7 +16,10 @@ import {
   Eye,
   Edit3,
   Calendar,
-  Download
+  Download,
+  FileText,
+  FolderOpen,
+  Play
 } from 'lucide-react';
 import { toast } from '../components/ui/Toast';
 import { formatDate } from '../lib/utils';
@@ -24,6 +27,8 @@ import Dropdown, { DropdownItem, DropdownDivider } from '../components/ui/Dropdo
 import ContextMenu, { type ContextMenuItemOrDivider } from '../components/ui/ContextMenu';
 import { motion, useReducedMotion } from 'framer-motion';
 import { waveIn } from '../lib/animations';
+import DocumentViewer from '../components/gallery/DocumentViewer';
+import ImageGallery from '../components/gallery/ImageGallery';
 
 interface ContextMenuState {
   x: number;
@@ -42,6 +47,11 @@ export default function Shared() {
   const [sharedWithMe, setSharedWithMe] = useState<Share[]>([]);
   const [loading, setLoading] = useState(true);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+
+  // Viewer state for accessing shared files
+  const [viewerFile, setViewerFile] = useState<FileItem | null>(null);
+  const [viewerType, setViewerType] = useState<'document' | 'image' | null>(null);
+  const [accessingShare, setAccessingShare] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -71,6 +81,24 @@ export default function Shared() {
     window.addEventListener('workzone-refresh', handleRefresh);
     return () => window.removeEventListener('workzone-refresh', handleRefresh);
   }, [loadData]);
+
+  const downloadSharedFile = async (shareId: string, file: { id: string; name: string }) => {
+    try {
+      const response = await api.get(`/shares/${shareId}/files/${file.id}/download`, {
+        responseType: 'blob',
+      });
+      const blobUrl = window.URL.createObjectURL(response.data);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = file.name || 'download';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      toast(t('shared.loadError'), 'error');
+    }
+  };
 
   const buildShareLink = (share: Share) => {
     const path = share.publicUrl || (share.publicToken ? `/share/${share.publicToken}` : null);
@@ -103,6 +131,94 @@ export default function Shared() {
       loadData();
     } catch (error) {
       toast(t('shared.deleteError'), 'error');
+    }
+  };
+
+  // Access a shared item - for private shares where the user is a collaborator
+  const accessSharedItem = async (share: Share) => {
+    if (!share.file && !share.folder) {
+      toast(t('shared.loadError'), 'error');
+      return;
+    }
+
+    setAccessingShare(share.id);
+    try {
+      // Get access to the share
+      const response = await api.get(`/shares/${share.id}/access`);
+      const { files } = response.data;
+
+      if (share.file && files.length > 0) {
+        const file = files[0];
+        // Determine viewer type based on mime type
+        const mimeType = file.mimeType || '';
+
+        // Construct a minimal FileItem that works for viewers
+        const baseFileItem: FileItem = {
+          id: file.id,
+          name: file.name,
+          originalName: file.name,
+          mimeType: file.mimeType,
+          size: String(file.size || 0),
+          path: '', // Not needed for viewing
+          thumbnailPath: file.thumbnailPath || null,
+          folderId: null,
+          userId: share.ownerId,
+          isFavorite: false,
+          isTrash: false,
+          trashedAt: null,
+          metadata: null,
+          createdAt: file.updatedAt || new Date().toISOString(),
+          updatedAt: file.updatedAt || new Date().toISOString(),
+        };
+
+        // Store shareId for special URL handling
+        (baseFileItem as any).shareId = share.id;
+
+        if (mimeType.startsWith('image/') || mimeType.startsWith('video/')) {
+          setViewerFile(baseFileItem);
+          setViewerType('image');
+        } else if (mimeType === 'application/pdf' ||
+          mimeType.includes('word') || mimeType.includes('excel') ||
+          mimeType.includes('powerpoint') || mimeType.includes('text') ||
+          mimeType.includes('spreadsheet') || mimeType.includes('presentation')) {
+          setViewerFile(baseFileItem);
+          setViewerType('document');
+        } else {
+          // For other file types, download directly if allowed
+          if (share.allowDownload !== false) {
+            await downloadSharedFile(share.id, { id: file.id, name: file.name });
+          } else {
+            toast(t('shared.downloadDisabled'), 'info');
+          }
+        }
+      } else if (share.folder) {
+        // For folder shares, navigate to a folder viewer or show contents
+        toast(t('shared.folderAccessNotImplemented'), 'info');
+      }
+    } catch (error: any) {
+      if (error.response?.status === 410) {
+        toast(t('shared.expired'), 'error');
+      } else if (error.response?.status === 403) {
+        toast(t('shared.accessDenied'), 'error');
+      } else {
+        toast(t('shared.loadError'), 'error');
+      }
+    } finally {
+      setAccessingShare(null);
+    }
+  };
+
+  // Close viewer
+  const closeViewer = () => {
+    setViewerFile(null);
+    setViewerType(null);
+  };
+
+  // Download handler for viewer
+  const handleViewerDownload = async (file: FileItem) => {
+    const shareId = (file as any).shareId as string | undefined;
+    if (shareId) {
+      await downloadSharedFile(shareId, { id: file.id, name: file.name });
     }
   };
 
@@ -258,10 +374,15 @@ export default function Shared() {
                 key={share.id}
                 {...waveIn(index, reducedMotion)}
                 onContextMenu={(e) => handleContextMenu(e, share, false)}
-                className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-dark-50 dark:hover:bg-dark-800 transition-colors"
+                onClick={() => accessSharedItem(share)}
+                className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-dark-50 dark:hover:bg-dark-800 transition-colors cursor-pointer"
               >
                 <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
-                  <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                  {share.file ? (
+                    <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                  ) : (
+                    <FolderOpen className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-dark-900 dark:text-white truncate">
@@ -283,11 +404,18 @@ export default function Shared() {
                         </>
                       )}
                     </span>
+                    {accessingShare === share.id && (
+                      <>
+                        <span>•</span>
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      </>
+                    )}
                   </div>
                 </div>
                 <Dropdown
                   trigger={
                     <button
+                      onClick={(e) => e.stopPropagation()}
                       className="p-2 text-dark-500 hover:text-dark-900 dark:hover:text-white rounded-lg hover:bg-dark-100 dark:hover:bg-dark-700 transition-colors"
                       aria-label={t('shared.itemOptions')}
                     >
@@ -296,9 +424,10 @@ export default function Shared() {
                   }
                   align="right"
                 >
-                  <DropdownItem onClick={() => openShareLink(share)}>
-                    <ExternalLink className="w-4 h-4" /> {t('shared.open')}
+                  <DropdownItem onClick={() => accessSharedItem(share)}>
+                    <Play className="w-4 h-4" /> {t('shared.access')}
                   </DropdownItem>
+                  <DropdownDivider />
                   <DropdownItem onClick={() => copyShareLink(share)}>
                     <Copy className="w-4 h-4" /> {t('shared.copyLink')}
                   </DropdownItem>
@@ -313,36 +442,56 @@ export default function Shared() {
         items={
           contextMenu
             ? ([
-                {
-                  id: 'open',
-                  label: t(contextMenu.isOwnShare ? 'shared.openLink' : 'shared.open'),
-                  icon: ExternalLink,
-                  onClick: () => openShareLink(contextMenu.share),
-                },
-                {
-                  id: 'copy',
-                  label: t('shared.copyLink'),
-                  icon: Copy,
-                  onClick: () => copyShareLink(contextMenu.share),
-                },
-                ...(contextMenu.isOwnShare
-                  ? ([
-                      { id: 'divider-delete', divider: true as const },
-                      {
-                        id: 'delete',
-                        label: t('common.delete'),
-                        icon: Trash2,
-                        danger: true,
-                        onClick: () => deleteShare(contextMenu.share.id),
-                      },
-                    ] as ContextMenuItemOrDivider[])
-                  : []),
-              ] as ContextMenuItemOrDivider[])
+              {
+                id: 'open',
+                label: t(contextMenu.isOwnShare ? 'shared.openLink' : 'shared.open'),
+                icon: ExternalLink,
+                onClick: () => openShareLink(contextMenu.share),
+              },
+              {
+                id: 'copy',
+                label: t('shared.copyLink'),
+                icon: Copy,
+                onClick: () => copyShareLink(contextMenu.share),
+              },
+              ...(contextMenu.isOwnShare
+                ? ([
+                  { id: 'divider-delete', divider: true as const },
+                  {
+                    id: 'delete',
+                    label: t('common.delete'),
+                    icon: Trash2,
+                    danger: true,
+                    onClick: () => deleteShare(contextMenu.share.id),
+                  },
+                ] as ContextMenuItemOrDivider[])
+                : []),
+            ] as ContextMenuItemOrDivider[])
             : []
         }
         position={contextMenu ? { x: contextMenu.x, y: contextMenu.y } : null}
         onClose={closeContextMenu}
       />
+
+      {/* Document Viewer */}
+      {viewerFile && viewerType === 'document' && (
+        <DocumentViewer
+          file={viewerFile}
+          isOpen={true}
+          onClose={closeViewer}
+          onDownload={handleViewerDownload}
+        />
+      )}
+
+      {/* Image Gallery Viewer */}
+      {viewerFile && viewerType === 'image' && (
+        <ImageGallery
+          images={[viewerFile]}
+          initialIndex={0}
+          isOpen={true}
+          onClose={closeViewer}
+        />
+      )}
     </div>
   );
 }

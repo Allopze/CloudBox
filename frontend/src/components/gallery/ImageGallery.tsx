@@ -16,7 +16,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { FileItem } from '../../types';
-import { getSignedFileUrl } from '../../lib/api';
+import { getSignedFileUrl, api } from '../../lib/api';
 import { cn } from '../../lib/utils';
 import AuthenticatedImage from '../AuthenticatedImage';
 
@@ -114,10 +114,19 @@ export default function ImageGallery({
   const imageRef = useRef<HTMLImageElement>(null);
 
   const currentImage = images[currentIndex];
+  const shareId = (currentImage as any)?.shareId as string | undefined;
 
   // Auth state for signed URL
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [loadingSignedUrl, setLoadingSignedUrl] = useState(false);
+  const blobUrlRef = useRef<string | null>(null);
+
+  const revokeBlobUrl = useCallback(() => {
+    if (blobUrlRef.current) {
+      URL.revokeObjectURL(blobUrlRef.current);
+      blobUrlRef.current = null;
+    }
+  }, []);
 
   // Reset state when gallery opens
   useEffect(() => {
@@ -247,20 +256,39 @@ export default function ImageGallery({
   useEffect(() => {
     if (isOpen && currentImage) {
       setLoadingSignedUrl(true);
-      // Use getSignedFileUrl for secure access
-      getSignedFileUrl(currentImage.id, 'view')
-        .then(url => {
-          setSignedUrl(url);
-        })
-        .catch(err => {
-          console.error('Failed to get signed URL', err);
+      revokeBlobUrl();
+
+      const loadUrl = async () => {
+        try {
+          if (shareId) {
+            const response = await api.get(`/shares/${shareId}/files/${currentImage.id}/view`, {
+              responseType: 'blob',
+            });
+            const url = URL.createObjectURL(response.data);
+            blobUrlRef.current = url;
+            setSignedUrl(url);
+          } else {
+            const url = await getSignedFileUrl(currentImage.id, 'view');
+            setSignedUrl(url);
+          }
+        } catch (err) {
+          console.error('Failed to get image URL', err);
           setSignedUrl(null);
-        })
-        .finally(() => setLoadingSignedUrl(false));
+        } finally {
+          setLoadingSignedUrl(false);
+        }
+      };
+
+      void loadUrl();
     } else {
+      revokeBlobUrl();
       setSignedUrl(null);
     }
-  }, [isOpen, currentImage]);
+
+    return () => {
+      revokeBlobUrl();
+    };
+  }, [isOpen, currentImage, shareId, revokeBlobUrl]);
 
   if (!isOpen || !currentImage) return null;
 

@@ -22,6 +22,8 @@ import VideoPreview from '../components/gallery/VideoPreview';
 import DocumentViewer from '../components/gallery/DocumentViewer';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { SkeletonGrid } from '../components/ui/Skeleton';
+import FileToolbar from '../components/files/FileToolbar';
+import MoveModal from '../components/modals/MoveModal';
 
 export default function Files() {
   const { t } = useTranslation();
@@ -41,6 +43,7 @@ export default function Files() {
   const [deleteConfirmData, setDeleteConfirmData] = useState<{ files: FileItem[]; folders: Folder[] } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedFileForAction, setSelectedFileForAction] = useState<FileItem | null>(null);
+  const [isMoveModalOpen, setMoveModalOpen] = useState(false);
 
   // Gallery states
   const [galleryOpen, setGalleryOpen] = useState(false);
@@ -60,7 +63,17 @@ export default function Files() {
   const clearSelection = useFileStore((state) => state.clearSelection);
   const setBreadcrumbs = useFileStore((state) => state.setBreadcrumbs);
   const selectAll = useFileStore((state) => state.selectAll);
+  const selectedItems = useFileStore((state) => state.selectedItems);
   const { addOperation, incrementProgress, completeOperation, failOperation } = useGlobalProgressStore();
+
+  // Get selected file and folder IDs
+  const selectedFileIds = useMemo(() => {
+    return files.filter(f => selectedItems.has(f.id)).map(f => f.id);
+  }, [files, selectedItems]);
+
+  const selectedFolderIds = useMemo(() => {
+    return folders.filter(f => selectedItems.has(f.id)).map(f => f.id);
+  }, [folders, selectedItems]);
 
   // Get all item IDs for keyboard shortcuts
   const allItemIds = useMemo(() => {
@@ -162,6 +175,46 @@ export default function Files() {
       setShareModalOpen(true);
     }
   }, [getSelectedItems]);
+
+  // Bulk move selected items
+  const handleMoveSelected = useCallback(() => {
+    const total = selectedFileIds.length + selectedFolderIds.length;
+    if (total === 0) return;
+    setMoveModalOpen(true);
+  }, [selectedFileIds, selectedFolderIds]);
+
+  // Get items to move for MoveModal
+  const itemsToMove = useMemo(() => {
+    const { selectedFiles, selectedFolders } = getSelectedItems();
+    return [...selectedFiles, ...selectedFolders];
+  }, [getSelectedItems]);
+
+  // Bulk favorite selected items
+  const handleFavoriteSelected = useCallback(async () => {
+    const total = selectedFileIds.length + selectedFolderIds.length;
+    if (total === 0) return;
+
+    try {
+      if (selectedFileIds.length > 0) {
+        await api.post('/files/bulk/favorite', {
+          fileIds: selectedFileIds,
+          isFavorite: true,
+        });
+      }
+      if (selectedFolderIds.length > 0) {
+        await api.post('/folders/bulk/favorite', {
+          folderIds: selectedFolderIds,
+          isFavorite: true,
+        });
+      }
+      toast(t('toolbar.bulkFavoriteSuccess', { count: total }), 'success');
+      clearSelection();
+      // Dispatch refresh event instead of calling loadData directly
+      window.dispatchEvent(new CustomEvent('workzone-refresh'));
+    } catch (error) {
+      toast(t('toolbar.bulkError'), 'error');
+    }
+  }, [selectedFileIds, selectedFolderIds, clearSelection, t]);
 
   // Rename selected (only single selection)
   const handleRenameSelected = useCallback(() => {
@@ -497,6 +550,31 @@ export default function Files() {
           }}
         />
       )}
+
+      {/* File Toolbar for bulk actions */}
+      <FileToolbar
+        selectedCount={selectedFileIds.length + selectedFolderIds.length}
+        selectedFileIds={selectedFileIds}
+        selectedFolderIds={selectedFolderIds}
+        onDeleteSelected={handleDeleteSelected}
+        onMoveSelected={handleMoveSelected}
+        onFavoriteSelected={handleFavoriteSelected}
+        onShareSelected={handleShareSelected}
+      />
+
+      {/* Move Modal */}
+      <MoveModal
+        isOpen={isMoveModalOpen}
+        onClose={() => {
+          setMoveModalOpen(false);
+          clearSelection();
+        }}
+        items={itemsToMove}
+        onSuccess={() => {
+          clearSelection();
+          window.dispatchEvent(new CustomEvent('workzone-refresh'));
+        }}
+      />
 
       {/* Delete Confirmation Modal */}
       <ConfirmModal

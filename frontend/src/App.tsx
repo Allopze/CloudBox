@@ -28,6 +28,7 @@ const Shared = lazy(() => import('./pages/Shared'));
 const Trash = lazy(() => import('./pages/Trash'));
 const Documents = lazy(() => import('./pages/Documents'));
 const Settings = lazy(() => import('./pages/Settings'));
+const SearchResults = lazy(() => import('./pages/SearchResults'));
 
 // Heavy pages (lazy-loaded)
 const Photos = lazy(() => import('./pages/Photos'));
@@ -120,6 +121,7 @@ function App() {
           <Route path="albums/:albumId" element={<Suspense fallback={<PageLoader />}><Albums /></Suspense>} />
           <Route path="music" element={<Suspense fallback={<PageLoader />}><Music /></Suspense>} />
           <Route path="documents" element={<Suspense fallback={<PageLoader />}><Documents /></Suspense>} />
+          <Route path="search" element={<Suspense fallback={<PageLoader />}><SearchResults /></Suspense>} />
 
           <Route path="settings" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
 

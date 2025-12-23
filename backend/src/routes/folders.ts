@@ -573,4 +573,161 @@ router.get('/:id/download', authenticate, async (req: Request, res: Response) =>
   }
 });
 
+// Bulk move folders
+router.post('/bulk/move', authenticate, async (req: Request, res: Response) => {
+  try {
+    const { folderIds, parentId } = req.body;
+    const userId = req.user!.userId;
+
+    if (!Array.isArray(folderIds) || folderIds.length === 0) {
+      res.status(400).json({ error: 'folderIds array is required' });
+      return;
+    }
+
+    // Validate destination folder if provided
+    if (parentId) {
+      const targetFolder = await prisma.folder.findFirst({
+        where: { id: parentId, userId },
+      });
+      if (!targetFolder) {
+        res.status(404).json({ error: 'Destination folder not found' });
+        return;
+      }
+      // Prevent moving folders into themselves
+      if (folderIds.includes(parentId)) {
+        res.status(400).json({ error: 'Cannot move folder into itself' });
+        return;
+      }
+    }
+
+    // Get folders to move
+    const folders = await prisma.folder.findMany({
+      where: { id: { in: folderIds }, userId },
+    });
+
+    if (folders.length === 0) {
+      res.status(404).json({ error: 'No folders found' });
+      return;
+    }
+
+    // Move folders
+    await prisma.folder.updateMany({
+      where: { id: { in: folderIds }, userId },
+      data: { parentId: parentId || null },
+    });
+
+    // Invalidate cache
+    await cache.invalidateAfterFolderChange(userId);
+
+    res.json({ message: `${folders.length} folders moved successfully` });
+  } catch (error) {
+    console.error('Bulk move folders error:', error);
+    res.status(500).json({ error: 'Failed to move folders' });
+  }
+});
+
+// Bulk favorite folders
+router.post('/bulk/favorite', authenticate, async (req: Request, res: Response) => {
+  try {
+    const { folderIds, isFavorite } = req.body;
+    const userId = req.user!.userId;
+
+    if (!Array.isArray(folderIds) || folderIds.length === 0) {
+      res.status(400).json({ error: 'folderIds array is required' });
+      return;
+    }
+
+    const result = await prisma.folder.updateMany({
+      where: { id: { in: folderIds }, userId, isTrash: false },
+      data: { isFavorite: isFavorite === true },
+    });
+
+    // Invalidate cache
+    await cache.invalidateAfterFolderChange(userId);
+
+    res.json({ message: `${result.count} folders updated`, count: result.count });
+  } catch (error) {
+    console.error('Bulk favorite folders error:', error);
+    res.status(500).json({ error: 'Failed to update favorites' });
+  }
+});
+
+// Bulk delete folders (move to trash)
+router.post('/bulk/delete', authenticate, async (req: Request, res: Response) => {
+  try {
+    const { folderIds, permanent } = req.body;
+    const userId = req.user!.userId;
+
+    if (!Array.isArray(folderIds) || folderIds.length === 0) {
+      res.status(400).json({ error: 'folderIds array is required' });
+      return;
+    }
+
+    const folders = await prisma.folder.findMany({
+      where: { id: { in: folderIds }, userId },
+    });
+
+    if (folders.length === 0) {
+      res.status(404).json({ error: 'No folders found' });
+      return;
+    }
+
+      if (permanent === true) {
+        // Permanent delete with recursive cleanup
+        for (const folder of folders) {
+          const deleteRecursively = async (folderId: string, depth: number = 0) => {
+            if (depth > config.limits.maxFolderDepth) {
+              console.error(`Maximum folder depth (${config.limits.maxFolderDepth}) exceeded during bulk delete`);
+              return;
+            }
+
+            const folderToDelete = await prisma.folder.findUnique({ where: { id: folderId } });
+            if (!folderToDelete) return;
+
+            const files = await prisma.file.findMany({ where: { folderId } });
+            for (const file of files) {
+              await deleteStorageFile(file.path);
+              if (file.thumbnailPath) {
+                await deleteStorageFile(file.thumbnailPath);
+              }
+              await prisma.file.delete({ where: { id: file.id } });
+
+              await prisma.user.update({
+                where: { id: userId },
+                data: { storageUsed: { decrement: Number(file.size) } },
+              });
+            }
+
+            const subfolders = await prisma.folder.findMany({ where: { parentId: folderId } });
+            for (const subfolder of subfolders) {
+              await deleteRecursively(subfolder.id, depth + 1);
+            }
+
+            await prisma.folder.delete({ where: { id: folderId } });
+            if (folderToDelete.parentId) {
+              const deletedFolderSize = (folderToDelete as any).size ?? BigInt(0);
+              await updateParentFolderSizes(folderToDelete.parentId, deletedFolderSize, prisma, 'decrement');
+            }
+          };
+          await deleteRecursively(folder.id, 0);
+        }
+      } else {
+      // Move to trash
+      await prisma.folder.updateMany({
+        where: { id: { in: folderIds }, userId },
+        data: { isTrash: true, trashedAt: new Date() },
+      });
+    }
+
+    // Invalidate cache
+    await cache.invalidateAfterFolderChange(userId);
+
+    res.json({ message: `${folders.length} folders deleted successfully` });
+  } catch (error) {
+    console.error('Bulk delete folders error:', error);
+    res.status(500).json({ error: 'Failed to delete folders' });
+  }
+});
+
 export default router;
+

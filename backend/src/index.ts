@@ -35,6 +35,7 @@ import compressionRoutes from './routes/compression.js';
 import activityRoutes from './routes/activity.js';
 import adminRoutes from './routes/admin.js';
 import documentPreviewRoutes from './routes/documentPreview.js';
+import tagsRoutes from './routes/tags.js';
 
 const app = express();
 
@@ -199,6 +200,7 @@ app.use('/api/albums', albumRoutes);
 app.use('/api/compression', compressionRoutes);
 app.use('/api/activity', activityRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/tags', tagsRoutes);
 
 // Public config endpoint for upload limits (no auth required for frontend to fetch)
 app.get('/api/config/upload-limits', async (req, res) => {
