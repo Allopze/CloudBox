@@ -225,6 +225,26 @@ export const smtpConfigSchema = z.object({
   }),
 });
 
+// Schema for PUT /settings/smtp (UI settings endpoint)
+export const smtpSettingsSchema = z.object({
+  body: z.object({
+    host: z.string().min(1, 'SMTP host is required'),
+    port: z.coerce.number().int().positive().default(587),
+    secure: z.coerce.boolean().default(false),
+    user: z.string().min(1, 'SMTP user is required'),
+    password: z.string().optional(),
+    fromName: z.string().max(100).default('CloudBox'),
+    fromEmail: z.string().email('Invalid sender email address').optional().or(z.literal('')),
+  }),
+});
+
+// Schema for POST /settings/smtp/test
+export const smtpTestSchema = z.object({
+  body: z.object({
+    email: z.string().email('Invalid recipient email address'),
+  }),
+});
+
 export const emailTemplateSchema = z.object({
   params: z.object({
     name: z.string(),

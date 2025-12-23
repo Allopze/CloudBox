@@ -842,6 +842,8 @@
       "password": "Password",
       "senderName": "Sender name",
       "senderEmail": "Sender email",
+      "testRecipient": "Test recipient",
+      "testEmailRequired": "Please enter a recipient email address",
       "sendTest": "Send test",
       "save": "Save Email"
     },
@@ -863,6 +865,7 @@
       "save": "Save",
       "welcome": "Welcome",
       "resetPassword": "Reset Password",
+      "testTemplate": "Test Email",
       "selectToEdit": "Select a template to edit",
       "newVariable": "New Variable",
       "editVariable": "Edit Variable",

@@ -16,6 +16,7 @@ interface AuthState {
   checkAuth: (signal?: AbortSignal) => Promise<void>;
   updateUser: (user: Partial<User>) => void;
   refreshUser: () => Promise<void>;
+  resendVerification: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -32,10 +33,10 @@ export const useAuthStore = create<AuthState>()(
         try {
           const response = await api.post('/auth/login', { email, password });
           const { user, accessToken } = response.data;
-          
+
           localStorage.setItem('accessToken', accessToken);
           // Note: refreshToken is now stored in httpOnly cookie by the server
-          
+
           set({ user, isAuthenticated: true, isLoading: false, isLoggingIn: false });
         } catch (error) {
           set({ isLoggingIn: false });
@@ -48,10 +49,10 @@ export const useAuthStore = create<AuthState>()(
         try {
           const response = await api.post('/auth/google', { token });
           const { user, accessToken } = response.data;
-          
+
           localStorage.setItem('accessToken', accessToken);
           // Note: refreshToken is now stored in httpOnly cookie by the server
-          
+
           set({ user, isAuthenticated: true, isLoggingIn: false });
         } catch (error) {
           set({ isLoggingIn: false });
@@ -64,10 +65,10 @@ export const useAuthStore = create<AuthState>()(
         try {
           const response = await api.post('/auth/register', { email, password, name });
           const { user, accessToken } = response.data;
-          
+
           localStorage.setItem('accessToken', accessToken);
           // Note: refreshToken is now stored in httpOnly cookie by the server
-          
+
           set({ user, isAuthenticated: true, isRegistering: false });
         } catch (error) {
           set({ isRegistering: false });
@@ -82,16 +83,16 @@ export const useAuthStore = create<AuthState>()(
         } catch {
           // Ignore errors
         }
-        
+
         localStorage.removeItem('accessToken');
         // Note: refreshToken cookie is cleared by the server
-        
+
         set({ user: null, isAuthenticated: false });
       },
 
       checkAuth: async (signal?: AbortSignal) => {
         const token = localStorage.getItem('accessToken');
-        
+
         if (!token) {
           set({ isLoading: false, isAuthenticated: false, user: null });
           return;
@@ -123,6 +124,10 @@ export const useAuthStore = create<AuthState>()(
         } catch {
           // Silently fail - user data will be stale but app continues working
         }
+      },
+
+      resendVerification: async () => {
+        await api.post('/auth/resend-verification');
       },
     }),
     {

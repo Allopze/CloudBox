@@ -4,6 +4,24 @@ import prisma from './prisma.js';
 import { decryptSecret, isEncrypted } from './encryption.js';
 import { logger } from './logger.js';
 
+export interface EmailSendResult {
+  messageId: string;
+  accepted: string[];
+  rejected: string[];
+  response: string;
+  envelope: { from: string; to: string };
+  durationMs: number;
+}
+
+export class EmailError extends Error {
+  code: string;
+  constructor(message: string, code: string) {
+    super(message);
+    this.name = 'EmailError';
+    this.code = code;
+  }
+}
+
 let transporter: nodemailer.Transporter | null = null;
 let smtpConfigured = false;
 
@@ -32,14 +50,14 @@ export const getTransporter = async (): Promise<nodemailer.Transporter> => {
 
   const smtpUser = settings.smtp_user || config.smtp.user;
   const smtpHost = settings.smtp_host || config.smtp.host;
-  
+
   // Check if SMTP is configured
   smtpConfigured = !!(smtpHost && smtpUser && smtpPassword);
-  
+
   if (!smtpConfigured) {
     logger.warn('SMTP not configured - emails will be logged but not sent');
   }
-  
+
   // Only configure auth if credentials are provided
   const authConfig = smtpUser && smtpPassword ? {
     auth: {
@@ -63,24 +81,74 @@ export const resetTransporter = () => {
   smtpConfigured = false;
 };
 
-export const sendEmail = async (to: string, subject: string, html: string): Promise<void> => {
+export const sendEmail = async (to: string, subject: string, html: string): Promise<EmailSendResult> => {
   await getTransporter(); // Initialize to check if configured
-  
-  const smtpFrom = await prisma.settings.findUnique({ where: { key: 'smtp_from' } });
-  const from = smtpFrom?.value || config.smtp.from;
 
-  // If SMTP is not configured, log the email instead of sending
-  if (!smtpConfigured) {
-    logger.info('Email not sent (SMTP not configured)', { to, subject, from });
-    return;
+  // Fetch From settings
+  const fromSettings = await prisma.settings.findMany({
+    where: { key: { in: ['smtp_from', 'smtp_from_name', 'smtp_from_email'] } },
+  });
+  const fromMap: Record<string, string> = {};
+  fromSettings.forEach(s => { fromMap[s.key] = s.value; });
+
+  // Build From: prefer smtp_from_name + smtp_from_email, fallback to smtp_from or config
+  let from = fromMap['smtp_from'] || config.smtp.from;
+  if (fromMap['smtp_from_name'] && fromMap['smtp_from_email']) {
+    from = `"${fromMap['smtp_from_name'].replace(/"/g, '\\"')}" <${fromMap['smtp_from_email']}>`;
   }
 
-  await transporter!.sendMail({
-    from,
-    to,
-    subject,
-    html,
-  });
+  // Throw error if SMTP is not configured
+  if (!smtpConfigured) {
+    const error = new EmailError(
+      'SMTP is not configured. Please configure SMTP settings in the admin panel.',
+      'SMTP_NOT_CONFIGURED'
+    );
+    logger.warn('Email send failed - SMTP not configured', { to, subject, from });
+    throw error;
+  }
+
+  const start = Date.now();
+  try {
+    const info = await transporter!.sendMail({
+      from,
+      to,
+      subject,
+      html,
+    });
+
+    const result: EmailSendResult = {
+      messageId: info.messageId || '',
+      accepted: (info.accepted || []) as string[],
+      rejected: (info.rejected || []) as string[],
+      response: info.response || '',
+      envelope: { from, to },
+      durationMs: Date.now() - start,
+    };
+
+    logger.info('Email sent successfully', {
+      messageId: result.messageId,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      response: result.response,
+      envelope: result.envelope,
+      durationMs: result.durationMs,
+    });
+
+    return result;
+  } catch (error: any) {
+    const durationMs = Date.now() - start;
+    logger.error('Email send failed', {
+      error: error.message,
+      stack: error.stack,
+      envelope: { from, to },
+      subject,
+      durationMs,
+    });
+    throw new EmailError(
+      error.message || 'Failed to send email',
+      'SMTP_SEND_FAILED'
+    );
+  }
 };
 
 // Helper function to replace all variables in a template
@@ -111,7 +179,7 @@ export const sendWelcomeEmail = async (to: string, name: string, verifyUrl: stri
     where: { name: 'welcome' },
     include: { variables: true },
   });
-  
+
   let subject = 'Welcome to CloudBox!';
   let body = `
     <h1>Welcome to CloudBox, ${name}!</h1>
@@ -142,7 +210,7 @@ export const sendResetPasswordEmail = async (to: string, name: string, resetUrl:
     where: { name: 'reset_password' },
     include: { variables: true },
   });
-  
+
   let subject = 'Reset Your CloudBox Password';
   let body = `
     <h1>Password Reset Request</h1>
@@ -170,12 +238,26 @@ export const sendResetPasswordEmail = async (to: string, name: string, resetUrl:
   await sendEmail(to, subject, body);
 };
 
-export const testSmtpConnection = async (): Promise<boolean> => {
+export const testSmtpConnection = async (): Promise<{ connected: boolean; message: string }> => {
   try {
     const transport = await getTransporter();
+
+    if (!smtpConfigured) {
+      throw new EmailError(
+        'SMTP is not configured. Please enter SMTP host, user, and password.',
+        'SMTP_NOT_CONFIGURED'
+      );
+    }
+
     await transport.verify();
-    return true;
-  } catch {
-    return false;
+    return { connected: true, message: 'SMTP connection verified successfully' };
+  } catch (error: any) {
+    if (error instanceof EmailError) {
+      throw error;
+    }
+    throw new EmailError(
+      error.message || 'Failed to verify SMTP connection',
+      'SMTP_VERIFY_FAILED'
+    );
   }
 };

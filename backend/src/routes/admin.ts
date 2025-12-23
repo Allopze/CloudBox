@@ -5,8 +5,8 @@ import prisma from '../lib/prisma.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { uploadBranding, uploadLandingAsset } from '../middleware/upload.js';
 import { validate } from '../middleware/validate.js';
-import { adminUserSchema, smtpConfigSchema, emailTemplateSchema, paginationSchema, PAGINATION_LIMITS, PaginationQuery, landingSettingsSchema, landingConfigSchema } from '../schemas/index.js';
-import { resetTransporter, testSmtpConnection, sendEmail } from '../lib/email.js';
+import { adminUserSchema, smtpConfigSchema, smtpSettingsSchema, smtpTestSchema, emailTemplateSchema, paginationSchema, PAGINATION_LIMITS, PaginationQuery, landingSettingsSchema, landingConfigSchema } from '../schemas/index.js';
+import { resetTransporter, testSmtpConnection, sendEmail, EmailError } from '../lib/email.js';
 import { getBrandingPath, deleteFile, fileExists, copyFile, getStoragePath } from '../lib/storage.js';
 import { encryptSecret } from '../lib/encryption.js';
 import sharp from 'sharp';
@@ -851,6 +851,10 @@ router.get('/email-templates/:name', authenticate, requireAdmin, async (req: Req
           subject: 'Reset Your CloudBox Password',
           body: '<h1>Password Reset</h1><p>Hi {{name}}, reset your password: <a href="{{resetUrl}}">Reset</a></p>',
         },
+        test: {
+          subject: 'CloudBox Test Email',
+          body: '<h1>Test Email</h1><p>This is a test email from CloudBox. If you received this message, your SMTP configuration is working correctly.</p><p>Sent to: {{email}}</p>',
+        },
       };
 
       if (defaults[name]) {
@@ -1460,9 +1464,14 @@ router.get('/settings/smtp', authenticate, requireAdmin, async (req: Request, re
 });
 
 // Save SMTP settings (aliased endpoint)
-router.put('/settings/smtp', authenticate, requireAdmin, async (req: Request, res: Response) => {
+router.put('/settings/smtp', authenticate, requireAdmin, validate(smtpSettingsSchema), async (req: Request, res: Response) => {
   try {
     const { host, port, secure, user, password, fromName, fromEmail } = req.body;
+
+    // Build consolidated smtp_from for backward compatibility
+    const consolidatedFrom = fromEmail
+      ? `"${(fromName || 'CloudBox').replace(/"/g, '\\"')}" <${fromEmail}>`
+      : '';
 
     const settings = [
       { key: 'smtp_host', value: host || '' },
@@ -1471,6 +1480,7 @@ router.put('/settings/smtp', authenticate, requireAdmin, async (req: Request, re
       { key: 'smtp_user', value: user || '' },
       { key: 'smtp_from_name', value: fromName || 'CloudBox' },
       { key: 'smtp_from_email', value: fromEmail || '' },
+      { key: 'smtp_from', value: consolidatedFrom }, // Backward compatibility
     ];
 
     if (password) {
@@ -1495,21 +1505,73 @@ router.put('/settings/smtp', authenticate, requireAdmin, async (req: Request, re
   }
 });
 
-// Test SMTP (aliased endpoint)
-router.post('/settings/smtp/test', authenticate, requireAdmin, async (req: Request, res: Response) => {
+// Test SMTP (aliased endpoint) - email is now REQUIRED
+router.post('/settings/smtp/test', authenticate, requireAdmin, validate(smtpTestSchema), async (req: Request, res: Response) => {
   try {
     const { email } = req.body;
-    const testEmail = email || req.user?.email;
 
-    if (!testEmail) {
-      res.status(400).json({ error: 'Email is required' });
+    // Load test template from DB or use default
+    const template = await prisma.emailTemplate.findUnique({
+      where: { name: 'test' },
+      include: { variables: true },
+    });
+
+    let subject = 'CloudBox Test Email';
+    let body = '<h1>Test Email</h1><p>This is a test email from CloudBox. If you received this message, your SMTP configuration is working correctly.</p><p>Sent to: {{email}}</p>';
+
+    if (template) {
+      subject = template.subject;
+      body = template.body;
+    }
+
+    // Replace variables
+    const variables: Record<string, string> = {
+      email,
+      name: 'Admin',
+      appName: 'CloudBox',
+      appUrl: config.frontendUrl,
+      date: new Date().toLocaleDateString('es-ES'),
+    };
+
+    // Replace custom variables if they exist
+    if (template?.variables) {
+      for (const variable of template.variables) {
+        const regex = new RegExp(`\\{\\{${variable.name}\\}\\}`, 'g');
+        const value = variables[variable.name] || variable.defaultValue;
+        subject = subject.replace(regex, value);
+        body = body.replace(regex, value);
+      }
+    }
+
+    // Replace system variables
+    for (const [key, value] of Object.entries(variables)) {
+      const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+      subject = subject.replace(regex, value);
+      body = body.replace(regex, value);
+    }
+
+    const result = await sendEmail(email, subject, body);
+
+    res.json({
+      message: 'Test email sent successfully',
+      details: {
+        messageId: result.messageId,
+        accepted: result.accepted,
+        rejected: result.rejected,
+        durationMs: result.durationMs,
+      }
+    });
+  } catch (error: any) {
+    console.error('Test SMTP error:', error);
+
+    if (error instanceof EmailError) {
+      res.status(400).json({
+        error: error.message,
+        code: error.code
+      });
       return;
     }
 
-    await sendEmail(testEmail, 'CloudBox Test Email', '<h1>Test Email</h1><p>This is a test email from CloudBox.</p>');
-    res.json({ message: 'Test email sent successfully' });
-  } catch (error) {
-    console.error('Test SMTP error:', error);
     res.status(500).json({ error: 'Failed to send test email' });
   }
 });
