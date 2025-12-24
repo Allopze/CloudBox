@@ -944,6 +944,35 @@
       "save": "Limits speichern",
       "saved": "Limits gespeichert",
       "saveError": "Fehler beim Speichern der Limits"
+    },
+    "fileIcons": {
+      "title": "Dateityp-Symbole",
+      "description": "Passen Sie die Symbole für verschiedene Dateitypen an. Laden Sie benutzerdefinierte SVG-Symbole für jede Kategorie hoch.",
+      "loadError": "Fehler beim Laden der Symbole",
+      "uploadSuccess": "Symbol erfolgreich aktualisiert",
+      "uploadError": "Fehler beim Hochladen des Symbols",
+      "svgOnly": "Nur SVG-Dateien sind erlaubt",
+      "confirmReset": "Dieses Symbol auf Standard zurücksetzen?",
+      "resetSuccess": "Symbol zurückgesetzt",
+      "resetError": "Fehler beim Zurücksetzen des Symbols",
+      "customIcon": "Benutzerdefiniertes Symbol",
+      "defaultIcon": "Standardsymbol",
+      "upload": "SVG hochladen",
+      "reset": "Zurücksetzen",
+      "tips": "Tipps",
+      "tip1": "Verwenden Sie einfache SVG-Symbole für beste Ergebnisse",
+      "tip2": "Empfohlene Größe: 48x64 oder quadratische Symbole",
+      "tip3": "SVGs werden aus Sicherheitsgründen bereinigt",
+      "manageIcons": "Dateisymbole verwalten",
+      "categories": {
+        "audio": "Audio",
+        "image": "Bilder",
+        "video": "Video",
+        "document": "Dokumente",
+        "archive": "Archive",
+        "code": "Code",
+        "default": "Andere Dateien"
+      }
     }
   },
   "gallery": {

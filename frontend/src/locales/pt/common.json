@@ -944,6 +944,35 @@
       "save": "Salvar limites",
       "saved": "Limites salvos",
       "saveError": "Erro ao salvar limites"
+    },
+    "fileIcons": {
+      "title": "Ícones de Arquivos",
+      "description": "Personalize os ícones exibidos para diferentes tipos de arquivos. Envie ícones SVG personalizados para cada categoria.",
+      "loadError": "Erro ao carregar ícones",
+      "uploadSuccess": "Ícone atualizado com sucesso",
+      "uploadError": "Erro ao enviar ícone",
+      "svgOnly": "Apenas arquivos SVG são permitidos",
+      "confirmReset": "Redefinir este ícone para o padrão?",
+      "resetSuccess": "Ícone redefinido",
+      "resetError": "Erro ao redefinir ícone",
+      "customIcon": "Ícone personalizado",
+      "defaultIcon": "Ícone padrão",
+      "upload": "Enviar SVG",
+      "reset": "Redefinir",
+      "tips": "Dicas",
+      "tip1": "Use ícones SVG simples para melhores resultados",
+      "tip2": "Tamanho recomendado: 48x64 ou ícones quadrados",
+      "tip3": "SVGs são sanitizados por segurança",
+      "manageIcons": "Gerenciar Ícones de Arquivos",
+      "categories": {
+        "audio": "Áudio",
+        "image": "Imagens",
+        "video": "Vídeo",
+        "document": "Documentos",
+        "archive": "Arquivos compactados",
+        "code": "Código",
+        "default": "Outros arquivos"
+      }
     }
   },
   "gallery": {

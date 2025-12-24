@@ -22,7 +22,7 @@ interface StorageRequest {
 
 interface Session {
   id: string;
-  deviceInfo: string;
+  deviceInfo: string | { userAgent?: string; ip?: string; browser?: string; os?: string };
   ipAddress: string;
   lastActive: string;
   createdAt: string;
@@ -31,7 +31,7 @@ interface Session {
 
 export default function Settings() {
   const { t, i18n } = useTranslation();
-  const { user, updateUser } = useAuthStore();
+  const { user, updateUser, logout } = useAuthStore();
   const { isDark, toggleTheme } = useThemeStore();
 
   const [name, setName] = useState(user?.name || '');
@@ -107,8 +107,8 @@ export default function Settings() {
     try {
       await api.post('/auth/sessions/logout-all');
       toast(t('settings.allSessionsTerminated'), 'success');
-      // Keep only current session in the list
-      setSessions(prev => prev.filter(s => s.isCurrent));
+      // Log out the current session as well
+      await logout();
     } catch (error: any) {
       toast(error.response?.data?.error || t('settings.sessionTerminateError'), 'error');
     } finally {
@@ -477,17 +477,15 @@ export default function Settings() {
         ) : (
           <div className="space-y-3">
             {sessions.map((session) => (
-              <div
-                key={session.id}
-                className={`flex items-center justify-between p-4 rounded-xl border ${session.isCurrent
-                    ? 'border-primary-200 bg-primary-50 dark:border-primary-800 dark:bg-primary-900/20'
-                    : 'border-dark-100 dark:border-dark-700 bg-dark-50 dark:bg-dark-900'
-                  }`}
+              <div key={session.id} className={`flex items-center justify-between p-4 rounded-xl border ${session.isCurrent
+                ? 'border-primary-200 bg-primary-50 dark:border-primary-800 dark:bg-primary-900/20'
+                : 'border-dark-100 dark:border-dark-700 bg-dark-50 dark:bg-dark-900'
+                }`}
               >
                 <div className="flex items-center gap-4">
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${session.isCurrent
-                      ? 'bg-primary-100 dark:bg-primary-900/30'
-                      : 'bg-dark-100 dark:bg-dark-800'
+                    ? 'bg-primary-100 dark:bg-primary-900/30'
+                    : 'bg-dark-100 dark:bg-dark-800'
                     }`}>
                     <Monitor className={`w-5 h-5 ${session.isCurrent ? 'text-primary-600' : 'text-dark-500'
                       }`} />
@@ -495,7 +493,11 @@ export default function Settings() {
                   <div>
                     <div className="flex items-center gap-2">
                       <p className="font-medium text-dark-900 dark:text-white">
-                        {session.deviceInfo || t('settings.unknownDevice')}
+                        {typeof session.deviceInfo === 'string'
+                          ? session.deviceInfo
+                          : session.deviceInfo?.browser && session.deviceInfo?.os
+                            ? `${session.deviceInfo.browser} on ${session.deviceInfo.os}`
+                            : session.deviceInfo?.userAgent || t('settings.unknownDevice')}
                       </p>
                       {session.isCurrent && (
                         <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-primary-600 text-white">
@@ -620,10 +622,7 @@ export default function Settings() {
                   <p className="text-sm text-dark-500 text-center py-4">{t('settings.noRequests')}</p>
                 ) : (
                   storageRequests.map((request) => (
-                    <div
-                      key={request.id}
-                      className="p-3 bg-dark-50 dark:bg-dark-900 rounded-lg"
-                    >
+                    <div key={request.id} className="p-3 bg-dark-50 dark:bg-dark-900 rounded-lg">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-sm font-medium text-dark-900 dark:text-white">
                           {t('settings.requestedQuota', { quota: formatBytes(request.requestedQuota) })}

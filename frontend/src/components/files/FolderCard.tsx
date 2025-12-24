@@ -372,8 +372,8 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
           )}
         >
           {/* Folder Icon */}
-          <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-lg bg-primary-50 dark:bg-primary-900/30">
-            <SolidFolderIcon size={20} className="text-primary-500" />
+          <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center">
+            <SolidFolderIcon size={28} className="text-primary-600" />
           </div>
 
           {/* Content */}
@@ -454,7 +454,7 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
 
         {/* Folder Icon Area */}
         <div className="premium-card-thumbnail">
-          <SolidFolderIcon size={60} className="text-primary-500" />
+          <SolidFolderIcon size={60} className="text-primary-600" />
         </div>
 
         {/* Content Area - Overlay at bottom */}

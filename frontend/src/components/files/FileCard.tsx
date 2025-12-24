@@ -14,6 +14,7 @@ import {
   FileArchive,
   Info,
   Eye,
+  Tag,
 } from 'lucide-react';
 import { formatBytes, formatDate, cn } from '../../lib/utils';
 import { api, openSignedFileUrl } from '../../lib/api';
@@ -23,6 +24,7 @@ import RenameModal from '../modals/RenameModal';
 import MoveModal from '../modals/MoveModal';
 import CompressModal from '../modals/CompressModal';
 import InfoModal from '../modals/InfoModal';
+import TagModal from '../modals/TagModal';
 import ContextMenu, { ContextMenuItemOrDivider, ContextMenuDividerItem } from '../ui/ContextMenu';
 import { motion } from 'framer-motion';
 import { FileExtensionIcon } from '../icons/SolidIcons';
@@ -35,43 +37,51 @@ interface FileCardProps {
   onFavoriteToggle?: (fileId: string, isFavorite: boolean) => void;
 }
 
-// Get color based on file type
+// Get color based on file category
 function getFileTypeColor(mimeType: string, fileName: string): string {
   const ext = fileName.split('.').pop()?.toLowerCase() || '';
   const mimeCategory = mimeType.split('/')[0];
 
-  // PDF - Red
-  if (ext === 'pdf' || mimeType === 'application/pdf') return 'text-red-500';
+  // Multimedia
+  if (mimeCategory === 'image' || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'ico', 'tiff', 'heic'].includes(ext)) return 'text-emerald-500';
+  if (mimeCategory === 'video' || ['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm', 'm4v'].includes(ext)) return 'text-indigo-500';
+  if (mimeCategory === 'audio' || ['mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a', 'wma', 'opus'].includes(ext)) return 'text-fuchsia-500';
 
-  // Word documents - Blue
+  // Documents
+  if (ext === 'pdf' || mimeType === 'application/pdf') return 'text-primary-600'; // Rojo CloudBox
   if (['doc', 'docx', 'odt', 'rtf'].includes(ext) || mimeType.includes('word')) return 'text-blue-600';
-
-  // Excel spreadsheets - Green
-  if (['xls', 'xlsx', 'ods', 'csv'].includes(ext) || mimeType.includes('spreadsheet')) return 'text-green-600';
-
-  // PowerPoint - Orange
+  if (['xls', 'xlsx', 'ods'].includes(ext) || mimeType.includes('spreadsheet')) return 'text-green-600';
   if (['ppt', 'pptx', 'odp'].includes(ext) || mimeType.includes('presentation')) return 'text-orange-500';
+  if (ext === 'csv') return 'text-teal-600';
+  if (['txt', 'log'].includes(ext) || mimeType === 'text/plain') return 'text-slate-500';
+  if (ext === 'md') return 'text-sky-500';
+  if (['epub', 'mobi', 'azw3'].includes(ext)) return 'text-amber-700';
 
-  // Code files - Purple
-  if (['js', 'jsx', 'ts', 'tsx', 'py', 'java', 'c', 'cpp', 'cs', 'go', 'rs', 'rb', 'php', 'html', 'css', 'json', 'xml', 'yaml', 'sh', 'sql'].includes(ext)) return 'text-purple-500';
+  // Suite Office Extra
+  if (ext === 'one') return 'text-purple-600';
+  if (['accdb', 'mdb'].includes(ext)) return 'text-red-700';
+  if (ext === 'pub') return 'text-teal-700';
 
-  // Archives - Amber
-  if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext) || mimeType.includes('zip') || mimeType.includes('archive')) return 'text-amber-600';
+  // Programming & DB
+  if (['js', 'jsx', 'ts', 'tsx', 'py', 'java', 'c', 'cpp', 'cs', 'go', 'rs', 'rb', 'php', 'html', 'css', 'json', 'xml', 'yaml', 'yml', 'sh'].includes(ext)) return 'text-violet-600';
+  if (['sql', 'sqlite'].includes(ext)) return 'text-blue-700';
 
-  // Images - Cyan
-  if (mimeCategory === 'image' || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico'].includes(ext)) return 'text-cyan-500';
+  // Design Professional
+  if (ext === 'ai') return 'text-orange-700';
+  if (ext === 'psd') return 'text-blue-800';
+  if (ext === 'indd') return 'text-pink-700';
+  if (ext === 'fig') return 'text-purple-500';
+  if (ext === 'svg' || mimeType === 'image/svg+xml') return 'text-yellow-600';
 
-  // Videos - Rose
-  if (mimeCategory === 'video' || ['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm'].includes(ext)) return 'text-rose-500';
+  // Archives
+  if (['zip', 'rar', '7z', 'tar', 'gz', 'bz2'].includes(ext) || mimeType.includes('zip') || mimeType.includes('archive')) return 'text-amber-500';
 
-  // Audio - Violet
-  if (mimeCategory === 'audio' || ['mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a', 'wma'].includes(ext)) return 'text-violet-500';
+  // Systems & Installers
+  if (['exe', 'msi', 'dmg', 'pkg', 'apk', 'ipa'].includes(ext)) return 'text-slate-700';
+  if (['deb', 'rpm'].includes(ext)) return 'text-zinc-800';
 
-  // Text files - Gray
-  if (['txt', 'md', 'log'].includes(ext) || mimeType === 'text/plain') return 'text-gray-500';
-
-  // Default - Gray
-  return 'text-gray-400';
+  // Default
+  return 'text-dark-400';
 }
 
 // Get file extension from filename
@@ -92,6 +102,7 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview, on
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [showCompressModal, setShowCompressModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
+  const [showTagModal, setShowTagModal] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [contextMenuSelection, setContextMenuSelection] = useState<Set<string>>(new Set());
 
@@ -236,6 +247,7 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview, on
     { id: 'move', label: t('fileCard.move'), icon: Move, onClick: () => setShowMoveModal(true) },
     { id: 'compress', label: t('fileCard.compress'), icon: FileArchive, onClick: () => setShowCompressModal(true) },
     ContextMenuDividerItem(),
+    { id: 'tags', label: t('tags.title'), icon: Tag, onClick: () => setShowTagModal(true) },
     { id: 'info', label: t('common.info'), icon: Info, onClick: () => setShowInfoModal(true) },
     {
       id: 'delete',
@@ -288,6 +300,11 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview, on
         item={file}
         type="file"
       />
+      <TagModal
+        isOpen={showTagModal}
+        onClose={() => setShowTagModal(false)}
+        fileId={file.id}
+      />
     </>
   );
 
@@ -316,7 +333,7 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview, on
           )}
         >
           {/* Type-specific Icon with extension */}
-          <div className="w-10 h-10 flex-shrink-0 rounded-lg overflow-hidden bg-dark-100/50 dark:bg-white/5 flex items-center justify-center">
+          <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center">
             <FileExtensionIcon size={32} extension={fileExtension} className={fileTypeColor} />
           </div>
 

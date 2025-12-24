@@ -26,6 +26,64 @@ const defaultBranding: BrandingSettings = {
   siteName: 'CloudBox',
 };
 
+// Convert hex to HSL
+const hexToHSL = (hex: string): { h: number; s: number; l: number } => {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!result) return { h: 0, s: 84, l: 51 }; // Default red
+
+  const r = parseInt(result[1], 16) / 255;
+  const g = parseInt(result[2], 16) / 255;
+  const b = parseInt(result[3], 16) / 255;
+
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  let h = 0;
+  let s = 0;
+  const l = (max + min) / 2;
+
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+      case g: h = ((b - r) / d + 2) / 6; break;
+      case b: h = ((r - g) / d + 4) / 6; break;
+    }
+  }
+
+  return { h: Math.round(h * 360), s: Math.round(s * 100), l: Math.round(l * 100) };
+};
+
+// Generate color palette and apply as CSS variables
+const applyPrimaryColor = (hexColor?: string) => {
+  if (!hexColor) return;
+
+  const { h, s } = hexToHSL(hexColor);
+  const root = document.documentElement;
+
+  // Generate palette with fixed lightness values for each shade
+  const palette: Record<string, number> = {
+    '50': 97,
+    '100': 94,
+    '200': 86,
+    '300': 77,
+    '400': 65,
+    '500': 55,
+    '600': 45,
+    '700': 38,
+    '800': 32,
+    '900': 26,
+    '950': 15,
+  };
+
+  Object.entries(palette).forEach(([shade, lightness]) => {
+    root.style.setProperty(`--color-primary-${shade}`, `${h} ${s}% ${lightness}%`);
+  });
+
+  // Also set the base color
+  root.style.setProperty('--color-primary', hexColor);
+};
+
 const applyFavicon = (faviconUrl?: string) => {
   if (!faviconUrl) return;
 
@@ -79,26 +137,29 @@ export const useBrandingStore = create<BrandingState>((set) => ({
           siteName: payload.siteName || defaultBranding.siteName,
         };
         set({ branding, loading: false });
+        applyPrimaryColor(branding.primaryColor);
         if (branding.faviconUrl) {
           applyFavicon(branding.faviconUrl);
         }
         applyTitle(branding.siteName);
       } else {
         set({ branding: defaultBranding, loading: false });
+        applyPrimaryColor(defaultBranding.primaryColor);
       }
     } catch (error) {
       if (signal?.aborted) return;
       console.error('Failed to load branding settings', error);
       set({ branding: defaultBranding, loading: false });
+      applyPrimaryColor(defaultBranding.primaryColor);
     }
   },
 
   setBranding: (branding) => {
     set({ branding });
+    applyPrimaryColor(branding.primaryColor);
     if (branding.faviconUrl) {
       applyFavicon(branding.faviconUrl);
     }
     applyTitle(branding.siteName);
   },
 }));
-

@@ -2037,6 +2037,23 @@ export default function AdminDashboard() {
         </div>
       </section>
 
+      {/* File Type Icons Section */}
+      <section className="bg-white dark:bg-dark-800 rounded-2xl border border-dark-100 dark:border-dark-700 p-6 mt-6">
+        <div className="flex items-center gap-2 mb-1">
+          <FileType className="w-4 h-4 text-[#FF3B3B]" />
+          <h2 className="text-lg font-semibold text-dark-900 dark:text-white">{t('admin.fileIcons.title')}</h2>
+        </div>
+        <p className="text-sm text-dark-500 dark:text-dark-400 mb-6">{t('admin.fileIcons.description')}</p>
+
+        <a
+          href="/admin/file-icons"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-[#FF3B3B] hover:bg-[#E53535] text-white rounded-xl transition-colors font-medium"
+        >
+          <FileType className="w-4 h-4" />
+          {t('admin.fileIcons.manageIcons')}
+        </a>
+      </section>
+
       {/* Legal Pages Section */}
       <section className="bg-white dark:bg-dark-800 rounded-2xl border border-dark-100 dark:border-dark-700 p-6 mt-6">
         <div className="flex items-center gap-2 mb-1">

@@ -944,6 +944,35 @@
       "save": "Enregistrer les limites",
       "saved": "Limites enregistrées",
       "saveError": "Erreur lors de l'enregistrement des limites"
+    },
+    "fileIcons": {
+      "title": "Icônes de Fichiers",
+      "description": "Personnalisez les icônes affichées pour les différents types de fichiers. Téléversez des icônes SVG personnalisées pour chaque catégorie.",
+      "loadError": "Erreur de chargement des icônes",
+      "uploadSuccess": "Icône mise à jour avec succès",
+      "uploadError": "Erreur de téléversement de l'icône",
+      "svgOnly": "Seuls les fichiers SVG sont autorisés",
+      "confirmReset": "Réinitialiser cette icône par défaut ?",
+      "resetSuccess": "Icône réinitialisée",
+      "resetError": "Erreur de réinitialisation de l'icône",
+      "customIcon": "Icône personnalisée",
+      "defaultIcon": "Icône par défaut",
+      "upload": "Téléverser SVG",
+      "reset": "Réinitialiser",
+      "tips": "Conseils",
+      "tip1": "Utilisez des icônes SVG simples pour de meilleurs résultats",
+      "tip2": "Taille recommandée : 48x64 ou icônes carrées",
+      "tip3": "Les SVGs sont assainis pour la sécurité",
+      "manageIcons": "Gérer les Icônes de Fichiers",
+      "categories": {
+        "audio": "Audio",
+        "image": "Images",
+        "video": "Vidéo",
+        "document": "Documents",
+        "archive": "Archives",
+        "code": "Code",
+        "default": "Autres fichiers"
+      }
     }
   },
   "gallery": {

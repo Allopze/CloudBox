@@ -20,6 +20,7 @@ import ConfirmModal from '../components/ui/ConfirmModal';
 import VideoPreview from '../components/gallery/VideoPreview';
 import AuthenticatedImage from '../components/AuthenticatedImage';
 import VirtualizedGrid from '../components/ui/VirtualizedGrid';
+import FileCard from '../components/files/FileCard';
 import { SkeletonGrid } from '../components/ui/Skeleton';
 
 type TabType = 'all' | 'favorites' | 'videos' | 'screenshots';
@@ -84,7 +85,7 @@ export default function Photos() {
     '#3b82f6', // Blue
   ];
 
-  const { selectedItems, addToSelection, removeFromSelection, selectRange, selectSingle, lastSelectedId, clearSelection } = useFileStore();
+  const { selectedItems, addToSelection, removeFromSelection, selectRange, selectSingle, lastSelectedId, clearSelection, viewMode } = useFileStore();
 
 
   const loadData = useCallback(async (pageNum: number = 1, append: boolean = false) => {
@@ -440,7 +441,7 @@ export default function Photos() {
   };
 
   if (loading) {
-    return <div className="p-4"><SkeletonGrid count={12} view="grid" /></div>;
+    return <div className="p-4"><SkeletonGrid count={12} view={viewMode} /></div>;
   }
 
   return (
@@ -494,9 +495,28 @@ export default function Photos() {
       ) : (
         <VirtualizedGrid
           items={photos}
-          viewMode="grid"
+          viewMode={viewMode}
           scrollElementId="main-content"
+          estimateListItemHeight={60}
           renderItem={(photo, index, style) => {
+            // Use FileCard for list view
+            if (viewMode === 'list') {
+              return (
+                <div style={style}>
+                  <FileCard
+                    file={photo}
+                    view={viewMode}
+                    onRefresh={() => loadData()}
+                    onPreview={() => openLightbox(photo, index)}
+                    onFavoriteToggle={(fileId, isFavorite) => {
+                      setPhotos(prev => prev.map(p => p.id === fileId ? { ...p, isFavorite } : p));
+                    }}
+                  />
+                </div>
+              );
+            }
+
+            // Grid view with custom card
             const isSelected = selectedItems.has(photo.id);
 
             const handleClick = (e: React.MouseEvent) => {
