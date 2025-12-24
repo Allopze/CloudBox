@@ -944,6 +944,35 @@
       "save": "Salva limiti",
       "saved": "Limiti salvati",
       "saveError": "Errore nel salvataggio dei limiti"
+    },
+    "fileIcons": {
+      "title": "Icone Tipo File",
+      "description": "Personalizza le icone visualizzate per i diversi tipi di file. Carica icone SVG personalizzate per ogni categoria.",
+      "loadError": "Errore nel caricamento delle icone",
+      "uploadSuccess": "Icona aggiornata con successo",
+      "uploadError": "Errore nel caricamento dell'icona",
+      "svgOnly": "Sono consentiti solo file SVG",
+      "confirmReset": "Reimpostare questa icona al valore predefinito?",
+      "resetSuccess": "Icona reimpostata",
+      "resetError": "Errore nella reimpostazione dell'icona",
+      "customIcon": "Icona personalizzata",
+      "defaultIcon": "Icona predefinita",
+      "upload": "Carica SVG",
+      "reset": "Reimposta",
+      "tips": "Suggerimenti",
+      "tip1": "Usa icone SVG semplici per risultati migliori",
+      "tip2": "Dimensione consigliata: 48x64 o icone quadrate",
+      "tip3": "Gli SVG sono sanitizzati per sicurezza",
+      "manageIcons": "Gestisci Icone File",
+      "categories": {
+        "audio": "Audio",
+        "image": "Immagini",
+        "video": "Video",
+        "document": "Documenti",
+        "archive": "Archivi",
+        "code": "Codice",
+        "default": "Altri file"
+      }
     }
   },
   "gallery": {

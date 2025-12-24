@@ -1138,6 +1138,35 @@
       "concurrentChunksHint": "Número de fragmentos simultáneos (1-10)",
       "unit": "Unidad de tamaño",
       "save": "Guardar límites"
+    },
+    "fileIcons": {
+      "title": "Iconos de Archivos",
+      "description": "Personaliza los iconos que se muestran para los diferentes tipos de archivo. Sube iconos SVG personalizados para cada categoría.",
+      "loadError": "Error al cargar iconos",
+      "uploadSuccess": "Icono actualizado correctamente",
+      "uploadError": "Error al subir icono",
+      "svgOnly": "Solo se permiten archivos SVG",
+      "confirmReset": "¿Restablecer este icono al valor por defecto?",
+      "resetSuccess": "Icono restablecido",
+      "resetError": "Error al restablecer icono",
+      "customIcon": "Icono personalizado",
+      "defaultIcon": "Icono por defecto",
+      "upload": "Subir SVG",
+      "reset": "Restablecer",
+      "tips": "Consejos",
+      "tip1": "Usa iconos SVG simples para mejores resultados",
+      "tip2": "Tamaño recomendado: 48x64 o iconos cuadrados",
+      "tip3": "Los SVGs se sanitizan por seguridad",
+      "manageIcons": "Gestionar Iconos de Archivos",
+      "categories": {
+        "audio": "Audio",
+        "image": "Imágenes",
+        "video": "Vídeo",
+        "document": "Documentos",
+        "archive": "Archivos comprimidos",
+        "code": "Código",
+        "default": "Otros archivos"
+      }
     }
   },
   "publicShare": {

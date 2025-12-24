@@ -3,6 +3,7 @@ import { useEffect, lazy, Suspense } from 'react';
 import { useAuthStore } from './stores/authStore';
 import { useThemeStore } from './stores/themeStore';
 import { useBrandingStore } from './stores/brandingStore';
+import { useFileIconStore } from './stores/fileIconStore';
 import { preloadUploadConfig } from './lib/chunkedUpload';
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -38,6 +39,7 @@ const Music = lazy(() => import('./pages/Music'));
 // Admin pages (lazy-loaded)
 const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
 const AdminUsers = lazy(() => import('./pages/admin/AdminUsers'));
+const AdminFileIcons = lazy(() => import('./pages/admin/AdminFileIcons'));
 
 // Public pages (lazy since not part of main app flow)
 const PublicShare = lazy(() => import('./pages/public/PublicShare'));
@@ -63,11 +65,13 @@ function App() {
   const { checkAuth, isAuthenticated, isLoading } = useAuthStore();
   const { isDark } = useThemeStore();
   const { loadBranding } = useBrandingStore();
+  const { loadIcons } = useFileIconStore();
 
   useEffect(() => {
     const abortController = new AbortController();
     checkAuth(abortController.signal);
     loadBranding(abortController.signal);
+    loadIcons(); // Load custom file icons
 
     // Performance: Preload upload config to avoid latency on first upload
     preloadUploadConfig();
@@ -75,7 +79,7 @@ function App() {
     return () => {
       abortController.abort();
     };
-  }, [checkAuth, loadBranding]);
+  }, [checkAuth, loadBranding, loadIcons]);
 
   useEffect(() => {
     if (isDark) {
@@ -128,6 +132,7 @@ function App() {
           {/* Admin routes */}
           <Route path="admin" element={<AdminRoute><Suspense fallback={<PageLoader />}><AdminDashboard /></Suspense></AdminRoute>} />
           <Route path="admin/users" element={<AdminRoute><Suspense fallback={<PageLoader />}><AdminUsers /></Suspense></AdminRoute>} />
+          <Route path="admin/file-icons" element={<AdminRoute><Suspense fallback={<PageLoader />}><AdminFileIcons /></Suspense></AdminRoute>} />
         </Route>
 
         {/* Fallback */}

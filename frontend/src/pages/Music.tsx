@@ -17,6 +17,7 @@ import ShareModal from '../components/modals/ShareModal';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import AuthenticatedImage from '../components/AuthenticatedImage';
+import FileCard from '../components/files/FileCard';
 
 interface ContextMenuState {
   x: number;
@@ -81,7 +82,7 @@ export default function MusicPage() {
     setQueue,
   } = useMusicStore();
 
-  const { selectedItems, addToSelection, removeFromSelection, selectRange, selectSingle, lastSelectedId, clearSelection, sortBy, sortOrder } = useFileStore();
+  const { selectedItems, addToSelection, removeFromSelection, selectRange, selectSingle, lastSelectedId, clearSelection, sortBy, sortOrder, viewMode } = useFileStore();
 
   const loadData = useCallback(async (signal?: AbortSignal, pageNum: number = 1, append: boolean = false) => {
     if (append) {
@@ -723,122 +724,141 @@ export default function MusicPage() {
 
   return (
     <div className="pb-24">
-      {/* Track grid */}
+      {/* Track list/grid */}
       {tracks.length > 0 ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-          {tracks.map((track, index) => {
-            const [fromColor, toColor] = getGradientColors(track.name);
-            const isCurrentTrack = currentTrack?.id === track.id;
-            const isSelected = selectedItems.has(track.id);
-
-            const handleTrackClick = (e: React.MouseEvent) => {
-              // Shift+Click: Range selection
-              if (e.shiftKey && lastSelectedId) {
-                const ids = tracks.map(t => t.id);
-                selectRange(ids, track.id);
-              }
-              // Ctrl/Meta+Click: Toggle selection
-              else if (e.ctrlKey || e.metaKey) {
-                if (isSelected) {
-                  removeFromSelection(track.id);
-                } else {
-                  addToSelection(track.id);
-                }
-              }
-              // Simple click with selection: select single
-              else if (selectedItems.size > 0 && !isSelected) {
-                selectSingle(track.id);
-              }
-              // Simple click: play track
-              else {
-                playTrack(track);
-              }
-            };
-
-            const waveInProps = waveIn(index, reducedMotion);
-            const baseAnimate = typeof waveInProps.animate === 'object' ? waveInProps.animate : {};
-
-            return (
-              <motion.div
+        viewMode === 'list' ? (
+          // List view
+          <div className="flex flex-col gap-1">
+            {tracks.map((track) => (
+              <FileCard
                 key={track.id}
-                initial={waveInProps.initial}
-                animate={{
-                  ...baseAnimate,
-                  scale: isSelected ? 0.95 : 1
+                file={track}
+                view="list"
+                onRefresh={() => loadData(undefined)}
+                onPreview={() => playTrack(track)}
+                onFavoriteToggle={(fileId, isFavorite) => {
+                  setTracks(prev => prev.map(t => t.id === fileId ? { ...t, isFavorite } : t));
                 }}
-                transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-                data-file-item={track.id}
-                onClick={handleTrackClick}
-                onDoubleClick={() => playTrack(track)}
-                onContextMenu={(e) => handleContextMenu(e, track)}
-                className={cn(
-                  'premium-card group',
-                  isSelected && 'selected',
-                  isCurrentTrack && 'bg-dark-100 dark:bg-dark-800'
-                )}
-              >
-                {/* Selection indicator */}
-                {isSelected && (
-                  <div className="absolute top-2 left-2 w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center shadow-lg z-20">
-                    <Check className="w-4 h-4 text-white" />
-                  </div>
-                )}
+              />
+            ))}
+          </div>
+        ) : (
+          // Grid view
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+            {tracks.map((track, index) => {
+              const [fromColor, toColor] = getGradientColors(track.name);
+              const isCurrentTrack = currentTrack?.id === track.id;
+              const isSelected = selectedItems.has(track.id);
 
-                {/* Favorite badge - top left */}
-                {track.isFavorite && !isSelected && (
-                  <div className="absolute top-2 left-2 z-10">
-                    <Star className="w-4 h-4 text-yellow-400 fill-yellow-400 drop-shadow-md" />
-                  </div>
-                )}
+              const handleTrackClick = (e: React.MouseEvent) => {
+                // Shift+Click: Range selection
+                if (e.shiftKey && lastSelectedId) {
+                  const ids = tracks.map(t => t.id);
+                  selectRange(ids, track.id);
+                }
+                // Ctrl/Meta+Click: Toggle selection
+                else if (e.ctrlKey || e.metaKey) {
+                  if (isSelected) {
+                    removeFromSelection(track.id);
+                  } else {
+                    addToSelection(track.id);
+                  }
+                }
+                // Simple click with selection: select single
+                else if (selectedItems.size > 0 && !isSelected) {
+                  selectSingle(track.id);
+                }
+                // Simple click: play track
+                else {
+                  playTrack(track);
+                }
+              };
 
-                {/* Album art / Cover */}
-                <div className={cn(
-                  'premium-card-thumbnail',
-                  !track.thumbnailPath && `bg-gradient-to-br ${fromColor} ${toColor}`
-                )}>
-                  {track.thumbnailPath ? (
-                    <AuthenticatedImage
-                      fileId={track.id}
-                      endpoint="thumbnail"
-                      alt={track.name}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <Music className="w-12 h-12 text-white/80" />
+              const waveInProps = waveIn(index, reducedMotion);
+              const baseAnimate = typeof waveInProps.animate === 'object' ? waveInProps.animate : {};
+
+              return (
+                <motion.div
+                  key={track.id}
+                  initial={waveInProps.initial}
+                  animate={{
+                    ...baseAnimate,
+                    scale: isSelected ? 0.95 : 1
+                  }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                  data-file-item={track.id}
+                  onClick={handleTrackClick}
+                  onDoubleClick={() => playTrack(track)}
+                  onContextMenu={(e) => handleContextMenu(e, track)}
+                  className={cn(
+                    'premium-card group',
+                    isSelected && 'selected',
+                    isCurrentTrack && 'bg-dark-100 dark:bg-dark-800'
                   )}
-
-                  {/* Playing indicator overlay */}
-                  {isCurrentTrack && isPlaying && (
-                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                      <div className="flex items-end gap-1 h-8">
-                        <div className="w-1.5 bg-white rounded-full animate-music-bar-1" />
-                        <div className="w-1.5 bg-white rounded-full animate-music-bar-2" />
-                        <div className="w-1.5 bg-white rounded-full animate-music-bar-3" />
-                        <div className="w-1.5 bg-white rounded-full animate-music-bar-1" />
-                      </div>
+                >
+                  {/* Selection indicator */}
+                  {isSelected && (
+                    <div className="absolute top-2 left-2 w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center shadow-lg z-20">
+                      <Check className="w-4 h-4 text-white" />
                     </div>
                   )}
-                </div>
 
-                {/* Content Area */}
-                <div className="premium-card-content">
-                  <p className={cn(
-                    'premium-card-name',
-                    isCurrentTrack && 'text-primary-600'
-                  )} title={track.name}>
-                    {getDisplayName(track.name)}
-                  </p>
-                  <div className="premium-card-meta">
-                    {typeof trackDurations[track.id] === 'number' && Number.isFinite(trackDurations[track.id]) && (
-                      <span>{formatTime(trackDurations[track.id])}</span>
+                  {/* Favorite badge - top left */}
+                  {track.isFavorite && !isSelected && (
+                    <div className="absolute top-2 left-2 z-10">
+                      <Star className="w-4 h-4 text-yellow-400 fill-yellow-400 drop-shadow-md" />
+                    </div>
+                  )}
+
+                  {/* Album art / Cover */}
+                  <div className={cn(
+                    'premium-card-thumbnail',
+                    !track.thumbnailPath && `bg-gradient-to-br ${fromColor} ${toColor}`
+                  )}>
+                    {track.thumbnailPath ? (
+                      <AuthenticatedImage
+                        fileId={track.id}
+                        endpoint="thumbnail"
+                        alt={track.name}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <Music className="w-12 h-12 text-white/80" />
+                    )}
+
+                    {/* Playing indicator overlay */}
+                    {isCurrentTrack && isPlaying && (
+                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                        <div className="flex items-end gap-1 h-8">
+                          <div className="w-1.5 bg-white rounded-full animate-music-bar-1" />
+                          <div className="w-1.5 bg-white rounded-full animate-music-bar-2" />
+                          <div className="w-1.5 bg-white rounded-full animate-music-bar-3" />
+                          <div className="w-1.5 bg-white rounded-full animate-music-bar-1" />
+                        </div>
+                      </div>
                     )}
                   </div>
-                </div>
-              </motion.div>
-            );
-          })}
-        </div>
+
+                  {/* Content Area */}
+                  <div className="premium-card-content">
+                    <p className={cn(
+                      'premium-card-name',
+                      isCurrentTrack && 'text-primary-600'
+                    )} title={track.name}>
+                      {getDisplayName(track.name)}
+                    </p>
+                    <div className="premium-card-meta">
+                      {typeof trackDurations[track.id] === 'number' && Number.isFinite(trackDurations[track.id]) && (
+                        <span>{formatTime(trackDurations[track.id])}</span>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        )
       ) : (
         (() => {
           // Get icon and text based on current tab
