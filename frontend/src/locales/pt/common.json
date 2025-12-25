@@ -57,11 +57,22 @@
     "trashEmptyError": "Erro ao esvaziar a lixeira",
     "movedTo": "{{count}} item(ns) movido(s) para {{category}}",
     "incompatibleItems": "Os itens selecionados não são compatíveis com esta categoria",
+    "backToFiles": "← Voltar aos arquivos",
     "categories": {
       "files": "Arquivos",
       "photos": "Fotos",
       "music": "Música",
       "documents": "Documentos"
+    },
+    "admin": {
+      "overview": "Visão geral",
+      "users": "Usuários",
+      "settings": "Configurações",
+      "email": "SMTP",
+      "branding": "Branding",
+      "fileIcons": "Ícones de arquivo",
+      "legal": "Páginas legais",
+      "activity": "Registro de atividade"
     }
   },
   "layout": {

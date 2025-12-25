@@ -162,6 +162,9 @@ export function validateMimeType(mimeType: string, filename: string): boolean {
     '.css': ['text/css'],
     '.js': ['application/javascript', 'text/javascript'],
     '.ts': ['application/typescript', 'text/typescript'],
+    '.py': ['text/x-python', 'application/x-python', 'text/plain'],
+    '.sh': ['text/x-sh', 'application/x-sh', 'text/plain'],
+    '.php': ['application/x-httpd-php', 'text/php', 'text/plain'],
     '.md': ['text/markdown', 'text/plain'],
 
     // Archives
@@ -193,19 +196,19 @@ export function validateMimeType(mimeType: string, filename: string): boolean {
  */
 const DANGEROUS_EXTENSIONS = [
   // Windows executables / shortcuts
-  '.exe', '.dll', '.bat', '.cmd', '.com', '.msi', '.scr', '.pif',
+  '.dll', '.bat', '.cmd', '.com', '.msi', '.scr', '.pif',
   '.scf', '.lnk', '.inf', '.reg', '.hta', '.cpl', '.msc',
 
   // Script/automation
-  '.vbs', '.vbe', '.js', '.jse', '.ws', '.wsf', '.wsc', '.wsh',
+  '.vbs', '.vbe', '.jse', '.ws', '.wsf', '.wsc', '.wsh',
   '.ps1', '.psm1', '.psd1', '.ps1xml', '.pssc', '.psrc',
   '.msh', '.msh1', '.msh2', '.mshxml', '.msh1xml', '.msh2xml',
-  '.sh', '.bash', '.zsh', '.csh', '.ksh',
-  '.py', '.pyc', '.pyo', '.pyw', '.pyz', '.pyzw',
+  '.bash', '.zsh', '.csh', '.ksh',
+  '.pyc', '.pyo', '.pyw', '.pyz', '.pyzw',
   '.pl', '.pm', '.pod', '.t', '.rb', '.rbw', '.cgi',
 
   // Server-side / web
-  '.php', '.phtml', '.php3', '.php4', '.php5', '.phps',
+  '.phtml', '.php3', '.php4', '.php5', '.phps',
   '.asp', '.aspx', '.jsp', '.jspx',
   '.htaccess', '.htpasswd',
 

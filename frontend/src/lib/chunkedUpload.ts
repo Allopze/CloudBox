@@ -87,16 +87,16 @@ export const UPLOAD_ERROR_CODES = {
 
 // Dangerous extensions (must match backend)
 const DANGEROUS_EXTENSIONS = [
-  '.exe', '.dll', '.bat', '.cmd', '.com', '.msi', '.scr', '.pif',
-  '.vbs', '.vbe', '.js', '.jse', '.ws', '.wsf', '.wsc', '.wsh',
+  '.dll', '.bat', '.cmd', '.com', '.msi', '.scr', '.pif',
+  '.vbs', '.vbe', '.jse', '.ws', '.wsf', '.wsc', '.wsh',
   '.ps1', '.psm1', '.psd1', '.ps1xml', '.pssc', '.psrc',
   '.msh', '.msh1', '.msh2', '.mshxml', '.msh1xml', '.msh2xml',
   '.scf', '.lnk', '.inf', '.reg', '.hta', '.cpl', '.msc', '.jar',
-  '.php', '.phtml', '.php3', '.php4', '.php5', '.phps',
+  '.phtml', '.php3', '.php4', '.php5', '.phps',
   '.asp', '.aspx', '.cer', '.csr', '.jsp', '.jspx',
   '.htaccess', '.htpasswd', '.cgi',
-  '.sh', '.bash', '.zsh', '.csh', '.ksh',
-  '.py', '.pyc', '.pyo', '.pyw', '.pyz', '.pyzw',
+  '.bash', '.zsh', '.csh', '.ksh',
+  '.pyc', '.pyo', '.pyw', '.pyz', '.pyzw',
   '.pl', '.pm', '.pod', '.t', '.rb', '.rbw',
 ];
 

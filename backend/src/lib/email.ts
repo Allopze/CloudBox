@@ -207,7 +207,7 @@ export const sendWelcomeEmail = async (to: string, name: string, verifyUrl: stri
 
 export const sendResetPasswordEmail = async (to: string, name: string, resetUrl: string): Promise<void> => {
   const template = await prisma.emailTemplate.findUnique({
-    where: { name: 'reset_password' },
+    where: { name: 'reset-password' },
     include: { variables: true },
   });
 

@@ -59,11 +59,22 @@
     "trashEmptyError": "Error al vaciar la papelera",
     "movedTo": "{{count}} elemento(s) movido(s) a {{category}}",
     "incompatibleItems": "Los elementos seleccionados no son compatibles con esta categoría",
+    "backToFiles": "Volver",
     "categories": {
       "files": "Archivos",
       "photos": "Fotos",
       "music": "Música",
       "documents": "Documentos"
+    },
+    "admin": {
+      "overview": "Resumen",
+      "users": "Usuarios",
+      "settings": "Configuración",
+      "email": "SMTP",
+      "branding": "Personalización",
+      "fileIcons": "Iconos",
+      "legal": "Legal",
+      "activity": "Actividad"
     }
   },
   "layout": {
@@ -76,7 +87,7 @@
     "trash": "Papelera",
     "emptyTrash": "Vaciar papelera",
     "favorites": "Favoritos",
-    "backToFiles": "Volver a archivos",
+    "backToFiles": "Volver",
     "backToAlbums": "Volver a álbumes",
     "photos": "fotos",
     "addPhotos": "Añadir fotos",
@@ -1152,6 +1163,7 @@
       "customIcon": "Icono personalizado",
       "defaultIcon": "Icono por defecto",
       "upload": "Subir SVG",
+      "uploadShort": "Subir",
       "reset": "Restablecer",
       "tips": "Consejos",
       "tip1": "Usa iconos SVG simples para mejores resultados",
@@ -1429,6 +1441,9 @@
     "termsPoint1": "Uso responsable de la plataforma.",
     "termsPoint2": "Respeto a los derechos de autor."
   },
+  "common": {
+    "of": "de"
+  },
   "infoModal": {
     "title": "Información",
     "name": "Nombre",
@@ -1443,5 +1458,147 @@
   },
   "accessibility": {
     "skipToMainContent": "Saltar al contenido principal"
+  },
+  "admin": {
+    "title": "Administración",
+    "subtitle": "Panel de Control",
+    "backToFiles": "Volver",
+    "menu": {
+      "overview": "Resumen",
+      "users": "Usuarios",
+      "settings": "Configuración",
+      "email": "Correo",
+      "branding": "Marca",
+      "fileIcons": "Iconos",
+      "legal": "Legal",
+      "activity": "Actividad"
+    },
+    "overview": {
+      "title": "Resumen del Sistema",
+      "subtitle": "Vista general de las estadísticas y el estado del sistema.",
+      "totalUsers": "Total Usuarios",
+      "activeUsers": "Usuarios Activos",
+      "totalFiles": "Total Archivos",
+      "storageUsed": "Almacenamiento Usado"
+    },
+    "users": {
+      "title": "Usuarios",
+      "description": "Gestiona los usuarios y sus permisos",
+      "newUser": "Nuevo Usuario",
+      "search": "Buscar usuarios...",
+      "user": "Usuario",
+      "role": "Rol",
+      "storage": "Almacenamiento",
+      "joined": "Unido",
+      "actions": "Acciones",
+      "edit": "Editar",
+      "delete": "Eliminar",
+      "promoteAdmin": "Promover a Admin",
+      "demoteUser": "Degradar a Usuario",
+      "createUser": "Crear Usuario",
+      "editUser": "Editar Usuario",
+      "name": "Nombre",
+      "email": "Email",
+      "password": "Contraseña",
+      "passwordHint": "Contraseña (déjalo en blanco para no cambiar)",
+      "admin": "Administrador",
+      "USER": "Usuario",
+      "ADMIN": "Administrador",
+      "storageQuota": "Cuota de Almacenamiento",
+      "custom": "Personalizado",
+      "deleteConfirm": "¿Estás seguro de que deseas eliminar al usuario",
+      "deleteWarning": "Esta acción no se puede deshacer.",
+      "userCreated": "Usuario creado correctamente",
+      "userUpdated": "Usuario actualizado correctamente",
+      "userDeleted": "Usuario eliminado correctamente"
+    },
+    "general": {
+      "title": "Configuración General",
+      "siteName": "Nombre del Sitio",
+      "siteDescription": "Descripción del Sitio",
+      "allowRegistration": "Permitir Registro",
+      "allowRegistrationDesc": "Permitir que nuevos usuarios se registren libremente",
+      "defaultQuota": "Cuota por Defecto",
+      "maxFileSize": "Tamaño Máx. Archivo",
+      "save": "Guardar Cambios"
+    },
+    "limits": {
+      "title": "Límites de Subida",
+      "maxFileSize": "Tamaño Máximo de Archivo",
+      "chunkSize": "Tamaño del Fragmento (Chunk)",
+      "concurrentChunks": "Fragmentos Concurrentes",
+      "save": "Guardar Límites"
+    },
+    "branding": {
+      "title": "Personalización",
+      "description": "Personaliza la apariencia de tu instancia de CloudBox.",
+      "primaryColor": "Color Primario",
+      "logoLight": "Logo (Claro)",
+      "logoDark": "Logo (Oscuro)",
+      "favicon": "Favicon",
+      "customCss": "CSS Personalizado",
+      "customCssHint": "Añade estilos CSS globales que se inyectarán en la aplicación.",
+      "save": "Guardar Marca",
+      "uploadSuccess": "Imagen subida correctamente",
+      "uploadError": "Error al subir imagen",
+      "saveSuccess": "Configuración de marca guardada",
+      "saveError": "Error al guardar configuración",
+      "deleteSuccess": "Imagen eliminada",
+      "deleteError": "Error al eliminar imagen"
+    },
+    "smtp": {
+      "title": "Configuración SMTP",
+      "host": "Servidor SMTP",
+      "port": "Puerto",
+      "user": "Usuario",
+      "pass": "Contraseña",
+      "from": "Remitente (From)",
+      "secure": "Usar SSL/TLS",
+      "test": "Probar Conexión",
+      "save": "Guardar SMTP",
+      "testSuccess": "Correo de prueba enviado correctamente",
+      "saved": "Configuración SMTP guardada"
+    },
+    "templates": {
+      "title": "Plantillas de Correo",
+      "welcome": "Bienvenida",
+      "resetPassword": "Restablecer Contraseña",
+      "verifyEmail": "Verificar Email",
+      "storageWarning": "Advertencia de Almacenamiento",
+      "subject": "Asunto",
+      "htmlContent": "Contenido HTML",
+      "variables": "Variables",
+      "reset": "Restablecer a Default",
+      "save": "Guardar Plantilla",
+      "saved": "Plantilla guardada correctamente",
+      "variableAdded": "Variable añadida",
+      "variableInserted": "Variable insertada"
+    },
+    "legal": {
+      "title": "Páginas Legales",
+      "description": "Edita el contenido de las páginas de Privacidad y Términos.",
+      "privacy": "Política de Privacidad",
+      "terms": "Términos de Servicio",
+      "saved": "Contenido legal guardado"
+    },
+    "activity": {
+      "title": "Registro de Actividad",
+      "description": "Monitorea las acciones realizadas en el sistema.",
+      "searchPlaceholder": "Buscar por usuario, IP o descripción...",
+      "allTypes": "Todos los tipos",
+      "user": "Usuario",
+      "action": "Acción",
+      "description": "Descripción",
+      "date": "Fecha",
+      "noLogs": "No se encontraron registros de actividad."
+    },
+    "enterEmail": "Introduce un email",
+    "emailSent": "Correo enviado",
+    "saved": "Guardado",
+    "deleted": "Eliminado",
+    "confirmDelete": "¿Estás seguro?",
+    "loadError": "Error al cargar datos",
+    "saveError": "Error al guardar datos",
+    "deleteError": "Error al eliminar"
   }
 }

@@ -57,11 +57,22 @@
     "trashEmptyError": "Fehler beim Leeren des Papierkorbs",
     "movedTo": "{{count}} Element(e) nach {{category}} verschoben",
     "incompatibleItems": "Ausgewählte Elemente sind mit dieser Kategorie nicht kompatibel",
+    "backToFiles": "← Zurück zu Dateien",
     "categories": {
       "files": "Dateien",
       "photos": "Fotos",
       "music": "Musik",
       "documents": "Dokumente"
+    },
+    "admin": {
+      "overview": "Übersicht",
+      "users": "Benutzer",
+      "settings": "Einstellungen",
+      "email": "SMTP",
+      "branding": "Branding",
+      "fileIcons": "Dateisymbole",
+      "legal": "Rechtliche Seiten",
+      "activity": "Aktivitätsprotokoll"
     }
   },
   "layout": {

@@ -26,8 +26,9 @@ import CompressModal from '../modals/CompressModal';
 import InfoModal from '../modals/InfoModal';
 import TagModal from '../modals/TagModal';
 import ContextMenu, { ContextMenuItemOrDivider, ContextMenuDividerItem } from '../ui/ContextMenu';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { FileExtensionIcon } from '../icons/SolidIcons';
+import AuthenticatedImage from '../AuthenticatedImage';
 
 interface FileCardProps {
   file: FileItem;
@@ -35,6 +36,7 @@ interface FileCardProps {
   onRefresh?: () => void;
   onPreview?: (file: FileItem) => void;
   onFavoriteToggle?: (fileId: string, isFavorite: boolean) => void;
+  disableAnimation?: boolean;
 }
 
 // Get color based on file category
@@ -91,8 +93,9 @@ function getFileExtension(fileName: string): string {
 
 
 
-export default function FileCard({ file, view = 'grid', onRefresh, onPreview, onFavoriteToggle }: FileCardProps) {
+export default function FileCard({ file, view = 'grid', onRefresh, onPreview, onFavoriteToggle, disableAnimation }: FileCardProps) {
   const { t } = useTranslation();
+  const reducedMotion = useReducedMotion();
   const location = useLocation();
   const isSelected = useFileStore(useCallback((state) => state.selectedItems.has(file.id), [file.id]));
   // Use getState() for action functions to avoid unnecessary subscriptions
@@ -267,53 +270,24 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview, on
 
   const closeContextMenu = () => setContextMenu(null);
 
-  const modals = (
-    <>
-      <ShareModal
-        isOpen={showShareModal}
-        onClose={() => setShowShareModal(false)}
-        file={file}
-        onSuccess={onRefresh}
-      />
-      <RenameModal
-        isOpen={showRenameModal}
-        onClose={() => setShowRenameModal(false)}
-        item={file}
-        type="file"
-        onSuccess={onRefresh}
-      />
-      <MoveModal
-        isOpen={showMoveModal}
-        onClose={() => setShowMoveModal(false)}
-        items={[file]}
-        onSuccess={onRefresh}
-      />
-      <CompressModal
-        isOpen={showCompressModal}
-        onClose={() => setShowCompressModal(false)}
-        items={[{ id: file.id, name: file.name, type: 'file' }]}
-        onSuccess={onRefresh}
-      />
-      <InfoModal
-        isOpen={showInfoModal}
-        onClose={() => setShowInfoModal(false)}
-        item={file}
-        type="file"
-      />
-      <TagModal
-        isOpen={showTagModal}
-        onClose={() => setShowTagModal(false)}
-        fileId={file.id}
-      />
-    </>
-  );
+  const shouldAnimate = !disableAnimation && !reducedMotion;
+  const motionProps = shouldAnimate
+    ? {
+      initial: { opacity: 0, scale: 0.95 },
+      animate: { opacity: 1, scale: 1 },
+      transition: { type: 'spring', stiffness: 400, damping: 25 },
+    }
+    : {
+      initial: false,
+      animate: { opacity: 1 },
+      transition: { duration: 0 },
+    };
 
   if (view === 'list') {
     return (
       <>
         <motion.div
-          layout
-          transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+          {...motionProps}
           ref={setNodeRef}
           style={dragStyle}
           {...attributes}
@@ -332,9 +306,18 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview, on
             isDragging && 'dragging'
           )}
         >
-          {/* Type-specific Icon with extension */}
-          <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center">
-            <FileExtensionIcon size={32} extension={fileExtension} className={fileTypeColor} />
+          {/* Type-specific Icon with extension or Thumbnail */}
+          <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center overflow-hidden rounded">
+            {file.thumbnailPath ? (
+              <AuthenticatedImage
+                fileId={file.id}
+                endpoint="thumbnail"
+                alt={file.name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <FileExtensionIcon size={40} extension={fileExtension} className={fileTypeColor} />
+            )}
           </div>
 
           {/* Content */}
@@ -352,8 +335,57 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview, on
             )}
           </div>
         </motion.div>
-        <ContextMenu items={contextMenuItems} position={contextMenu} onClose={closeContextMenu} />
-        {modals}
+        {contextMenu && (
+          <ContextMenu items={contextMenuItems} position={contextMenu} onClose={closeContextMenu} />
+        )}
+        {showShareModal && (
+          <ShareModal
+            isOpen={showShareModal}
+            onClose={() => setShowShareModal(false)}
+            file={file}
+            onSuccess={onRefresh}
+          />
+        )}
+        {showRenameModal && (
+          <RenameModal
+            isOpen={showRenameModal}
+            onClose={() => setShowRenameModal(false)}
+            item={file}
+            type="file"
+            onSuccess={onRefresh}
+          />
+        )}
+        {showMoveModal && (
+          <MoveModal
+            isOpen={showMoveModal}
+            onClose={() => setShowMoveModal(false)}
+            items={[file]}
+            onSuccess={onRefresh}
+          />
+        )}
+        {showCompressModal && (
+          <CompressModal
+            isOpen={showCompressModal}
+            onClose={() => setShowCompressModal(false)}
+            items={[{ id: file.id, name: file.name, type: 'file' }]}
+            onSuccess={onRefresh}
+          />
+        )}
+        {showInfoModal && (
+          <InfoModal
+            isOpen={showInfoModal}
+            onClose={() => setShowInfoModal(false)}
+            item={file}
+            type="file"
+          />
+        )}
+        {showTagModal && (
+          <TagModal
+            isOpen={showTagModal}
+            onClose={() => setShowTagModal(false)}
+            fileId={file.id}
+          />
+        )}
       </>
     );
   }
@@ -361,8 +393,7 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview, on
   return (
     <>
       <motion.div
-        layout
-        transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+        {...motionProps}
         ref={setNodeRef}
         style={dragStyle}
         {...attributes}
@@ -408,9 +439,8 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview, on
           </div>
         )}
 
-        {/* Type-specific Icon with extension in center */}
         <div className="premium-card-thumbnail">
-          <FileExtensionIcon size={56} extension={fileExtension} className={fileTypeColor} />
+          <FileExtensionIcon size={80} extension={fileExtension} className={fileTypeColor} />
         </div>
 
         {/* Content Area - Overlay at bottom */}
@@ -425,8 +455,57 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview, on
           </div>
         </div>
       </motion.div>
-      <ContextMenu items={contextMenuItems} position={contextMenu} onClose={closeContextMenu} />
-      {modals}
+      {contextMenu && (
+        <ContextMenu items={contextMenuItems} position={contextMenu} onClose={closeContextMenu} />
+      )}
+      {showShareModal && (
+        <ShareModal
+          isOpen={showShareModal}
+          onClose={() => setShowShareModal(false)}
+          file={file}
+          onSuccess={onRefresh}
+        />
+      )}
+      {showRenameModal && (
+        <RenameModal
+          isOpen={showRenameModal}
+          onClose={() => setShowRenameModal(false)}
+          item={file}
+          type="file"
+          onSuccess={onRefresh}
+        />
+      )}
+      {showMoveModal && (
+        <MoveModal
+          isOpen={showMoveModal}
+          onClose={() => setShowMoveModal(false)}
+          items={[file]}
+          onSuccess={onRefresh}
+        />
+      )}
+      {showCompressModal && (
+        <CompressModal
+          isOpen={showCompressModal}
+          onClose={() => setShowCompressModal(false)}
+          items={[{ id: file.id, name: file.name, type: 'file' }]}
+          onSuccess={onRefresh}
+        />
+      )}
+      {showInfoModal && (
+        <InfoModal
+          isOpen={showInfoModal}
+          onClose={() => setShowInfoModal(false)}
+          item={file}
+          type="file"
+        />
+      )}
+      {showTagModal && (
+        <TagModal
+          isOpen={showTagModal}
+          onClose={() => setShowTagModal(false)}
+          fileId={file.id}
+        />
+      )}
     </>
   );
 }

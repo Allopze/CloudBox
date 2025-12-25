@@ -363,13 +363,15 @@ model StorageRequest {
 
 model LegalPage {
   id        String   @id @default(uuid()) @db.Uuid
-  slug      String   @unique
+  slug      String
+  locale    String   @default("es")
   title     String
   content   String
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
 
+  @@unique([slug, locale])
   @@map("legal_pages")
 }
 
@@ -400,5 +402,4 @@ model FileTag {
   @@index([tagId])
   @@map("file_tags")
 }
-
 

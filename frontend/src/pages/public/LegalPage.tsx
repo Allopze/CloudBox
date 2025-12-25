@@ -47,15 +47,19 @@ const HeadingRenderer = ({ level, children, ...props }: any) => {
 };
 
 export default function LegalPage() {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const location = useLocation();
     const isPrivacy = location.pathname === '/privacy';
     const slug = isPrivacy ? 'privacy' : 'terms';
+    const resolvedLanguage = i18n.resolvedLanguage?.toLowerCase() ?? '';
+    const locale = resolvedLanguage.startsWith('es') ? 'es' : 'en';
 
     const { data: legalData, isLoading, isError } = useQuery({
-        queryKey: ['legal', slug],
+        queryKey: ['legal', slug, locale],
         queryFn: async () => {
-            const { data } = await api.get(`/admin/legal/${slug}`);
+            const { data } = await api.get(`/admin/legal/${slug}`, {
+                params: { locale },
+            });
             return data;
         },
         staleTime: 5 * 60 * 1000, // 5 minutes cache to prevent 429 loops
@@ -71,8 +75,9 @@ export default function LegalPage() {
         ? (isPrivacy ? '# Error\nCould not fetch privacy policy.' : '# Error\nCould not fetch terms.')
         : rawContent;
 
+    const dateLocale = locale === 'en' ? 'en-US' : 'es-ES';
     const lastUpdated = legalData?.updatedAt
-        ? new Date(legalData.updatedAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })
+        ? new Date(legalData.updatedAt).toLocaleDateString(dateLocale, { day: 'numeric', month: 'long', year: 'numeric' })
         : '';
 
     // Extract TOC from content
