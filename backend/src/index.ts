@@ -22,6 +22,7 @@ import { initBullBoard, closeBullBoard } from './lib/bullBoard.js';
 import { authenticate, requireAdmin } from './middleware/auth.js';
 import { initRateLimitRedis, getRateLimitStats } from './lib/security.js';
 import { metricsMiddleware, metricsHandler } from './lib/metrics.js';
+import { getGlobalUploadMaxFileSize } from './lib/limits.js';
 
 // Routes
 import authRoutes from './routes/auth.js';
@@ -140,6 +141,7 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb', parameterLimit: 10000 }));
 app.use(cookieParser());
+app.use(metricsMiddleware());
 
 // Audit context - attach audit helper to all requests
 app.use(auditContext);
@@ -225,9 +227,10 @@ app.get('/api/config/upload-limits', async (req, res) => {
       Number.isFinite(configuredChunkSize) && configuredChunkSize > 0 ? configuredChunkSize : defaultChunkSize,
       hardMaxChunkSize
     );
+    const effectiveMaxFileSize = await getGlobalUploadMaxFileSize();
 
     res.json({
-      maxFileSize: limits['max_file_size'] || String(config.storage.maxFileSize),
+      maxFileSize: String(effectiveMaxFileSize),
       chunkSize: String(effectiveChunkSize),
       concurrentChunks: limits['concurrent_chunks'] || '4',
     });

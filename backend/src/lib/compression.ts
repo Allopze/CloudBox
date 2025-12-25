@@ -1,6 +1,6 @@
 import archiver from 'archiver';
 import unzipper from 'unzipper';
-import { exec, spawn, ChildProcess } from 'child_process';
+import { exec, execFile, spawn, ChildProcess } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
@@ -8,6 +8,7 @@ import { getStoragePath } from './storage.js';
 import prisma from './prisma.js';
 
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 // Use string type instead of Prisma enum for SQLite compatibility
 type CompressionStatusType = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
@@ -162,6 +163,24 @@ export const validateExtractPath = (targetDir: string, entryPath: string): strin
   }
   
   return fullPath;
+};
+
+const list7zEntries = async (archivePath: string): Promise<string[]> => {
+  const { stdout } = await execFileAsync('7z', ['l', '-slt', archivePath], {
+    maxBuffer: 10 * 1024 * 1024,
+  });
+
+  const entries: string[] = [];
+  for (const line of stdout.split(/\r?\n/)) {
+    if (line.startsWith('Path = ')) {
+      const entryPath = line.slice(7).trim();
+      if (entryPath) {
+        entries.push(entryPath);
+      }
+    }
+  }
+
+  return entries;
 };
 
 export const extractZip = async (
@@ -342,6 +361,25 @@ export const extract7z = async (
   // Resolve output directory for security validation
   const resolvedOutputDir = path.resolve(outputDir);
   await fs.promises.mkdir(resolvedOutputDir, { recursive: true });
+
+  const entryPaths = await list7zEntries(inputPath);
+  const archiveBaseName = path.basename(inputPath);
+  let entryCount = 0;
+
+  for (const entryPath of entryPaths) {
+    if (entryPath === inputPath || entryPath === archiveBaseName) {
+      continue;
+    }
+    entryCount++;
+    const safePath = validateExtractPath(resolvedOutputDir, entryPath);
+    if (!safePath) {
+      throw new Error(`Unsafe path detected in archive: ${entryPath} - possible path traversal attack`);
+    }
+  }
+
+  if (entryCount > EXTRACTION_LIMITS.MAX_FILES) {
+    throw new Error(`Archive contains too many files (limit: ${EXTRACTION_LIMITS.MAX_FILES})`);
+  }
 
   return new Promise((resolve, reject) => {
     // Security: Set timeout for extraction process

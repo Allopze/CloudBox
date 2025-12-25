@@ -7,6 +7,7 @@ import { authenticate, optionalAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { createShareSchema, addCollaboratorSchema, publicLinkPasswordSchema } from '../schemas/index.js';
 import { fileExists, isValidUUID, streamFile } from '../lib/storage.js';
+import { sanitizeFilename } from '../lib/security.js';
 import { shareRateLimiter } from '../middleware/shareRateLimiter.js';
 import archiver from 'archiver';
 import { config } from '../config/index.js';
@@ -760,7 +761,8 @@ router.get('/public/:token/download', shareRateLimiter(), async (req: Request, r
 
         for (const file of files) {
           if (await fileExists(file.path)) {
-            archive.file(file.path, { name: `${archivePath}/${file.name}` });
+            const safeFileName = sanitizeFilename(file.name);
+            archive.file(file.path, { name: `${archivePath}/${safeFileName}` });
           }
         }
 
@@ -769,11 +771,12 @@ router.get('/public/:token/download', shareRateLimiter(), async (req: Request, r
         });
 
         for (const subfolder of subfolders) {
-          await addFolderToArchive(subfolder.id, `${archivePath}/${subfolder.name}`);
+          const safeFolderName = sanitizeFilename(subfolder.name);
+          await addFolderToArchive(subfolder.id, `${archivePath}/${safeFolderName}`);
         }
       };
 
-      await addFolderToArchive(share.folder.id, share.folder.name);
+      await addFolderToArchive(share.folder.id, sanitizeFilename(share.folder.name));
       await archive.finalize();
     }
   } catch (error) {

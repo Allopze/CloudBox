@@ -701,6 +701,9 @@
       "parallelInfo": "Uploading {{fileCount}} files in parallel ({{chunkCount}} chunks each)",
       "filesCompleted": "{{completed}} of {{total}} files completed",
       "someFilesFailed": "Some files failed to upload",
+      "errors": {
+        "fileTooLarge": "File exceeds the maximum size of {{size}}."
+      },
       "cancel": "Cancel"
     },
     "createFolder": {

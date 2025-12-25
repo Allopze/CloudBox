@@ -610,7 +610,10 @@
       "completed": "Tutti i file caricati",
       "done": "Fatto",
       "uploadFiles": "Carica file",
-      "allFilesUploaded": "Tutti i file sono stati caricati con successo"
+      "allFilesUploaded": "Tutti i file sono stati caricati con successo",
+      "errors": {
+        "fileTooLarge": "Il file supera la dimensione massima di {{size}}."
+      }
     },
     "createFolder": {
       "title": "Crea cartella",

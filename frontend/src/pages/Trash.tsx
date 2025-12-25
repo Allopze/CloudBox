@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+﻿import { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../lib/api';
 import { Loader2, Trash2, RotateCcw, AlertTriangle, File, Folder, Info } from 'lucide-react';
@@ -10,8 +10,9 @@ import { useAuthStore } from '../stores/authStore';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import { FileItem, Folder as FolderType } from '../types';
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { waveIn } from '../lib/animations';
+import ContextMenu, { ContextMenuItemOrDivider, ContextMenuDividerItem } from '../components/ui/ContextMenu';
 
 interface TrashData {
   files: FileItem[];
@@ -147,16 +148,16 @@ export default function Trash() {
     e.preventDefault();
     e.stopPropagation();
 
-    // Obtener el estado actual directamente del store (síncrono)
+    // Obtener el estado actual directamente del store (sÃ­ncrono)
     const currentSelectedItems = useFileStore.getState().selectedItems;
 
-    // Si el item clickeado no está en la selección, seleccionarlo solo
+    // Si el item clickeado no estÃ¡ en la selecciÃ³n, seleccionarlo solo
     if (!currentSelectedItems.has(item.id)) {
       selectSingle(item.id);
-      // Guardar solo este item como selección
+      // Guardar solo este item como selecciÃ³n
       setContextMenuSelection(new Set([item.id]));
     } else {
-      // Guardar la selección actual para usar en las acciones del menú
+      // Guardar la selecciÃ³n actual para usar en las acciones del menÃº
       setContextMenuSelection(new Set(currentSelectedItems));
     }
 
@@ -165,25 +166,16 @@ export default function Trash() {
 
   const closeContextMenu = () => setContextMenu(null);
 
-  // Close context menu when clicking outside
-  useEffect(() => {
-    const handleClick = () => closeContextMenu();
-    if (contextMenu) {
-      document.addEventListener('click', handleClick);
-      return () => document.removeEventListener('click', handleClick);
-    }
-  }, [contextMenu]);
-
   const handleRestoreFromMenu = async () => {
     if (!contextMenu) return;
 
-    // Usar la selección capturada al abrir el menú
+    // Usar la selecciÃ³n capturada al abrir el menÃº
     const selectedFilesList = data.files.filter(f => contextMenuSelection.has(f.id));
     const selectedFoldersList = data.folders.filter(f => contextMenuSelection.has(f.id));
     const total = selectedFilesList.length + selectedFoldersList.length;
 
     if (total === 0) {
-      // Si no hay selección, restaurar solo el item del menú
+      // Si no hay selecciÃ³n, restaurar solo el item del menÃº
       if (contextMenu.type === 'file') {
         await restoreFile(contextMenu.item as FileItem);
       } else {
@@ -197,7 +189,7 @@ export default function Trash() {
         await restoreFolder(selectedFoldersList[0]);
       }
     } else {
-      // Múltiples elementos seleccionados
+      // MÃºltiples elementos seleccionados
       const opId = addOperation({
         id: `restore-${Date.now()}`,
         type: 'move',
@@ -228,13 +220,13 @@ export default function Trash() {
   const handleDeleteFromMenu = async () => {
     if (!contextMenu) return;
 
-    // Usar la selección capturada al abrir el menú
+    // Usar la selecciÃ³n capturada al abrir el menÃº
     const selectedFilesList = data.files.filter(f => contextMenuSelection.has(f.id));
     const selectedFoldersList = data.folders.filter(f => contextMenuSelection.has(f.id));
     const total = selectedFilesList.length + selectedFoldersList.length;
 
     if (total === 0) {
-      // Si no hay selección, eliminar solo el item del menú
+      // Si no hay selecciÃ³n, eliminar solo el item del menÃº
       if (contextMenu.type === 'file') {
         await deleteFile(contextMenu.item as FileItem);
       } else {
@@ -248,7 +240,7 @@ export default function Trash() {
         await deleteFolder(selectedFoldersList[0]);
       }
     } else {
-      // Múltiples elementos seleccionados - mostrar modal de confirmación
+      // MÃºltiples elementos seleccionados - mostrar modal de confirmaciÃ³n
       setDeleteConfirmation({ files: selectedFilesList, folders: selectedFoldersList });
       closeContextMenu();
       return;
@@ -298,6 +290,14 @@ export default function Trash() {
     setInfoItem({ type: contextMenu.type, item: contextMenu.item });
     closeContextMenu();
   };
+
+  const contextMenuItems: ContextMenuItemOrDivider[] = [
+    { id: 'restore', label: t('trash.restore'), icon: RotateCcw, onClick: handleRestoreFromMenu },
+    ContextMenuDividerItem(),
+    { id: 'info', label: t('trash.info'), icon: Info, onClick: handleShowInfo },
+    ContextMenuDividerItem(),
+    { id: 'delete', label: t('trash.deletePermanently'), icon: Trash2, onClick: handleDeleteFromMenu, danger: true },
+  ];
 
   // Handle item click for selection
   const handleItemClick = (e: React.MouseEvent, id: string) => {
@@ -349,7 +349,7 @@ export default function Trash() {
                   </p>
                   <div className="flex items-center gap-3 text-sm text-dark-500 dark:text-dark-400">
                     <span>{t('trash.folder')}</span>
-                    <span>•</span>
+                    <span>â€¢</span>
                     <span>{t('trash.deletedOn', { date: formatDate(folder.trashedAt || folder.updatedAt) })}</span>
                   </div>
                 </div>
@@ -403,9 +403,9 @@ export default function Trash() {
                   </p>
                   <div className="flex items-center gap-3 text-sm text-dark-500 dark:text-dark-400">
                     <span>{t('trash.file')}</span>
-                    <span>•</span>
+                    <span>â€¢</span>
                     <span>{formatBytes(file.size)}</span>
-                    <span>•</span>
+                    <span>â€¢</span>
                     <span>{t('trash.deletedOn', { date: formatDate(file.trashedAt || file.updatedAt) })}</span>
                   </div>
                 </div>
@@ -474,66 +474,7 @@ export default function Trash() {
       </Modal>
 
       {/* Context Menu */}
-      <AnimatePresence>
-        {contextMenu && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            transition={{ duration: 0.1 }}
-            style={{
-              position: 'fixed',
-              left: contextMenu.x + 288 > window.innerWidth ? contextMenu.x - 288 : contextMenu.x,
-              top: (() => {
-                const menuHeight = 200;
-                const padding = 20;
-                if (contextMenu.y + menuHeight > window.innerHeight - padding) {
-                  return Math.max(padding, contextMenu.y - menuHeight);
-                }
-                return contextMenu.y;
-              })(),
-            }}
-            className="z-50 min-w-[180px] bg-white dark:bg-dark-800 rounded-xl shadow-lg border border-dark-200 dark:border-dark-700 py-1 overflow-hidden"
-          >
-            {/* Restaurar */}
-            <div className="px-2 py-1">
-              <button
-                onClick={handleRestoreFromMenu}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
-              >
-                <RotateCcw className="w-5 h-5" />
-                <span>{t('trash.restore')}</span>
-              </button>
-            </div>
-
-            <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
-
-            {/* Información */}
-            <div className="px-2 py-1">
-              <button
-                onClick={handleShowInfo}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
-              >
-                <Info className="w-5 h-5" />
-                <span>{t('trash.info')}</span>
-              </button>
-            </div>
-
-            <div className="h-px bg-dark-200 dark:bg-dark-700 my-1" />
-
-            {/* Eliminar permanentemente */}
-            <div className="px-2 py-1">
-              <button
-                onClick={handleDeleteFromMenu}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-base text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"
-              >
-                <Trash2 className="w-5 h-5" />
-                <span>{t('trash.deletePermanently')}</span>
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <ContextMenu items={contextMenuItems} position={contextMenu} onClose={closeContextMenu} />
 
       {/* Info Modal */}
       {infoItem && (
@@ -665,3 +606,4 @@ export default function Trash() {
     </div>
   );
 }
+

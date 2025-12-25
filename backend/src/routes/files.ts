@@ -40,6 +40,7 @@ import { auditLog } from '../lib/audit.js';
 import logger from '../lib/logger.js';
 import ExcelJS from 'exceljs';
 import * as cache from '../lib/cache.js';
+import { getGlobalUploadMaxFileSize } from '../lib/limits.js';
 
 const router = Router();
 
@@ -169,6 +170,7 @@ router.post('/upload', authenticate, uploadFile.array('files', UPLOAD_LIMITS.MAX
     const userId = req.user!.userId;
     const folderId = req.body.folderId || null;
     const files = req.files as Express.Multer.File[];
+    const globalMaxFileSize = await getGlobalUploadMaxFileSize();
 
     if (!files || files.length === 0) {
       res.status(400).json({ error: 'No files uploaded', code: UPLOAD_ERROR_CODES.INVALID_CHUNK });
@@ -225,23 +227,25 @@ router.post('/upload', authenticate, uploadFile.array('files', UPLOAD_LIMITS.MAX
       }
 
       const totalSize = files.reduce((sum: number, file: Express.Multer.File) => sum + file.size, 0);
-      const remainingQuota = Number(user.storageQuota) - Number(user.storageUsed);
+      const remainingQuota = Number(user.storageQuota) - Number(user.storageUsed) - Number(user.tempStorage || 0);
 
       if (totalSize > remainingQuota) {
         throw new Error('Storage quota exceeded');
       }
 
       // Check max file size and total request size
-      const maxTotalRequestSize = Number(user.maxFileSize) * UPLOAD_LIMITS.MAX_FILES_PER_REQUEST;
+      const maxFileSize = Math.min(Number(user.maxFileSize), globalMaxFileSize);
+      const maxTotalRequestSize = maxFileSize * UPLOAD_LIMITS.MAX_FILES_PER_REQUEST;
       if (totalSize > maxTotalRequestSize) {
         throw new Error(`Total upload size exceeds maximum limit of ${maxTotalRequestSize} bytes`);
       }
 
-      for (const file of files) {
-        if (file.size > Number(user.maxFileSize)) {
-          throw new Error(`File ${decodeFilename(file.originalname)} exceeds maximum size limit`);
+        for (const file of files) {
+          if (file.size > maxFileSize) {
+            const maxSizeMB = Math.round(maxFileSize / 1024 / 1024);
+            throw new Error(`File ${decodeFilename(file.originalname)} exceeds maximum size limit of ${maxSizeMB}MB`);
+          }
         }
-      }
 
       await ensureUserDir(userId);
 
@@ -392,6 +396,7 @@ router.post('/upload-with-folders', authenticate, uploadFile.array('files', UPLO
     const baseFolderId = req.body.folderId || null;
     const paths = req.body.paths; // Array of relative paths like "folder/subfolder/file.txt"
     const files = req.files as Express.Multer.File[];
+    const globalMaxFileSize = await getGlobalUploadMaxFileSize();
 
     if (!files || files.length === 0) {
       res.status(400).json({ error: 'No files uploaded', code: UPLOAD_ERROR_CODES.INVALID_CHUNK });
@@ -451,7 +456,20 @@ router.post('/upload-with-folders', authenticate, uploadFile.array('files', UPLO
       }
 
       const totalSize = files.reduce((sum: number, file: Express.Multer.File) => sum + file.size, 0);
-      const remainingQuota = Number(user.storageQuota) - Number(user.storageUsed);
+      const remainingQuota = Number(user.storageQuota) - Number(user.storageUsed) - Number(user.tempStorage || 0);
+
+      const maxFileSize = Math.min(Number(user.maxFileSize), globalMaxFileSize);
+      const maxTotalRequestSize = maxFileSize * UPLOAD_LIMITS.MAX_FILES_FOLDER_UPLOAD;
+      if (totalSize > maxTotalRequestSize) {
+        throw new Error(`Total upload size exceeds maximum limit of ${maxTotalRequestSize} bytes`);
+      }
+
+        for (const file of files) {
+          if (file.size > maxFileSize) {
+            const maxSizeMB = Math.round(maxFileSize / 1024 / 1024);
+            throw new Error(`File ${decodeFilename(file.originalname)} exceeds maximum size limit of ${maxSizeMB}MB`);
+          }
+        }
 
       if (totalSize > remainingQuota) {
         throw new Error('Storage quota exceeded');
@@ -657,9 +675,15 @@ router.post('/upload-with-folders', authenticate, uploadFile.array('files', UPLO
     logger.error('Upload with folders error', { userId: req.user?.userId, error: error.message }, error instanceof Error ? error : undefined);
     if (error.message === 'Storage quota exceeded') {
       res.status(400).json({ error: error.message, code: UPLOAD_ERROR_CODES.QUOTA_EXCEEDED });
-    } else {
-      res.status(500).json({ error: 'Failed to upload files' });
+      return;
     }
+
+    if (error.message === 'File exceeds maximum size limit' || error.message.includes('exceeds maximum size limit') || error.message.includes('exceeds maximum limit')) {
+      res.status(400).json({ error: error.message, code: UPLOAD_ERROR_CODES.FILE_TOO_LARGE });
+      return;
+    }
+
+    res.status(500).json({ error: 'Failed to upload files' });
   }
 });
 
@@ -697,7 +721,7 @@ router.post('/upload/validate', authenticate, async (req: Request, res: Response
     }
 
     const remainingQuota = Number(user.storageQuota) - Number(user.storageUsed) - Number(user.tempStorage || 0);
-    const maxFileSize = Number(user.maxFileSize);
+    const maxFileSize = Math.min(Number(user.maxFileSize), await getGlobalUploadMaxFileSize());
 
     const validationResults: Array<{
       name: string;
@@ -832,6 +856,8 @@ router.post('/upload/init', authenticate, validate(uploadInitSchema), async (req
     }
 
     // Use transaction to atomically check and reserve space
+    const globalMaxFileSize = await getGlobalUploadMaxFileSize();
+
     const uploadId = await prisma.$transaction(async (tx) => {
       // Lock user row to prevent concurrent init requests from over-reserving quota
       const userRows = await tx.$queryRaw<Array<{ storageQuota: bigint; storageUsed: bigint; tempStorage: bigint; maxFileSize: bigint }>>`
@@ -846,9 +872,11 @@ router.post('/upload/init', authenticate, validate(uploadInitSchema), async (req
       }
 
       const totalSizeBigInt = BigInt(totalSize);
-      if (totalSizeBigInt > user.maxFileSize) {
-        throw new Error('File exceeds maximum size limit');
-      }
+        const maxFileSize = BigInt(Math.min(Number(user.maxFileSize), globalMaxFileSize));
+        if (totalSizeBigInt > maxFileSize) {
+          const maxSizeMB = Math.round(Number(maxFileSize) / 1024 / 1024);
+          throw new Error(`File exceeds maximum size limit of ${maxSizeMB}MB`);
+        }
 
       // Calculate remaining quota including temporary reserved storage
       const remainingQuota = user.storageQuota - user.storageUsed - (user.tempStorage || 0n);
@@ -901,10 +929,10 @@ router.post('/upload/init', authenticate, validate(uploadInitSchema), async (req
       res.status(404).json({ error: 'User not found' });
     } else if (error.message === 'Folder not found') {
       res.status(404).json({ error: 'Folder not found', code: UPLOAD_ERROR_CODES.INVALID_FOLDER });
-    } else if (error.message === 'File exceeds maximum size limit') {
-      res.status(400).json({ error: error.message, code: UPLOAD_ERROR_CODES.FILE_TOO_LARGE });
-    } else if (error.message === 'Storage quota exceeded') {
-      res.status(400).json({ error: error.message, code: UPLOAD_ERROR_CODES.QUOTA_EXCEEDED });
+      } else if (typeof error.message === 'string' && error.message.includes('exceeds maximum size limit')) {
+        res.status(400).json({ error: error.message, code: UPLOAD_ERROR_CODES.FILE_TOO_LARGE });
+      } else if (error.message === 'Storage quota exceeded') {
+        res.status(400).json({ error: error.message, code: UPLOAD_ERROR_CODES.QUOTA_EXCEEDED });
     } else {
       res.status(500).json({ error: 'Failed to initialize upload' });
     }
@@ -1492,6 +1520,12 @@ router.patch('/:id/rename', authenticate, validate(renameFileSchema), async (req
     const { name } = req.body;
     const userId = req.user!.userId;
 
+    const sanitizedName = sanitizeFilename(name);
+    if (isDangerousExtension(sanitizedName)) {
+      res.status(400).json({ error: 'File type not allowed' });
+      return;
+    }
+
     const file = await prisma.file.findFirst({
       where: { id, userId },
     });
@@ -1503,7 +1537,7 @@ router.patch('/:id/rename', authenticate, validate(renameFileSchema), async (req
 
     const updated = await prisma.file.update({
       where: { id },
-      data: { name },
+      data: { name: sanitizedName },
     });
 
     await prisma.activity.create({
@@ -1511,7 +1545,7 @@ router.patch('/:id/rename', authenticate, validate(renameFileSchema), async (req
         type: 'RENAME',
         userId,
         fileId: id,
-        details: JSON.stringify({ oldName: file.name, newName: name }),
+        details: JSON.stringify({ oldName: file.name, newName: sanitizedName }),
       },
     });
 
@@ -1775,6 +1809,16 @@ router.get('/:id/download', authOptional, async (req: Request, res: Response) =>
 
       const { createReadStream } = await import('fs');
       const stream = createReadStream(file.path, { start, end });
+      stream.on('error', (err) => {
+        logger.error('Download stream error', { fileId: id }, err instanceof Error ? err : undefined);
+        if (!res.headersSent) {
+          res.status(500).json({ error: 'Stream error' });
+        }
+        stream.destroy();
+      });
+      res.on('close', () => {
+        stream.destroy();
+      });
       stream.pipe(res);
     } else {
       // Safe filename encoding for Content-Disposition
@@ -2278,8 +2322,15 @@ router.post('/create-empty', authenticate, async (req: Request, res: Response) =
 
     // Validate content size if provided
     const fileContent = content || '';
-    if (fileContent && Buffer.byteLength(fileContent, 'utf8') > MAX_CREATE_CONTENT_SIZE) {
+    const fileSize = Buffer.byteLength(fileContent, 'utf8');
+    if (fileContent && fileSize > MAX_CREATE_CONTENT_SIZE) {
       res.status(400).json({ error: `Content exceeds maximum size limit of ${MAX_CREATE_CONTENT_SIZE / 1024 / 1024}MB` });
+      return;
+    }
+
+    const sanitizedName = sanitizeFilename(name);
+    if (isDangerousExtension(sanitizedName)) {
+      res.status(400).json({ error: 'File type not allowed' });
       return;
     }
 
@@ -2291,32 +2342,68 @@ router.post('/create-empty', authenticate, async (req: Request, res: Response) =
       }
     }
 
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { storageQuota: true, storageUsed: true, tempStorage: true, maxFileSize: true },
+    });
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+      const maxFileSize = Number(user.maxFileSize);
+      const effectiveMaxFileSize = Math.min(maxFileSize, await getGlobalUploadMaxFileSize());
+      if (fileSize > effectiveMaxFileSize) {
+        const maxSizeMB = Math.round(effectiveMaxFileSize / 1024 / 1024);
+        res.status(400).json({ error: `File exceeds maximum size limit of ${maxSizeMB}MB` });
+        return;
+      }
+
+    const remainingQuota = Number(user.storageQuota) - Number(user.storageUsed) - Number(user.tempStorage || 0);
+    if (fileSize > remainingQuota) {
+      res.status(400).json({ error: 'Storage quota exceeded' });
+      return;
+    }
+
     await ensureUserDir(userId);
 
     const fileId = uuidv4();
-    const sanitizedName = sanitizeFilename(name);
     const ext = path.extname(sanitizedName) || '.txt';
     const filePath = getUserFilePath(userId, fileId, ext);
 
     await fs.writeFile(filePath, fileContent);
 
     const mimeType = ext === '.txt' ? 'text/plain' : 'application/octet-stream';
-    const fileSize = Buffer.byteLength(fileContent, 'utf8');
+    try {
+      const dbFile = await prisma.$transaction(async (tx) => {
+        const created = await tx.file.create({
+          data: {
+            id: fileId,
+            name: sanitizedName,
+            originalName: sanitizedName,
+            mimeType,
+            size: BigInt(fileSize),
+            path: filePath,
+            folderId: folderId || null,
+            userId,
+          },
+        });
 
-    const dbFile = await prisma.file.create({
-      data: {
-        id: fileId,
-        name: sanitizedName,
-        originalName: sanitizedName,
-        mimeType,
-        size: BigInt(fileSize),
-        path: filePath,
-        folderId: folderId || null,
-        userId,
-      },
-    });
+        await tx.user.update({
+          where: { id: userId },
+          data: { storageUsed: { increment: fileSize } },
+        });
 
-    res.status(201).json({ ...dbFile, size: String(fileSize) });
+        await updateParentFolderSizes(folderId || null, fileSize, tx, 'increment');
+
+        return created;
+      });
+
+      res.status(201).json({ ...dbFile, size: String(fileSize) });
+    } catch (dbError) {
+      await deleteFile(filePath);
+      throw dbError;
+    }
   } catch (error) {
     logger.error('Create empty file error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to create file' });
@@ -2737,4 +2824,3 @@ router.get('/search', authenticate, async (req: Request, res: Response) => {
 });
 
 export default router;
-

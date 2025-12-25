@@ -6,6 +6,7 @@ import { createFolderSchema, updateFolderSchema, moveFolderSchema } from '../sch
 import archiver from 'archiver';
 import fs from 'fs/promises';
 import { fileExists, getStoragePath, deleteFile as deleteStorageFile } from '../lib/storage.js';
+import { sanitizeFilename } from '../lib/security.js';
 import { v4 as uuidv4 } from 'uuid';
 import { config } from '../config/index.js';
 import * as cache from '../lib/cache.js';
@@ -24,6 +25,7 @@ router.post('/', authenticate, validate(createFolderSchema), async (req: Request
   try {
     const { name, parentId, color, category } = req.body;
     const userId = req.user!.userId;
+    const safeName = sanitizeFilename(name);
 
     // Check if parent exists
     if (parentId) {
@@ -39,7 +41,7 @@ router.post('/', authenticate, validate(createFolderSchema), async (req: Request
 
     // Check for duplicate name (only among non-trashed folders)
     const existing = await prisma.folder.findFirst({
-      where: { name, parentId: parentId || null, userId, isTrash: false },
+      where: { name: safeName, parentId: parentId || null, userId, isTrash: false },
     });
 
     if (existing) {
@@ -49,7 +51,7 @@ router.post('/', authenticate, validate(createFolderSchema), async (req: Request
 
     const folder = await prisma.folder.create({
       data: {
-        name,
+        name: safeName,
         parentId: parentId || null,
         color,
         category,
@@ -62,7 +64,7 @@ router.post('/', authenticate, validate(createFolderSchema), async (req: Request
         type: 'CREATE_FOLDER',
         userId,
         folderId: folder.id,
-        details: JSON.stringify({ name }),
+        details: JSON.stringify({ name: safeName }),
       },
     });
 
@@ -193,6 +195,7 @@ router.patch('/:id', authenticate, validate(updateFolderSchema), async (req: Req
     const { id } = req.params;
     const { name, color, category } = req.body;
     const userId = req.user!.userId;
+    const safeName = name ? sanitizeFilename(name) : undefined;
 
     const folder = await prisma.folder.findFirst({
       where: { id, userId },
@@ -204,9 +207,9 @@ router.patch('/:id', authenticate, validate(updateFolderSchema), async (req: Req
     }
 
     // Check for duplicate name
-    if (name && name !== folder.name) {
+    if (safeName && safeName !== folder.name) {
       const existing = await prisma.folder.findFirst({
-        where: { name, parentId: folder.parentId, userId, NOT: { id } },
+        where: { name: safeName, parentId: folder.parentId, userId, NOT: { id } },
       });
 
       if (existing) {
@@ -218,7 +221,7 @@ router.patch('/:id', authenticate, validate(updateFolderSchema), async (req: Req
     const updated = await prisma.folder.update({
       where: { id },
       data: {
-        ...(name && { name }),
+        ...(safeName && { name: safeName }),
         ...(color !== undefined && { color }),
         ...(category !== undefined && { category }),
       },
@@ -552,7 +555,8 @@ router.get('/:id/download', authenticate, async (req: Request, res: Response) =>
 
       for (const file of files) {
         if (await fileExists(file.path)) {
-          archive.file(file.path, { name: `${archivePath}/${file.name}` });
+          const safeFileName = sanitizeFilename(file.name);
+          archive.file(file.path, { name: `${archivePath}/${safeFileName}` });
         }
       }
 
@@ -561,11 +565,12 @@ router.get('/:id/download', authenticate, async (req: Request, res: Response) =>
       });
 
       for (const subfolder of subfolders) {
-        await addFolderToArchive(subfolder.id, `${archivePath}/${subfolder.name}`);
+        const safeFolderName = sanitizeFilename(subfolder.name);
+        await addFolderToArchive(subfolder.id, `${archivePath}/${safeFolderName}`);
       }
     };
 
-    await addFolderToArchive(id, folder.name);
+    await addFolderToArchive(id, sanitizeFilename(folder.name));
     await archive.finalize();
   } catch (error) {
     console.error('Download folder error:', error);

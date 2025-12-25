@@ -18,8 +18,8 @@ import { useUploadStore } from '../stores/uploadStore';
 import { useBrandingStore } from '../stores/brandingStore';
 import { useGlobalProgressStore } from '../stores/globalProgressStore';
 import { useAuthStore } from '../stores/authStore';
-import { cn } from '../lib/utils';
-import { uploadFile } from '../lib/chunkedUpload';
+import { cn, formatBytes } from '../lib/utils';
+import { uploadFile, UPLOAD_CONFIG, UPLOAD_ERROR_CODES, ensureConfigLoaded } from '../lib/chunkedUpload';
 import { PanelLeftClose, PanelLeft, Grid, List, SortAsc, SortDesc, Check, Link as LinkIcon, Users, Image, Star, Video, Camera, FolderOpen, Settings, ShieldCheck, Upload, FolderPlus, Trash2, Music, Disc, Plus, ArrowLeft, FilePlus, FolderUp, CheckSquare, RefreshCw, FileSpreadsheet, Presentation, FileCode, Files, File, AlignLeft } from 'lucide-react';
 import { Album } from '../types';
 import Dropdown, { DropdownItem, DropdownDivider } from '../components/ui/Dropdown';
@@ -112,11 +112,35 @@ export default function MainLayout() {
   const { setGlobalProgress, resetGlobalProgress } = useUploadStore();
   const { branding } = useBrandingStore();
   const { addOperation, incrementProgress, completeOperation, failOperation } = useGlobalProgressStore();
-  const { refreshUser } = useAuthStore();
+  const { refreshUser, user } = useAuthStore();
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { albumId } = useParams<{ albumId: string }>();
+
+  const getEffectiveMaxFileSize = useCallback(() => {
+    const globalMax = UPLOAD_CONFIG.MAX_FILE_SIZE;
+    const userMax = Number(user?.maxFileSize || 0);
+    if (!Number.isFinite(userMax) || userMax <= 0) {
+      return globalMax;
+    }
+    return Math.min(userMax, globalMax);
+  }, [user]);
+
+  const getUploadErrorMessage = useCallback(
+    (errorCode?: string, fallback?: string) => {
+      if (errorCode === UPLOAD_ERROR_CODES.FILE_TOO_LARGE) {
+        const maxFileSize = getEffectiveMaxFileSize();
+        if (Number.isFinite(maxFileSize) && maxFileSize > 0) {
+          return t('modals.upload.errors.fileTooLarge', { size: formatBytes(maxFileSize) });
+        }
+        return t('modals.upload.errors.fileTooLarge', { size: '0 B' });
+      }
+
+      return fallback;
+    },
+    [getEffectiveMaxFileSize, t]
+  );
 
   // When using a shared scroll container for multiple pages, preserve-scroll can
   // make some pages appear "blank" if the previous page was scrolled past the
@@ -295,7 +319,9 @@ export default function MainLayout() {
       }
     }
 
-    if (allFiles.length === 0) return;
+      if (allFiles.length === 0) return;
+
+      await ensureConfigLoaded();
 
     // Calculate total size for progress tracking
     const totalSize = allFiles.reduce((sum, { file }) => sum + file.size, 0);
@@ -309,81 +335,113 @@ export default function MainLayout() {
 
     // Upload files one by one to preserve folder structure
     // The backend will create folders as needed based on relativePath
-    let successCount = 0;
-    let errorCount = 0;
+      let successCount = 0;
+      let errorCount = 0;
+      let lastErrorMessage: string | null = null;
+      let lastErrorCode: string | null = null;
 
-    for (const { file, relativePath } of allFiles) {
-      try {
-        // For folder uploads, we need to pass the relative path to the backend
-        // We'll use the upload endpoint that supports folder structure
-        const formData = new FormData();
-        formData.append('files', file);
-        formData.append('paths', relativePath);
-        if (folderId) {
-          formData.append('folderId', folderId);
+      for (const { file, relativePath } of allFiles) {
+        let uploadSucceeded = false;
+        try {
+          // For folder uploads, we need to pass the relative path to the backend
+          // We'll use the upload endpoint that supports folder structure
+          const formData = new FormData();
+          formData.append('files', file);
+          formData.append('paths', relativePath);
+          if (folderId) {
+            formData.append('folderId', folderId);
+          }
+
+          // For small files, use direct upload with folder support
+          // For large files, use chunked upload (folders will be created via path)
+          if (file.size <= 50 * 1024 * 1024) { // 50MB threshold for direct upload
+            await api.post('/files/upload-with-folders', formData, {
+              headers: { 'Content-Type': 'multipart/form-data' },
+              onUploadProgress: (progressEvent) => {
+                const loaded = progressEvent.loaded || 0;
+                const now = Date.now();
+                const timeDiff = (now - lastSpeedUpdate) / 1000;
+
+                if (timeDiff > 0.1) {
+                  currentSpeed = (uploadedTotal + loaded - lastUploadedTotal) / timeDiff;
+                  lastSpeedUpdate = now;
+                  lastUploadedTotal = uploadedTotal + loaded;
+                }
+
+                setGlobalProgress(uploadedTotal + loaded, totalSize, currentSpeed);
+              },
+            });
+            uploadSucceeded = true;
+          } else {
+            // Use chunked upload for large files
+            const result = await uploadFile(
+              file,
+              folderId,
+              (progress) => {
+                const now = Date.now();
+                const timeDiff = (now - lastSpeedUpdate) / 1000;
+
+                if (timeDiff > 0.1) {
+                  currentSpeed = progress.speed || currentSpeed;
+                  lastSpeedUpdate = now;
+                }
+
+                setGlobalProgress(uploadedTotal + progress.uploadedSize, totalSize, currentSpeed);
+              },
+              { relativePath }
+            );
+            if (!result.success) {
+              if (result.error) {
+                lastErrorMessage = result.error;
+              }
+              if (result.errorCode) {
+                lastErrorCode = result.errorCode;
+              }
+            } else {
+              uploadSucceeded = true;
+            }
+          }
+
+          uploadedTotal += file.size;
+        } catch (error: unknown) {
+          console.error(`Failed to upload ${relativePath}:`, error);
+          const errorResponse = error as { response?: { data?: { error?: string; code?: string } } };
+          if (errorResponse.response?.data?.error) {
+            lastErrorMessage = errorResponse.response.data.error;
+          }
+          if (errorResponse.response?.data?.code) {
+            lastErrorCode = errorResponse.response.data.code;
+          } else if (error instanceof Error && error.message) {
+            lastErrorMessage = error.message;
+          }
+          uploadedTotal += file.size; // Still advance progress
         }
 
-        // For small files, use direct upload with folder support
-        // For large files, use chunked upload (folders will be created via path)
-        if (file.size <= 50 * 1024 * 1024) { // 50MB threshold for direct upload
-          await api.post('/files/upload-with-folders', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-            onUploadProgress: (progressEvent) => {
-              const loaded = progressEvent.loaded || 0;
-              const now = Date.now();
-              const timeDiff = (now - lastSpeedUpdate) / 1000;
-
-              if (timeDiff > 0.1) {
-                currentSpeed = (uploadedTotal + loaded - lastUploadedTotal) / timeDiff;
-                lastSpeedUpdate = now;
-                lastUploadedTotal = uploadedTotal + loaded;
-              }
-
-              setGlobalProgress(uploadedTotal + loaded, totalSize, currentSpeed);
-            },
-          });
+        if (uploadSucceeded) {
+          successCount++;
         } else {
-          // Use chunked upload for large files
-          await uploadFile(
-            file,
-            folderId,
-            (progress) => {
-              const now = Date.now();
-              const timeDiff = (now - lastSpeedUpdate) / 1000;
-
-              if (timeDiff > 0.1) {
-                currentSpeed = progress.speed || currentSpeed;
-                lastSpeedUpdate = now;
-              }
-
-              setGlobalProgress(uploadedTotal + progress.uploadedSize, totalSize, currentSpeed);
-            },
-            { relativePath }
-          );
+          errorCount++;
         }
-
-        uploadedTotal += file.size;
-        successCount++;
-      } catch (error: unknown) {
-        console.error(`Failed to upload ${relativePath}:`, error);
-        errorCount++;
-        uploadedTotal += file.size; // Still advance progress
       }
-    }
 
     resetGlobalProgress();
 
-    if (errorCount === 0) {
-      toast(t('files.uploadSuccess', { count: successCount }), 'success');
-    } else if (successCount > 0) {
-      toast(t('files.uploadPartialSuccess', { success: successCount, failed: errorCount }), 'warning');
-    } else {
-      toast(t('files.uploadError'), 'error');
-    }
+      const resolvedErrorMessage = getUploadErrorMessage(lastErrorCode || undefined, lastErrorMessage || undefined);
+
+      if (errorCount === 0) {
+        toast(t('files.uploadSuccess', { count: successCount }), 'success');
+      } else if (successCount > 0) {
+        const message = resolvedErrorMessage
+          ? `${t('files.uploadPartialSuccess', { success: successCount, failed: errorCount })} - ${resolvedErrorMessage}`
+          : t('files.uploadPartialSuccess', { success: successCount, failed: errorCount });
+        toast(message, 'warning');
+      } else {
+        toast(resolvedErrorMessage || t('files.uploadError'), 'error');
+      }
 
     triggerRefresh();
     refreshUser(); // Update storage info in sidebar
-  }, [setGlobalProgress, resetGlobalProgress, isInternalDragging, refreshUser, t]);
+    }, [setGlobalProgress, resetGlobalProgress, isInternalDragging, refreshUser, t, getUploadErrorMessage]);
 
   // Set up global drag/drop listeners and global marquee start
   useEffect(() => {
@@ -825,6 +883,7 @@ export default function MainLayout() {
     }
 
     try {
+      await ensureConfigLoaded();
       toast(t('files.uploading', { count: filesWithPaths.length }), 'info');
       await api.post('/files/upload-with-folders', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -833,12 +892,16 @@ export default function MainLayout() {
       triggerRefresh();
       refreshUser(); // Update storage info in sidebar
     } catch (error: unknown) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      toast((error as any).response?.data?.error || t('files.folderUploadError'), 'error');
+      const errorResponse = error as { response?: { data?: { error?: string; code?: string } } };
+      const resolvedErrorMessage = getUploadErrorMessage(
+        errorResponse.response?.data?.code,
+        errorResponse.response?.data?.error
+      );
+      toast(resolvedErrorMessage || t('files.folderUploadError'), 'error');
     }
 
     e.target.value = '';
-  }, [currentFolderId, t, refreshUser]);
+  }, [currentFolderId, t, refreshUser, getUploadErrorMessage]);
 
   // Event to trigger refresh in child components
   const triggerRefresh = () => {
