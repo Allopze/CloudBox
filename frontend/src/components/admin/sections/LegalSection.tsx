@@ -152,7 +152,7 @@ export default function LegalSection() {
                         <div className="space-y-4">
                             <div className="flex justify-between items-center mb-2">
                                 <label className="text-sm font-medium text-dark-700 dark:text-dark-300">Contenido (Markdown)</label>
-                                <a href="/privacy" target="_blank" className="text-xs text-primary-600 hover:underline">Ver pÃ¡gina pÃºblica</a>
+                                <a href="/privacy" target="_blank" rel="noreferrer" className="text-xs text-primary-600 hover:underline">{t('admin.legal.viewPublic', 'Ver página pública')}</a>
                             </div>
                             <textarea
                                 value={legalSettingsByLocale[activeLocale].privacyPolicy}
@@ -164,14 +164,14 @@ export default function LegalSection() {
                                     },
                                 }))}
                                 className="w-full h-[500px] px-4 py-3 bg-dark-50 dark:bg-dark-900 border border-dark-200 dark:border-dark-700 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none leading-relaxed"
-                                placeholder="# PolÃ­tica de Privacidad..."
+                                placeholder="# Política de Privacidad..."
                             />
                         </div>
                     ) : (
                         <div className="space-y-4">
                             <div className="flex justify-between items-center mb-2">
                                 <label className="text-sm font-medium text-dark-700 dark:text-dark-300">Contenido (Markdown)</label>
-                                <a href="/terms" target="_blank" className="text-xs text-primary-600 hover:underline">Ver pÃ¡gina pÃºblica</a>
+                                <a href="/terms" target="_blank" rel="noreferrer" className="text-xs text-primary-600 hover:underline">{t('admin.legal.viewPublic', 'Ver página pública')}</a>
                             </div>
                             <textarea
                                 value={legalSettingsByLocale[activeLocale].termsOfService}
@@ -183,7 +183,7 @@ export default function LegalSection() {
                                     },
                                 }))}
                                 className="w-full h-[500px] px-4 py-3 bg-dark-50 dark:bg-dark-900 border border-dark-200 dark:border-dark-700 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none leading-relaxed"
-                                placeholder="# TÃ©rminos y Condiciones..."
+                                placeholder="# Términos y Condiciones..."
                             />
                         </div>
                     )}

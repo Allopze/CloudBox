@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { api, openSignedFileUrl } from '../lib/api';
 import { FileItem, Folder } from '../types';
@@ -22,13 +22,14 @@ import VideoPreview from '../components/gallery/VideoPreview';
 import DocumentViewer from '../components/gallery/DocumentViewer';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { SkeletonGrid } from '../components/ui/Skeleton';
-import FileToolbar from '../components/files/FileToolbar';
+
 import MoveModal from '../components/modals/MoveModal';
 
 export default function Files() {
   const { t } = useTranslation();
   const [searchParams] = useSearchParams();
-  const folderId = searchParams.get('folder');
+  const { folderId: paramFolderId } = useParams();
+  const folderId = paramFolderId || searchParams.get('folder');
   const searchQuery = searchParams.get('search');
 
   const [files, setFiles] = useState<FileItem[]>([]);
@@ -215,6 +216,20 @@ export default function Files() {
       toast(t('toolbar.bulkError'), 'error');
     }
   }, [selectedFileIds, selectedFolderIds, clearSelection, t]);
+
+  // Bulk actions triggered from the global Header selection toolbar
+  useEffect(() => {
+    const onOpenMoveModal = () => handleMoveSelected();
+    const onBulkFavorite = () => { void handleFavoriteSelected(); };
+
+    window.addEventListener('workzone-open-move-modal', onOpenMoveModal);
+    window.addEventListener('workzone-bulk-favorite', onBulkFavorite);
+
+    return () => {
+      window.removeEventListener('workzone-open-move-modal', onOpenMoveModal);
+      window.removeEventListener('workzone-bulk-favorite', onBulkFavorite);
+    };
+  }, [handleMoveSelected, handleFavoriteSelected]);
 
   // Rename selected (only single selection)
   const handleRenameSelected = useCallback(() => {
@@ -553,16 +568,7 @@ export default function Files() {
         />
       )}
 
-      {/* File Toolbar for bulk actions */}
-      <FileToolbar
-        selectedCount={selectedFileIds.length + selectedFolderIds.length}
-        selectedFileIds={selectedFileIds}
-        selectedFolderIds={selectedFolderIds}
-        onDeleteSelected={handleDeleteSelected}
-        onMoveSelected={handleMoveSelected}
-        onFavoriteSelected={handleFavoriteSelected}
-        onShareSelected={handleShareSelected}
-      />
+      {/* File Toolbar for bulk actions - Removed as it's now in Header */}
 
       {/* Move Modal */}
       <MoveModal

@@ -10,7 +10,12 @@ Complete reference for all environment variables used in CloudBox.
 |----------|---------|-------------|
 | `NODE_ENV` | `development` | Environment: `development`, `production`, `test` |
 | `PORT` | `3001` | Backend server port |
-| `FRONTEND_URL` | `http://localhost:5173` | Frontend URL (used for CORS, emails, redirects) |
+| `FRONTEND_URL` | `http://localhost:5000` | Frontend URL (used for CORS, emails, redirects) |
+
+Notes for `FRONTEND_URL`:
+- Local dev (`npm run dev`): `http://localhost:5000`
+- Docker dev (`docker-compose up --build`): `http://localhost:8080`
+- Production: your real domain (e.g. `https://cloud.example.com`)
 
 ---
 
@@ -18,7 +23,7 @@ Complete reference for all environment variables used in CloudBox.
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `DATABASE_URL` | ✅ | PostgreSQL connection string |
+| `DATABASE_URL` | Yes | PostgreSQL connection string |
 
 **Format:**
 ```
@@ -36,12 +41,12 @@ DATABASE_URL="postgresql://cloudbox:password@localhost:5432/cloudbox?schema=publ
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `JWT_SECRET` | ⚠️ Required in prod | Secret for access token signing |
-| `JWT_REFRESH_SECRET` | ⚠️ Required in prod | Secret for refresh token signing |
+| `JWT_SECRET` | (required in production) | Secret for access token signing |
+| `JWT_REFRESH_SECRET` | (required in production) | Secret for refresh token signing |
 | `JWT_EXPIRES_IN` | `15m` | Access token expiration |
 | `JWT_REFRESH_EXPIRES_IN` | `7d` | Refresh token expiration |
 
-> ⚠️ **Security**: Change default secrets in production. The server will refuse to start if using defaults in production mode.
+> **Security**: Change default secrets in production. The server will refuse to start if using defaults in production mode.
 
 **Generate secure secrets:**
 ```bash
@@ -68,7 +73,7 @@ STORAGE_PATH/
 ├── temp/               # Temporary files
 ├── avatars/            # User avatars
 ├── branding/           # Custom logos
-└── landing/            # Landing page assets
+└── landing/            # Landing assets (admin-configurable)
 ```
 
 ---
@@ -84,7 +89,7 @@ STORAGE_PATH/
 | `CACHE_ENABLED` | `true` | Enable/disable caching |
 | `MAX_SESSIONS_PER_USER` | `10` | Max concurrent sessions (0 = unlimited) |
 
-> **Note**: Redis is optional for development but strongly recommended for production. It enables distributed rate limiting, session management, and job queues.
+> Redis is optional for development but strongly recommended for production. It enables distributed rate limiting, session management, and job queues.
 
 ---
 
@@ -96,7 +101,7 @@ STORAGE_PATH/
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
 
 To set up Google OAuth:
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+1. Go to Google Cloud Console
 2. Create OAuth 2.0 credentials
 3. Add authorized redirect URI: `{FRONTEND_URL}/auth/google/callback`
 
@@ -115,23 +120,6 @@ Email configuration can be set via environment variables or the Admin UI.
 | `SMTP_PASS` | - | SMTP password |
 | `SMTP_FROM` | - | Sender address (e.g., `CloudBox <noreply@example.com>`) |
 
-**Common Providers:**
-
-```bash
-# Gmail
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_SECURE=false
-
-# Outlook/Office 365
-SMTP_HOST=smtp.office365.com
-SMTP_PORT=587
-
-# SendGrid
-SMTP_HOST=smtp.sendgrid.net
-SMTP_PORT=587
-```
-
 ---
 
 ## Compression
@@ -139,10 +127,6 @@ SMTP_PORT=587
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `ZIP_COMPRESSION_LEVEL` | `5` | ZIP compression level (0-9) |
-
-- `0`: No compression (fastest)
-- `5`: Balanced (default)
-- `9`: Maximum compression (slowest)
 
 ---
 
@@ -174,8 +158,6 @@ SMTP_PORT=587
 |----------|-------------|
 | `SENTRY_DSN` | Sentry/GlitchTip DSN for error tracking |
 
-Both backend and frontend support Sentry. You can use the self-hosted GlitchTip alternative included in `docker-compose.prod.yml`.
-
 ---
 
 ## Admin User (Seeding)
@@ -206,9 +188,9 @@ Frontend environment variables are prefixed with `VITE_` and stored in `frontend
 ```bash
 NODE_ENV=development
 PORT=3001
-FRONTEND_URL=http://localhost:5173
+FRONTEND_URL=http://localhost:5000
 
-DATABASE_URL="postgresql://cloudbox:cloudbox_dev@localhost:5432/cloudbox"
+DATABASE_URL="postgresql://cloudbox:password@localhost:5432/cloudbox?schema=public"
 
 JWT_SECRET=change-this-in-production
 JWT_REFRESH_SECRET=change-this-in-production-too
@@ -228,16 +210,3 @@ REDIS_PORT=6379
 VITE_API_URL=http://localhost:3001/api
 ```
 
----
-
-## Production Checklist
-
-Before deploying to production, ensure:
-
-- [ ] `NODE_ENV=production`
-- [ ] `JWT_SECRET` and `JWT_REFRESH_SECRET` are unique, secure values
-- [ ] `FRONTEND_URL` matches your production domain
-- [ ] `DATABASE_URL` points to production database
-- [ ] Redis is configured for distributed rate limiting
-- [ ] `SENTRY_DSN` is set for error tracking
-- [ ] SMTP is configured for password reset emails

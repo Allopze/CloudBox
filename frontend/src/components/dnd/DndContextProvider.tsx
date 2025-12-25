@@ -61,7 +61,8 @@ export default function DndContextProvider({ children, onRefresh }: DndContextPr
     const { t } = useTranslation();
     const { startDrag, endDrag, draggedItems, isDragging } = useDragDropStore();
     const { selectSingle, clearSelection } = useFileStore.getState();
-    const [activeDragType, setActiveDragType] = useState<string | null>(null);
+    type ActiveDragType = DragItem['type'] | 'sidebar-nav' | 'sidebar-admin';
+    const [activeDragType, setActiveDragType] = useState<ActiveDragType | null>(null);
 
     // Configure pointer sensor with distance constraint to allow clicks
     const sensors = useSensors(
@@ -74,12 +75,19 @@ export default function DndContextProvider({ children, onRefresh }: DndContextPr
 
     const handleDragStart = useCallback((event: DragStartEvent) => {
         const { active } = event;
-        const activeData = active.data.current as { type?: string; item?: FileItem | Folder } | undefined;
-        const activeType = activeData?.type ?? null;
+        const activeData = active.data.current as { type?: unknown; item?: unknown } | undefined;
+        const rawType = activeData?.type;
+        const activeType =
+            rawType === 'file' ||
+            rawType === 'folder' ||
+            rawType === 'sidebar-nav' ||
+            rawType === 'sidebar-admin'
+                ? rawType
+                : null;
 
         setActiveDragType(activeType);
 
-        if (!activeData || (activeData.type !== 'file' && activeData.type !== 'folder')) return;
+        if (!activeData || (activeType !== 'file' && activeType !== 'folder') || !activeData.item) return;
 
         let itemsToDrag: DragItem[] = [];
         const selectedItems = useFileStore.getState().selectedItems;
@@ -107,7 +115,7 @@ export default function DndContextProvider({ children, onRefresh }: DndContextPr
 
         // If no items collected, just drag this item
         if (itemsToDrag.length === 0) {
-            itemsToDrag = [activeData];
+            itemsToDrag = [{ type: activeType, item: activeData.item as FileItem | Folder }];
             selectSingle(active.id as string);
         }
 

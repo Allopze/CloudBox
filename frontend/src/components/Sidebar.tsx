@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { NavLink, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation, useSearchParams, Link } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { DragOverlay, useDndMonitor, useDraggable, useDroppable } from '@dnd-kit/core';
@@ -175,7 +175,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps) {
         const nextIndicator = {
           type: 'nav' as const,
           overId: String(over.id),
-          position,
+          position: position as 'before' | 'after',
           section: overData.section,
         };
 
@@ -201,7 +201,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps) {
         const nextIndicator = {
           type: 'admin' as const,
           overId: String(over.id),
-          position,
+          position: position as 'before' | 'after',
         };
 
         if (
@@ -602,7 +602,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps) {
   const SidebarContent = () => (
     <>
       {/* Logo */}
-      <div className="h-14 px-3 flex items-center justify-center flex-shrink-0">
+      <Link to="/files" className="h-14 px-3 flex items-center justify-center flex-shrink-0 cursor-pointer">
         {((isDark ? branding.logoDarkUrl : branding.logoLightUrl) || branding.logoUrl) ? (
           <img
             src={(isDark ? branding.logoDarkUrl : branding.logoLightUrl) || branding.logoUrl}
@@ -616,7 +616,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps) {
             </svg>
           </div>
         )}
-      </div>
+      </Link>
 
       {isAdminPage ? (
         <>

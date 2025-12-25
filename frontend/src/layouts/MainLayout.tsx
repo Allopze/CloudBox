@@ -250,8 +250,10 @@ export default function MainLayout() {
     if (!hasFiles) return;
 
     // Get current folder ID from URL
+    // Check path first: /files/:folderId
+    const pathMatch = window.location.pathname.match(/^\/files\/([^/]+)\/?$/);
     const urlParams = new URLSearchParams(window.location.search);
-    const folderId = urlParams.get('folder');
+    const folderId = pathMatch ? pathMatch[1] : urlParams.get('folder');
 
     const allFiles: { file: File; relativePath: string }[] = [];
 

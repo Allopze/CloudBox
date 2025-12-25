@@ -10,7 +10,7 @@ Solutions for common issues when running CloudBox.
 
 #### Error: `EADDRINUSE: address already in use`
 
-Another process is using port 3001 or 5173.
+Another process is using port 3001 or 5000.
 
 **Solution:**
 ```bash
@@ -278,7 +278,10 @@ Frontend URL mismatch.
 Ensure `FRONTEND_URL` in backend `.env` matches your frontend URL:
 ```bash
 # Development
-FRONTEND_URL=http://localhost:5173
+FRONTEND_URL=http://localhost:5000
+
+# Docker (dev)
+FRONTEND_URL=http://localhost:8080
 
 # Production
 FRONTEND_URL=https://your-domain.com

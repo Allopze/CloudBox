@@ -178,6 +178,11 @@ export default function Documents() {
     });
   }, [tab]);
 
+  // Keep filtered list in sync with source docs + active tab filter
+  useEffect(() => {
+    setDocuments(filterByCategory(allDocs));
+  }, [allDocs, filterByCategory]);
+
   const loadData = useCallback(async (pageNum: number = 1, append: boolean = false) => {
     if (append) {
       setLoadingMore(true);
@@ -209,14 +214,9 @@ export default function Documents() {
       }
 
       if (append) {
-        setAllDocs(prev => {
-          const newAllDocs = [...prev, ...docs];
-          setDocuments(filterByCategory(newAllDocs));
-          return newAllDocs;
-        });
+        setAllDocs(prev => [...prev, ...docs]);
       } else {
         setAllDocs(docs);
-        setDocuments(filterByCategory(docs));
       }
     } catch (error) {
       console.error('Failed to load documents:', error);
@@ -225,7 +225,7 @@ export default function Documents() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [sortBy, sortOrder, filterByCategory, searchQuery]);
+  }, [sortBy, sortOrder, searchQuery, t]);
 
   // Load more function for pagination
   const loadMore = useCallback(() => {
@@ -326,9 +326,9 @@ export default function Documents() {
   const handleFavorite = async (doc: FileItem) => {
     try {
       await api.patch(`/files/${doc.id}/favorite`);
-      setDocuments(prev => prev.map(d =>
+      setAllDocs(prev => prev.map(d => (
         d.id === doc.id ? { ...d, isFavorite: !d.isFavorite } : d
-      ));
+      )));
       toast(doc.isFavorite ? t('documents.removedFromFavorites') : t('documents.addedToFavorites'), 'success');
     } catch {
       toast(t('documents.favoriteError'), 'error');

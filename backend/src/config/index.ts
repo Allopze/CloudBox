@@ -20,7 +20,7 @@ const isProduction = process.env.NODE_ENV === 'production';
 export const config = {
   port: parseInt(process.env.PORT || '3001'),
   nodeEnv: process.env.NODE_ENV || 'development',
-  frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
+  frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5000',
 
   // Database configuration
   database: {
@@ -70,7 +70,7 @@ export const config = {
   storage: {
     path: process.env.STORAGE_PATH || '../data',
     maxFileSize: parseInt(process.env.MAX_FILE_SIZE || '104857600'),
-    defaultQuota: BigInt(process.env.DEFAULT_QUOTA || '53687091200'),
+    defaultQuota: BigInt(process.env.DEFAULT_QUOTA || '5368709120'),
   },
 
   trash: {
