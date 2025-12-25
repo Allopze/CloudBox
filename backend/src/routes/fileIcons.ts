@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
-import { prisma } from '../lib/prisma';
-import { authenticate, requireAdmin } from '../middleware/auth';
+import prisma from '../lib/prisma.js';
+import { authenticate, requireAdmin } from '../middleware/auth.js';
 import DOMPurify from 'isomorphic-dompurify';
 
 const router = Router();

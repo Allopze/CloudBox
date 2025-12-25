@@ -4,7 +4,7 @@ import { api } from '../../lib/api';
 import { useFileIconStore, FileIconCategory } from '../../stores/fileIconStore';
 import { cn } from '../../lib/utils';
 import { toast } from '../ui/Toast';
-import { File, Upload, RotateCcw, Info } from 'lucide-react';
+import { File, Upload, RotateCcw } from 'lucide-react';
 
 interface IconInfo {
     category: FileIconCategory;
@@ -213,30 +213,6 @@ export default function FileIconsAdmin() {
                 ))}
             </div>
 
-            <div className="p-8 rounded-[2rem] bg-gradient-to-br from-blue-50 to-blue-100/30 dark:from-blue-900/10 dark:to-blue-800/5 border border-blue-100 dark:border-blue-900/30 flex gap-6">
-                <div className="p-3.5 rounded-[1.25rem] bg-white dark:bg-blue-900/40 shrink-0 h-fit shadow-sm">
-                    <Info className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                </div>
-                <div>
-                    <h4 className="text-lg font-bold text-blue-900 dark:text-blue-100">
-                        {t('admin.fileIcons.tips', 'Consejos')}
-                    </h4>
-                    <ul className="mt-3 text-sm text-blue-800/70 dark:text-blue-200/60 font-medium space-y-2">
-                        <li className="flex items-center gap-2">
-                            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />
-                            {t('admin.fileIcons.tip1', 'Usa iconos SVG simples para mejores resultados')}
-                        </li>
-                        <li className="flex items-center gap-2">
-                            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />
-                            {t('admin.fileIcons.tip2', 'Tamaño recomendado: 48x64 o iconos cuadrados')}
-                        </li>
-                        <li className="flex items-center gap-2">
-                            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />
-                            {t('admin.fileIcons.tip3', 'Los SVGs se limpian automáticamente por seguridad')}
-                        </li>
-                    </ul>
-                </div>
-            </div>
         </div>
     );
 }

@@ -1579,6 +1579,7 @@
       "description": "Edita el contenido de las páginas de Privacidad y Términos.",
       "privacy": "Política de Privacidad",
       "terms": "Términos de Servicio",
+      "viewPublic": "Ver página pública",
       "saved": "Contenido legal guardado"
     },
     "activity": {

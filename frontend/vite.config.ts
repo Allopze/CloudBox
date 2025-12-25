@@ -28,7 +28,7 @@ export default defineConfig({
           // PDF rendering (heavy)
           'vendor-pdf': ['pdfjs-dist', 'react-pdf'],
           // Document rendering (heavy)
-          'vendor-docs': ['mammoth', 'xlsx', 'react-markdown', 'rehype-raw', 'remark-gfm'],
+          'vendor-docs': ['mammoth', 'react-markdown', 'rehype-raw', 'remark-gfm'],
           // Dropzone
           'vendor-dropzone': ['react-dropzone'],
         },

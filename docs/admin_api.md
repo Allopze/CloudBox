@@ -198,6 +198,46 @@ DELETE /admin/branding/:type
 
 ---
 
+## File Icons
+
+CloudBox supports custom **SVG** icons per file category (used in the UI for file cards and lists).
+
+### Get File Icons (Public)
+```http
+GET /file-icons
+```
+
+Returns a `{ [category]: svg }` map of the custom icons currently configured.
+
+### Get File Icons (Admin)
+```http
+GET /file-icons/admin
+```
+
+Returns all categories, indicating whether each one has a custom icon.
+
+### Set File Icon (Admin)
+```http
+PUT /file-icons/admin/:category
+```
+
+**Body:**
+```json
+{ "svg": "<svg>...</svg>" }
+```
+
+**Notes:**
+- Only SVG is supported. Payload is limited to **50KB**.
+- SVGs are sanitized server-side for security.
+- Recommended icon size: **48x64** or a square icon.
+
+### Reset File Icon (Admin)
+```http
+DELETE /file-icons/admin/:category
+```
+
+---
+
 ## Landing Assets
 
 ### Upload Landing Asset

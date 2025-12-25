@@ -20,6 +20,9 @@ import path from 'path';
 import fs from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
 
+const RUN_INTEGRATION = process.env.RUN_INTEGRATION === '1';
+const integrationDescribe = RUN_INTEGRATION ? describe : describe.skip;
+
 // Test configuration
 const API_URL = process.env.TEST_API_URL || 'http://localhost:3001';
 const TEST_USER = {
@@ -31,7 +34,7 @@ let authToken: string;
 let testFolderId: string;
 let uploadedFileIds: string[] = [];
 
-describe('File Upload API', () => {
+integrationDescribe('File Upload API', () => {
   beforeAll(async () => {
     // Login to get auth token
     const loginRes = await request(API_URL)
@@ -472,7 +475,7 @@ describe('File Upload API', () => {
   });
 });
 
-describe('Rate Limiting', () => {
+integrationDescribe('Rate Limiting', () => {
   it('should rate limit excessive uploads', async () => {
     // This test is intentionally commented out to avoid actual rate limiting
     // Uncomment for local testing only

@@ -53,7 +53,7 @@ This guide helps you run CloudBox locally (frontend + backend + database).
    npm run dev
    ```
 
-   - Frontend: `http://localhost:5173`
+   - Frontend: `http://localhost:5000`
    - Backend: `http://localhost:3001` (API base: `http://localhost:3001/api`)
 
 ## Option B: Dockerized local run (no hot reload)
@@ -71,7 +71,8 @@ docker-compose up -d --build
 
 | Command | Description |
 |--------|-------------|
-| `npm run dev` | Start frontend (5173) + backend (3001) |
+| `npm run dev` | Start frontend (5000) + backend (3001) |
 | `npm run setup` | Install deps, Prisma generate, db push, seed |
 | `npm run db:studio` | Open Prisma Studio |
-| `cd backend && npm test` | Run backend tests (Vitest) |
+| `npm run test:backend` | Run backend tests (Vitest) |
+
