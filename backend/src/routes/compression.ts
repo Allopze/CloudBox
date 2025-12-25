@@ -17,6 +17,7 @@ import {
 import { getStoragePath, fileExists, ensureUserDir, getUserFilePath } from '../lib/storage.js';
 import { getArchiveUncompressedSize } from '../lib/storageAccounting.js';
 import { config } from '../config/index.js';
+import { sanitizeFilename } from '../lib/security.js';
 import path from 'path';
 import fs from 'fs/promises';
 
@@ -92,7 +93,8 @@ router.post('/compress', authenticate, validate(compressionSchema), async (req: 
 
           for (const f of files) {
             if (await fileExists(f.path)) {
-              await fs.copyFile(f.path, path.join(targetPath, f.name));
+              const safeFileName = sanitizeFilename(f.name);
+              await fs.copyFile(f.path, path.join(targetPath, safeFileName));
             }
           }
 
@@ -101,7 +103,8 @@ router.post('/compress', authenticate, validate(compressionSchema), async (req: 
           });
 
           for (const sf of subfolders) {
-            const sfPath = path.join(targetPath, sf.name);
+            const safeFolderName = sanitizeFilename(sf.name);
+            const sfPath = path.join(targetPath, safeFolderName);
             await fs.mkdir(sfPath, { recursive: true });
             await copyFolderContents(sf.id, sfPath);
           }
@@ -141,7 +144,8 @@ router.post('/compress', authenticate, validate(compressionSchema), async (req: 
     }
 
     const jobId = uuidv4();
-    const outputFileName = outputName || `archive_${Date.now()}`;
+    const sanitizedOutputName = outputName ? sanitizeFilename(outputName) : `archive_${Date.now()}`;
+    const outputFileName = sanitizedOutputName.replace(/\.[^.]+$/, '') || `archive_${Date.now()}`;
     const outputPath = getTempPath(`${outputFileName}.${format}`);
 
     const job = await prisma.compressionJob.create({
@@ -265,6 +269,16 @@ router.post('/decompress', authenticate, validate(decompressSchema), async (req:
     if (!file) {
       res.status(404).json({ error: 'File not found' });
       return;
+    }
+
+    if (targetFolderId) {
+      const targetFolder = await prisma.folder.findFirst({
+        where: { id: targetFolderId, userId, isTrash: false },
+      });
+      if (!targetFolder) {
+        res.status(404).json({ error: 'Destination folder not found' });
+        return;
+      }
     }
 
     const ext = path.extname(file.name).toLowerCase();

@@ -773,6 +773,9 @@
       "parallelInfo": "Subiendo {{fileCount}} archivos en paralelo ({{chunkCount}} fragmentos cada uno)",
       "filesCompleted": "{{completed}} de {{total}} archivos completados",
       "someFilesFailed": "Algunos archivos fallaron al subirse",
+      "errors": {
+        "fileTooLarge": "El archivo supera el límite de tamaño de {{size}}."
+      },
       "cancel": "Cancelar"
     },
     "createFolder": {

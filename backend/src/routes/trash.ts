@@ -50,11 +50,6 @@ router.post('/restore/file/:id', authenticate, async (req: Request, res: Respons
       data: { isTrash: false, trashedAt: null },
     });
 
-    // Restore folder size when file is restored
-    if (file.folderId) {
-      await updateParentFolderSizes(file.folderId, file.size, prisma, 'increment');
-    }
-
     await prisma.activity.create({
       data: {
         type: 'RESTORE',
@@ -135,12 +130,7 @@ router.post('/restore/batch', authenticate, async (req: Request, res: Response) 
           data: { isTrash: false, trashedAt: null },
         });
 
-        // Update folder sizes for restored files
-        for (const file of files) {
-          if (file.folderId) {
-            await updateParentFolderSizes(file.folderId, file.size, tx, 'increment');
-          }
-        }
+        // Folder sizes already include trashed items; no adjustments needed on restore
       }
 
       if (folderIds && Array.isArray(folderIds)) {

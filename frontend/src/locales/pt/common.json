@@ -610,7 +610,10 @@
       "completed": "Todos os arquivos enviados",
       "done": "Concluído",
       "uploadFiles": "Enviar arquivos",
-      "allFilesUploaded": "Todos os arquivos foram enviados com sucesso"
+      "allFilesUploaded": "Todos os arquivos foram enviados com sucesso",
+      "errors": {
+        "fileTooLarge": "O arquivo excede o tamanho máximo de {{size}}."
+      }
     },
     "createFolder": {
       "title": "Criar pasta",

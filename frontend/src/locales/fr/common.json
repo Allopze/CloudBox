@@ -610,7 +610,10 @@
       "completed": "Tous les fichiers téléversés",
       "done": "Terminé",
       "uploadFiles": "Téléverser les fichiers",
-      "allFilesUploaded": "Tous les fichiers ont été téléversés avec succès"
+      "allFilesUploaded": "Tous les fichiers ont été téléversés avec succès",
+      "errors": {
+        "fileTooLarge": "Le fichier dépasse la taille maximale de {{size}}."
+      }
     },
     "createFolder": {
       "title": "Créer un dossier",

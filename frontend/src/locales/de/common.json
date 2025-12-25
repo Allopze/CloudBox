@@ -609,9 +609,12 @@
       "filesSelected": "{{count}} Datei(en) ausgewählt",
       "completed": "Alle Dateien hochgeladen",
       "done": "Fertig",
-      "uploadFiles": "Dateien hochladen",
-      "allFilesUploaded": "Alle Dateien wurden erfolgreich hochgeladen"
-    },
+        "uploadFiles": "Dateien hochladen",
+        "allFilesUploaded": "Alle Dateien wurden erfolgreich hochgeladen",
+        "errors": {
+          "fileTooLarge": "Die Datei überschreitet die maximale Größe von {{size}}."
+        }
+      },
     "createFolder": {
       "title": "Ordner erstellen",
       "folderName": "Ordnername",
