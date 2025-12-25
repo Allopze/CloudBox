@@ -8,11 +8,19 @@ export interface NavItem {
   path: string;
 }
 
+export interface AdminNavItem {
+  id: string;
+  icon: string;
+  labelKey: string;
+}
+
 interface SidebarState {
   navItems: NavItem[];
   bottomNavItems: NavItem[];
+  adminNavItems: AdminNavItem[];
   setNavItems: (items: NavItem[]) => void;
   setBottomNavItems: (items: NavItem[]) => void;
+  setAdminNavItems: (items: AdminNavItem[]) => void;
   resetToDefaults: () => void;
 }
 
@@ -30,29 +38,44 @@ const defaultBottomNavItems: NavItem[] = [
   { id: 'settings', icon: 'Settings', labelKey: 'sidebar.settings', path: '/settings' },
 ];
 
+export const defaultAdminNavItems: AdminNavItem[] = [
+  { id: 'overview', icon: 'LayoutDashboard', labelKey: 'sidebar.admin.overview' },
+  { id: 'users', icon: 'Users', labelKey: 'sidebar.admin.users' },
+  { id: 'settings', icon: 'Settings', labelKey: 'sidebar.admin.settings' },
+  { id: 'email', icon: 'Mail', labelKey: 'sidebar.admin.email' },
+  { id: 'branding', icon: 'Palette', labelKey: 'sidebar.admin.branding' },
+  { id: 'file-icons', icon: 'FileType', labelKey: 'sidebar.admin.fileIcons' },
+  { id: 'legal', icon: 'FileText', labelKey: 'sidebar.admin.legal' },
+  { id: 'activity', icon: 'Activity', labelKey: 'sidebar.admin.activity' },
+];
+
 export const useSidebarStore = create<SidebarState>()(
   persist(
     (set) => ({
       navItems: defaultNavItems,
       bottomNavItems: defaultBottomNavItems,
+      adminNavItems: defaultAdminNavItems,
       setNavItems: (items) => set({ navItems: items }),
       setBottomNavItems: (items) => set({ bottomNavItems: items }),
+      setAdminNavItems: (items) => set({ adminNavItems: items }),
       resetToDefaults: () =>
         set({
           navItems: defaultNavItems,
           bottomNavItems: defaultBottomNavItems,
+          adminNavItems: defaultAdminNavItems,
         }),
     }),
     {
-      name: 'sidebar-storage-v4',
+      name: 'sidebar-storage-v5',
       migrate: (_persistedState: unknown) => {
         // Always reset to defaults to use new labelKey format
         return {
           navItems: defaultNavItems,
           bottomNavItems: defaultBottomNavItems,
+          adminNavItems: defaultAdminNavItems,
         };
       },
-      version: 4,
+      version: 5,
     }
   )
 );

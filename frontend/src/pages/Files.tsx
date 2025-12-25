@@ -428,6 +428,7 @@ export default function Files() {
                   folder={item as Folder}
                   view={viewMode}
                   onRefresh={loadData}
+                  disableAnimation
                 />
               ) : (
                 <FileCard
@@ -435,6 +436,7 @@ export default function Files() {
                   view={viewMode}
                   onRefresh={loadData}
                   onPreview={handleFileClick}
+                  disableAnimation
                   onFavoriteToggle={(fileId, isFavorite) => {
                     setFiles(prev => prev.map(f => f.id === fileId ? { ...f, isFavorite } : f));
                   }}

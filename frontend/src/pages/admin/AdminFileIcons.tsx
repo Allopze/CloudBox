@@ -14,7 +14,7 @@ export default function AdminFileIcons() {
     const { t } = useTranslation();
 
     return (
-        <div className="p-6 max-w-7xl mx-auto">
+        <div className="p-6">
             {/* Header */}
             <div className="mb-6">
                 <Link
@@ -41,7 +41,7 @@ export default function AdminFileIcons() {
             </div>
 
             {/* Main Content */}
-            <div className="bg-white dark:bg-dark-800 rounded-2xl border border-gray-100 dark:border-dark-700 p-6">
+            <div className="">
                 <Suspense fallback={<PageLoader />}>
                     <FileIconsAdmin />
                 </Suspense>

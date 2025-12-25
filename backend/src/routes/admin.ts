@@ -1141,6 +1141,136 @@ router.delete('/email-templates/:name/variables/:variableId', authenticate, requ
   }
 });
 
+// Initialize default templates
+router.post('/email-templates/initialize', authenticate, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const defaultTemplates = [
+      {
+        name: 'welcome',
+        subject: 'Welcome to CloudBox, {{name}}!',
+        body: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h1 style="color: #dc2626;">Welcome to CloudBox!</h1>
+            <p>Hi {{name}},</p>
+            <p>Thank you for signing up! Please verify your email address by clicking the button below:</p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="{{verifyUrl}}" style="display: inline-block; padding: 12px 24px; background: #dc2626; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">Verify Email</a>
+            </div>
+            <p>If you didn't create this account, you can safely ignore this email.</p>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+            <p style="color: #666; font-size: 12px;">Best regards,<br>The CloudBox Team</p>
+          </div>
+        `,
+        variables: [
+          { name: 'name', defaultValue: 'User', description: 'User display name', isSystem: true },
+          { name: 'verifyUrl', defaultValue: '#', description: 'Verification link', isSystem: true }
+        ]
+      },
+      {
+        name: 'reset-password',
+        subject: 'Reset Your CloudBox Password',
+        body: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h1 style="color: #dc2626;">Password Reset Request</h1>
+            <p>Hi {{name}},</p>
+            <p>We received a request to reset your password. Click the button below to set a new password:</p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="{{resetUrl}}" style="display: inline-block; padding: 12px 24px; background: #dc2626; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">Reset Password</a>
+            </div>
+            <p>This link will expire in 1 hour.</p>
+            <p>If you didn't request this, you can safely ignore this email.</p>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+            <p style="color: #666; font-size: 12px;">Best regards,<br>The CloudBox Team</p>
+          </div>
+        `,
+        variables: [
+          { name: 'name', defaultValue: 'User', description: 'User display name', isSystem: true },
+          { name: 'resetUrl', defaultValue: '#', description: 'Password reset link', isSystem: true }
+        ]
+      },
+      {
+        name: 'verify-email',
+        subject: 'Verify your email address',
+        body: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h1 style="color: #dc2626;">Email Verification</h1>
+            <p>Hi {{name}},</p>
+            <p>Please click the button below to verify your email address:</p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="{{verifyUrl}}" style="display: inline-block; padding: 12px 24px; background: #dc2626; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">Verify Email</a>
+            </div>
+            <p>Best regards,<br>The CloudBox Team</p>
+          </div>
+        `,
+        variables: [
+          { name: 'name', defaultValue: 'User', description: 'User display name', isSystem: true },
+          { name: 'verifyUrl', defaultValue: '#', description: 'Verification link', isSystem: true }
+        ]
+      }
+    ];
+
+    const created = [];
+    for (const tpl of defaultTemplates) {
+      const existing = await prisma.emailTemplate.findUnique({ where: { name: tpl.name } });
+      if (!existing) {
+        const newTpl = await prisma.emailTemplate.create({
+          data: {
+            name: tpl.name,
+            subject: tpl.subject,
+            body: tpl.body,
+            isDefault: true,
+            variables: {
+              create: tpl.variables
+            }
+          }
+        });
+        created.push(newTpl);
+      }
+    }
+
+    res.json({ message: `Initialized ${created.length} templates`, created });
+  } catch (error) {
+    console.error('Initialize templates error:', error);
+    res.status(500).json({ error: 'Failed to initialize templates' });
+  }
+});
+
+// ========== Dashboard Stats ==========
+
+// Get admin stats
+router.get('/stats', authenticate, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const [totalUsers, totalFiles, totalStorageResult, activeUsersCount] = await Promise.all([
+      prisma.user.count(),
+      prisma.file.count(),
+      prisma.user.aggregate({
+        _sum: { storageUsed: true },
+      }),
+      prisma.activity.groupBy({
+        by: ['userId'],
+        where: {
+          createdAt: {
+            gte: thirtyDaysAgo,
+          },
+        },
+      }),
+    ]);
+
+    res.json({
+      totalUsers,
+      totalFiles,
+      totalStorage: totalStorageResult._sum.storageUsed?.toString() || '0',
+      activeUsers: activeUsersCount.length,
+    });
+  } catch (error) {
+    console.error('Get admin stats error:', error);
+    res.status(500).json({ error: 'Failed to get admin stats' });
+  }
+});
+
 // ========== Server Info ==========
 
 // Get server info
@@ -1200,7 +1330,7 @@ router.get('/settings/branding', publicEndpointLimiter, async (req: Request, res
   try {
     const settings = await prisma.settings.findMany({
       where: {
-        key: { in: ['branding_primary_color', 'branding_logo_url', 'branding_logo_light_url', 'branding_logo_dark_url', 'branding_favicon_url', 'site_name'] },
+        key: { in: ['branding_primary_color', 'branding_logo_url', 'branding_logo_light_url', 'branding_logo_dark_url', 'branding_favicon_url', 'branding_custom_css', 'site_name'] },
       },
     });
 
@@ -1210,6 +1340,7 @@ router.get('/settings/branding', publicEndpointLimiter, async (req: Request, res
       logoLightUrl: '',
       logoDarkUrl: '',
       faviconUrl: '',
+      customCss: '',
       siteName: 'CloudBox',
     };
 
@@ -1220,6 +1351,7 @@ router.get('/settings/branding', publicEndpointLimiter, async (req: Request, res
         'branding_logo_light_url': 'logoLightUrl',
         'branding_logo_dark_url': 'logoDarkUrl',
         'branding_favicon_url': 'faviconUrl',
+        'branding_custom_css': 'customCss',
         'site_name': 'siteName',
       };
       const mappedKey = keyMap[s.key];
@@ -1265,7 +1397,7 @@ router.get('/settings/branding', publicEndpointLimiter, async (req: Request, res
 // Save branding settings
 router.put('/settings/branding', authenticate, requireAdmin, async (req: Request, res: Response) => {
   try {
-    const { primaryColor, logoUrl, logoLightUrl, logoDarkUrl, faviconUrl } = req.body;
+    const { primaryColor, logoUrl, logoLightUrl, logoDarkUrl, faviconUrl, customCss } = req.body;
 
     const settings = [
       { key: 'branding_primary_color', value: primaryColor || '#FF3B3B' },
@@ -1273,6 +1405,7 @@ router.put('/settings/branding', authenticate, requireAdmin, async (req: Request
       { key: 'branding_logo_light_url', value: logoLightUrl || '' },
       { key: 'branding_logo_dark_url', value: logoDarkUrl || '' },
       { key: 'branding_favicon_url', value: faviconUrl || '' },
+      { key: 'branding_custom_css', value: customCss || '' },
     ];
 
     for (const setting of settings) {
@@ -1578,6 +1711,32 @@ router.post('/settings/smtp/test', authenticate, requireAdmin, validate(smtpTest
 
 // ========== Legal Pages ==========
 
+type LegalLocale = 'es' | 'en';
+
+const normalizeLegalLocale = (value: unknown): LegalLocale => {
+  if (typeof value !== 'string') return 'es';
+  const normalized = value.trim().toLowerCase();
+  if (normalized.startsWith('en')) return 'en';
+  if (normalized.startsWith('es')) return 'es';
+  return 'en';
+};
+
+const getLegalLocale = (req: Request): LegalLocale => {
+  const queryLocale = req.query.locale;
+  if (Array.isArray(queryLocale) && queryLocale.length > 0) {
+    return normalizeLegalLocale(queryLocale[0]);
+  }
+  if (typeof queryLocale === 'string') {
+    return normalizeLegalLocale(queryLocale);
+  }
+  const acceptLanguage = req.headers['accept-language'];
+  if (typeof acceptLanguage === 'string') {
+    const [first] = acceptLanguage.split(',');
+    return normalizeLegalLocale(first);
+  }
+  return 'es';
+};
+
 // Default content for legal pages
 const defaultLegalContent: Record<string, { title: string; content: string }> = {
   privacy: {
@@ -1661,6 +1820,102 @@ const defaultLegalContent: Record<string, { title: string; content: string }> = 
   },
 };
 
+const defaultLegalContentByLocale: Record<string, Record<LegalLocale, { title: string; content: string }>> = {
+  privacy: {
+    es: defaultLegalContent.privacy,
+    en: {
+      title: 'Privacy Policy',
+      content: `
+      <h2>1. Information We Collect</h2>
+      <p>We collect information you provide directly, such as your name, email address, and any files you upload to our service.</p>
+      
+      <h2>2. How We Use Information</h2>
+      <p>We use collected information to:</p>
+      <ul>
+        <li>Provide, maintain, and improve our services</li>
+        <li>Send technical notices and updates</li>
+        <li>Respond to your comments and questions</li>
+        <li>Protect against fraudulent or illegal activity</li>
+      </ul>
+      
+      <h2>3. Data Storage</h2>
+      <p>Your files are stored securely on our servers. We implement technical and organizational safeguards to protect your data.</p>
+      
+      <h2>4. Sharing Information</h2>
+      <p>We do not sell or share your personal information with third parties, except as necessary to provide our services or when required by law.</p>
+      
+      <h2>5. Your Rights</h2>
+      <p>You have the right to access, correct, or delete your personal information. You can do so from your account settings or by contacting us directly.</p>
+      
+      <h2>6. Cookies</h2>
+      <p>We use essential cookies for the service to operate. We do not use third-party tracking cookies.</p>
+      
+      <h2>7. Changes to this Policy</h2>
+      <p>We may update this policy occasionally. We will notify you about any material changes.</p>
+      
+      <h2>8. Contact</h2>
+      <p>If you have questions about this privacy policy, contact us via our support email.</p>
+    `,
+    },
+  },
+  terms: {
+    es: defaultLegalContent.terms,
+    en: {
+      title: 'Terms of Service',
+      content: `
+      <h2>1. Acceptance of Terms</h2>
+      <p>By accessing and using this service, you agree to be bound by these terms of service. If you do not agree with any part, you may not access the service.</p>
+      
+      <h2>2. Service Description</h2>
+      <p>CloudBox is a cloud storage service that allows users to upload, store, organize, and share files.</p>
+      
+      <h2>3. User Accounts</h2>
+      <p>To use certain features, you must create an account. You are responsible for:</p>
+      <ul>
+        <li>Keeping your password confidential</li>
+        <li>All activity that occurs under your account</li>
+        <li>Notifying us immediately about any unauthorized use</li>
+      </ul>
+      
+      <h2>4. Acceptable Use</h2>
+      <p>You agree not to use the service to:</p>
+      <ul>
+        <li>Upload illegal or infringing content</li>
+        <li>Distribute malware or harmful software</li>
+        <li>Attempt to access other users' accounts</li>
+        <li>Overload or interfere with service operations</li>
+      </ul>
+      
+      <h2>5. User Content</h2>
+      <p>You retain all rights to the content you upload. By uploading content, you grant us a limited license to store and display that content as necessary to provide the service.</p>
+      
+      <h2>6. Limitation of Liability</h2>
+      <p>The service is provided "as is" without warranties of any kind. We are not liable for data loss or any indirect damages arising from use of the service.</p>
+      
+      <h2>7. Termination</h2>
+      <p>We may suspend or terminate your access at any time for violations of these terms. You can delete your account at any time from settings.</p>
+      
+      <h2>8. Modifications</h2>
+      <p>We reserve the right to modify these terms at any time. Changes take effect immediately upon publication.</p>
+      
+      <h2>9. Governing Law</h2>
+      <p>These terms are governed by and construed in accordance with applicable laws in your jurisdiction.</p>
+      
+      <h2>10. Contact</h2>
+      <p>For any questions about these terms, contact us via our support email.</p>
+    `,
+    },
+  },
+};
+
+const getDefaultLegalContent = (slug: string, locale: LegalLocale) => {
+  const bySlug = defaultLegalContentByLocale[slug];
+  if (!bySlug) {
+    return { title: '', content: '' };
+  }
+  return bySlug[locale] ?? bySlug.en;
+};
+
 // Get legal page (Public)
 router.get('/legal/:slug', async (req: Request, res: Response) => {
   try {
@@ -1671,17 +1926,19 @@ router.get('/legal/:slug', async (req: Request, res: Response) => {
       return;
     }
 
+    const locale = getLegalLocale(req);
     const page = await prisma.legalPage.findUnique({
-      where: { slug },
+      where: { slug_locale: { slug, locale } },
     });
 
     if (page && page.isActive) {
       res.json(page);
     } else {
       // Return default content
-      const defaultContent = defaultLegalContent[slug];
+      const defaultContent = getDefaultLegalContent(slug, locale);
       res.json({
         slug,
+        locale,
         title: defaultContent.title,
         content: defaultContent.content,
         isActive: true,
@@ -1697,7 +1954,9 @@ router.get('/legal/:slug', async (req: Request, res: Response) => {
 // Get all legal pages (Admin)
 router.get('/legal', authenticate, requireAdmin, async (req: Request, res: Response) => {
   try {
+    const locale = getLegalLocale(req);
     const pages = await prisma.legalPage.findMany({
+      where: { locale },
       orderBy: { slug: 'asc' },
     });
 
@@ -1707,10 +1966,12 @@ router.get('/legal', authenticate, requireAdmin, async (req: Request, res: Respo
       if (existing) {
         return existing;
       }
+      const defaultContent = getDefaultLegalContent(slug, locale);
       return {
         slug,
-        title: defaultLegalContent[slug].title,
-        content: defaultLegalContent[slug].content,
+        locale,
+        title: defaultContent.title,
+        content: defaultContent.content,
         isActive: true,
         isDefault: true,
       };
@@ -1728,6 +1989,7 @@ router.put('/legal/:slug', authenticate, requireAdmin, async (req: Request, res:
   try {
     const { slug } = req.params;
     const { title, content, isActive } = req.body;
+    const locale = normalizeLegalLocale(req.body?.locale ?? req.query.locale);
 
     if (!['privacy', 'terms'].includes(slug)) {
       res.status(400).json({ error: 'Invalid page slug' });
@@ -1740,7 +2002,7 @@ router.put('/legal/:slug', authenticate, requireAdmin, async (req: Request, res:
     }
 
     const page = await prisma.legalPage.upsert({
-      where: { slug },
+      where: { slug_locale: { slug, locale } },
       update: {
         title,
         content,
@@ -1748,6 +2010,7 @@ router.put('/legal/:slug', authenticate, requireAdmin, async (req: Request, res:
       },
       create: {
         slug,
+        locale,
         title,
         content,
         isActive: isActive ?? true,
@@ -1765,20 +2028,23 @@ router.put('/legal/:slug', authenticate, requireAdmin, async (req: Request, res:
 router.delete('/legal/:slug', authenticate, requireAdmin, async (req: Request, res: Response) => {
   try {
     const { slug } = req.params;
+    const locale = getLegalLocale(req);
 
     if (!['privacy', 'terms'].includes(slug)) {
       res.status(400).json({ error: 'Invalid page slug' });
       return;
     }
 
-    await prisma.legalPage.delete({
-      where: { slug },
-    }).catch(() => { });
+    await prisma.legalPage.deleteMany({
+      where: { slug, locale },
+    });
 
+    const defaultContent = getDefaultLegalContent(slug, locale);
     res.json({
       message: 'Legal page reset to default',
-      ...defaultLegalContent[slug],
+      ...defaultContent,
       slug,
+      locale,
       isActive: true,
       isDefault: true,
     });

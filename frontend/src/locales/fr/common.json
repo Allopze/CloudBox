@@ -57,11 +57,22 @@
     "trashEmptyError": "Erreur lors du vidage de la corbeille",
     "movedTo": "{{count}} élément(s) déplacé(s) vers {{category}}",
     "incompatibleItems": "Les éléments sélectionnés ne sont pas compatibles avec cette catégorie",
+    "backToFiles": "← Retour aux fichiers",
     "categories": {
       "files": "Fichiers",
       "photos": "Images",
       "music": "Musique",
       "documents": "Fichiers texte"
+    },
+    "admin": {
+      "overview": "Aperçu",
+      "users": "Utilisateurs",
+      "settings": "Paramètres",
+      "email": "SMTP",
+      "branding": "Personnalisation",
+      "fileIcons": "Icônes de fichiers",
+      "legal": "Pages légales",
+      "activity": "Journal d'activité"
     }
   },
   "layout": {

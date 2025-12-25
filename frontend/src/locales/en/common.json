@@ -59,11 +59,22 @@
     "trashEmptyError": "Error emptying trash",
     "movedTo": "{{count}} item(s) moved to {{category}}",
     "incompatibleItems": "Selected items are not compatible with this category",
+    "backToFiles": "← Back to files",
     "categories": {
       "files": "Files",
       "photos": "Photos",
       "music": "Music",
       "documents": "Documents"
+    },
+    "admin": {
+      "overview": "Overview",
+      "users": "Users",
+      "settings": "Settings",
+      "email": "SMTP",
+      "branding": "Branding",
+      "fileIcons": "File Icons",
+      "legal": "Legal Pages",
+      "activity": "Activity Log"
     }
   },
   "layout": {
@@ -1076,6 +1087,7 @@
       "customIcon": "Custom icon",
       "defaultIcon": "Default icon",
       "upload": "Upload SVG",
+      "uploadShort": "Upload",
       "reset": "Reset",
       "tips": "Tips",
       "tip1": "Use simple SVG icons for best results",
@@ -1437,5 +1449,145 @@
   },
   "accessibility": {
     "skipToMainContent": "Skip to main content"
+  },
+  "admin": {
+    "backToFiles": "Back to Files",
+    "menu": {
+      "overview": "Overview",
+      "users": "Users",
+      "settings": "Settings",
+      "email": "Email",
+      "branding": "Branding",
+      "fileIcons": "File Icons",
+      "legal": "Legal",
+      "activity": "Activity"
+    },
+    "overview": {
+      "title": "System Overview",
+      "subtitle": "General view of statistics and system status.",
+      "totalUsers": "Total Users",
+      "activeUsers": "Active Users",
+      "totalFiles": "Total Files",
+      "storageUsed": "Storage Used"
+    },
+    "users": {
+      "title": "Users",
+      "description": "Manage users and their permissions",
+      "newUser": "New User",
+      "search": "Search users...",
+      "user": "User",
+      "role": "Role",
+      "storage": "Storage",
+      "joined": "Joined",
+      "actions": "Actions",
+      "edit": "Edit",
+      "delete": "Delete",
+      "promoteAdmin": "Promote to Admin",
+      "demoteUser": "Demote to User",
+      "createUser": "Create User",
+      "editUser": "Edit User",
+      "name": "Name",
+      "email": "Email",
+      "password": "Password",
+      "passwordHint": "Password (leave blank to keep current)",
+      "admin": "Administrator",
+      "USER": "User",
+      "ADMIN": "Administrator",
+      "storageQuota": "Storage Quota",
+      "custom": "Custom",
+      "deleteConfirm": "Are you sure you want to delete user",
+      "deleteWarning": "This action cannot be undone.",
+      "userCreated": "User created successfully",
+      "userUpdated": "User updated successfully",
+      "userDeleted": "User deleted successfully"
+    },
+    "general": {
+      "title": "General Settings",
+      "siteName": "Site Name",
+      "siteDescription": "Site Description",
+      "allowRegistration": "Allow Registration",
+      "allowRegistrationDesc": "Allow new users to register freely",
+      "defaultQuota": "Default Quota",
+      "maxFileSize": "Max File Size",
+      "save": "Save Changes"
+    },
+    "limits": {
+      "title": "Upload Limits",
+      "maxFileSize": "Max File Size",
+      "chunkSize": "Chunk Size",
+      "concurrentChunks": "Concurrent Chunks",
+      "save": "Save Limits"
+    },
+    "branding": {
+      "title": "Branding",
+      "description": "Customize the appearance of your CloudBox instance.",
+      "primaryColor": "Primary Color",
+      "logoLight": "Logo (Light)",
+      "logoDark": "Logo (Dark)",
+      "favicon": "Favicon",
+      "customCss": "Custom CSS",
+      "customCssHint": "Add global CSS styles that will be injected into the application.",
+      "save": "Save Branding",
+      "uploadSuccess": "Image uploaded successfully",
+      "uploadError": "Error uploading image",
+      "saveSuccess": "Branding settings saved",
+      "saveError": "Error saving branding settings",
+      "deleteSuccess": "Image deleted",
+      "deleteError": "Error deleting image"
+    },
+    "smtp": {
+      "title": "SMTP Configuration",
+      "host": "SMTP Host",
+      "port": "Port",
+      "user": "User",
+      "pass": "Password",
+      "from": "Sender (From)",
+      "secure": "Use SSL/TLS",
+      "test": "Test Connection",
+      "save": "Save SMTP",
+      "testSuccess": "Test email sent successfully",
+      "saved": "SMTP configuration saved"
+    },
+    "templates": {
+      "title": "Email Templates",
+      "welcome": "Welcome",
+      "resetPassword": "Reset Password",
+      "verifyEmail": "Verify Email",
+      "storageWarning": "Storage Warning",
+      "subject": "Subject",
+      "htmlContent": "HTML Content",
+      "variables": "Variables",
+      "reset": "Reset to Default",
+      "save": "Save Template",
+      "saved": "Template saved successfully",
+      "variableAdded": "Variable added",
+      "variableInserted": "Variable inserted"
+    },
+    "legal": {
+      "title": "Legal Pages",
+      "description": "Edit the content of Privacy and Terms pages.",
+      "privacy": "Privacy Policy",
+      "terms": "Terms of Service",
+      "saved": "Legal content saved"
+    },
+    "activity": {
+      "title": "Activity Log",
+      "description": "Monitor actions performed in the system.",
+      "searchPlaceholder": "Search by user, IP or description...",
+      "allTypes": "All types",
+      "user": "User",
+      "action": "Action",
+      "description": "Description",
+      "date": "Date",
+      "noLogs": "No activity logs found."
+    },
+    "enterEmail": "Enter an email",
+    "emailSent": "Email sent",
+    "saved": "Saved",
+    "deleted": "Deleted",
+    "confirmDelete": "Are you sure?",
+    "loadError": "Error loading data",
+    "saveError": "Error saving data",
+    "deleteError": "Error deleting"
   }
 }

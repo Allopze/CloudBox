@@ -1,6 +1,6 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Modifier } from '@dnd-kit/core';
+import type { Modifier, CollisionDetection } from '@dnd-kit/core';
 import {
     DndContext,
     DragOverlay,
@@ -10,6 +10,8 @@ import {
     DragStartEvent,
     DragEndEvent,
     pointerWithin,
+    MeasuringFrequency,
+    MeasuringStrategy,
 } from '@dnd-kit/core';
 
 
@@ -59,6 +61,7 @@ export default function DndContextProvider({ children, onRefresh }: DndContextPr
     const { t } = useTranslation();
     const { startDrag, endDrag, draggedItems, isDragging } = useDragDropStore();
     const { selectSingle, clearSelection } = useFileStore.getState();
+    const [activeDragType, setActiveDragType] = useState<string | null>(null);
 
     // Configure pointer sensor with distance constraint to allow clicks
     const sensors = useSensors(
@@ -71,9 +74,12 @@ export default function DndContextProvider({ children, onRefresh }: DndContextPr
 
     const handleDragStart = useCallback((event: DragStartEvent) => {
         const { active } = event;
-        const activeData = active.data.current as { type: 'file' | 'folder'; item: FileItem | Folder } | undefined;
+        const activeData = active.data.current as { type?: string; item?: FileItem | Folder } | undefined;
+        const activeType = activeData?.type ?? null;
 
-        if (!activeData) return;
+        setActiveDragType(activeType);
+
+        if (!activeData || (activeData.type !== 'file' && activeData.type !== 'folder')) return;
 
         let itemsToDrag: DragItem[] = [];
         const selectedItems = useFileStore.getState().selectedItems;
@@ -110,13 +116,14 @@ export default function DndContextProvider({ children, onRefresh }: DndContextPr
 
     const handleDragEnd = useCallback(async (event: DragEndEvent) => {
         const { active, over } = event;
+        setActiveDragType(null);
 
         if (!over || !isDragging) {
             endDrag();
             return;
         }
 
-        const overData = over.data.current as { type: 'file' | 'folder' | 'breadcrumb' | 'trash'; item?: FileItem | Folder; folderId?: string | null; name?: string } | undefined;
+        const overData = over.data.current as { type?: string; item?: FileItem | Folder; folderId?: string | null; name?: string; fileDropTarget?: 'trash' } | undefined;
 
         if (!overData) {
             endDrag();
@@ -148,7 +155,7 @@ export default function DndContextProvider({ children, onRefresh }: DndContextPr
             action = 'move';
         }
         // Handle drop on trash
-        else if (overData.type === 'trash') {
+        else if (overData.type === 'trash' || overData.fileDropTarget === 'trash') {
             action = 'trash';
             targetName = t('sidebar.trash');
         }
@@ -208,6 +215,7 @@ export default function DndContextProvider({ children, onRefresh }: DndContextPr
     }, [isDragging, draggedItems, endDrag, clearSelection, onRefresh, t]);
 
     const handleDragCancel = useCallback(() => {
+        setActiveDragType(null);
         endDrag();
     }, [endDrag]);
 
@@ -251,10 +259,56 @@ export default function DndContextProvider({ children, onRefresh }: DndContextPr
         );
     };
 
+    const collisionDetection: CollisionDetection = (args) => {
+        const activeType = args.active.data.current?.type;
+
+        if (activeType === 'sidebar-nav') {
+            const sidebarDroppables = args.droppableContainers.filter(
+                (container) => container.data.current?.type === 'sidebar-nav'
+            );
+            return pointerWithin({ ...args, droppableContainers: sidebarDroppables });
+        }
+
+        if (activeType === 'sidebar-admin') {
+            const adminDroppables = args.droppableContainers.filter(
+                (container) => container.data.current?.type === 'sidebar-admin'
+            );
+            return pointerWithin({ ...args, droppableContainers: adminDroppables });
+        }
+
+        if (activeType === 'file' || activeType === 'folder') {
+            const fileDroppables = args.droppableContainers.filter((container) => {
+                const data = container.data.current;
+                return (
+                    data?.type === 'folder' ||
+                    data?.type === 'breadcrumb' ||
+                    data?.type === 'trash' ||
+                    data?.fileDropTarget === 'trash'
+                );
+            });
+            return pointerWithin({ ...args, droppableContainers: fileDroppables });
+        }
+
+        return pointerWithin(args);
+    };
+
+    const measuring = useMemo(() => {
+        if (activeDragType === 'sidebar-nav' || activeDragType === 'sidebar-admin') {
+            return {
+                droppable: {
+                    strategy: MeasuringStrategy.BeforeDragging,
+                    frequency: MeasuringFrequency.Optimized,
+                },
+            };
+        }
+        return undefined;
+    }, [activeDragType]);
+
     return (
         <DndContext
             sensors={sensors}
-            collisionDetection={pointerWithin}
+            collisionDetection={collisionDetection}
+            measuring={measuring}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
             onDragCancel={handleDragCancel}

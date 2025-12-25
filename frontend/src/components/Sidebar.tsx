@@ -1,13 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { useDroppable } from '@dnd-kit/core';
+import { DragOverlay, useDndMonitor, useDraggable, useDroppable } from '@dnd-kit/core';
 import { useAuthStore } from '../stores/authStore';
 import { useUIStore } from '../stores/uiStore';
 import { useThemeStore } from '../stores/themeStore';
 import { useBrandingStore } from '../stores/brandingStore';
-import { useSidebarStore, NavItem } from '../stores/sidebarStore';
+import { useSidebarStore, NavItem, AdminNavItem } from '../stores/sidebarStore';
 import { useDragDropStore, fileMatchesCategory, getCategoryFromPath } from '../stores/dragDropStore';
 import { useFileStore } from '../stores/fileStore';
 import { cn, formatBytes } from '../lib/utils';
@@ -24,6 +24,11 @@ import {
   Users,
   Trash2,
   Settings,
+  Mail,
+  Palette,
+  FileType,
+  Activity,
+  ArrowLeft,
 } from 'lucide-react';
 import MobileDrawer from './ui/MobileDrawer';
 
@@ -37,17 +42,15 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Users,
   Trash2,
   Settings,
+  Mail,
+  Palette,
+  FileType,
+  Activity,
+  ArrowLeft,
 };
 
-// DnD droppable wrapper for the Trash nav item
-function TrashDroppable({ children }: { children: (state: { setNodeRef: (node: HTMLElement | null) => void; isOver: boolean }) => React.ReactNode }) {
-  const { setNodeRef, isOver } = useDroppable({
-    id: 'sidebar-trash',
-    data: { type: 'trash' },
-  });
-
-  return <>{children({ setNodeRef, isOver })}</>;
-}
+// Admin section type
+export type AdminSection = 'overview' | 'users' | 'settings' | 'email' | 'branding' | 'file-icons' | 'legal' | 'activity';
 
 interface SidebarProps {
   mobileOpen: boolean;
@@ -60,18 +63,19 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps) {
   const { sidebarOpen } = useUIStore();
   const { isDark } = useThemeStore();
   const { branding } = useBrandingStore();
-  const { navItems, bottomNavItems, setNavItems, setBottomNavItems } = useSidebarStore();
+  const { navItems, bottomNavItems, adminNavItems, setNavItems, setBottomNavItems, setAdminNavItems } = useSidebarStore();
   const { isDragging: isFileDragging, draggedItems: fileDraggedItems, endDrag: endFileDrag } = useDragDropStore();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const [draggedItem, setDraggedItem] = useState<NavItem | null>(null);
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
-  const [dragSection, setDragSection] = useState<'main' | 'bottom' | null>(null);
-  const [dropTargetSection, setDropTargetSection] = useState<'main' | 'bottom' | null>(null);
-  const [dropPosition, setDropPosition] = useState<'before' | 'after'>('before');
-  const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
+  // Detect admin section - when path starts with /admin
+  const isAdminPage = location.pathname.startsWith('/admin');
+  const activeAdminSection = (searchParams.get('section') as AdminSection) || 'overview';
+
+  const [activeDrag, setActiveDrag] = useState<{ type: 'nav' | 'admin'; item: NavItem | AdminNavItem } | null>(null);
+  const [dropIndicator, setDropIndicator] = useState<{ type: 'nav' | 'admin'; overId: string; position: 'before' | 'after'; section?: 'main' | 'bottom' } | null>(null);
   const [fileDropTarget, setFileDropTarget] = useState<string | null>(null);
-  const dragImageRef = useRef<HTMLDivElement>(null);
 
   // Context menu for Trash
   const [trashContextMenu, setTrashContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -112,85 +116,208 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps) {
     )
     : 0;
 
-  const handleDragStart = (e: React.DragEvent, item: NavItem, section: 'main' | 'bottom') => {
-    setDraggedItem(item);
-    setDragSection(section);
-    e.dataTransfer.effectAllowed = 'move';
-    // Hide default drag image
-    const emptyImg = document.createElement('img');
-    emptyImg.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-    e.dataTransfer.setDragImage(emptyImg, 0, 0);
+  const getDropPosition = (
+    activeRect?: { top: number; height: number } | null,
+    overRect?: { top: number; height: number } | null
+  ) => {
+    if (!activeRect || !overRect) return 'after';
+    const activeCenter = activeRect.top + activeRect.height / 2;
+    const overCenter = overRect.top + overRect.height / 2;
+    return activeCenter < overCenter ? 'before' : 'after';
   };
 
-  const handleDrag = (e: React.DragEvent) => {
-    if (e.clientX !== 0 || e.clientY !== 0) {
-      setDragPosition({ x: e.clientX, y: e.clientY });
-    }
+  const resetDragState = () => {
+    setActiveDrag(null);
+    setDropIndicator(null);
   };
 
-  const handleDragOver = (e: React.DragEvent, index: number, section: 'main' | 'bottom') => {
-    e.preventDefault();
-    const rect = e.currentTarget.getBoundingClientRect();
-    const midPoint = rect.top + rect.height / 2;
-    const position = e.clientY < midPoint ? 'before' : 'after';
+  useDndMonitor({
+    onDragStart: ({ active }) => {
+      const activeData = active.data.current as { type?: string; section?: 'main' | 'bottom' } | undefined;
 
-    setDragOverIndex(index);
-    setDropTargetSection(section);
-    setDropPosition(position);
-  };
-
-  const handleDragEnd = () => {
-    setDraggedItem(null);
-    setDragOverIndex(null);
-    setDragSection(null);
-    setDropTargetSection(null);
-    setDropPosition('before');
-  };
-
-  const handleDrop = (e: React.DragEvent, targetIndex: number, targetSection: 'main' | 'bottom') => {
-    e.preventDefault();
-    if (!draggedItem || !dragSection) return;
-
-    const sourceItems = dragSection === 'main' ? [...navItems] : [...bottomNavItems];
-    const targetItems = targetSection === 'main' ? [...navItems] : [...bottomNavItems];
-
-    const sourceIndex = sourceItems.findIndex(item => item.id === draggedItem.id);
-
-    // Calculate actual insert index based on drop position
-    let insertIndex = dropPosition === 'after' ? targetIndex + 1 : targetIndex;
-
-    if (dragSection === targetSection) {
-      // Reorder within same section
-      sourceItems.splice(sourceIndex, 1);
-      // Adjust index if we removed an item before the insert position
-      if (sourceIndex < insertIndex) {
-        insertIndex--;
+      if (activeData?.type === 'sidebar-nav') {
+        const sourceItems = activeData.section === 'bottom' ? bottomNavItems : navItems;
+        const item = sourceItems.find((navItem) => navItem.id === active.id);
+        if (item) {
+          setActiveDrag({ type: 'nav', item });
+        }
+        return;
       }
-      sourceItems.splice(insertIndex, 0, draggedItem);
 
-      if (targetSection === 'main') {
-        setNavItems(sourceItems);
-      } else {
-        setBottomNavItems(sourceItems);
+      if (activeData?.type === 'sidebar-admin') {
+        const item = adminNavItems.find((navItem) => navItem.id === active.id);
+        if (item) {
+          setActiveDrag({ type: 'admin', item });
+        }
+        return;
       }
-    } else {
-      // Move between sections
-      sourceItems.splice(sourceIndex, 1);
-      targetItems.splice(insertIndex, 0, draggedItem);
 
-      if (dragSection === 'main') {
-        setNavItems(sourceItems);
-        setBottomNavItems(targetItems);
-      } else {
-        setBottomNavItems(sourceItems);
-        setNavItems(targetItems);
+      if (activeDrag) {
+        resetDragState();
       }
-    }
+    },
+    onDragOver: ({ active, over }) => {
+      if (!over) {
+        if (dropIndicator) setDropIndicator(null);
+        return;
+      }
 
-    handleDragEnd();
-  };
+      const activeData = active.data.current as { type?: string; section?: 'main' | 'bottom' } | undefined;
+      const overData = over.data.current as { type?: string; section?: 'main' | 'bottom' } | undefined;
 
-  // Handle file/folder drops on sidebar categories
+      if (activeData?.type === 'sidebar-nav' && overData?.type === 'sidebar-nav') {
+        if (active.id === over.id) {
+          if (dropIndicator) setDropIndicator(null);
+          return;
+        }
+
+        const position = getDropPosition(active.rect.current.translated, over.rect);
+        const nextIndicator = {
+          type: 'nav' as const,
+          overId: String(over.id),
+          position,
+          section: overData.section,
+        };
+
+        if (
+          !dropIndicator ||
+          dropIndicator.type !== nextIndicator.type ||
+          dropIndicator.overId !== nextIndicator.overId ||
+          dropIndicator.position !== nextIndicator.position ||
+          dropIndicator.section !== nextIndicator.section
+        ) {
+          setDropIndicator(nextIndicator);
+        }
+        return;
+      }
+
+      if (activeData?.type === 'sidebar-admin' && overData?.type === 'sidebar-admin') {
+        if (active.id === over.id) {
+          if (dropIndicator) setDropIndicator(null);
+          return;
+        }
+
+        const position = getDropPosition(active.rect.current.translated, over.rect);
+        const nextIndicator = {
+          type: 'admin' as const,
+          overId: String(over.id),
+          position,
+        };
+
+        if (
+          !dropIndicator ||
+          dropIndicator.type !== nextIndicator.type ||
+          dropIndicator.overId !== nextIndicator.overId ||
+          dropIndicator.position !== nextIndicator.position
+        ) {
+          setDropIndicator(nextIndicator);
+        }
+        return;
+      }
+
+      if (dropIndicator) setDropIndicator(null);
+    },
+    onDragEnd: ({ active, over }) => {
+      const activeData = active.data.current as { type?: string; section?: 'main' | 'bottom' } | undefined;
+      const overData = over?.data.current as { type?: string; section?: 'main' | 'bottom' } | undefined;
+
+      if (!over || !activeData || !overData) {
+        resetDragState();
+        return;
+      }
+
+      if (activeData.type === 'sidebar-nav' && overData.type === 'sidebar-nav') {
+        if (active.id === over.id) {
+          resetDragState();
+          return;
+        }
+
+        const sourceSection = activeData.section;
+        const targetSection = overData.section;
+
+        if (!sourceSection || !targetSection) {
+          resetDragState();
+          return;
+        }
+
+        const sourceItems = sourceSection === 'main' ? [...navItems] : [...bottomNavItems];
+        const targetItems = targetSection === 'main' ? [...navItems] : [...bottomNavItems];
+
+        const sourceIndex = sourceItems.findIndex((item) => item.id === active.id);
+        const targetIndex = targetItems.findIndex((item) => item.id === over.id);
+
+        if (sourceIndex === -1 || targetIndex === -1) {
+          resetDragState();
+          return;
+        }
+
+        const position = getDropPosition(active.rect.current.translated, over.rect);
+        let insertIndex = position === 'after' ? targetIndex + 1 : targetIndex;
+        const [movedItem] = sourceItems.splice(sourceIndex, 1);
+
+        if (sourceSection === targetSection) {
+          if (sourceIndex < insertIndex) {
+            insertIndex--;
+          }
+          sourceItems.splice(insertIndex, 0, movedItem);
+
+          if (targetSection === 'main') {
+            setNavItems(sourceItems);
+          } else {
+            setBottomNavItems(sourceItems);
+          }
+        } else {
+          targetItems.splice(insertIndex, 0, movedItem);
+
+          if (sourceSection === 'main') {
+            setNavItems(sourceItems);
+            setBottomNavItems(targetItems);
+          } else {
+            setBottomNavItems(sourceItems);
+            setNavItems(targetItems);
+          }
+        }
+
+        resetDragState();
+        return;
+      }
+
+      if (activeData.type === 'sidebar-admin' && overData.type === 'sidebar-admin') {
+        if (active.id === over.id) {
+          resetDragState();
+          return;
+        }
+
+        const items = [...adminNavItems];
+        const sourceIndex = items.findIndex((item) => item.id === active.id);
+        const targetIndex = items.findIndex((item) => item.id === over.id);
+
+        if (sourceIndex === -1 || targetIndex === -1) {
+          resetDragState();
+          return;
+        }
+
+        const position = getDropPosition(active.rect.current.translated, over.rect);
+        let insertIndex = position === 'after' ? targetIndex + 1 : targetIndex;
+        const [movedItem] = items.splice(sourceIndex, 1);
+
+        if (sourceIndex < insertIndex) {
+          insertIndex--;
+        }
+        items.splice(insertIndex, 0, movedItem);
+        setAdminNavItems(items);
+
+        resetDragState();
+        return;
+      }
+
+      resetDragState();
+    },
+    onDragCancel: () => {
+      resetDragState();
+    },
+  });
+
   const handleFileDragOver = (e: React.DragEvent, path: string) => {
     if (!isFileDragging) return;
 
@@ -273,16 +400,29 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps) {
     }
   };
 
-  const renderNavItem = (item: NavItem, index: number, section: 'main' | 'bottom') => {
-    const IconComponent = iconMap[item.icon];
-    const isDragging = draggedItem?.id === item.id;
-    const isDropTarget = dragOverIndex === index && dropTargetSection === section;
-    const showDropBefore = isDropTarget && dropPosition === 'before';
-    const showDropAfter = isDropTarget && dropPosition === 'after';
-    const isTrash = item.path === '/trash';
-    const baseFileDropTarget = fileDropTarget === item.path;
+  const isNavReordering = activeDrag?.type === 'nav';
+  const isAdminReordering = activeDrag?.type === 'admin';
 
-    // Check if this nav item can accept file drops
+  const SidebarNavItem = ({ item, section }: { item: NavItem; section: 'main' | 'bottom' }) => {
+    const IconComponent = iconMap[item.icon];
+    const isTrash = item.path === '/trash';
+
+    const { setNodeRef: setDroppableRef, isOver } = useDroppable({
+      id: item.id,
+      data: { type: 'sidebar-nav', section, fileDropTarget: isTrash ? 'trash' : undefined },
+    });
+
+    const { attributes, listeners, setNodeRef: setDraggableRef, isDragging } = useDraggable({
+      id: item.id,
+      data: { type: 'sidebar-nav', section },
+      disabled: isFileDragging,
+    });
+
+    const setNodeRef = (node: HTMLElement | null) => {
+      setDraggableRef(node);
+      setDroppableRef(node);
+    };
+
     const category = getCategoryFromPath(item.path);
     const canAcceptFileDrop = isFileDragging && (
       isTrash ||
@@ -291,6 +431,12 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps) {
         return fileMatchesCategory(dragItem.item as FileItem, category);
       }))
     );
+    const baseFileDropTarget = fileDropTarget === item.path;
+    const fileDropActive = canAcceptFileDrop && (baseFileDropTarget || (isTrash && isOver));
+
+    const isDropTarget = dropIndicator?.type === 'nav' && dropIndicator.overId === item.id && dropIndicator.section === section;
+    const showDropBefore = isDropTarget && dropIndicator.position === 'before';
+    const showDropAfter = isDropTarget && dropIndicator.position === 'after';
 
     const handleContextMenu = (e: React.MouseEvent) => {
       if (isTrash) {
@@ -299,101 +445,127 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps) {
       }
     };
 
-    const renderContent = (droppableRef?: (node: HTMLElement | null) => void, isOverDroppable = false) => {
-      const fileDropActive = baseFileDropTarget || (isTrash && isOverDroppable);
-
-      return (
-        <div
-          key={item.id}
-          ref={droppableRef}
-          draggable={!isFileDragging}
-          onDragStart={(e) => !isFileDragging && handleDragStart(e, item, section)}
-          onDrag={(e) => !isFileDragging && handleDrag(e)}
-          onDragOver={(e) => {
-            if (isFileDragging) {
-              handleFileDragOver(e, item.path);
-            } else {
-              handleDragOver(e, index, section);
-            }
-          }}
-          onDragLeave={() => {
-            if (isFileDragging) {
-              handleFileDragLeave();
-            }
-          }}
-          onDragEnd={() => !isFileDragging && handleDragEnd()}
-          onDrop={(e) => {
-            if (isFileDragging) {
-              handleFileDrop(e, item.path);
-            } else {
-              handleDrop(e, index, section);
-            }
-          }}
-          onContextMenu={handleContextMenu}
-          className={cn(
-            'relative group',
-            isDragging && 'opacity-30'
-          )}
+    return (
+      <div
+        ref={setNodeRef}
+        {...attributes}
+        {...listeners}
+        onDragOver={(e) => {
+          if (isFileDragging) {
+            handleFileDragOver(e, item.path);
+          }
+        }}
+        onDragLeave={() => {
+          if (isFileDragging) {
+            handleFileDragLeave();
+          }
+        }}
+        onDrop={(e) => {
+          if (isFileDragging) {
+            handleFileDrop(e, item.path);
+          }
+        }}
+        onContextMenu={handleContextMenu}
+        className={cn(
+          'relative group',
+          isDragging && 'opacity-30'
+        )}
+      >
+        {showDropBefore && (
+          <div className="absolute inset-x-2 -top-0.5 h-0.5 bg-primary-500 rounded-full z-10" />
+        )}
+        {showDropAfter && (
+          <div className="absolute inset-x-2 -bottom-0.5 h-0.5 bg-primary-500 rounded-full z-10" />
+        )}
+        <NavLink
+          to={item.path}
+          draggable={false}
+          onClick={(e) => isNavReordering && e.preventDefault()}
+          className={({ isActive }) =>
+            cn(
+              'flex items-center gap-3 px-4 py-3 rounded-full text-base font-semibold transition-colors border border-transparent',
+              isActive
+                ? 'bg-primary-500/15 text-primary-600 dark:text-primary-400 border-primary-500/25'
+                : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-white dark:hover:bg-dark-900',
+              fileDropActive && 'bg-primary-500/20 border-primary-500 ring-2 ring-primary-500/50'
+            )
+          }
+          end={item.path === '/'}
         >
-          {showDropBefore && !isFileDragging && (
-            <div className="absolute inset-x-2 -top-0.5 h-0.5 bg-primary-500 rounded-full z-10" />
-          )}
-          {showDropAfter && !isFileDragging && (
-            <div className="absolute inset-x-2 -bottom-0.5 h-0.5 bg-primary-500 rounded-full z-10" />
-          )}
-          <NavLink
-            to={item.path}
-            draggable={false}
-            onClick={(e) => draggedItem && e.preventDefault()}
-            className={({ isActive }) =>
-              cn(
-                'flex items-center gap-3 px-4 py-3 rounded-full text-base font-semibold transition-colors border border-transparent',
-                isActive
-                  ? 'bg-primary-500/15 text-primary-600 dark:text-primary-400 border-primary-500/25'
-                  : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-white dark:hover:bg-dark-900',
-                fileDropActive && canAcceptFileDrop && 'bg-primary-500/20 border-primary-500 ring-2 ring-primary-500/50'
-              )
-            }
-            end={item.path === '/'}
-          >
-            {IconComponent && <IconComponent className="w-5 h-5 flex-shrink-0" />}
-            <span>{t(item.labelKey)}</span>
-          </NavLink>
-        </div>
-      );
-    };
-
-    if (isTrash) {
-      return (
-        <TrashDroppable key={item.id}>
-          {({ setNodeRef, isOver }) => renderContent(setNodeRef, isOver)}
-        </TrashDroppable>
-      );
-    }
-
-    return renderContent();
+          {IconComponent && <IconComponent className="w-5 h-5 flex-shrink-0" />}
+          <span>{t(item.labelKey)}</span>
+        </NavLink>
+      </div>
+    );
   };
 
-  // Drag preview card rendered via portal
-  const renderDragPreview = () => {
-    if (!draggedItem) return null;
-    const IconComponent = iconMap[draggedItem.icon];
+  const SidebarAdminItem = ({ item }: { item: AdminNavItem }) => {
+    const IconComponent = iconMap[item.icon];
+    const isActive = activeAdminSection === item.id;
 
-    return createPortal(
+    const { setNodeRef: setDroppableRef } = useDroppable({
+      id: item.id,
+      data: { type: 'sidebar-admin' },
+    });
+
+    const { attributes, listeners, setNodeRef: setDraggableRef, isDragging } = useDraggable({
+      id: item.id,
+      data: { type: 'sidebar-admin' },
+      disabled: isFileDragging,
+    });
+
+    const setNodeRef = (node: HTMLElement | null) => {
+      setDraggableRef(node);
+      setDroppableRef(node);
+    };
+
+    const isDropTarget = dropIndicator?.type === 'admin' && dropIndicator.overId === item.id;
+    const showDropBefore = isDropTarget && dropIndicator.position === 'before';
+    const showDropAfter = isDropTarget && dropIndicator.position === 'after';
+
+    return (
       <div
-        ref={dragImageRef}
-        className="fixed pointer-events-none z-[9999] transition-none"
-        style={{
-          left: dragPosition.x - 80,
-          top: dragPosition.y - 20,
-        }}
+        ref={setNodeRef}
+        {...attributes}
+        {...listeners}
+        className={cn(
+          'relative group',
+          isDragging && 'opacity-30'
+        )}
       >
+        {showDropBefore && (
+          <div className="absolute inset-x-2 -top-0.5 h-0.5 bg-primary-500 rounded-full z-10" />
+        )}
+        {showDropAfter && (
+          <div className="absolute inset-x-2 -bottom-0.5 h-0.5 bg-primary-500 rounded-full z-10" />
+        )}
+        <button
+          onClick={() => !isAdminReordering && setSearchParams({ section: item.id })}
+          className={cn(
+            'w-full flex items-center gap-3 px-4 py-3 rounded-full text-base font-semibold transition-colors border border-transparent',
+            isActive
+              ? 'bg-primary-500/15 text-primary-600 dark:text-primary-400 border-primary-500/25'
+              : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-white dark:hover:bg-dark-900'
+          )}
+        >
+          {IconComponent && <IconComponent className="w-5 h-5 flex-shrink-0" />}
+          <span>{t(item.labelKey)}</span>
+        </button>
+      </div>
+    );
+  };
+
+  const renderDragOverlay = () => {
+    if (!activeDrag) return null;
+    const IconComponent = iconMap[activeDrag.item.icon];
+
+    return (
+      <div className="pointer-events-none z-[9999]">
         <div className="flex items-center gap-3 px-4 py-3 rounded-full text-base font-semibold bg-primary-500/15 text-primary-600 dark:text-primary-400 border border-primary-500/25 shadow-lg backdrop-blur-sm">
           {IconComponent && <IconComponent className="w-5 h-5 flex-shrink-0" />}
-          <span>{t(draggedItem.labelKey)}</span>
+          <span>{t(activeDrag.item.labelKey)}</span>
         </div>
-      </div>,
-      document.body
+      </div>
     );
   };
 
@@ -446,35 +618,80 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps) {
         )}
       </div>
 
-      {/* Main Navigation */}
-      <nav className="flex-1 px-3 py-2 space-y-1 overflow-y-auto mt-10">
-        {navItems.map((item, index) => renderNavItem(item, index, 'main'))}
-      </nav>
+      {isAdminPage ? (
+        <>
+          {/* Admin Navigation */}
+          <nav className="flex-1 px-3 py-2 space-y-1 overflow-y-auto mt-10">
+            {/* Admin section items */}
+            {adminNavItems.map((item) => (
+              <SidebarAdminItem key={item.id} item={item} />
+            ))}
+          </nav>
 
-      {/* Bottom Navigation */}
-      <div className="px-3 py-2 space-y-1">
-        {bottomNavItems.map((item, index) => renderNavItem(item, index, 'bottom'))}
-      </div>
+          {/* Back to files button - positioned like Trash in regular sidebar */}
+          <div className="px-3 py-2">
+            <button
+              onClick={() => navigate('/files')}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-full text-base font-semibold transition-colors border border-transparent text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-white dark:hover:bg-dark-900"
+            >
+              <ArrowLeft className="w-5 h-5 flex-shrink-0" />
+              <span>{t('sidebar.backToFiles')}</span>
+            </button>
+          </div>
 
-      {/* Storage info */}
-      <div className="p-4 border-t border-dark-200 dark:border-dark-700">
-        <p className="text-xs text-dark-500 dark:text-white/70 mb-2">{t('sidebar.storage')}</p>
-        <div className="w-full h-1.5 bg-dark-200 dark:bg-white/10 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-primary-500 rounded-full transition-all"
-            style={{ width: `${Math.min(storageUsedPercent, 100)}%` }}
-          />
-        </div>
-        <p className="mt-2 text-xs text-dark-500 dark:text-white/70">
-          {formatBytes(user?.storageUsed || 0)} / {formatBytes(user?.storageQuota || 0)}
-        </p>
-      </div>
+          {/* Storage info - same as regular sidebar */}
+          <div className="p-4 border-t border-dark-200 dark:border-dark-700">
+            <p className="text-xs text-dark-500 dark:text-white/70 mb-2">{t('sidebar.storage')}</p>
+            <div className="w-full h-1.5 bg-dark-200 dark:bg-white/10 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-primary-500 rounded-full transition-all"
+                style={{ width: `${Math.min(storageUsedPercent, 100)}%` }}
+              />
+            </div>
+            <p className="mt-2 text-xs text-dark-500 dark:text-white/70">
+              {formatBytes(user?.storageUsed || 0)} / {formatBytes(user?.storageQuota || 0)}
+            </p>
+          </div>
+        </>
+      ) : (
+        <>
+          {/* Main Navigation */}
+          <nav className="flex-1 px-3 py-2 space-y-1 overflow-y-auto mt-10">
+            {navItems.map((item) => (
+              <SidebarNavItem key={item.id} item={item} section="main" />
+            ))}
+          </nav>
+
+          {/* Bottom Navigation */}
+          <div className="px-3 py-2 space-y-1">
+            {bottomNavItems.map((item) => (
+              <SidebarNavItem key={item.id} item={item} section="bottom" />
+            ))}
+          </div>
+
+          {/* Storage info */}
+          <div className="p-4 border-t border-dark-200 dark:border-dark-700">
+            <p className="text-xs text-dark-500 dark:text-white/70 mb-2">{t('sidebar.storage')}</p>
+            <div className="w-full h-1.5 bg-dark-200 dark:bg-white/10 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-primary-500 rounded-full transition-all"
+                style={{ width: `${Math.min(storageUsedPercent, 100)}%` }}
+              />
+            </div>
+            <p className="mt-2 text-xs text-dark-500 dark:text-white/70">
+              {formatBytes(user?.storageUsed || 0)} / {formatBytes(user?.storageQuota || 0)}
+            </p>
+          </div>
+        </>
+      )}
     </>
   );
 
   return (
     <>
-      {renderDragPreview()}
+      <DragOverlay zIndex={9999}>
+        {renderDragOverlay()}
+      </DragOverlay>
       {renderTrashContextMenu()}
 
       {/* Desktop Sidebar - Hidden on mobile */}

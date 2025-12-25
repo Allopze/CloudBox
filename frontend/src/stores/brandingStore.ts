@@ -8,6 +8,7 @@ export interface BrandingSettings {
   logoDarkUrl?: string;
   faviconUrl?: string;
   siteName?: string;
+  customCss?: string;
 }
 
 interface BrandingState {
@@ -105,6 +106,28 @@ const applyTitle = (siteName?: string) => {
   }
 };
 
+const applyCustomCss = (customCss?: string) => {
+  const styleId = 'custom-branding-css';
+  let styleElement = document.getElementById(styleId) as HTMLStyleElement | null;
+
+  if (!customCss) {
+    // Remove existing custom CSS if any
+    if (styleElement) {
+      styleElement.remove();
+    }
+    return;
+  }
+
+  // Create or update the style element
+  if (!styleElement) {
+    styleElement = document.createElement('style');
+    styleElement.id = styleId;
+    document.head.appendChild(styleElement);
+  }
+
+  styleElement.textContent = customCss;
+};
+
 const getFullUrl = (url: string | undefined): string => {
   if (!url) return '';
   if (url.startsWith('http')) return url;
@@ -135,6 +158,7 @@ export const useBrandingStore = create<BrandingState>((set) => ({
           logoDarkUrl: getFullUrl(payload.logoDarkUrl || payload.logoUrl),
           faviconUrl: getFullUrl(payload.faviconUrl),
           siteName: payload.siteName || defaultBranding.siteName,
+          customCss: payload.customCss,
         };
         set({ branding, loading: false });
         applyPrimaryColor(branding.primaryColor);
@@ -142,6 +166,7 @@ export const useBrandingStore = create<BrandingState>((set) => ({
           applyFavicon(branding.faviconUrl);
         }
         applyTitle(branding.siteName);
+        applyCustomCss(branding.customCss);
       } else {
         set({ branding: defaultBranding, loading: false });
         applyPrimaryColor(defaultBranding.primaryColor);
@@ -161,5 +186,6 @@ export const useBrandingStore = create<BrandingState>((set) => ({
       applyFavicon(branding.faviconUrl);
     }
     applyTitle(branding.siteName);
+    applyCustomCss(branding.customCss);
   },
 }));

@@ -27,16 +27,18 @@ import MoveModal from '../modals/MoveModal';
 import CompressModal from '../modals/CompressModal';
 import InfoModal from '../modals/InfoModal';
 import ContextMenu, { ContextMenuItemOrDivider, ContextMenuDividerItem } from '../ui/ContextMenu';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 
 interface FolderCardProps {
   folder: Folder;
   view?: 'grid' | 'list';
   onRefresh?: () => void;
+  disableAnimation?: boolean;
 }
 
-export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderCardProps) {
+export default function FolderCard({ folder, view = 'grid', onRefresh, disableAnimation }: FolderCardProps) {
   const { t } = useTranslation();
+  const reducedMotion = useReducedMotion();
   const [, setSearchParams] = useSearchParams();
   const location = useLocation();
   const isSelected = useFileStore(useCallback((state) => state.selectedItems.has(folder.id), [folder.id]));
@@ -247,112 +249,27 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
 
   const closeContextMenu = () => setContextMenu(null);
 
-  const modals = (
-    <>
-      <ShareModal
-        isOpen={showShareModal}
-        onClose={() => setShowShareModal(false)}
-        folder={folder}
-        onSuccess={onRefresh}
-      />
-      <RenameModal
-        isOpen={showRenameModal}
-        onClose={() => setShowRenameModal(false)}
-        item={folder}
-        type="folder"
-        onSuccess={onRefresh}
-      />
-      <MoveModal
-        isOpen={showMoveModal}
-        onClose={() => setShowMoveModal(false)}
-        items={[folder]}
-        onSuccess={onRefresh}
-      />
-      <CompressModal
-        isOpen={showCompressModal}
-        onClose={() => setShowCompressModal(false)}
-        items={[{ id: folder.id, name: folder.name, type: 'folder' }]}
-        onSuccess={onRefresh}
-      />
-      <InfoModal
-        isOpen={showInfoModal}
-        onClose={() => setShowInfoModal(false)}
-        item={folder}
-        type="folder"
-      />
-      {/* Download Progress Modal */}
-      <AnimatePresence>
-        {isDownloading && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white dark:bg-dark-800 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
-              onClick={e => e.stopPropagation()}
-            >
-              {/* Header */}
-              <div className="flex items-center justify-between px-5 py-4 border-b border-dark-200 dark:border-dark-700">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-primary-100 dark:bg-primary-900/30">
-                    <Download className="w-5 h-5 text-primary-600 dark:text-primary-400" />
-                  </div>
-                  <div>
-                    <h2 className="text-base font-semibold text-dark-900 dark:text-white">
-                      {t('folderCard.downloadAsZip')}
-                    </h2>
-                    <p className="text-xs text-dark-500 dark:text-dark-400 truncate max-w-[200px]">
-                      {folder.name}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Progress Content */}
-              <div className="p-5 space-y-4">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-dark-600 dark:text-dark-400 truncate max-w-[200px]">
-                      {downloadProgress.currentFile || t('folderCard.preparingDownload')}
-                    </span>
-                    <span className="text-dark-900 dark:text-white font-medium ml-2">
-                      {Math.round(downloadProgress.progress)}%
-                    </span>
-                  </div>
-                  <div className="h-2.5 bg-dark-100 dark:bg-dark-700 rounded-full overflow-hidden">
-                    <motion.div
-                      className="h-full bg-gradient-to-r from-primary-500 to-primary-600 rounded-full"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${downloadProgress.progress}%` }}
-                      transition={{ duration: 0.3, ease: 'easeOut' }}
-                    />
-                  </div>
-                </div>
-                <p className="text-xs text-center text-dark-500 dark:text-dark-400">
-                  {t('folderCard.compressingFolder')}
-                </p>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </>
-  );
-
   // Calculate drop target styling
   const isDropTarget = isOver && !isSelfDragged;
+
+  const shouldAnimate = !disableAnimation && !reducedMotion;
+  const motionProps = shouldAnimate
+    ? {
+      initial: { opacity: 0, scale: 0.95 },
+      animate: { opacity: 1, scale: 1 },
+      transition: { type: 'spring', stiffness: 400, damping: 25 },
+    }
+    : {
+      initial: false,
+      animate: { opacity: 1 },
+      transition: { duration: 0 },
+    };
 
   if (view === 'list') {
     return (
       <>
         <motion.div
-          layout
-          transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+          {...motionProps}
           ref={setNodeRef}
           style={dragStyle}
           {...attributes}
@@ -391,8 +308,110 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
             )}
           </div>
         </motion.div>
-        <ContextMenu items={contextMenuItems} position={contextMenu} onClose={closeContextMenu} />
-        {modals}
+        {contextMenu && (
+          <ContextMenu items={contextMenuItems} position={contextMenu} onClose={closeContextMenu} />
+        )}
+        {showShareModal && (
+          <ShareModal
+            isOpen={showShareModal}
+            onClose={() => setShowShareModal(false)}
+            folder={folder}
+            onSuccess={onRefresh}
+          />
+        )}
+        {showRenameModal && (
+          <RenameModal
+            isOpen={showRenameModal}
+            onClose={() => setShowRenameModal(false)}
+            item={folder}
+            type="folder"
+            onSuccess={onRefresh}
+          />
+        )}
+        {showMoveModal && (
+          <MoveModal
+            isOpen={showMoveModal}
+            onClose={() => setShowMoveModal(false)}
+            items={[folder]}
+            onSuccess={onRefresh}
+          />
+        )}
+        {showCompressModal && (
+          <CompressModal
+            isOpen={showCompressModal}
+            onClose={() => setShowCompressModal(false)}
+            items={[{ id: folder.id, name: folder.name, type: 'folder' }]}
+            onSuccess={onRefresh}
+          />
+        )}
+        {showInfoModal && (
+          <InfoModal
+            isOpen={showInfoModal}
+            onClose={() => setShowInfoModal(false)}
+            item={folder}
+            type="folder"
+          />
+        )}
+        <AnimatePresence>
+          {isDownloading && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="bg-white dark:bg-dark-800 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
+                onClick={e => e.stopPropagation()}
+              >
+                {/* Header */}
+                <div className="flex items-center justify-between px-5 py-4 border-b border-dark-200 dark:border-dark-700">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-primary-100 dark:bg-primary-900/30">
+                      <Download className="w-5 h-5 text-primary-600 dark:text-primary-400" />
+                    </div>
+                    <div>
+                      <h2 className="text-base font-semibold text-dark-900 dark:text-white">
+                        {t('folderCard.downloadAsZip')}
+                      </h2>
+                      <p className="text-xs text-dark-500 dark:text-dark-400 truncate max-w-[200px]">
+                        {folder.name}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Progress Content */}
+                <div className="p-5 space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-dark-600 dark:text-dark-400 truncate max-w-[200px]">
+                        {downloadProgress.currentFile || t('folderCard.preparingDownload')}
+                      </span>
+                      <span className="text-dark-900 dark:text-white font-medium ml-2">
+                        {Math.round(downloadProgress.progress)}%
+                      </span>
+                    </div>
+                    <div className="h-2.5 bg-dark-100 dark:bg-dark-700 rounded-full overflow-hidden">
+                      <motion.div
+                        className="h-full bg-gradient-to-r from-primary-500 to-primary-600 rounded-full"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${downloadProgress.progress}%` }}
+                        transition={{ duration: 0.3, ease: 'easeOut' }}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-center text-dark-500 dark:text-dark-400">
+                    {t('folderCard.compressingFolder')}
+                  </p>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </>
     );
   }
@@ -400,8 +419,7 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
   return (
     <>
       <motion.div
-        layout
-        transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+        {...motionProps}
         ref={setNodeRef}
         style={dragStyle}
         {...attributes}
@@ -469,8 +487,110 @@ export default function FolderCard({ folder, view = 'grid', onRefresh }: FolderC
           </div>
         </div>
       </motion.div>
-      <ContextMenu items={contextMenuItems} position={contextMenu} onClose={closeContextMenu} />
-      {modals}
+      {contextMenu && (
+        <ContextMenu items={contextMenuItems} position={contextMenu} onClose={closeContextMenu} />
+      )}
+      {showShareModal && (
+        <ShareModal
+          isOpen={showShareModal}
+          onClose={() => setShowShareModal(false)}
+          folder={folder}
+          onSuccess={onRefresh}
+        />
+      )}
+      {showRenameModal && (
+        <RenameModal
+          isOpen={showRenameModal}
+          onClose={() => setShowRenameModal(false)}
+          item={folder}
+          type="folder"
+          onSuccess={onRefresh}
+        />
+      )}
+      {showMoveModal && (
+        <MoveModal
+          isOpen={showMoveModal}
+          onClose={() => setShowMoveModal(false)}
+          items={[folder]}
+          onSuccess={onRefresh}
+        />
+      )}
+      {showCompressModal && (
+        <CompressModal
+          isOpen={showCompressModal}
+          onClose={() => setShowCompressModal(false)}
+          items={[{ id: folder.id, name: folder.name, type: 'folder' }]}
+          onSuccess={onRefresh}
+        />
+      )}
+      {showInfoModal && (
+        <InfoModal
+          isOpen={showInfoModal}
+          onClose={() => setShowInfoModal(false)}
+          item={folder}
+          type="folder"
+        />
+      )}
+      <AnimatePresence>
+        {isDownloading && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white dark:bg-dark-800 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-dark-200 dark:border-dark-700">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-primary-100 dark:bg-primary-900/30">
+                    <Download className="w-5 h-5 text-primary-600 dark:text-primary-400" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-semibold text-dark-900 dark:text-white">
+                      {t('folderCard.downloadAsZip')}
+                    </h2>
+                    <p className="text-xs text-dark-500 dark:text-dark-400 truncate max-w-[200px]">
+                      {folder.name}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Progress Content */}
+              <div className="p-5 space-y-4">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-dark-600 dark:text-dark-400 truncate max-w-[200px]">
+                      {downloadProgress.currentFile || t('folderCard.preparingDownload')}
+                    </span>
+                    <span className="text-dark-900 dark:text-white font-medium ml-2">
+                      {Math.round(downloadProgress.progress)}%
+                    </span>
+                  </div>
+                  <div className="h-2.5 bg-dark-100 dark:bg-dark-700 rounded-full overflow-hidden">
+                    <motion.div
+                      className="h-full bg-gradient-to-r from-primary-500 to-primary-600 rounded-full"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${downloadProgress.progress}%` }}
+                      transition={{ duration: 0.3, ease: 'easeOut' }}
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-center text-dark-500 dark:text-dark-400">
+                  {t('folderCard.compressingFolder')}
+                </p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 }
