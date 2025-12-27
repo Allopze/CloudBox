@@ -509,6 +509,65 @@
       "INVALID_EMAIL": "Il formato dell'email non è valido.",
       "WEAK_PASSWORD": "La password è troppo debole. Usa almeno 8 caratteri con maiuscole, numeri e simboli.",
       "REGISTRATION_DISABLED": "La registrazione di nuovi utenti è temporaneamente disabilitata."
+    },
+    "twoFactor": {
+      "title": "Autenticazione a due fattori",
+      "enterCodeDescription": "Inserisci il codice a 6 cifre dalla tua app di autenticazione.",
+      "enterRecoveryCodeDescription": "Inserisci uno dei tuoi codici di recupero.",
+      "enterSixDigits": "Inserisci tutte le 6 cifre",
+      "enterRecoveryCode": "Inserisci un codice di recupero",
+      "verifying": "Verifica in corso...",
+      "verify": "Verifica",
+      "verificationSuccess": "Verifica riuscita!",
+      "verificationFailed": "Codice non valido. Riprova.",
+      "useRecoveryCode": "Usa un codice di recupero",
+      "backToAuthenticator": "Torna all'autenticatore",
+      "recoveryCodePlaceholder": "Inserisci codice di recupero",
+      "cancel": "Annulla e torna",
+      "setup": {
+        "title": "Configura autenticazione a due fattori",
+        "description": "Aggiungi un ulteriore livello di sicurezza al tuo account.",
+        "step1": "Scansiona codice QR",
+        "step1Description": "Scansiona questo codice QR con la tua app di autenticazione (Google Authenticator, Authy, ecc.)",
+        "step2": "Inserisci codice",
+        "step2Description": "Inserisci il codice a 6 cifre dalla tua app per verificare",
+        "step3": "Salva codici di recupero",
+        "step3Description": "Conserva questi codici di recupero in un luogo sicuro. Puoi usarli per accedere al tuo account se perdi il dispositivo.",
+        "manualEntry": "Non riesci a scansionare? Inserisci questo codice manualmente:",
+        "enable": "Attiva autenticazione a due fattori",
+        "enabling": "Attivazione...",
+        "enabled": "Autenticazione a due fattori attivata!",
+        "enableFailed": "Attivazione fallita. Verifica il codice e riprova.",
+        "copySecret": "Copia segreto",
+        "secretCopied": "Segreto copiato negli appunti",
+        "copyRecoveryCodes": "Copia codici di recupero",
+        "recoveryCodesCopied": "Codici di recupero copiati",
+        "downloadRecoveryCodes": "Scarica codici di recupero",
+        "recoveryCodesWarning": "Questi codici saranno mostrati solo una volta. Salvali ora!",
+        "finish": "Completa configurazione"
+      },
+      "disable": {
+        "title": "Disattiva autenticazione a due fattori",
+        "description": "Dovrai inserire la tua password e il codice 2FA attuale per disattivare.",
+        "warning": "Attenzione: Questo renderà il tuo account meno sicuro.",
+        "password": "La tua password",
+        "code": "Codice 2FA attuale",
+        "disable": "Disattiva 2FA",
+        "disabling": "Disattivazione...",
+        "disabled": "Autenticazione a due fattori disattivata",
+        "disableFailed": "Disattivazione fallita. Verifica password e codice."
+      },
+      "status": {
+        "enabled": "L'autenticazione a due fattori è attiva",
+        "disabled": "L'autenticazione a due fattori non è attiva",
+        "enableDescription": "Proteggi il tuo account con un'app di autenticazione.",
+        "setupButton": "Configura 2FA",
+        "disableButton": "Disattiva 2FA",
+        "regenerateCodes": "Rigenera codici di recupero",
+        "regenerating": "Rigenerazione...",
+        "codesRegenerated": "Codici di recupero rigenerati",
+        "regenerateFailed": "Rigenerazione codici fallita"
+      }
     }
   },
   "language": {
@@ -1193,5 +1252,23 @@
     "completed": "{{count}} completato/i",
     "inProgress": "{{count}} operazione/i in corso",
     "allCompleted": "Operazioni completate"
+  },
+  "versions": {
+    "title": "Cronologia versioni",
+    "previousVersions": "versioni precedenti",
+    "current": "Versione attuale",
+    "latest": "Ultima",
+    "version": "Versione",
+    "download": "Scarica",
+    "restore": "Ripristina questa versione",
+    "delete": "Elimina versione",
+    "noVersions": "Nessuna versione precedente disponibile",
+    "noVersionsHint": "Le versioni vengono create quando viene caricato un file con lo stesso nome",
+    "restored": "Versione ripristinata con successo",
+    "deleted": "Versione eliminata",
+    "loadError": "Errore nel caricamento delle versioni",
+    "downloadError": "Errore nel download della versione",
+    "restoreError": "Errore nel ripristino della versione",
+    "deleteError": "Errore nell'eliminazione della versione"
   }
 }

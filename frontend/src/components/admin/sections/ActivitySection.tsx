@@ -28,7 +28,7 @@ export default function ActivitySection() {
     const loadLogs = useCallback(async () => {
         setLoading(true);
         try {
-            const response = await api.get('/admin/activity-logs', {
+            const response = await api.get('/activity/admin', {
                 params: {
                     page: currentPage,
                     limit: 20,
@@ -36,9 +36,9 @@ export default function ActivitySection() {
                     type: activityTypeFilter,
                 },
             });
-            setActivities(response.data.logs);
-            setTotalPages(response.data.totalPages);
-            setTotalLogs(response.data.total);
+            setActivities(response.data.activities || []);
+            setTotalPages(response.data.pagination?.totalPages ?? 1);
+            setTotalLogs(response.data.pagination?.total ?? 0);
         } catch (error: any) {
             // Silently handle 404 - endpoint not implemented yet
             if (error.response?.status === 404) {

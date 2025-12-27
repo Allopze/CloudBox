@@ -509,6 +509,65 @@
       "INVALID_EMAIL": "O formato do e-mail não é válido.",
       "WEAK_PASSWORD": "A senha é muito fraca. Use pelo menos 8 caracteres com maiúsculas, números e símbolos.",
       "REGISTRATION_DISABLED": "O registro de novos usuários está temporariamente desativado."
+    },
+    "twoFactor": {
+      "title": "Autenticação de Dois Fatores",
+      "enterCodeDescription": "Digite o código de 6 dígitos do seu aplicativo de autenticação.",
+      "enterRecoveryCodeDescription": "Digite um dos seus códigos de recuperação.",
+      "enterSixDigits": "Por favor, digite todos os 6 dígitos",
+      "enterRecoveryCode": "Por favor, digite um código de recuperação",
+      "verifying": "Verificando...",
+      "verify": "Verificar",
+      "verificationSuccess": "Verificação concluída!",
+      "verificationFailed": "Código inválido. Por favor, tente novamente.",
+      "useRecoveryCode": "Usar código de recuperação",
+      "backToAuthenticator": "Voltar ao autenticador",
+      "recoveryCodePlaceholder": "Digite o código de recuperação",
+      "cancel": "Cancelar e voltar",
+      "setup": {
+        "title": "Configurar Autenticação de Dois Fatores",
+        "description": "Adicione uma camada extra de segurança à sua conta.",
+        "step1": "Escanear código QR",
+        "step1Description": "Escaneie este código QR com seu aplicativo de autenticação (Google Authenticator, Authy, etc.)",
+        "step2": "Digite o código",
+        "step2Description": "Digite o código de 6 dígitos do seu aplicativo para verificar",
+        "step3": "Salvar códigos de recuperação",
+        "step3Description": "Guarde estes códigos de recuperação em um local seguro. Você pode usá-los para acessar sua conta caso perca seu dispositivo.",
+        "manualEntry": "Não consegue escanear? Digite este código manualmente:",
+        "enable": "Ativar Autenticação de Dois Fatores",
+        "enabling": "Ativando...",
+        "enabled": "Autenticação de Dois Fatores ativada!",
+        "enableFailed": "Falha ao ativar. Verifique seu código e tente novamente.",
+        "copySecret": "Copiar segredo",
+        "secretCopied": "Segredo copiado para a área de transferência",
+        "copyRecoveryCodes": "Copiar códigos de recuperação",
+        "recoveryCodesCopied": "Códigos de recuperação copiados",
+        "downloadRecoveryCodes": "Baixar códigos de recuperação",
+        "recoveryCodesWarning": "Estes códigos serão mostrados apenas uma vez. Salve-os agora!",
+        "finish": "Concluir configuração"
+      },
+      "disable": {
+        "title": "Desativar Autenticação de Dois Fatores",
+        "description": "Você precisará digitar sua senha e código 2FA atual para desativar.",
+        "warning": "Aviso: Isso tornará sua conta menos segura.",
+        "password": "Sua senha",
+        "code": "Código 2FA atual",
+        "disable": "Desativar 2FA",
+        "disabling": "Desativando...",
+        "disabled": "Autenticação de Dois Fatores desativada",
+        "disableFailed": "Falha ao desativar. Verifique senha e código."
+      },
+      "status": {
+        "enabled": "Autenticação de Dois Fatores está ativada",
+        "disabled": "Autenticação de Dois Fatores não está ativada",
+        "enableDescription": "Proteja sua conta com um aplicativo de autenticação.",
+        "setupButton": "Configurar 2FA",
+        "disableButton": "Desativar 2FA",
+        "regenerateCodes": "Regenerar códigos de recuperação",
+        "regenerating": "Regenerando...",
+        "codesRegenerated": "Códigos de recuperação regenerados",
+        "regenerateFailed": "Falha ao regenerar códigos"
+      }
     }
   },
   "language": {
@@ -1193,5 +1252,23 @@
     "completed": "{{count}} concluído(s)",
     "inProgress": "{{count}} operação(ões) em andamento",
     "allCompleted": "Operações concluídas"
+  },
+  "versions": {
+    "title": "Histórico de versões",
+    "previousVersions": "versões anteriores",
+    "current": "Versão atual",
+    "latest": "Última",
+    "version": "Versão",
+    "download": "Baixar",
+    "restore": "Restaurar esta versão",
+    "delete": "Excluir versão",
+    "noVersions": "Nenhuma versão anterior disponível",
+    "noVersionsHint": "As versões são criadas quando um arquivo com o mesmo nome é enviado",
+    "restored": "Versão restaurada com sucesso",
+    "deleted": "Versão excluída",
+    "loadError": "Erro ao carregar versões",
+    "downloadError": "Erro ao baixar versão",
+    "restoreError": "Erro ao restaurar versão",
+    "deleteError": "Erro ao excluir versão"
   }
 }

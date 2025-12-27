@@ -42,6 +42,7 @@ export const defaultAdminNavItems: AdminNavItem[] = [
   { id: 'overview', icon: 'LayoutDashboard', labelKey: 'sidebar.admin.overview' },
   { id: 'users', icon: 'Users', labelKey: 'sidebar.admin.users' },
   { id: 'settings', icon: 'Settings', labelKey: 'sidebar.admin.settings' },
+  { id: 'storage-requests', icon: 'HardDrive', labelKey: 'sidebar.admin.storageRequests' },
   { id: 'email', icon: 'Mail', labelKey: 'sidebar.admin.email' },
   { id: 'branding', icon: 'Palette', labelKey: 'sidebar.admin.branding' },
   { id: 'file-icons', icon: 'FileType', labelKey: 'sidebar.admin.fileIcons' },

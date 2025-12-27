@@ -133,9 +133,11 @@
   }
 
   .premium-card.selected {
-    @apply border-primary-500/80 dark:border-primary-500/80;
-    @apply bg-primary-50/40 dark:bg-primary-900/30;
-    transform: scale(0.95);
+    @apply ring-2 ring-primary-500/60 ring-offset-2;
+    @apply ring-offset-white dark:ring-offset-dark-900;
+    @apply bg-primary-50/30 dark:bg-primary-900/10;
+    @apply border-transparent;
+    transform: scale(0.98);
   }
 
   .premium-card:focus-visible {
@@ -208,9 +210,10 @@
   }
 
   .premium-card-list.selected {
-    @apply bg-primary-50/40 dark:bg-primary-900/30;
-    @apply border-primary-500/50 dark:border-primary-500/50;
-    transform: scale(0.98);
+    @apply ring-2 ring-primary-500/60 ring-offset-1;
+    @apply ring-offset-white dark:ring-offset-dark-900;
+    @apply bg-primary-50/20 dark:bg-primary-900/10;
+    @apply border-transparent;
   }
 
   .premium-card-list:focus-visible {

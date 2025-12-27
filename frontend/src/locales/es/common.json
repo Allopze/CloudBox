@@ -559,6 +559,65 @@
       "INVALID_EMAIL": "El formato del correo electrónico no es válido.",
       "WEAK_PASSWORD": "La contraseña es demasiado débil. Usa al menos 8 caracteres con mayúsculas, números y símbolos.",
       "REGISTRATION_DISABLED": "El registro de nuevos usuarios está deshabilitado temporalmente."
+    },
+    "twoFactor": {
+      "title": "Autenticación de Dos Factores",
+      "enterCodeDescription": "Introduce el código de 6 dígitos de tu aplicación de autenticación.",
+      "enterRecoveryCodeDescription": "Introduce uno de tus códigos de recuperación.",
+      "enterSixDigits": "Por favor introduce los 6 dígitos",
+      "enterRecoveryCode": "Por favor introduce un código de recuperación",
+      "verifying": "Verificando...",
+      "verify": "Verificar",
+      "verificationSuccess": "¡Verificación exitosa!",
+      "verificationFailed": "Código inválido. Por favor intenta de nuevo.",
+      "useRecoveryCode": "Usar un código de recuperación",
+      "backToAuthenticator": "Volver al autenticador",
+      "recoveryCodePlaceholder": "Introduce código de recuperación",
+      "cancel": "Cancelar y volver",
+      "setup": {
+        "title": "Configurar Autenticación de Dos Factores",
+        "description": "Añade una capa extra de seguridad a tu cuenta.",
+        "step1": "Escanear código QR",
+        "step1Description": "Escanea este código QR con tu aplicación de autenticación (Google Authenticator, Authy, etc.)",
+        "step2": "Introducir código",
+        "step2Description": "Introduce el código de 6 dígitos de tu aplicación para verificar",
+        "step3": "Guardar códigos de recuperación",
+        "step3Description": "Guarda estos códigos de recuperación en un lugar seguro. Puedes usarlos para acceder a tu cuenta si pierdes tu dispositivo.",
+        "manualEntry": "¿No puedes escanear? Introduce este código manualmente:",
+        "enable": "Activar Autenticación de Dos Factores",
+        "enabling": "Activando...",
+        "enabled": "¡Autenticación de Dos Factores activada!",
+        "enableFailed": "Error al activar 2FA. Verifica tu código e intenta de nuevo.",
+        "copySecret": "Copiar secreto",
+        "secretCopied": "Secreto copiado al portapapeles",
+        "copyRecoveryCodes": "Copiar códigos de recuperación",
+        "recoveryCodesCopied": "Códigos de recuperación copiados",
+        "downloadRecoveryCodes": "Descargar códigos de recuperación",
+        "recoveryCodesWarning": "¡Estos códigos solo se mostrarán una vez. Guárdalos ahora!",
+        "finish": "Finalizar configuración"
+      },
+      "disable": {
+        "title": "Desactivar Autenticación de Dos Factores",
+        "description": "Necesitarás introducir tu contraseña y código 2FA actual para desactivar.",
+        "warning": "Advertencia: Esto hará tu cuenta menos segura.",
+        "password": "Tu contraseña",
+        "code": "Código 2FA actual",
+        "disable": "Desactivar 2FA",
+        "disabling": "Desactivando...",
+        "disabled": "Autenticación de Dos Factores desactivada",
+        "disableFailed": "Error al desactivar 2FA. Verifica tu contraseña y código."
+      },
+      "status": {
+        "enabled": "La Autenticación de Dos Factores está activada",
+        "disabled": "La Autenticación de Dos Factores no está activada",
+        "enableDescription": "Protege tu cuenta con una aplicación de autenticación.",
+        "setupButton": "Configurar 2FA",
+        "disableButton": "Desactivar 2FA",
+        "regenerateCodes": "Regenerar códigos de recuperación",
+        "regenerating": "Regenerando...",
+        "codesRegenerated": "Códigos de recuperación regenerados",
+        "regenerateFailed": "Error al regenerar códigos"
+      }
     }
   },
   "language": {
@@ -1474,15 +1533,76 @@
       "branding": "Marca",
       "fileIcons": "Iconos",
       "legal": "Legal",
-      "activity": "Actividad"
+      "activity": "Actividad",
+      "storageRequests": "Solicitudes"
     },
     "overview": {
-      "title": "Resumen del Sistema",
-      "subtitle": "Vista general de las estadísticas y el estado del sistema.",
-      "totalUsers": "Total Usuarios",
-      "activeUsers": "Usuarios Activos",
-      "totalFiles": "Total Archivos",
-      "storageUsed": "Almacenamiento Usado"
+      "title": "Resumen",
+      "subtitle": "Estado actual del sistema y métricas clave.",
+      "refresh": "Actualizar",
+      "export": "Exportar diagnóstico",
+      "lastUpdated": "Actualizado",
+      "autoRefresh": "Auto-actualizar",
+      "health": {
+        "title": "Salud del sistema",
+        "api": "API CloudBox",
+        "database": "Base de datos",
+        "storage": "Almacenamiento",
+        "jobs": "Cola de jobs",
+        "smtp": "SMTP",
+        "version": "Versión desplegada",
+        "latency": "Latencia",
+        "pending": "Pendientes",
+        "migrationsPending": "migraciones pendientes",
+        "statusOk": "OK",
+        "statusAlert": "Alerta",
+        "statusCritical": "Crítico",
+        "statusDegraded": "Degradado",
+        "statusDown": "Caído",
+        "statusConfigured": "Configurado",
+        "statusNotConfigured": "No configurado"
+      },
+      "metrics": {
+        "totalUsers": "Usuarios totales",
+        "activeUsers": "Activos",
+        "newUsers": "Nuevos",
+        "today": "Hoy",
+        "week": "Semana",
+        "uploads": "Subidas (24h)",
+        "downloads": "Descargas (24h)"
+      },
+      "capacity": {
+        "diskUsage": "Uso de disco (últimos 7 días)",
+        "projection": "Proyección",
+        "daysRemaining": "días restantes (estimado)",
+        "topFiles": "Top 10 archivos grandes",
+        "viewInExplorer": "Ver en explorador",
+        "noData": "No hay datos"
+      },
+      "alerts": {
+        "title": "Alertas",
+        "noAlerts": "Sin alertas",
+        "viewLogs": "Ver logs",
+        "retryJobs": "Reintentar jobs",
+        "testSmtp": "Probar SMTP"
+      },
+      "actions": {
+        "title": "Acciones rápidas",
+        "testSmtp": "Probar SMTP",
+        "forceReindex": "Forzar reindex",
+        "regenerateThumbnails": "Regenerar thumbnails",
+        "toggleMaintenance": "Activar/Desactivar modo mantenimiento",
+        "viewLogs": "Ver logs recientes",
+        "maintenanceEnabled": "Modo mantenimiento activado",
+        "maintenanceDisabled": "Modo mantenimiento desactivado",
+        "notImplemented": "Función no implementada aún"
+      },
+      "security": {
+        "title": "Seguridad y acceso",
+        "logins24h": "Inicios (24h)",
+        "failed24h": "Fallidos (24h)",
+        "topFailIps": "IPs con más fallos"
+      }
     },
     "users": {
       "title": "Usuarios",
@@ -1604,5 +1724,23 @@
     "loadError": "Error al cargar datos",
     "saveError": "Error al guardar datos",
     "deleteError": "Error al eliminar"
+  },
+  "versions": {
+    "title": "Historial de versiones",
+    "previousVersions": "versiones anteriores",
+    "current": "Versión actual",
+    "latest": "Última",
+    "version": "Versión",
+    "download": "Descargar",
+    "restore": "Restaurar esta versión",
+    "delete": "Eliminar versión",
+    "noVersions": "No hay versiones anteriores disponibles",
+    "noVersionsHint": "Las versiones se crean al subir un archivo con el mismo nombre",
+    "restored": "Versión restaurada correctamente",
+    "deleted": "Versión eliminada",
+    "loadError": "Error al cargar versiones",
+    "downloadError": "Error al descargar versión",
+    "restoreError": "Error al restaurar versión",
+    "deleteError": "Error al eliminar versión"
   }
 }

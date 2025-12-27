@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import fs from 'fs/promises';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
+import jwt from 'jsonwebtoken';
 import prisma from '../lib/prisma.js';
 import { authenticate, optionalAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
@@ -12,6 +13,67 @@ import { shareRateLimiter } from '../middleware/shareRateLimiter.js';
 import archiver from 'archiver';
 import { config } from '../config/index.js';
 import logger from '../lib/logger.js';
+
+// H-03 SECURITY: Cookie-based share access token
+const SHARE_ACCESS_TOKEN_EXPIRY = '1h';
+const SHARE_COOKIE_NAME = 'share_access';
+
+interface ShareAccessPayload {
+  shareToken: string;
+  verified: boolean;
+}
+
+// Generate share access token and set as httpOnly cookie
+function setShareAccessCookie(res: Response, shareToken: string): void {
+  const accessToken = jwt.sign(
+    { shareToken, verified: true } as ShareAccessPayload,
+    config.jwt.secret,
+    { expiresIn: SHARE_ACCESS_TOKEN_EXPIRY }
+  );
+
+  res.cookie(`${SHARE_COOKIE_NAME}_${shareToken}`, accessToken, {
+    httpOnly: true,
+    secure: config.nodeEnv === 'production',
+    sameSite: config.nodeEnv === 'production' ? 'strict' : 'lax',
+    maxAge: 60 * 60 * 1000, // 1 hour
+    path: '/',
+  });
+}
+
+// Verify share access from cookie or query param (backward compat)
+async function verifyShareAccess(
+  req: Request,
+  share: { password: string | null; publicToken: string },
+  queryPassword?: string
+): Promise<{ valid: boolean; fromCookie: boolean }> {
+  // If no password required, it's valid
+  if (!share.password) {
+    return { valid: true, fromCookie: false };
+  }
+
+  // H-03: First try cookie-based access
+  const cookieName = `${SHARE_COOKIE_NAME}_${share.publicToken}`;
+  const accessToken = req.cookies?.[cookieName];
+
+  if (accessToken) {
+    try {
+      const payload = jwt.verify(accessToken, config.jwt.secret) as ShareAccessPayload;
+      if (payload.shareToken === share.publicToken && payload.verified) {
+        return { valid: true, fromCookie: true };
+      }
+    } catch {
+      // Token invalid/expired, fall through to password check
+    }
+  }
+
+  // Fallback: Check query param password (deprecated but kept for backward compat)
+  if (queryPassword) {
+    const valid = await bcrypt.compare(queryPassword, share.password);
+    return { valid, fromCookie: false };
+  }
+
+  return { valid: false, fromCookie: false };
+}
 
 const router = Router();
 
@@ -447,6 +509,10 @@ router.post('/public/:token/verify', shareRateLimiter(), validate(publicLinkPass
 
     // SECURITY FIX: Clear rate limit on successful password
     res.locals.recordPasswordSuccess?.();
+
+    // H-03: Set httpOnly cookie for subsequent requests
+    setShareAccessCookie(res, token);
+
     res.json({ verified: true });
   } catch (error) {
     logger.error('Verify password error', {}, error instanceof Error ? error : undefined);
@@ -512,19 +578,16 @@ router.get('/public/:token/files/:fileId/view', shareRateLimiter(), async (req: 
       return;
     }
 
-    if (share.password) {
-      if (!password) {
-        res.status(401).json({ error: 'Password required', hasPassword: true });
-        return;
-      }
-
-      const valid = await bcrypt.compare(password, share.password);
-      if (!valid) {
+    // H-03: Use cookie-based auth with query param fallback
+    const accessResult = await verifyShareAccess(req, { password: share.password, publicToken: token }, password);
+    if (!accessResult.valid) {
+      if (!accessResult.fromCookie) {
         res.locals.recordPasswordFailure?.();
-        res.status(401).json({ error: 'Invalid password', hasPassword: true });
-        return;
       }
-
+      res.status(401).json({ error: 'Password required', hasPassword: !!share.password });
+      return;
+    }
+    if (!accessResult.fromCookie && share.password) {
       res.locals.recordPasswordSuccess?.();
     }
 
@@ -604,19 +667,16 @@ router.get('/public/:token/files/:fileId/thumbnail', shareRateLimiter(), async (
       return;
     }
 
-    if (share.password) {
-      if (!password) {
-        res.status(401).json({ error: 'Password required', hasPassword: true });
-        return;
-      }
-
-      const valid = await bcrypt.compare(password, share.password);
-      if (!valid) {
+    // H-03: Use cookie-based auth with query param fallback
+    const accessResult = await verifyShareAccess(req, { password: share.password, publicToken: token }, password);
+    if (!accessResult.valid) {
+      if (!accessResult.fromCookie) {
         res.locals.recordPasswordFailure?.();
-        res.status(401).json({ error: 'Invalid password', hasPassword: true });
-        return;
       }
-
+      res.status(401).json({ error: 'Password required', hasPassword: !!share.password });
+      return;
+    }
+    if (!accessResult.fromCookie && share.password) {
       res.locals.recordPasswordSuccess?.();
     }
 
@@ -675,7 +735,6 @@ router.get('/public/:token/files/:fileId/thumbnail', shareRateLimiter(), async (
 router.get('/public/:token/download', shareRateLimiter(), async (req: Request, res: Response) => {
   try {
     const { token } = req.params;
-    const { password } = req.query;
 
     const share = await prisma.share.findFirst({
       where: { publicToken: token, type: 'PUBLIC' },
@@ -700,21 +759,27 @@ router.get('/public/:token/download', shareRateLimiter(), async (req: Request, r
       return;
     }
 
-      if (share.password) {
-        if (!password || typeof password !== 'string') {
-          res.status(401).json({ error: 'Password required' });
-          return;
-        }
-
-      const valid = await bcrypt.compare(password, share.password);
-      if (!valid) {
-        // SECURITY FIX: Record failed password attempt for rate limiting
+    // H-03: Use cookie-based auth with query param fallback
+    const password = typeof req.query.password === 'string' ? req.query.password : undefined;
+    const accessResult = await verifyShareAccess(req, { password: share.password, publicToken: token }, password);
+    if (!accessResult.valid) {
+      if (!accessResult.fromCookie) {
         res.locals.recordPasswordFailure?.();
-        res.status(401).json({ error: 'Invalid password' });
-        return;
       }
-      // SECURITY FIX: Clear rate limit on successful password
+      res.status(401).json({ error: 'Password required', hasPassword: !!share.password });
+      return;
+    }
+    if (!accessResult.fromCookie && share.password) {
       res.locals.recordPasswordSuccess?.();
+    }
+
+    // P1-2: Validate allowDownload setting before serving file
+    if (share.allowDownload === false) {
+      res.status(403).json({
+        error: 'Downloads are disabled for this share',
+        code: 'DOWNLOAD_DISABLED'
+      });
+      return;
     }
 
     // Update download count atomically (prevent race condition)
@@ -747,6 +812,36 @@ router.get('/public/:token/download', shareRateLimiter(), async (req: Request, r
       res.setHeader('Content-Type', share.file.mimeType);
       res.sendFile(share.file.path);
     } else if (share.folder) {
+      // H-09 SECURITY: Calculate total size before creating ZIP to prevent resource exhaustion
+      const calculateFolderSize = async (folderId: string): Promise<bigint> => {
+        const files = await prisma.file.findMany({
+          where: { folderId, isTrash: false },
+          select: { size: true },
+        });
+        let total = files.reduce((sum, f) => sum + f.size, BigInt(0));
+
+        const subfolders = await prisma.folder.findMany({
+          where: { parentId: folderId, isTrash: false },
+          select: { id: true },
+        });
+        for (const sub of subfolders) {
+          total += await calculateFolderSize(sub.id);
+        }
+        return total;
+      };
+
+      const totalSize = await calculateFolderSize(share.folder.id);
+      const maxZipSize = BigInt(config.limits.maxZipSize);
+
+      if (totalSize > maxZipSize) {
+        const maxSizeGB = Number(maxZipSize) / (1024 * 1024 * 1024);
+        res.status(413).json({
+          error: `Folder too large to download as ZIP (max ${maxSizeGB}GB)`,
+          code: 'ZIP_SIZE_EXCEEDED'
+        });
+        return;
+      }
+
       // Download folder as ZIP
       res.setHeader('Content-Type', 'application/zip');
       res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(share.folder.name)}.zip"`);
@@ -828,15 +923,15 @@ router.get('/public/:token/files/:fileId/download', shareRateLimiter(), async (r
         return;
       }
       // SECURITY FIX: Clear rate limit on successful password
-        res.locals.recordPasswordSuccess?.();
-      }
+      res.locals.recordPasswordSuccess?.();
+    }
 
-      if (!share.allowDownload) {
-        res.status(403).json({ error: 'Downloads are disabled for this share' });
-        return;
-      }
+    if (!share.allowDownload) {
+      res.status(403).json({ error: 'Downloads are disabled for this share' });
+      return;
+    }
 
-      // Verify file belongs to shared folder (recursively)
+    // Verify file belongs to shared folder (recursively)
     // For simplicity, we just check if the file exists and is not in trash, 
     // and we trust the ID if we want to be fast, BUT we must ensure it's inside the shared folder.
     // A robust way is to traverse up from file.folderId until we hit share.folderId.

@@ -178,16 +178,31 @@ router.post('/register', validate(registerSchema), async (req: Request, res: Res
   try {
     const { email, password, name } = req.body;
 
+    // H-04: Check if registration is allowed (always allow first user registration as admin)
+    const userCount = await prisma.user.count();
+    if (userCount > 0) {
+      const allowRegSetting = await prisma.settings.findUnique({
+        where: { key: 'allow_registration' }
+      });
+      if (allowRegSetting?.value === 'false') {
+        res.status(403).json({
+          error: 'Registration is currently disabled',
+          code: 'REGISTRATION_DISABLED'
+        });
+        return;
+      }
+    }
+
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
       res.status(400).json({ error: 'Email already registered', code: 'EMAIL_EXISTS' });
       return;
     }
-    const userCount = await prisma.user.count();
     const role = userCount === 0 ? 'ADMIN' : 'USER';
 
     const hashedPassword = await bcrypt.hash(password, 12);
     const verifyToken = generateRandomToken();
+    const verifyTokenHash = hashToken(verifyToken); // P0-2: Store hashed token
     const verifyTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
     const user = await prisma.user.create({
@@ -196,13 +211,13 @@ router.post('/register', validate(registerSchema), async (req: Request, res: Res
         password: hashedPassword,
         name,
         role,
-        verifyToken,
+        verifyToken: verifyTokenHash, // Store hash, not plaintext
         verifyTokenExpiry,
         storageQuota: config.storage.defaultQuota,
       },
     });
 
-    // Send verification email
+    // Send verification email with plaintext token (user clicks link)
     const verifyUrl = `${config.frontendUrl}/verify-email/${verifyToken}`;
     await sendWelcomeEmail(email, name, verifyUrl).catch(console.error);
 
@@ -347,8 +362,31 @@ router.post('/login', validate(loginSchema), async (req: Request, res: Response)
       return;
     }
 
-    // Successful login - record it
+    // Successful password verification - record it
     await recordLoginAttempt(email, ipAddress, true, userAgent);
+
+    // Check if 2FA is enabled - require second factor
+    if (user.twoFactorEnabled) {
+      // Import generateTempToken from 2fa routes
+      const { generateTempToken } = await import('./2fa.js');
+      const tempToken = generateTempToken(user.id);
+
+      await auditLog({
+        action: 'LOGIN_2FA_REQUIRED',
+        userId: user.id,
+        ipAddress,
+        userAgent,
+        details: { email },
+        success: true,
+      });
+
+      res.json({
+        requires2FA: true,
+        tempToken,
+        message: 'Please enter your 2FA code',
+      });
+      return;
+    }
 
     await auditLog({
       action: 'LOGIN_SUCCESS',
@@ -398,6 +436,7 @@ router.post('/login', validate(loginSchema), async (req: Request, res: Response)
         emailVerified: user.emailVerified,
         storageQuota: user.storageQuota.toString(),
         storageUsed: user.storageUsed.toString(),
+        twoFactorEnabled: user.twoFactorEnabled,
       },
       accessToken,
       // Note: refreshToken no longer returned in body, only in httpOnly cookie
@@ -685,11 +724,12 @@ router.post('/forgot-password', validate(forgotPasswordSchema), async (req: Requ
     }
 
     const resetToken = generateRandomToken();
+    const resetTokenHash = hashToken(resetToken); // H-06: Store hashed token
     const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
     await prisma.user.update({
       where: { id: user.id },
-      data: { resetToken, resetTokenExpiry },
+      data: { resetToken: resetTokenHash, resetTokenExpiry },
     });
 
     const resetUrl = `${config.frontendUrl}/reset-password/${resetToken}`;
@@ -712,9 +752,11 @@ router.post('/reset-password', validate(resetPasswordSchema), async (req: Reques
     // Issue #5: Use transaction to atomically verify and invalidate token
     const result = await prisma.$transaction(async (tx) => {
       // Find and immediately invalidate the token in one operation
+      // H-06: Compare by hash, not plaintext token
+      const tokenHash = hashToken(token);
       const user = await tx.user.findFirst({
         where: {
-          resetToken: token,
+          resetToken: tokenHash,
           resetTokenExpiry: { gt: new Date() },
         },
       });
@@ -763,9 +805,11 @@ router.get('/verify-email/:token', validate(verifyEmailSchema), async (req: Requ
   try {
     const { token } = req.params;
 
+    // P0-2: Compare by hash, not plaintext token
+    const tokenHash = hashToken(token);
     const user = await prisma.user.findFirst({
       where: {
-        verifyToken: token,
+        verifyToken: tokenHash,
         verifyTokenExpiry: { gt: new Date() },
       },
     });
@@ -816,16 +860,18 @@ router.post('/resend-verification', authenticate, async (req: Request, res: Resp
     }
 
     const verifyToken = generateRandomToken();
+    const verifyTokenHash = hashToken(verifyToken); // P0-2: Store hashed token
     const verifyTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
     await prisma.user.update({
       where: { id: userId },
       data: {
-        verifyToken,
+        verifyToken: verifyTokenHash, // Store hash, not plaintext
         verifyTokenExpiry,
       },
     });
 
+    // Send email with plaintext token (user clicks link)
     const verifyUrl = `${config.frontendUrl}/verify-email/${verifyToken}`;
     await sendWelcomeEmail(user.email, user.name, verifyUrl).catch(console.error);
 

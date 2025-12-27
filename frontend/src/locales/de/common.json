@@ -509,6 +509,65 @@
       "INVALID_EMAIL": "Das E-Mail-Format ist ungültig.",
       "WEAK_PASSWORD": "Das Passwort ist zu schwach. Verwenden Sie mindestens 8 Zeichen mit Großbuchstaben, Zahlen und Symbolen.",
       "REGISTRATION_DISABLED": "Die Registrierung neuer Benutzer ist vorübergehend deaktiviert."
+    },
+    "twoFactor": {
+      "title": "Zwei-Faktor-Authentifizierung",
+      "enterCodeDescription": "Geben Sie den 6-stelligen Code Ihrer Authentifizierungs-App ein.",
+      "enterRecoveryCodeDescription": "Geben Sie einen Ihrer Wiederherstellungscodes ein.",
+      "enterSixDigits": "Bitte geben Sie alle 6 Ziffern ein",
+      "enterRecoveryCode": "Bitte geben Sie einen Wiederherstellungscode ein",
+      "verifying": "Wird überprüft...",
+      "verify": "Überprüfen",
+      "verificationSuccess": "Überprüfung erfolgreich!",
+      "verificationFailed": "Ungültiger Code. Bitte versuchen Sie es erneut.",
+      "useRecoveryCode": "Wiederherstellungscode verwenden",
+      "backToAuthenticator": "Zurück zum Authentifikator",
+      "recoveryCodePlaceholder": "Wiederherstellungscode eingeben",
+      "cancel": "Abbrechen und zurück",
+      "setup": {
+        "title": "Zwei-Faktor-Authentifizierung einrichten",
+        "description": "Fügen Sie Ihrem Konto eine zusätzliche Sicherheitsebene hinzu.",
+        "step1": "QR-Code scannen",
+        "step1Description": "Scannen Sie diesen QR-Code mit Ihrer Authentifizierungs-App (Google Authenticator, Authy, etc.)",
+        "step2": "Code eingeben",
+        "step2Description": "Geben Sie den 6-stelligen Code Ihrer App zur Überprüfung ein",
+        "step3": "Wiederherstellungscodes speichern",
+        "step3Description": "Bewahren Sie diese Wiederherstellungscodes an einem sicheren Ort auf. Sie können sie verwenden, um auf Ihr Konto zuzugreifen, wenn Sie Ihr Gerät verlieren.",
+        "manualEntry": "Können Sie nicht scannen? Geben Sie diesen Code manuell ein:",
+        "enable": "Zwei-Faktor-Authentifizierung aktivieren",
+        "enabling": "Aktivierung...",
+        "enabled": "Zwei-Faktor-Authentifizierung aktiviert!",
+        "enableFailed": "Aktivierung fehlgeschlagen. Überprüfen Sie Ihren Code und versuchen Sie es erneut.",
+        "copySecret": "Geheimnis kopieren",
+        "secretCopied": "Geheimnis in die Zwischenablage kopiert",
+        "copyRecoveryCodes": "Wiederherstellungscodes kopieren",
+        "recoveryCodesCopied": "Wiederherstellungscodes kopiert",
+        "downloadRecoveryCodes": "Wiederherstellungscodes herunterladen",
+        "recoveryCodesWarning": "Diese Codes werden nur einmal angezeigt. Speichern Sie sie jetzt!",
+        "finish": "Einrichtung abschließen"
+      },
+      "disable": {
+        "title": "Zwei-Faktor-Authentifizierung deaktivieren",
+        "description": "Sie müssen Ihr Passwort und den aktuellen 2FA-Code eingeben, um zu deaktivieren.",
+        "warning": "Warnung: Dies macht Ihr Konto weniger sicher.",
+        "password": "Ihr Passwort",
+        "code": "Aktueller 2FA-Code",
+        "disable": "2FA deaktivieren",
+        "disabling": "Deaktivierung...",
+        "disabled": "Zwei-Faktor-Authentifizierung deaktiviert",
+        "disableFailed": "Deaktivierung fehlgeschlagen. Überprüfen Sie Passwort und Code."
+      },
+      "status": {
+        "enabled": "Zwei-Faktor-Authentifizierung ist aktiviert",
+        "disabled": "Zwei-Faktor-Authentifizierung ist nicht aktiviert",
+        "enableDescription": "Schützen Sie Ihr Konto mit einer Authentifizierungs-App.",
+        "setupButton": "2FA einrichten",
+        "disableButton": "2FA deaktivieren",
+        "regenerateCodes": "Wiederherstellungscodes neu generieren",
+        "regenerating": "Neu generieren...",
+        "codesRegenerated": "Wiederherstellungscodes regeneriert",
+        "regenerateFailed": "Regenerierung der Codes fehlgeschlagen"
+      }
     }
   },
   "language": {
@@ -609,12 +668,12 @@
       "filesSelected": "{{count}} Datei(en) ausgewählt",
       "completed": "Alle Dateien hochgeladen",
       "done": "Fertig",
-        "uploadFiles": "Dateien hochladen",
-        "allFilesUploaded": "Alle Dateien wurden erfolgreich hochgeladen",
-        "errors": {
-          "fileTooLarge": "Die Datei überschreitet die maximale Größe von {{size}}."
-        }
-      },
+      "uploadFiles": "Dateien hochladen",
+      "allFilesUploaded": "Alle Dateien wurden erfolgreich hochgeladen",
+      "errors": {
+        "fileTooLarge": "Die Datei überschreitet die maximale Größe von {{size}}."
+      }
+    },
     "createFolder": {
       "title": "Ordner erstellen",
       "folderName": "Ordnername",
@@ -1193,5 +1252,23 @@
     "completed": "{{count}} abgeschlossen",
     "inProgress": "{{count}} Vorgang/Vorgänge in Bearbeitung",
     "allCompleted": "Vorgänge abgeschlossen"
+  },
+  "versions": {
+    "title": "Versionshistorie",
+    "previousVersions": "frühere Versionen",
+    "current": "Aktuelle Version",
+    "latest": "Neueste",
+    "version": "Version",
+    "download": "Herunterladen",
+    "restore": "Diese Version wiederherstellen",
+    "delete": "Version löschen",
+    "noVersions": "Keine früheren Versionen verfügbar",
+    "noVersionsHint": "Versionen werden erstellt, wenn eine Datei mit dem gleichen Namen hochgeladen wird",
+    "restored": "Version erfolgreich wiederhergestellt",
+    "deleted": "Version gelöscht",
+    "loadError": "Fehler beim Laden der Versionen",
+    "downloadError": "Fehler beim Herunterladen der Version",
+    "restoreError": "Fehler beim Wiederherstellen der Version",
+    "deleteError": "Fehler beim Löschen der Version"
   }
 }

@@ -509,6 +509,65 @@
       "INVALID_EMAIL": "Le format de l'e-mail n'est pas valide.",
       "WEAK_PASSWORD": "Le mot de passe est trop faible. Utilisez au moins 8 caractères avec des majuscules, des chiffres et des symboles.",
       "REGISTRATION_DISABLED": "L'inscription de nouveaux utilisateurs est temporairement désactivée."
+    },
+    "twoFactor": {
+      "title": "Authentification à deux facteurs",
+      "enterCodeDescription": "Entrez le code à 6 chiffres de votre application d'authentification.",
+      "enterRecoveryCodeDescription": "Entrez un de vos codes de récupération.",
+      "enterSixDigits": "Veuillez entrer les 6 chiffres",
+      "enterRecoveryCode": "Veuillez entrer un code de récupération",
+      "verifying": "Vérification...",
+      "verify": "Vérifier",
+      "verificationSuccess": "Vérification réussie !",
+      "verificationFailed": "Code invalide. Veuillez réessayer.",
+      "useRecoveryCode": "Utiliser un code de récupération",
+      "backToAuthenticator": "Retour à l'authentificateur",
+      "recoveryCodePlaceholder": "Entrez le code de récupération",
+      "cancel": "Annuler et revenir",
+      "setup": {
+        "title": "Configurer l'authentification à deux facteurs",
+        "description": "Ajoutez une couche de sécurité supplémentaire à votre compte.",
+        "step1": "Scanner le code QR",
+        "step1Description": "Scannez ce code QR avec votre application d'authentification (Google Authenticator, Authy, etc.)",
+        "step2": "Entrer le code",
+        "step2Description": "Entrez le code à 6 chiffres de votre application pour vérifier",
+        "step3": "Sauvegarder les codes de récupération",
+        "step3Description": "Conservez ces codes de récupération dans un endroit sûr. Vous pouvez les utiliser pour accéder à votre compte si vous perdez votre appareil.",
+        "manualEntry": "Impossible de scanner ? Entrez ce code manuellement :",
+        "enable": "Activer l'authentification à deux facteurs",
+        "enabling": "Activation...",
+        "enabled": "Authentification à deux facteurs activée !",
+        "enableFailed": "Échec de l'activation. Vérifiez votre code et réessayez.",
+        "copySecret": "Copier le secret",
+        "secretCopied": "Secret copié dans le presse-papiers",
+        "copyRecoveryCodes": "Copier les codes de récupération",
+        "recoveryCodesCopied": "Codes de récupération copiés",
+        "downloadRecoveryCodes": "Télécharger les codes de récupération",
+        "recoveryCodesWarning": "Ces codes ne seront affichés qu'une seule fois. Sauvegardez-les maintenant !",
+        "finish": "Terminer la configuration"
+      },
+      "disable": {
+        "title": "Désactiver l'authentification à deux facteurs",
+        "description": "Vous devrez entrer votre mot de passe et le code 2FA actuel pour désactiver.",
+        "warning": "Attention : Cela rendra votre compte moins sécurisé.",
+        "password": "Votre mot de passe",
+        "code": "Code 2FA actuel",
+        "disable": "Désactiver 2FA",
+        "disabling": "Désactivation...",
+        "disabled": "Authentification à deux facteurs désactivée",
+        "disableFailed": "Échec de la désactivation. Vérifiez votre mot de passe et code."
+      },
+      "status": {
+        "enabled": "L'authentification à deux facteurs est activée",
+        "disabled": "L'authentification à deux facteurs n'est pas activée",
+        "enableDescription": "Protégez votre compte avec une application d'authentification.",
+        "setupButton": "Configurer 2FA",
+        "disableButton": "Désactiver 2FA",
+        "regenerateCodes": "Régénérer les codes de récupération",
+        "regenerating": "Régénération...",
+        "codesRegenerated": "Codes de récupération régénérés",
+        "regenerateFailed": "Échec de la régénération des codes"
+      }
     }
   },
   "language": {
@@ -1193,5 +1252,23 @@
     "completed": "{{count}} terminé(s)",
     "inProgress": "{{count}} opération(s) en cours",
     "allCompleted": "Opérations terminées"
+  },
+  "versions": {
+    "title": "Historique des versions",
+    "previousVersions": "versions précédentes",
+    "current": "Version actuelle",
+    "latest": "Dernière",
+    "version": "Version",
+    "download": "Télécharger",
+    "restore": "Restaurer cette version",
+    "delete": "Supprimer la version",
+    "noVersions": "Aucune version précédente disponible",
+    "noVersionsHint": "Les versions sont créées lorsqu'un fichier du même nom est téléversé",
+    "restored": "Version restaurée avec succès",
+    "deleted": "Version supprimée",
+    "loadError": "Erreur lors du chargement des versions",
+    "downloadError": "Erreur lors du téléchargement de la version",
+    "restoreError": "Erreur lors de la restauration de la version",
+    "deleteError": "Erreur lors de la suppression de la version"
   }
 }

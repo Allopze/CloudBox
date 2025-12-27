@@ -1,6 +1,7 @@
 import { useState, useEffect, memo, useMemo, useCallback } from 'react';
 import { FileText, FileSpreadsheet, File, Loader2 } from 'lucide-react';
 import { getFileUrl, api } from '../../lib/api';
+import { getAccessToken } from '../../lib/tokenManager';
 import { Document, Page, pdfjs } from 'react-pdf';
 import mammoth from 'mammoth';
 
@@ -100,7 +101,7 @@ const DocumentThumbnail = memo(function DocumentThumbnail({
   const pdfOptions = useMemo(() => ({
     url: fileUrl,
     httpHeaders: {
-      Authorization: `Bearer ${localStorage.getItem('accessToken') || ''}`,
+      Authorization: `Bearer ${getAccessToken() || ''}`,
     },
     cMapUrl: 'https://unpkg.com/pdfjs-dist@5.4.296/cmaps/',
     cMapPacked: true,
@@ -202,7 +203,7 @@ const DocumentThumbnail = memo(function DocumentThumbnail({
             </div>
           }
           error={
-            <div className="flex flex-col items-center justify-center w-full h-full bg-red-500">
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-500">
               <DocIcon className="w-12 h-12 text-white/80 mb-2" />
               <span className="text-white/90 text-xs font-bold tracking-wider">{label}</span>
             </div>

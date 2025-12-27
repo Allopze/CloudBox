@@ -106,12 +106,30 @@ export const copyFile = async (source: string, destination: string): Promise<voi
   await fs.copyFile(source, destination);
 };
 
+// SECURITY: MIME types that can execute JavaScript or active content
+// These must be served as downloads to prevent stored XSS attacks
+const FORCE_DOWNLOAD_MIMES = [
+  'text/html',
+  'application/xhtml+xml',
+  'application/javascript',
+  'text/javascript',
+  'image/svg+xml',
+  'application/x-httpd-php',
+  'text/x-php',
+];
+
 export const streamFile = async (
   req: import('express').Request,
   res: import('express').Response,
   file: { path: string; mimeType: string; name: string },
   stat: import('fs').Stats
 ) => {
+  // SECURITY H-01: Force download for potentially active content types to prevent XSS
+  if (FORCE_DOWNLOAD_MIMES.some(mime => file.mimeType.toLowerCase().includes(mime.split('/')[1]))) {
+    const safeFilename = encodeURIComponent(file.name).replace(/['()]/g, escape);
+    res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"; filename*=UTF-8''${safeFilename}`);
+  }
+
   const range = req.headers.range;
 
   if (range) {
@@ -128,7 +146,7 @@ export const streamFile = async (
 
     const { createReadStream } = await import('fs');
     const stream = createReadStream(file.path, { start, end });
-    
+
     // Handle stream errors
     stream.on('error', (err) => {
       console.error('Stream error:', err);
@@ -137,12 +155,12 @@ export const streamFile = async (
         res.status(500).json({ error: 'Stream error' });
       }
     });
-    
+
     // Cleanup on client disconnect
     res.on('close', () => {
       stream.destroy();
     });
-    
+
     stream.pipe(res);
   } else {
     res.setHeader('Content-Type', file.mimeType);

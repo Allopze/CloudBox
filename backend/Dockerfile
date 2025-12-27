@@ -39,11 +39,13 @@ WORKDIR /app
 # Install runtime dependencies
 # - ffmpeg: video/audio transcoding
 # - 7zip: archive extraction
-# - graphicsmagick: PDF thumbnails
+# - graphicsmagick: image processing
+# - poppler-utils: PDF thumbnail generation (pdftoppm)
 RUN apk add --no-cache \
     ffmpeg \
     p7zip \
     graphicsmagick \
+    poppler-utils \
     tini
 
 # Create non-root user for security
