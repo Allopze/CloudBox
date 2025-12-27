@@ -45,7 +45,12 @@ export default function TwoFactorSetup({ isOpen, onClose, onSuccess }: TwoFactor
         setLoading(true);
         try {
             const response = await api.post('/2fa/setup');
-            setSetupData(response.data);
+            const data = response.data;
+            setSetupData({
+                qrCodeUrl: data.qrCodeUrl || data.qrCode,
+                secret: data.secret,
+                recoveryCodes: data.recoveryCodes,
+            });
         } catch (err: any) {
             toast(err.response?.data?.error || 'Failed to initialize 2FA setup', 'error');
             onClose();

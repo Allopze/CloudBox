@@ -1,4 +1,4 @@
-﻿import { HardDrive, AlertCircle, ServerCog, Mail, RefreshCw, Image, Wrench, FileSearch, Activity } from 'lucide-react';
+import { HardDrive, AlertCircle, ServerCog, Mail, RefreshCw, Image, Wrench, FileSearch, Activity } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { formatBytes } from '../../../lib/utils';
 import Button from '../../ui/Button';
@@ -33,8 +33,18 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
     const [showSmtpModal, setShowSmtpModal] = useState(false);
     const [testEmail, setTestEmail] = useState('');
     const [maintenanceMode, setMaintenanceMode] = useState(false);
+    const [showAllAlerts, setShowAllAlerts] = useState(false);
+    const [showAllTopFiles, setShowAllTopFiles] = useState(false);
+    const [showAllFailIps, setShowAllFailIps] = useState(false);
 
     const lastUpdated = summary?.generatedAt ? new Date(summary.generatedAt) : null;
+    const listLimit = 5;
+    const alerts = summary?.alerts ?? [];
+    const topLargeFiles = summary?.capacity?.topLargeFiles ?? [];
+    const topFailIps = summary?.security?.topFailIps ?? [];
+    const visibleAlerts = showAllAlerts ? alerts : alerts.slice(0, listLimit);
+    const visibleTopFiles = showAllTopFiles ? topLargeFiles : topLargeFiles.slice(0, listLimit);
+    const visibleFailIps = showAllFailIps ? topFailIps : topFailIps.slice(0, listLimit);
 
     const handleRefresh = async () => {
         try {
@@ -344,20 +354,34 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
 
                 <div className="p-6 bg-dark-50/50 dark:bg-dark-900/40 rounded-[1.5rem] border border-dark-100 dark:border-dark-800">
                     <h4 className="font-semibold mb-3">Top 10 archivos grandes</h4>
-                    <div className="space-y-2">
-                        {summary?.capacity?.topLargeFiles?.length ? summary.capacity.topLargeFiles.map((f: any) => (
-                            <div key={f.id} className="flex items-center justify-between">
-                                <div className="text-sm">
-                                    <div className="font-medium">{f.name}</div>
-                                    <div className="text-xs text-dark-500">{f.owner?.email}</div>
-                                </div>
-                                <div className="text-sm text-right">
-                                    <div>{formatBytes(Number(f.size))}</div>
-                                    <a className="text-xs text-primary-600" href={`/files/${f.id}`}>Ver en explorador</a>
-                                </div>
+                    {topLargeFiles.length ? (
+                        <>
+                            <div className="space-y-2">
+                                {visibleTopFiles.map((f: any) => (
+                                    <div key={f.id} className="flex items-center justify-between">
+                                        <div className="text-sm">
+                                            <div className="font-medium">{f.name}</div>
+                                            <div className="text-xs text-dark-500">{f.owner?.email}</div>
+                                        </div>
+                                        <div className="text-sm text-right">
+                                            <div>{formatBytes(Number(f.size))}</div>
+                                            <a className="text-xs text-primary-600" href={`/files/${f.id}`}>Ver en explorador</a>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
-                        )) : <div className="text-sm text-dark-500">No hay archivos.</div>}
-                    </div>
+                            {topLargeFiles.length > listLimit && (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="w-full mt-3"
+                                    onClick={() => setShowAllTopFiles((prev) => !prev)}
+                                >
+                                    {showAllTopFiles ? t('admin.overview.showLess', 'Mostrar menos') : t('admin.overview.showAll', 'Mostrar todo')}
+                                </Button>
+                            )}
+                        </>
+                    ) : <div className="text-sm text-dark-500">No hay archivos.</div>}
                 </div>
             </div>
 
@@ -365,45 +389,59 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="p-6 bg-dark-50/50 dark:bg-dark-900/40 rounded-[1.5rem] border border-dark-100 dark:border-dark-800">
                     <h4 className="font-semibold mb-3">Alertas</h4>
-                    <div className="space-y-2">
-                        {summary?.alerts?.length ? summary.alerts.map((a: any, idx: number) => (
-                            <div key={idx} className="flex items-center justify-between">
-                                <div>
-                                    <div className="text-sm font-medium">{a.message}</div>
-                                    <div className="text-xs text-dark-500">{new Date(a.timestamp).toLocaleString()}</div>
-                                </div>
-                                <div className="text-sm">{a.severity}</div>
+                    {alerts.length ? (
+                        <>
+                            <div className="space-y-2">
+                                {visibleAlerts.map((a: any, idx: number) => (
+                                    <div key={idx} className="flex items-center justify-between">
+                                        <div>
+                                            <div className="text-sm font-medium">{a.message}</div>
+                                            <div className="text-xs text-dark-500">{new Date(a.timestamp).toLocaleString()}</div>
+                                        </div>
+                                        <div className="text-sm">{a.severity}</div>
+                                    </div>
+                                ))}
                             </div>
-                        )) : <div className="text-sm text-dark-500">Sin alertas</div>}
-                    </div>
+                            {alerts.length > listLimit && (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="w-full mt-3"
+                                    onClick={() => setShowAllAlerts((prev) => !prev)}
+                                >
+                                    {showAllAlerts ? t('admin.overview.showLess', 'Mostrar menos') : t('admin.overview.showAll', 'Mostrar todo')}
+                                </Button>
+                            )}
+                        </>
+                    ) : <div className="text-sm text-dark-500">Sin alertas</div>}
                 </div>
 
                 <div className="p-6 bg-dark-50/50 dark:bg-dark-900/40 rounded-[1.5rem] border border-dark-100 dark:border-dark-800">
-                    <h4 className="font-semibold mb-3">{t('admin.overview.quickActions', 'Acciones rápidas')}</h4>
+                    <h4 className="font-semibold mb-3">{t('admin.overview.actions.title', 'Acciones rápidas')}</h4>
                     <div className="flex flex-col gap-2">
                         <Button onClick={() => setShowSmtpModal(true)} loading={loadingSmtp}>
                             <Mail className="w-4 h-4 mr-2" />
-                            {t('admin.overview.testSmtp', 'Probar SMTP')}
+                            {t('admin.overview.actions.testSmtp', 'Probar SMTP')}
                         </Button>
                         <Button variant="outline" onClick={handleReindex} loading={loadingReindex}>
                             <FileSearch className="w-4 h-4 mr-2" />
-                            {t('admin.overview.reindex', 'Forzar reindex')}
+                            {t('admin.overview.actions.forceReindex', 'Forzar reindex')}
                         </Button>
                         <Button variant="outline" onClick={handleRegenerateThumbnails} loading={loadingThumbnails}>
                             <Image className="w-4 h-4 mr-2" />
-                            {t('admin.overview.regenerateThumbnails', 'Regenerar thumbnails')}
+                            {t('admin.overview.actions.regenerateThumbnails', 'Regenerar thumbnails')}
                         </Button>
                         <Button variant="ghost" onClick={handleToggleMaintenance} loading={loadingMaintenance}>
                             <Wrench className="w-4 h-4 mr-2" />
                             {maintenanceMode
-                                ? t('admin.overview.disableMaintenance', 'Desactivar modo mantenimiento')
-                                : t('admin.overview.enableMaintenance', 'Activar modo mantenimiento')
+                                ? t('admin.overview.actions.toggleMaintenance', 'Desactivar modo mantenimiento')
+                                : t('admin.overview.actions.toggleMaintenance', 'Activar modo mantenimiento')
                             }
                         </Button>
                         {summary?.health?.jobs?.details?.transcoding?.failed > 0 && (
                             <Button variant="ghost" onClick={handleRetryJobs} loading={loadingRetryJobs}>
                                 <Activity className="w-4 h-4 mr-2" />
-                                {t('admin.overview.retryJobs', `Reintentar ${summary.health.jobs.details.transcoding.failed} jobs fallidos`)}
+                                {t('admin.overview.alerts.retryJobs', `Reintentar ${summary.health.jobs.details.transcoding.failed} jobs fallidos`)}
                             </Button>
                         )}
                     </div>
@@ -424,14 +462,29 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
                     </div>
                     <div>
                         <p className="text-sm text-dark-500">IPs con más fallos</p>
-                        <div className="text-sm">
-                            {summary?.security?.topFailIps?.map((ip: any) => <div key={ip.ip}>{ip.ip} ({ip.count})</div>)}
-                        </div>
+                        {topFailIps.length ? (
+                            <>
+                                <div className="text-sm space-y-1">
+                                    {visibleFailIps.map((ip: any) => <div key={ip.ip}>{ip.ip} ({ip.count})</div>)}
+                                </div>
+                                {topFailIps.length > listLimit && (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="w-full mt-2"
+                                        onClick={() => setShowAllFailIps((prev) => !prev)}
+                                    >
+                                        {showAllFailIps ? t('admin.overview.showLess', 'Mostrar menos') : t('admin.overview.showAll', 'Mostrar todo')}
+                                    </Button>
+                                )}
+                            </>
+                        ) : <div className="text-sm text-dark-500">{t('admin.overview.capacity.noData', 'No hay datos')}</div>}
                     </div>
                 </div>
             </div>
         </div>
     );
 }
+
 
 

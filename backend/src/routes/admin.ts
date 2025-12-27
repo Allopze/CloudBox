@@ -1333,13 +1333,21 @@ router.get('/summary', authenticate, requireAdmin, async (req: Request, res: Res
 
     // SMTP status
     let smtpStatus = 'NOT_CONFIGURED';
-    const smtpResult = await testSmtpConnection();
-    if (smtpResult.connected) {
-      smtpStatus = 'CONFIGURED';
-    } else if (smtpResult.message.includes('not configured')) {
-      smtpStatus = 'NOT_CONFIGURED';
-    } else {
-      smtpStatus = 'FAILED';
+    try {
+      const smtpResult = await testSmtpConnection();
+      if (smtpResult.connected) {
+        smtpStatus = 'CONFIGURED';
+      } else if (smtpResult.message.toLowerCase().includes('not configured')) {
+        smtpStatus = 'NOT_CONFIGURED';
+      } else {
+        smtpStatus = 'FAILED';
+      }
+    } catch (error) {
+      if (error instanceof EmailError && error.code === 'SMTP_NOT_CONFIGURED') {
+        smtpStatus = 'NOT_CONFIGURED';
+      } else {
+        smtpStatus = 'FAILED';
+      }
     }
 
     // Jobs status (check TranscodingJob table if exists)

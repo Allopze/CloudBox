@@ -1536,6 +1536,8 @@
       "export": "Export diagnostic",
       "lastUpdated": "Updated",
       "autoRefresh": "Auto-refresh",
+      "showAll": "Show all",
+      "showLess": "Show less",
       "health": {
         "title": "System Health",
         "api": "CloudBox API",

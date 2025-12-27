@@ -1543,6 +1543,8 @@
       "export": "Exportar diagnóstico",
       "lastUpdated": "Actualizado",
       "autoRefresh": "Auto-actualizar",
+      "showAll": "Mostrar todo",
+      "showLess": "Mostrar menos",
       "health": {
         "title": "Salud del sistema",
         "api": "API CloudBox",
