@@ -9,6 +9,7 @@ import { adminUserSchema, smtpConfigSchema, smtpSettingsSchema, smtpTestSchema, 
 import { resetTransporter, testSmtpConnection, sendEmail, EmailError } from '../lib/email.js';
 import { getBrandingPath, deleteFile, fileExists, copyFile, getStoragePath } from '../lib/storage.js';
 import { encryptSecret } from '../lib/encryption.js';
+import { thumbnailQueue } from '../lib/thumbnailQueue.js';
 import sharp from 'sharp';
 import os from 'os';
 import fs from 'fs/promises';
@@ -1676,38 +1677,39 @@ router.post('/summary/actions/regenerate-thumbnails', authenticate, requireAdmin
   adminLogger.info({ requestId, action: 'regenerate-thumbnails' }, 'Regenerate thumbnails action started');
 
   try {
-    // Find all image and video files that can have thumbnails
+    const officeMimeTypes = [
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'application/vnd.ms-powerpoint',
+    ];
+
     const files = await prisma.file.findMany({
       where: {
+        isTrash: false,
         OR: [
           { mimeType: { startsWith: 'image/' } },
           { mimeType: { startsWith: 'video/' } },
+          { mimeType: { equals: 'application/pdf' } },
+          { mimeType: { in: officeMimeTypes } },
         ],
       },
-      select: { id: true, name: true, mimeType: true, thumbnailPath: true },
+      select: { id: true, mimeType: true, path: true, userId: true },
     });
 
-    // For images: clear the thumbnail path to trigger regeneration on next access
-    // For videos: create transcoding jobs for thumbnail regeneration
-    let imagesUpdated = 0;
+    let imagesQueued = 0;
     let videosQueued = 0;
+    let documentsQueued = 0;
 
     for (const file of files) {
-      if (file.mimeType.startsWith('image/')) {
-        // Clear thumbnail to force regeneration on next request
-        await prisma.file.update({
-          where: { id: file.id },
-          data: { thumbnailPath: null },
-        });
-        imagesUpdated++;
-      } else if (file.mimeType.startsWith('video/')) {
-        // Check if there's already a pending job for this file
+      if (file.mimeType.startsWith('video/')) {
         const existingJob = await prisma.transcodingJob.findFirst({
           where: { fileId: file.id, status: { in: ['PENDING', 'PROCESSING'] } },
         });
 
         if (!existingJob) {
-          // Create a new transcoding job for thumbnail extraction
           await prisma.transcodingJob.create({
             data: {
               fileId: file.id,
@@ -1716,15 +1718,32 @@ router.post('/summary/actions/regenerate-thumbnails', authenticate, requireAdmin
           });
           videosQueued++;
         }
+        continue;
+      }
+
+      const added = thumbnailQueue.add({
+        fileId: file.id,
+        filePath: file.path,
+        mimeType: file.mimeType,
+        userId: file.userId || undefined,
+      });
+
+      if (added) {
+        if (file.mimeType.startsWith('image/')) {
+          imagesQueued++;
+        } else {
+          documentsQueued++;
+        }
       }
     }
 
-    adminLogger.info({ requestId, imagesUpdated, videosQueued }, 'Thumbnail regeneration completed');
+    adminLogger.info({ requestId, imagesQueued, videosQueued, documentsQueued }, 'Thumbnail regeneration completed');
     res.json({
       success: true,
-      message: `${imagesUpdated} image thumbnails cleared, ${videosQueued} video jobs queued`,
-      images: imagesUpdated,
+      message: `${imagesQueued} image thumbnails queued, ${videosQueued} video jobs queued, ${documentsQueued} document thumbnails queued`,
+      images: imagesQueued,
       videos: videosQueued,
+      documents: documentsQueued,
     });
   } catch (error) {
     adminLogger.error({ requestId, error }, 'Regenerate thumbnails failed');

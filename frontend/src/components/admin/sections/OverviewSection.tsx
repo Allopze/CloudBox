@@ -10,13 +10,17 @@ interface OverviewSectionProps {
     summary: any | null;
 }
 
-function StatusBadge({ status }: { status: string }) {
+type StatusTone = 'ok' | 'alert' | 'critical' | 'neutral';
+
+function StatusBadge({ tone, label }: { tone: StatusTone; label: string }) {
     const base = 'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium';
-    if (!status) return <span className={`${base} bg-dark-100 text-dark-700`}>Desconocido</span>;
-    if (status === 'OK' || status === 'healthy' || status === 'CONFIGURED') return <span className={`${base} bg-green-50 text-green-600`}>OK</span>;
-    if (status === 'ALERT' || status === 'ATASCADA' || status === 'ALERTA') return <span className={`${base} bg-yellow-50 text-yellow-700`}>Alerta</span>;
-    if (status === 'CRITICAL' || status === 'CAÍDO' || status === 'DOWN') return <span className={`${base} bg-red-50 text-red-600`}>Crítico</span>;
-    return <span className={`${base} bg-dark-100 text-dark-700`}>{status}</span>;
+    const tones: Record<StatusTone, string> = {
+        ok: 'bg-green-50 text-green-600',
+        alert: 'bg-yellow-50 text-yellow-700',
+        critical: 'bg-red-50 text-red-600',
+        neutral: 'bg-dark-100 text-dark-700',
+    };
+    return <span className={`${base} ${tones[tone]}`}>{label}</span>;
 }
 
 export default function OverviewSection({ summary }: OverviewSectionProps) {
@@ -45,6 +49,52 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
     const visibleAlerts = showAllAlerts ? alerts : alerts.slice(0, listLimit);
     const visibleTopFiles = showAllTopFiles ? topLargeFiles : topLargeFiles.slice(0, listLimit);
     const visibleFailIps = showAllFailIps ? topFailIps : topFailIps.slice(0, listLimit);
+    const notAvailableLabel = t('admin.overview.notAvailable', 'N/A');
+
+    const getStatusMeta = (rawStatus?: string | null) => {
+        const status = (rawStatus ?? '').toString().trim();
+        const normalized = status.toUpperCase();
+
+        if (!normalized) {
+            return { tone: 'neutral' as const, label: t('admin.overview.health.statusUnknown', 'Unknown') };
+        }
+
+        if (normalized === 'OK' || normalized === 'HEALTHY') {
+            return { tone: 'ok' as const, label: t('admin.overview.health.statusOk', 'OK') };
+        }
+
+        if (normalized === 'CONFIGURED') {
+            return { tone: 'ok' as const, label: t('admin.overview.health.statusConfigured', 'Configured') };
+        }
+
+        if (normalized === 'DEGRADED') {
+            return { tone: 'alert' as const, label: t('admin.overview.health.statusDegraded', 'Degraded') };
+        }
+
+        if (normalized === 'ALERT' || normalized === 'STUCK' || normalized === 'ATASCADA' || normalized === 'ALERTA') {
+            return { tone: 'alert' as const, label: t('admin.overview.health.statusAlert', 'Alert') };
+        }
+
+        if (normalized === 'NOT_CONFIGURED' || normalized === 'NO_CONFIGURADO') {
+            return { tone: 'neutral' as const, label: t('admin.overview.health.statusNotConfigured', 'Not configured') };
+        }
+
+        if (normalized === 'DOWN' || normalized === 'CAÍDO' || normalized === 'CAIDO') {
+            return { tone: 'critical' as const, label: t('admin.overview.health.statusDown', 'Down') };
+        }
+
+        if (normalized === 'CRITICAL' || normalized === 'FAILED' || normalized === 'CRÍTICO' || normalized === 'CRITICO') {
+            return { tone: 'critical' as const, label: t('admin.overview.health.statusCritical', 'Critical') };
+        }
+
+        return { tone: 'neutral' as const, label: status };
+    };
+
+    const apiStatus = getStatusMeta(summary?.health?.api?.status ?? 'OK');
+    const dbStatus = getStatusMeta(summary?.health?.db?.status ?? 'OK');
+    const storageStatus = getStatusMeta(summary?.health?.storage?.status ?? 'OK');
+    const jobsStatus = getStatusMeta(summary?.health?.jobs?.status ?? 'OK');
+    const smtpStatus = getStatusMeta(summary?.health?.smtp?.status ?? '');
 
     const handleRefresh = async () => {
         try {
@@ -113,7 +163,7 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
             setLoadingReindex(true);
             const res = await api.post('/admin/summary/actions/reindex');
             if (res.data.success) {
-                toast(t('admin.overview.reindexSuccess', `${res.data.count} archivos reindexados`), 'success');
+                toast(t('admin.overview.reindexSuccess', '{{count}} archivos reindexados', { count: res.data.count }), 'success');
             } else {
                 toast(res.data.message || t('admin.overview.reindexError', 'Error al reindexar'), 'error');
             }
@@ -130,7 +180,11 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
             setLoadingThumbnails(true);
             const res = await api.post('/admin/summary/actions/regenerate-thumbnails');
             if (res.data.success) {
-                toast(t('admin.overview.thumbnailsSuccess', `${res.data.images} imágenes, ${res.data.videos} videos en cola`), 'success');
+                toast(t('admin.overview.thumbnailsSuccess', '{{images}} imágenes, {{videos}} videos, {{documents}} documentos en cola', {
+                    images: res.data.images ?? 0,
+                    videos: res.data.videos ?? 0,
+                    documents: res.data.documents ?? 0,
+                }), 'success');
             } else {
                 toast(res.data.message || t('admin.overview.thumbnailsError', 'Error al regenerar thumbnails'), 'error');
             }
@@ -189,7 +243,7 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
                             type="email"
                             value={testEmail}
                             onChange={(e) => setTestEmail(e.target.value)}
-                            placeholder="email@ejemplo.com"
+                            placeholder={t('admin.overview.testEmailPlaceholder', 'email@ejemplo.com')}
                             className="w-full px-4 py-2 rounded-xl border border-dark-200 dark:border-dark-700 bg-white dark:bg-dark-800 mb-4"
                         />
                         <div className="flex gap-3 justify-end">
@@ -210,86 +264,97 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
                     <h2 className="text-2xl font-bold text-dark-900 dark:text-white">{t('admin.overview.title', 'Resumen')}</h2>
                     <p className="text-dark-500 dark:text-dark-400 mt-1">{t('admin.overview.subtitle', 'Estado actual del sistema y métricas clave.')}</p>
                     {lastUpdated && (
-                        <p className="text-sm text-dark-500 mt-2">Actualizado: {new Date(lastUpdated).toLocaleString()}</p>
+                        <p className="text-sm text-dark-500 mt-2">{t('admin.overview.lastUpdated', 'Actualizado')}: {new Date(lastUpdated).toLocaleString()}</p>
                     )}
                 </div>
                 <div className="flex gap-3">
                     <Button variant="outline" size="sm" onClick={handleRefresh} loading={refreshing}>
                         <RefreshCw className="w-4 h-4 mr-2" />
-                        Actualizar
+                        {t('admin.overview.refresh', 'Actualizar')}
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={handleExport} loading={loadingExport}>Exportar diagnóstico</Button>
+                    <Button variant="ghost" size="sm" onClick={handleExport} loading={loadingExport}>
+                        {t('admin.overview.export', 'Exportar diagnóstico')}
+                    </Button>
                 </div>
             </div>
 
             {/* Row 1: Health */}
             <div className="p-6 bg-dark-50/50 dark:bg-dark-900/40 rounded-[1.5rem] border border-dark-100 dark:border-dark-800">
-                <h3 className="text-lg font-semibold mb-4">Salud del sistema</h3>
+                <h3 className="text-lg font-semibold mb-4">{t('admin.overview.health.title', 'Salud del sistema')}</h3>
                 <div className="space-y-3">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-md bg-blue-50 flex items-center justify-center text-blue-600"><ServerCog className="w-4 h-4" /></div>
                             <div>
-                                <p className="text-sm font-medium text-dark-700">API CloudBox</p>
-                                <p className="text-sm text-dark-500">Estado del endpoint</p>
+                                <p className="text-sm font-medium text-dark-700">{t('admin.overview.health.api', 'API CloudBox')}</p>
+                                <p className="text-sm text-dark-500">{t('admin.overview.health.apiStatus', 'Estado del endpoint')}</p>
                             </div>
                         </div>
-                        <StatusBadge status={summary?.health?.api?.status || 'OK'} />
+                        <StatusBadge tone={apiStatus.tone} label={apiStatus.label} />
                     </div>
 
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-md bg-indigo-50 flex items-center justify-center text-indigo-600"><HardDrive className="w-4 h-4" /></div>
                             <div>
-                                <p className="text-sm font-medium text-dark-700">Base de datos</p>
-                                <p className="text-sm text-dark-500">Latencia: {summary?.health?.db?.latencyMs ? `${summary.health.db.latencyMs}ms` : 'N/A'}</p>
+                                <p className="text-sm font-medium text-dark-700">{t('admin.overview.health.database', 'Base de datos')}</p>
+                                <p className="text-sm text-dark-500">
+                                    {t('admin.overview.health.latency', 'Latencia')}: {summary?.health?.db?.latencyMs != null ? `${summary.health.db.latencyMs}ms` : notAvailableLabel}
+                                </p>
                             </div>
                         </div>
-                        <StatusBadge status={summary?.health?.db?.status || 'OK'} />
+                        <StatusBadge tone={dbStatus.tone} label={dbStatus.label} />
                     </div>
 
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-md bg-purple-50 flex items-center justify-center text-purple-600"><HardDrive className="w-4 h-4" /></div>
                             <div>
-                                <p className="text-sm font-medium text-dark-700">Almacenamiento</p>
-                                <p className="text-sm text-dark-500">Usado / Total: {summary?.health?.storage ? `${formatBytes(Number(summary.health.storage.usedBytes || 0))} / ${summary.health.storage.totalQuota ? formatBytes(Number(summary.health.storage.totalQuota)) : 'N/A'}` : 'N/A'}</p>
+                                <p className="text-sm font-medium text-dark-700">{t('admin.overview.health.storage', 'Almacenamiento')}</p>
+                                <p className="text-sm text-dark-500">
+                                    {t('admin.overview.health.storageUsage', 'Usado / Total')}: {summary?.health?.storage ? `${formatBytes(Number(summary.health.storage.usedBytes || 0))} / ${summary.health.storage.totalQuota ? formatBytes(Number(summary.health.storage.totalQuota)) : notAvailableLabel}` : notAvailableLabel}
+                                </p>
                             </div>
                         </div>
-                        <StatusBadge status={summary?.health?.storage?.status || 'OK'} />
+                        <StatusBadge tone={storageStatus.tone} label={storageStatus.label} />
                     </div>
 
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-md bg-yellow-50 flex items-center justify-center text-yellow-600"><AlertCircle className="w-4 h-4" /></div>
                             <div>
-                                <p className="text-sm font-medium text-dark-700">Cola de jobs</p>
-                                <p className="text-sm text-dark-500">Pendientes: {summary?.health?.jobs?.details?.transcoding?.waiting ?? 'N/A'}</p>
+                                <p className="text-sm font-medium text-dark-700">{t('admin.overview.health.jobs', 'Cola de jobs')}</p>
+                                <p className="text-sm text-dark-500">
+                                    {t('admin.overview.health.pending', 'Pendientes')}: {summary?.health?.jobs?.details?.transcoding?.waiting ?? notAvailableLabel}
+                                </p>
                             </div>
                         </div>
-                        <StatusBadge status={summary?.health?.jobs?.status || 'OK'} />
+                        <StatusBadge tone={jobsStatus.tone} label={jobsStatus.label} />
                     </div>
 
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-md bg-gray-50 flex items-center justify-center text-gray-600"><Mail className="w-4 h-4" /></div>
                             <div>
-                                <p className="text-sm font-medium text-dark-700">SMTP</p>
-                                <p className="text-sm text-dark-500">{summary?.health?.smtp?.status || 'Desconocido'}</p>
+                                <p className="text-sm font-medium text-dark-700">{t('admin.overview.health.smtp', 'SMTP')}</p>
+                                <p className="text-sm text-dark-500">{summary?.health?.smtp?.status ? smtpStatus.label : notAvailableLabel}</p>
                             </div>
                         </div>
-                        <StatusBadge status={summary?.health?.smtp?.status || 'UNKNOWN'} />
+                        <StatusBadge tone={smtpStatus.tone} label={smtpStatus.label} />
                     </div>
 
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-md bg-gray-50 flex items-center justify-center text-gray-600"><ServerCog className="w-4 h-4" /></div>
                             <div>
-                                <p className="text-sm font-medium text-dark-700">Versión desplegada</p>
-                                <p className="text-sm text-dark-500">{summary?.health?.version?.version || 'N/A'} {summary?.health?.version?.migrationsPending ? '(migraciones pendientes)' : ''}</p>
+                                <p className="text-sm font-medium text-dark-700">{t('admin.overview.health.version', 'Versión desplegada')}</p>
+                                <p className="text-sm text-dark-500">
+                                    {summary?.health?.version?.version || notAvailableLabel}
+                                    {summary?.health?.version?.migrationsPending ? ` (${t('admin.overview.health.migrationsPending', 'migraciones pendientes')})` : ''}
+                                </p>
                             </div>
                         </div>
-                        <StatusBadge status={summary?.health?.api?.status || 'OK'} />
+                        <StatusBadge tone={apiStatus.tone} label={apiStatus.label} />
                     </div>
                 </div>
             </div>
@@ -297,33 +362,33 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
             {/* Row 2: Metrics tiles */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div className="flex flex-col p-6 bg-dark-50/50 dark:bg-dark-900/40 rounded-[1.5rem] border border-dark-100 dark:border-dark-800">
-                    <p className="text-sm font-medium text-dark-500">Usuarios totales</p>
-                    <p className="text-3xl font-bold text-dark-900 dark:text-white mt-2">{summary?.metrics?.users?.total ?? '—'}</p>
-                    <p className="text-sm text-dark-500 mt-1">Activos 24h: {summary?.metrics?.users?.active24 ?? '—'}</p>
+                    <p className="text-sm font-medium text-dark-500">{t('admin.overview.metrics.totalUsers', 'Usuarios totales')}</p>
+                    <p className="text-3xl font-bold text-dark-900 dark:text-white mt-2">{summary?.metrics?.users?.total ?? notAvailableLabel}</p>
+                    <p className="text-sm text-dark-500 mt-1">{t('admin.overview.metrics.activeUsers24h', 'Activos 24h')}: {summary?.metrics?.users?.active24 ?? notAvailableLabel}</p>
                 </div>
 
                 <div className="flex flex-col p-6 bg-dark-50/50 dark:bg-dark-900/40 rounded-[1.5rem] border border-dark-100 dark:border-dark-800">
-                    <p className="text-sm font-medium text-dark-500">Nuevos</p>
-                    <p className="text-3xl font-bold text-dark-900 dark:text-white mt-2">Hoy: {summary?.metrics?.users?.newToday ?? '—'}</p>
-                    <p className="text-sm text-dark-500 mt-1">Semana: {summary?.metrics?.users?.newWeek ?? '—'}</p>
+                    <p className="text-sm font-medium text-dark-500">{t('admin.overview.metrics.newUsers', 'Nuevos')}</p>
+                    <p className="text-3xl font-bold text-dark-900 dark:text-white mt-2">{t('admin.overview.metrics.today', 'Hoy')}: {summary?.metrics?.users?.newToday ?? notAvailableLabel}</p>
+                    <p className="text-sm text-dark-500 mt-1">{t('admin.overview.metrics.week', 'Semana')}: {summary?.metrics?.users?.newWeek ?? notAvailableLabel}</p>
                 </div>
 
                 <div className="flex flex-col p-6 bg-dark-50/50 dark:bg-dark-900/40 rounded-[1.5rem] border border-dark-100 dark:border-dark-800">
-                    <p className="text-sm font-medium text-dark-500">Subidas (24h)</p>
-                    <p className="text-3xl font-bold text-dark-900 dark:text-white mt-2">{summary?.metrics?.uploads?.count24h ?? '—'}</p>
-                    <p className="text-sm text-dark-500 mt-1">{summary?.metrics?.uploads?.bytes24h ? formatBytes(Number(summary.metrics.uploads.bytes24h)) : ''}</p>
+                    <p className="text-sm font-medium text-dark-500">{t('admin.overview.metrics.uploads', 'Subidas (24h)')}</p>
+                    <p className="text-3xl font-bold text-dark-900 dark:text-white mt-2">{summary?.metrics?.uploads?.count24h ?? notAvailableLabel}</p>
+                    <p className="text-sm text-dark-500 mt-1">{summary?.metrics?.uploads?.bytes24h != null ? formatBytes(Number(summary.metrics.uploads.bytes24h)) : notAvailableLabel}</p>
                 </div>
 
                 <div className="flex flex-col p-6 bg-dark-50/50 dark:bg-dark-900/40 rounded-[1.5rem] border border-dark-100 dark:border-dark-800">
-                    <p className="text-sm font-medium text-dark-500">Descargas (24h)</p>
-                    <p className="text-3xl font-bold text-dark-900 dark:text-white mt-2">{summary?.metrics?.downloads?.count24h ?? '—'}</p>
+                    <p className="text-sm font-medium text-dark-500">{t('admin.overview.metrics.downloads', 'Descargas (24h)')}</p>
+                    <p className="text-3xl font-bold text-dark-900 dark:text-white mt-2">{summary?.metrics?.downloads?.count24h ?? notAvailableLabel}</p>
                 </div>
             </div>
 
             {/* Row 3: Capacity and Top files */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="col-span-2 p-6 bg-dark-50/50 dark:bg-dark-900/40 rounded-[1.5rem] border border-dark-100 dark:border-dark-800">
-                    <h4 className="font-semibold mb-3">Uso de disco (últimos 7 días)</h4>
+                    <h4 className="font-semibold mb-3">{t('admin.overview.capacity.diskUsage', 'Uso de disco (últimos 7 días)')}</h4>
                     {summary?.capacity?.storageSeries?.length ? (
                         <div className="space-y-2">
                             {(() => {
@@ -346,14 +411,16 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
                                 });
                             })()}
                         </div>
-                    ) : <div className="text-sm text-dark-500">No hay datos.</div>}
+                    ) : <div className="text-sm text-dark-500">{t('admin.overview.capacity.noData', 'No hay datos')}</div>}
                     {summary?.capacity?.projectionDays != null && (
-                        <p className="text-sm text-dark-500 mt-3">Proyección: ~{summary?.capacity?.projectionDays} días restantes (estimado)</p>
+                        <p className="text-sm text-dark-500 mt-3">
+                            {t('admin.overview.capacity.projection', 'Proyección')}: ~{summary?.capacity?.projectionDays} {t('admin.overview.capacity.daysRemaining', 'días restantes (estimado)')}
+                        </p>
                     )}
                 </div>
 
                 <div className="p-6 bg-dark-50/50 dark:bg-dark-900/40 rounded-[1.5rem] border border-dark-100 dark:border-dark-800">
-                    <h4 className="font-semibold mb-3">Top 10 archivos grandes</h4>
+                    <h4 className="font-semibold mb-3">{t('admin.overview.capacity.topFiles', 'Top 10 archivos grandes')}</h4>
                     {topLargeFiles.length ? (
                         <>
                             <div className="space-y-2">
@@ -365,7 +432,7 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
                                         </div>
                                         <div className="text-sm text-right">
                                             <div>{formatBytes(Number(f.size))}</div>
-                                            <a className="text-xs text-primary-600" href={`/files/${f.id}`}>Ver en explorador</a>
+                                            <a className="text-xs text-primary-600" href={`/files/${f.id}`}>{t('admin.overview.capacity.viewInExplorer', 'Ver en explorador')}</a>
                                         </div>
                                     </div>
                                 ))}
@@ -381,14 +448,14 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
                                 </Button>
                             )}
                         </>
-                    ) : <div className="text-sm text-dark-500">No hay archivos.</div>}
+                    ) : <div className="text-sm text-dark-500">{t('admin.overview.capacity.noData', 'No hay datos')}</div>}
                 </div>
             </div>
 
             {/* Row 4: Alerts and Actions */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="p-6 bg-dark-50/50 dark:bg-dark-900/40 rounded-[1.5rem] border border-dark-100 dark:border-dark-800">
-                    <h4 className="font-semibold mb-3">Alertas</h4>
+                    <h4 className="font-semibold mb-3">{t('admin.overview.alerts.title', 'Alertas')}</h4>
                     {alerts.length ? (
                         <>
                             <div className="space-y-2">
@@ -398,7 +465,7 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
                                             <div className="text-sm font-medium">{a.message}</div>
                                             <div className="text-xs text-dark-500">{new Date(a.timestamp).toLocaleString()}</div>
                                         </div>
-                                        <div className="text-sm">{a.severity}</div>
+                                        <div className="text-sm">{getStatusMeta(a.severity).label}</div>
                                     </div>
                                 ))}
                             </div>
@@ -413,7 +480,7 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
                                 </Button>
                             )}
                         </>
-                    ) : <div className="text-sm text-dark-500">Sin alertas</div>}
+                    ) : <div className="text-sm text-dark-500">{t('admin.overview.alerts.noAlerts', 'Sin alertas')}</div>}
                 </div>
 
                 <div className="p-6 bg-dark-50/50 dark:bg-dark-900/40 rounded-[1.5rem] border border-dark-100 dark:border-dark-800">
@@ -441,7 +508,9 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
                         {summary?.health?.jobs?.details?.transcoding?.failed > 0 && (
                             <Button variant="ghost" onClick={handleRetryJobs} loading={loadingRetryJobs}>
                                 <Activity className="w-4 h-4 mr-2" />
-                                {t('admin.overview.alerts.retryJobs', `Reintentar ${summary.health.jobs.details.transcoding.failed} jobs fallidos`)}
+                                {t('admin.overview.alerts.retryJobs', 'Reintentar {{count}} jobs fallidos', {
+                                    count: summary.health.jobs.details.transcoding.failed,
+                                })}
                             </Button>
                         )}
                     </div>
@@ -450,18 +519,18 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
 
             {/* Security compact */}
             <div className="p-6 bg-dark-50/50 dark:bg-dark-900/40 rounded-[1.5rem] border border-dark-100 dark:border-dark-800">
-                <h4 className="font-semibold mb-3">Seguridad y acceso</h4>
+                <h4 className="font-semibold mb-3">{t('admin.overview.security.title', 'Seguridad y acceso')}</h4>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                        <p className="text-sm text-dark-500">Inicios (24h)</p>
+                        <p className="text-sm text-dark-500">{t('admin.overview.security.logins24h', 'Inicios (24h)')}</p>
                         <p className="text-xl font-bold">{summary?.security?.logins?.success ?? 0}</p>
                     </div>
                     <div>
-                        <p className="text-sm text-dark-500">Fallidos (24h)</p>
+                        <p className="text-sm text-dark-500">{t('admin.overview.security.failed24h', 'Fallidos (24h)')}</p>
                         <p className="text-xl font-bold text-red-600">{summary?.security?.logins?.failed ?? 0}</p>
                     </div>
                     <div>
-                        <p className="text-sm text-dark-500">IPs con más fallos</p>
+                        <p className="text-sm text-dark-500">{t('admin.overview.security.topFailIps', 'IPs con más fallos')}</p>
                         {topFailIps.length ? (
                             <>
                                 <div className="text-sm space-y-1">

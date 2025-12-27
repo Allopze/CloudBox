@@ -274,18 +274,13 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview, on
 
   const closeContextMenu = () => setContextMenu(null);
 
-  const shouldAnimate = !disableAnimation && !reducedMotion;
-  const motionProps = shouldAnimate
-    ? {
-      initial: { opacity: 0, scale: 0.95 },
-      animate: { opacity: 1, scale: 1 },
-      transition: { type: 'spring', stiffness: 400, damping: 25 },
-    }
-    : {
-      initial: false,
-      animate: { opacity: 1 },
-      transition: { duration: 0 },
-    };
+  const selectionScale = view === 'list' ? 0.98 : 0.95;
+  const targetScale = isSelected ? selectionScale : 1;
+  const motionProps = {
+    initial: disableAnimation || reducedMotion ? false : { opacity: 0, scale: 0.95 },
+    animate: { opacity: 1, scale: targetScale },
+    transition: reducedMotion ? { duration: 0 } : { type: 'spring', stiffness: 400, damping: 25 },
+  };
 
   if (view === 'list') {
     return (

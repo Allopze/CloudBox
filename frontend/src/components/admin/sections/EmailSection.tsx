@@ -93,7 +93,7 @@ export default function EmailSection() {
                 port: smtpRes.data?.port ?? 587,
                 secure: smtpRes.data?.secure === true || smtpRes.data?.secure === 'true',
                 auth: {
-                    user: smtpRes.data?.auth?.user ?? '',
+                    user: smtpRes.data?.user ?? smtpRes.data?.auth?.user ?? '',
                     pass: smtpRes.data?.auth?.pass ?? '',
                 },
                 from: smtpRes.data?.from ?? '',
@@ -121,7 +121,14 @@ export default function EmailSection() {
     const saveSmtpConfig = async () => {
         setSavingSmtp(true);
         try {
-            await api.put('/admin/smtp', smtpConfig);
+            await api.post('/admin/smtp', {
+                host: smtpConfig.host,
+                port: smtpConfig.port,
+                secure: smtpConfig.secure,
+                user: smtpConfig.auth.user,
+                pass: smtpConfig.auth.pass,
+                from: smtpConfig.from,
+            });
             toast(t('admin.smtp.saved'), 'success');
         } catch (error) {
             toast(t('admin.smtp.saveError'), 'error');

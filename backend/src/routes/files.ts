@@ -39,7 +39,7 @@ import { sanitizeFilename, validateMimeType, isDangerousExtension, checkUserRate
 import { auditLog } from '../lib/audit.js';
 import { addFileAccessToken, getFileAccessTokens, setFileAccessCookie } from '../lib/fileAccessCookies.js';
 import logger from '../lib/logger.js';
-import ExcelJS from 'exceljs';
+import { buildExcelHtmlPreview } from '../lib/excelPreview.js';
 import * as cache from '../lib/cache.js';
 import { getGlobalUploadMaxFileSize } from '../lib/limits.js';
 import { addTranscodingJob, getTranscodingJobStatus } from '../lib/transcodingQueue.js';
@@ -1956,244 +1956,21 @@ router.get('/:id/excel-html', authOptional, async (req: Request, res: Response) 
       return;
     }
 
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.readFile(file.path);
-
-    const sheetNames = workbook.worksheets.map(ws => ws.name);
-    const worksheet = workbook.worksheets[sheetIndex] || workbook.worksheets[0];
-
-    if (!worksheet) {
-      res.status(400).json({ error: 'No worksheets found' });
-      return;
+    let preview;
+    try {
+      preview = await buildExcelHtmlPreview(file.path, sheetIndex);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'NO_SHEETS') {
+        res.status(400).json({ error: 'No worksheets found' });
+        return;
+      }
+      throw error;
     }
-
-    // Helper to convert ARGB color to CSS
-    const argbToHex = (argb: string | undefined): string | null => {
-      if (!argb) return null;
-      // ARGB format: AARRGGBB, we need #RRGGBB
-      if (argb.length === 8) {
-        return '#' + argb.substring(2);
-      }
-      if (argb.length === 6) {
-        return '#' + argb;
-      }
-      return null;
-    };
-
-    // Helper to get cell background color
-    const getCellBgColor = (cell: ExcelJS.Cell): string | null => {
-      const fill = cell.fill;
-      if (fill && fill.type === 'pattern' && fill.pattern === 'solid') {
-        const fgColor = fill.fgColor;
-        if (fgColor) {
-          if (fgColor.argb) return argbToHex(fgColor.argb);
-          if (fgColor.theme !== undefined) {
-            // Theme colors - approximate common ones
-            const themeColors: Record<number, string> = {
-              0: '#FFFFFF', 1: '#000000', 2: '#E7E6E6', 3: '#44546A',
-              4: '#4472C4', 5: '#ED7D31', 6: '#A5A5A5', 7: '#FFC000',
-              8: '#5B9BD5', 9: '#70AD47'
-            };
-            return themeColors[fgColor.theme] || null;
-          }
-        }
-      }
-      return null;
-    };
-
-    // Helper to get font color
-    const getFontColor = (cell: ExcelJS.Cell): string | null => {
-      const font = cell.font;
-      if (font?.color) {
-        if (font.color.argb) return argbToHex(font.color.argb);
-        if (font.color.theme !== undefined) {
-          const themeColors: Record<number, string> = {
-            0: '#FFFFFF', 1: '#000000', 2: '#E7E6E6', 3: '#44546A',
-            4: '#4472C4', 5: '#ED7D31', 6: '#A5A5A5', 7: '#FFC000',
-            8: '#5B9BD5', 9: '#70AD47'
-          };
-          return themeColors[font.color.theme] || null;
-        }
-      }
-      return null;
-    };
-
-    // Helper to get border style
-    const getBorderStyle = (border: Partial<ExcelJS.Border> | undefined): string => {
-      if (!border || !border.style) return 'none';
-      const color = border.color?.argb ? argbToHex(border.color.argb) : '#000000';
-      switch (border.style) {
-        case 'thin': return `1px solid ${color}`;
-        case 'medium': return `2px solid ${color}`;
-        case 'thick': return `3px solid ${color}`;
-        case 'double': return `3px double ${color}`;
-        case 'dotted': return `1px dotted ${color}`;
-        case 'dashed': return `1px dashed ${color}`;
-        default: return `1px solid ${color}`;
-      }
-    };
-
-    // Build HTML table
-    let html = '<table style="border-collapse: collapse; font-family: Calibri, Arial, sans-serif; font-size: 11pt;">';
-
-    // Track merged cells
-    const mergedCells = new Map<string, { rowSpan: number; colSpan: number }>();
-    const skipCells = new Set<string>();
-
-    worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-      // Check for merged cells
-      // ExcelJS merged cells are in worksheet.model.merges
-    });
-
-    // Process merges
-    if ((worksheet as any).model?.merges) {
-      for (const merge of (worksheet as any).model.merges) {
-        // merge is like "A1:B2"
-        const [start, end] = merge.split(':');
-        const startCell = worksheet.getCell(start);
-        const endCell = worksheet.getCell(end);
-
-        const startRow = Number(startCell.row);
-        const startCol = Number(startCell.col);
-        const endRow = Number(endCell.row);
-        const endCol = Number(endCell.col);
-
-        mergedCells.set(`${startRow}-${startCol}`, {
-          rowSpan: endRow - startRow + 1,
-          colSpan: endCol - startCol + 1
-        });
-
-        // Mark cells to skip
-        for (let r = startRow; r <= endRow; r++) {
-          for (let c = startCol; c <= endCol; c++) {
-            if (r !== startRow || c !== startCol) {
-              skipCells.add(`${r}-${c}`);
-            }
-          }
-        }
-      }
-    }
-
-    // Get column widths
-    const colWidths: number[] = [];
-    worksheet.columns.forEach((col, index) => {
-      colWidths[index] = col.width ? col.width * 7 : 64; // Approximate pixel width
-    });
-
-    worksheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {
-      const rowHeight = row.height || 15;
-      html += `<tr style="height: ${rowHeight}px;">`;
-
-      row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-        const cellKey = `${rowNumber}-${colNumber}`;
-
-        // Skip merged cells (not the first one)
-        if (skipCells.has(cellKey)) return;
-
-        const merge = mergedCells.get(cellKey);
-        const rowSpan = merge?.rowSpan || 1;
-        const colSpan = merge?.colSpan || 1;
-
-        // Build cell styles
-        const styles: string[] = [];
-
-        // Background color
-        const bgColor = getCellBgColor(cell);
-        if (bgColor) styles.push(`background-color: ${bgColor}`);
-
-        // Font styles
-        const font = cell.font;
-        if (font) {
-          if (font.bold) styles.push('font-weight: bold');
-          if (font.italic) styles.push('font-style: italic');
-          if (font.underline) styles.push('text-decoration: underline');
-          if (font.strike) styles.push('text-decoration: line-through');
-          if (font.size) styles.push(`font-size: ${font.size}pt`);
-          if (font.name) styles.push(`font-family: ${font.name}, sans-serif`);
-          const fontColor = getFontColor(cell);
-          if (fontColor) styles.push(`color: ${fontColor}`);
-        }
-
-        // Alignment
-        const alignment = cell.alignment;
-        if (alignment) {
-          if (alignment.horizontal) {
-            styles.push(`text-align: ${alignment.horizontal}`);
-          }
-          if (alignment.vertical) {
-            const vAlign = alignment.vertical === 'middle' ? 'middle' : alignment.vertical;
-            styles.push(`vertical-align: ${vAlign}`);
-          }
-          if (alignment.wrapText) {
-            styles.push('white-space: pre-wrap');
-          }
-        }
-
-        // Borders
-        const border = cell.border;
-        if (border) {
-          if (border.top) styles.push(`border-top: ${getBorderStyle(border.top)}`);
-          if (border.right) styles.push(`border-right: ${getBorderStyle(border.right)}`);
-          if (border.bottom) styles.push(`border-bottom: ${getBorderStyle(border.bottom)}`);
-          if (border.left) styles.push(`border-left: ${getBorderStyle(border.left)}`);
-        }
-
-        // Width
-        const width = colWidths[colNumber - 1];
-        if (width) styles.push(`min-width: ${width}px`);
-
-        // Padding
-        styles.push('padding: 2px 4px');
-
-        // Get cell value
-        let value = '';
-        if (cell.value !== null && cell.value !== undefined) {
-          if (typeof cell.value === 'object') {
-            if ('richText' in cell.value) {
-              // Rich text
-              value = (cell.value as ExcelJS.CellRichTextValue).richText
-                .map(rt => rt.text)
-                .join('');
-            } else if ('formula' in cell.value) {
-              // Formula result
-              value = String((cell.value as ExcelJS.CellFormulaValue).result || '');
-            } else if ('hyperlink' in cell.value) {
-              // Hyperlink
-              value = String((cell.value as ExcelJS.CellHyperlinkValue).text || '');
-            } else if (cell.value instanceof Date) {
-              // Date
-              value = cell.value.toLocaleDateString();
-            } else {
-              value = String(cell.value);
-            }
-          } else {
-            value = String(cell.value);
-          }
-        }
-
-        // Escape HTML
-        value = value
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;')
-          .replace(/\n/g, '<br>');
-
-        const spanAttrs = [];
-        if (rowSpan > 1) spanAttrs.push(`rowspan="${rowSpan}"`);
-        if (colSpan > 1) spanAttrs.push(`colspan="${colSpan}"`);
-
-        html += `<td ${spanAttrs.join(' ')} style="${styles.join('; ')}">${value}</td>`;
-      });
-
-      html += '</tr>';
-    });
-
-    html += '</table>';
 
     res.json({
-      html,
-      sheetNames,
-      currentSheet: sheetIndex,
+      html: preview.html,
+      sheetNames: preview.sheetNames,
+      currentSheet: preview.currentSheet,
       fileName: file.name
     });
   } catch (error) {

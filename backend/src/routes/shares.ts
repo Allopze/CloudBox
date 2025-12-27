@@ -8,6 +8,7 @@ import { authenticate, optionalAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { createShareSchema, addCollaboratorSchema, publicLinkPasswordSchema } from '../schemas/index.js';
 import { fileExists, isValidUUID, streamFile } from '../lib/storage.js';
+import { buildExcelHtmlPreview } from '../lib/excelPreview.js';
 import { sanitizeFilename } from '../lib/security.js';
 import { shareRateLimiter } from '../middleware/shareRateLimiter.js';
 import archiver from 'archiver';
@@ -604,6 +605,112 @@ router.get('/public/:token/files/:fileId/view', shareRateLimiter(), async (req: 
   }
 });
 
+// Excel preview for public share
+router.get('/public/:token/files/:fileId/excel-html', shareRateLimiter(), async (req: Request, res: Response) => {
+  try {
+    const { token, fileId } = req.params;
+    const sheetIndex = parseInt(req.query.sheet as string) || 0;
+
+    if (!isValidUUID(fileId)) {
+      res.status(400).json({ error: 'Invalid file ID format' });
+      return;
+    }
+
+    const share = await prisma.share.findFirst({
+      where: { publicToken: token, type: 'PUBLIC' },
+      select: {
+        id: true,
+        fileId: true,
+        folderId: true,
+        password: true,
+        expiresAt: true,
+        downloadLimit: true,
+        downloadCount: true,
+      },
+    });
+
+    if (!share) {
+      res.status(404).json({ error: 'Share not found' });
+      return;
+    }
+
+    if (share.expiresAt && share.expiresAt < new Date()) {
+      res.status(410).json({ error: 'This share has expired' });
+      return;
+    }
+
+    if (share.downloadLimit && share.downloadCount >= share.downloadLimit) {
+      res.status(410).json({ error: 'Download limit reached' });
+      return;
+    }
+
+    const accessResult = await verifyShareAccess(req, { password: share.password, publicToken: token });
+    if (!accessResult.valid) {
+      res.status(401).json({ error: 'Password required', hasPassword: !!share.password });
+      return;
+    }
+
+    if (share.fileId && share.fileId !== fileId) {
+      res.status(403).json({ error: 'File does not belong to this share' });
+      return;
+    }
+
+    const file = await prisma.file.findUnique({
+      where: { id: fileId },
+      select: { id: true, name: true, path: true, mimeType: true, isTrash: true, folderId: true },
+    });
+
+    if (!file || file.isTrash) {
+      res.status(404).json({ error: 'File not found' });
+      return;
+    }
+
+    if (share.folderId) {
+      const isChild = await fileBelongsToSharedFolder(file.folderId, share.folderId);
+      if (!isChild) {
+        res.status(403).json({ error: 'File does not belong to this share' });
+        return;
+      }
+    }
+
+    const isExcel = file.mimeType.includes('spreadsheet') ||
+      file.mimeType.includes('excel') ||
+      file.name.endsWith('.xlsx') ||
+      file.name.endsWith('.xls');
+
+    if (!isExcel) {
+      res.status(400).json({ error: 'File is not an Excel spreadsheet' });
+      return;
+    }
+
+    if (!await fileExists(file.path)) {
+      res.status(404).json({ error: 'File not found on disk' });
+      return;
+    }
+
+    let preview;
+    try {
+      preview = await buildExcelHtmlPreview(file.path, sheetIndex);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'NO_SHEETS') {
+        res.status(400).json({ error: 'No worksheets found' });
+        return;
+      }
+      throw error;
+    }
+
+    res.json({
+      html: preview.html,
+      sheetNames: preview.sheetNames,
+      currentSheet: preview.currentSheet,
+      fileName: file.name
+    });
+  } catch (error) {
+    logger.error('Excel preview shared file error', {}, error instanceof Error ? error : undefined);
+    res.status(500).json({ error: 'Failed to convert Excel file' });
+  }
+});
+
 // Get a thumbnail from a public share (for previews)
 router.get('/public/:token/files/:fileId/thumbnail', shareRateLimiter(), async (req: Request, res: Response) => {
   try {
@@ -1112,6 +1219,102 @@ router.get('/:id/files/:fileId/view', authenticate, async (req: Request, res: Re
   } catch (error) {
     logger.error('View private share file error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to view file' });
+  }
+});
+
+// Excel preview for private share (for collaborators)
+router.get('/:id/files/:fileId/excel-html', authenticate, async (req: Request, res: Response) => {
+  try {
+    const { id, fileId } = req.params;
+    const sheetIndex = parseInt(req.query.sheet as string) || 0;
+    const userId = req.user!.userId;
+
+    if (!isValidUUID(fileId)) {
+      res.status(400).json({ error: 'Invalid file ID format' });
+      return;
+    }
+
+    const share = await prisma.share.findUnique({
+      where: { id },
+      include: { collaborators: true },
+    });
+
+    if (!share) {
+      res.status(404).json({ error: 'Share not found' });
+      return;
+    }
+
+    const isOwner = share.ownerId === userId;
+    const isCollaborator = share.collaborators.some(c => c.userId === userId);
+
+    if (!isOwner && !isCollaborator) {
+      res.status(403).json({ error: 'Access denied' });
+      return;
+    }
+
+    if (share.expiresAt && share.expiresAt < new Date()) {
+      res.status(410).json({ error: 'Share has expired' });
+      return;
+    }
+
+    const file = await prisma.file.findUnique({
+      where: { id: fileId },
+      select: { id: true, name: true, path: true, mimeType: true, isTrash: true, folderId: true },
+    });
+
+    if (!file || file.isTrash) {
+      res.status(404).json({ error: 'File not found' });
+      return;
+    }
+
+    if (share.fileId && share.fileId !== fileId) {
+      res.status(403).json({ error: 'File does not belong to this share' });
+      return;
+    }
+
+    if (share.folderId) {
+      const isChild = await fileBelongsToSharedFolder(file.folderId, share.folderId);
+      if (!isChild) {
+        res.status(403).json({ error: 'File does not belong to this share' });
+        return;
+      }
+    }
+
+    const isExcel = file.mimeType.includes('spreadsheet') ||
+      file.mimeType.includes('excel') ||
+      file.name.endsWith('.xlsx') ||
+      file.name.endsWith('.xls');
+
+    if (!isExcel) {
+      res.status(400).json({ error: 'File is not an Excel spreadsheet' });
+      return;
+    }
+
+    if (!await fileExists(file.path)) {
+      res.status(404).json({ error: 'File not found on disk' });
+      return;
+    }
+
+    let preview;
+    try {
+      preview = await buildExcelHtmlPreview(file.path, sheetIndex);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'NO_SHEETS') {
+        res.status(400).json({ error: 'No worksheets found' });
+        return;
+      }
+      throw error;
+    }
+
+    res.json({
+      html: preview.html,
+      sheetNames: preview.sheetNames,
+      currentSheet: preview.currentSheet,
+      fileName: file.name
+    });
+  } catch (error) {
+    logger.error('Excel preview private share error', {}, error instanceof Error ? error : undefined);
+    res.status(500).json({ error: 'Failed to convert Excel file' });
   }
 });
 

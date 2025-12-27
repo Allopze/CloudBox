@@ -256,8 +256,32 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
         <Menu className="w-5 h-5" />
       </button>
 
-      {/* Search + Nuevo OR Selection Toolbar */}
-      <div className="flex-1 max-w-xl flex items-center justify-end">
+      {/* Search */}
+      <div className="flex-none w-full max-w-xl flex items-center justify-end min-w-0">
+        <motion.form
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2 }}
+          onSubmit={handleSearch}
+          className="flex items-center gap-2 w-full"
+          role="search"
+        >
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-400" />
+            <input
+              type="text"
+              placeholder={t("header.search")}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full h-9 pl-9 pr-4 bg-white border border-dark-200 dark:border-dark-700 rounded-full text-sm text-dark-900 placeholder-dark-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              aria-label={t("header.searchFilesAndFolders")}
+            />
+          </div>
+        </motion.form>
+      </div>
+
+      {/* Selection / New Actions */}
+      <div className="flex items-center gap-2 flex-shrink-0">
         <AnimatePresence mode="wait">
           {selectedCount > 0 ? (
             <motion.div
@@ -266,9 +290,13 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.2 }}
-              className="flex items-center gap-1 w-full"
+              className="flex items-center gap-2"
             >
-              <div className="flex items-center gap-2 mr-auto bg-primary-100 dark:bg-primary-900/50 px-3 py-1.5 rounded-full">
+              <div
+                className="flex items-center gap-2 bg-primary-100 dark:bg-primary-900/50 px-3 py-1.5 rounded-full"
+                title={t("header.itemsSelected", { count: selectedCount })}
+                aria-label={t("header.itemsSelected", { count: selectedCount })}
+              >
                 <span className="text-sm font-medium text-primary-700 dark:text-primary-300 whitespace-nowrap">
                   {selectedCount}
                 </span>
@@ -276,70 +304,59 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
                   onClick={clearSelection}
                   className="p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-primary-600 dark:text-primary-400"
                   title={t("header.clearSelection")}
+                  aria-label={t("header.clearSelection")}
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-                <div className="flex items-center gap-1">
-                  {location.pathname.startsWith('/files') && (
-                    <>
-                      <button
-                        onClick={() => window.dispatchEvent(new CustomEvent('workzone-open-move-modal'))}
-                        className="p-2 text-dark-500 hover:text-primary-600 dark:text-dark-400 dark:hover:text-primary-400 hover:bg-dark-100 dark:hover:bg-dark-700/50 rounded-lg transition-colors"
-                        title={t('header.moveSelected', 'Move selected')}
-                        aria-label={t('header.moveSelected', 'Move selected')}
-                      >
-                        <FolderUp className="w-5 h-5" />
-                      </button>
-                      <button
-                        onClick={() => window.dispatchEvent(new CustomEvent('workzone-bulk-favorite'))}
-                        className="p-2 text-dark-500 hover:text-yellow-600 dark:text-dark-400 dark:hover:text-yellow-400 hover:bg-dark-100 dark:hover:bg-dark-700/50 rounded-lg transition-colors"
-                        title={t('header.favoriteSelected', 'Favorite selected')}
-                        aria-label={t('header.favoriteSelected', 'Favorite selected')}
-                      >
-                        <Star className="w-5 h-5" />
-                      </button>
-                    </>
-                  )}
-                  <button
-                    onClick={handleDownloadSelected}
-                    className="p-2 text-dark-500 hover:text-primary-600 dark:text-dark-400 dark:hover:text-primary-400 hover:bg-dark-100 dark:hover:bg-dark-700/50 rounded-lg transition-colors"
-                    title={t("header.downloadSelected")}
-                  >
+              <div className="flex items-center gap-1">
+                {location.pathname.startsWith('/files') && (
+                  <>
+                    <button
+                      onClick={() => window.dispatchEvent(new CustomEvent('workzone-open-move-modal'))}
+                      className="p-2 text-dark-500 hover:text-primary-600 dark:text-dark-400 dark:hover:text-primary-400 hover:bg-dark-100 dark:hover:bg-dark-700/50 rounded-lg transition-colors"
+                      title={t('header.moveSelected')}
+                      aria-label={t('header.moveSelected')}
+                    >
+                      <FolderUp className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => window.dispatchEvent(new CustomEvent('workzone-bulk-favorite'))}
+                      className="p-2 text-dark-500 hover:text-yellow-600 dark:text-dark-400 dark:hover:text-yellow-400 hover:bg-dark-100 dark:hover:bg-dark-700/50 rounded-lg transition-colors"
+                      title={t('header.favoriteSelected')}
+                      aria-label={t('header.favoriteSelected')}
+                    >
+                      <Star className="w-5 h-5" />
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={handleDownloadSelected}
+                  className="p-2 text-dark-500 hover:text-primary-600 dark:text-dark-400 dark:hover:text-primary-400 hover:bg-dark-100 dark:hover:bg-dark-700/50 rounded-lg transition-colors"
+                  title={t("header.downloadSelected")}
+                  aria-label={t("header.downloadSelected")}
+                >
                   <Download className="w-5 h-5" />
                 </button>
                 <button
                   onClick={handleDeleteSelected}
                   className="p-2 text-dark-500 hover:text-red-600 dark:text-dark-400 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                   title={t("header.deleteSelected")}
+                  aria-label={t("header.deleteSelected")}
                 >
                   <Trash2 className="w-5 h-5" />
                 </button>
               </div>
             </motion.div>
           ) : (
-            <motion.form
-              key="search-form"
-              initial={{ opacity: 0, y: -10 }}
+            <motion.div
+              key="new-dropdown"
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 10 }}
+              exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.2 }}
-              onSubmit={handleSearch}
-              className="flex items-center gap-2 w-full"
-              role="search"
             >
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-400" />
-                <input
-                  type="text"
-                  placeholder={t("header.search")}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full h-9 pl-9 pr-4 bg-white border border-dark-200 dark:border-dark-700 rounded-full text-sm text-dark-900 placeholder-dark-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                  aria-label={t("header.searchFilesAndFolders")}
-                />
-              </div>
               <Dropdown
                 trigger={
                   <button
@@ -371,7 +388,7 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
                   {t("header.createFolder")}
                 </DropdownItem>
               </Dropdown>
-            </motion.form>
+            </motion.div>
           )}
         </AnimatePresence>
       </div>

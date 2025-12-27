@@ -6,6 +6,7 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch --ignore './data/**' --ignore './prisma/**' src/index.ts",
+    "preflight": "tsx src/scripts/preflight.ts",
     "build": "tsc",
     "start": "node dist/index.js",
     "test": "vitest run",

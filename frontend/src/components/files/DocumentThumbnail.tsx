@@ -13,6 +13,7 @@ interface DocumentThumbnailProps {
   fileId: string;
   fileName: string;
   mimeType: string;
+  thumbnailPath?: string | null;
   className?: string;
 }
 
@@ -78,6 +79,7 @@ const DocumentThumbnail = memo(function DocumentThumbnail({
   fileId,
   fileName,
   mimeType,
+  thumbnailPath = null,
   className = '',
 }: DocumentThumbnailProps) {
   const [previewContent, setPreviewContent] = useState<string | null>(null);
@@ -89,7 +91,7 @@ const DocumentThumbnail = memo(function DocumentThumbnail({
   const { icon: DocIcon, bgColor, label } = getDocumentStyle(mimeType, fileName);
   const ext = getExtension(fileName);
   const isPdf = mimeType === 'application/pdf' || fileName.endsWith('.pdf');
-  const isWord = mimeType.includes('word') || fileName.endsWith('.doc') || fileName.endsWith('.docx');
+  const isDocx = mimeType.includes('openxmlformats-officedocument.wordprocessingml.document') || fileName.endsWith('.docx');
   const isText = mimeType.startsWith('text/') || fileName.endsWith('.txt') || fileName.endsWith('.md');
   const isSpreadsheet = mimeType.includes('excel') || mimeType.includes('spreadsheet') ||
     fileName.endsWith('.xls') || fileName.endsWith('.xlsx') || fileName.endsWith('.csv');
@@ -124,6 +126,10 @@ const DocumentThumbnail = memo(function DocumentThumbnail({
 
       // For spreadsheets, try to load a server-generated thumbnail using authenticated request
       if (isSpreadsheet) {
+        if (!thumbnailPath) {
+          if (mounted) setLoading(false);
+          return;
+        }
         try {
           const response = await api.get(`/files/${fileId}/thumbnail`, {
             responseType: 'blob',
@@ -140,7 +146,7 @@ const DocumentThumbnail = memo(function DocumentThumbnail({
       }
 
       // Other documents - no preview needed for now
-      if (!isText && !isWord) {
+      if (!isText && !isDocx) {
         if (mounted) setLoading(false);
         return;
       }
@@ -149,16 +155,28 @@ const DocumentThumbnail = memo(function DocumentThumbnail({
         // Use axios api instance to include Authorization header
         // Use direct path instead of replacing baseURL from getFileUrl result
         const response = await api.get(`/files/${fileId}/view`, {
-          responseType: isWord ? 'arraybuffer' : 'text',
+          responseType: isDocx ? 'arraybuffer' : 'text',
         });
 
         if (!mounted) return;
 
-        if (isWord) {
-          const arrayBuffer = response.data;
-          const result = await mammoth.extractRawText({ arrayBuffer });
-          // Only take first 500 chars for preview
-          if (mounted) setPreviewContent(result.value.slice(0, 500));
+        if (isDocx) {
+          const contentType = response.headers?.['content-type'] || '';
+          if (!contentType.includes('officedocument.wordprocessingml.document') && !contentType.includes('application/zip')) {
+            if (mounted) setLoading(false);
+            return;
+          }
+
+          try {
+            const arrayBuffer = response.data;
+            const result = await mammoth.extractRawText({ arrayBuffer });
+            // Only take first 500 chars for preview
+            if (mounted) setPreviewContent(result.value.slice(0, 500));
+          } catch {
+            // Docx preview is best-effort; fallback to icon without logging noisy errors
+            if (mounted) setLoading(false);
+            return;
+          }
         } else if (isText) {
           const text = response.data;
           // Only take first 500 chars for preview
@@ -184,7 +202,7 @@ const DocumentThumbnail = memo(function DocumentThumbnail({
         URL.revokeObjectURL(blobUrl);
       }
     };
-  }, [fileId, fileUrl, isPdf, isWord, isText, isSpreadsheet]);
+  }, [fileId, fileUrl, isPdf, isDocx, isText, isSpreadsheet]);
 
   // Suppress the pdfLoaded warning
   void pdfLoaded;
@@ -226,7 +244,7 @@ const DocumentThumbnail = memo(function DocumentThumbnail({
   }
 
   // Text/Word preview
-  if ((isText || isWord) && previewContent && !error) {
+  if ((isText || isDocx) && previewContent && !error) {
     return (
       <div className={`relative w-full h-full ${className}`}>
         <div className="absolute inset-0 bg-white dark:bg-dark-800 p-3 overflow-hidden">

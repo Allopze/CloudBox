@@ -50,6 +50,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
 import GlobalProgressIndicator from './components/ui/GlobalProgressIndicator';
 import { ToastContainer } from './components/ui/Toast';
+import HamsterLoader from './components/ui/HamsterLoader';
 
 // Heavy components (lazy-loaded)
 const MusicPlayer = lazy(() => import('./components/MusicPlayer'));
@@ -57,7 +58,7 @@ const MusicPlayer = lazy(() => import('./components/MusicPlayer'));
 // Loading fallback for lazy components
 const PageLoader = () => (
   <div className="flex items-center justify-center h-full min-h-[200px]">
-    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+    <HamsterLoader />
   </div>
 );
 
