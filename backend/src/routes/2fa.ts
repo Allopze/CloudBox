@@ -207,6 +207,7 @@ router.post('/setup', authenticate, async (req: Request, res: Response) => {
         });
 
         res.json({
+            qrCodeUrl: qrCodeDataUrl,
             qrCode: qrCodeDataUrl,
             secret: secret.base32, // Also provide the secret for manual entry
             recoveryCodes: codes,
