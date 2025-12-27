@@ -521,13 +521,12 @@ export const fileIdParamSchema = z.object({
   }),
 });
 
-// Schema for download/stream with optional signed URL
+// Schema for download/stream with optional access parameters
 export const fileAccessSchema = z.object({
   params: z.object({
     id: z.string().uuid('File ID must be a valid UUID'),
   }),
   query: z.object({
-    sig: z.string().optional(),
     password: z.string().optional(),
     transcode: z.enum(['true', 'false']).optional(),
     sheet: z.string().optional(),

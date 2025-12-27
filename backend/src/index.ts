@@ -22,7 +22,7 @@ import { initCache, getCacheStats } from './lib/cache.js';
 import { initSessionStore, getSessionStats } from './lib/sessionStore.js';
 import { initBullBoard, closeBullBoard } from './lib/bullBoard.js';
 import { authenticate, requireAdmin } from './middleware/auth.js';
-import { initRateLimitRedis, getRateLimitStats, isDistributedRateLimitAvailable } from './lib/security.js';
+import { initRateLimitRedis, getRateLimitStats } from './lib/security.js';
 import { metricsMiddleware, metricsHandler } from './lib/metrics.js';
 import { getGlobalUploadMaxFileSize } from './lib/limits.js';
 import { httpLogger } from './middleware/requestLogger.js';
@@ -214,259 +214,257 @@ const createAdminLimiter = () => rateLimit({
   store: createRateLimitStore('admin'),
 });
 
-// Apply rate limiters (will use memory initially, reapplied with Redis after init)
-app.use('/api/', createGlobalLimiter());
-app.use('/api/auth/login', createAuthLimiter());
-app.use('/api/auth/register', createAuthLimiter());
-app.use('/api/auth/forgot-password', createSensitiveAuthLimiter());
-app.use('/api/auth/reset-password', createSensitiveAuthLimiter());
-app.use('/api/auth/verify-email', createSensitiveAuthLimiter());
-app.use('/api/admin', createAdminLimiter());
+const registerRoutes = () => {
+  // Apply rate limiters
+  app.use('/api/', createGlobalLimiter());
+  app.use('/api/auth/login', createAuthLimiter());
+  app.use('/api/auth/register', createAuthLimiter());
+  app.use('/api/auth/forgot-password', createSensitiveAuthLimiter());
+  app.use('/api/auth/reset-password', createSensitiveAuthLimiter());
+  app.use('/api/auth/verify-email', createSensitiveAuthLimiter());
+  app.use('/api/admin', createAdminLimiter());
 
-// API Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/files', documentPreviewRoutes); // Document preview routes (before main file routes)
-app.use('/api/files', fileRoutes);
-app.use('/api/folders', folderRoutes);
-app.use('/api/shares', shareRoutes);
-app.use('/api/trash', trashRoutes);
-app.use('/api/albums', albumRoutes);
-app.use('/api/compression', compressionRoutes);
-app.use('/api/activity', activityRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/tags', tagsRoutes);
-app.use('/api/file-icons', fileIconRoutes);
-app.use('/api/2fa', twoFactorRoutes);
-app.use('/api/files', versionRoutes); // Version history routes
+  // API Routes
+  app.use('/api/auth', authRoutes);
+  app.use('/api/users', userRoutes);
+  app.use('/api/files', documentPreviewRoutes); // Document preview routes (before main file routes)
+  app.use('/api/files', fileRoutes);
+  app.use('/api/folders', folderRoutes);
+  app.use('/api/shares', shareRoutes);
+  app.use('/api/trash', trashRoutes);
+  app.use('/api/albums', albumRoutes);
+  app.use('/api/compression', compressionRoutes);
+  app.use('/api/activity', activityRoutes);
+  app.use('/api/admin', adminRoutes);
+  app.use('/api/tags', tagsRoutes);
+  app.use('/api/file-icons', fileIconRoutes);
+  app.use('/api/2fa', twoFactorRoutes);
+  app.use('/api/files', versionRoutes); // Version history routes
 
-// Public config endpoint for upload limits (no auth required for frontend to fetch)
-app.get('/api/config/upload-limits', async (req, res) => {
-  try {
-    const settings = await prisma.settings.findMany({
-      where: {
-        key: { in: ['upload_max_file_size', 'upload_chunk_size', 'upload_concurrent_chunks'] },
-      },
-    });
+  // Public config endpoint for upload limits (no auth required for frontend to fetch)
+  app.get('/api/config/upload-limits', async (req, res) => {
+    try {
+      const settings = await prisma.settings.findMany({
+        where: {
+          key: { in: ['upload_max_file_size', 'upload_chunk_size', 'upload_concurrent_chunks'] },
+        },
+      });
 
-    const limits: Record<string, string> = {};
-    settings.forEach((s: { key: string; value: string }) => {
-      limits[s.key.replace('upload_', '')] = s.value;
-    });
+      const limits: Record<string, string> = {};
+      settings.forEach((s: { key: string; value: string }) => {
+        limits[s.key.replace('upload_', '')] = s.value;
+      });
 
-    const hardMaxChunkSize = config.limits.maxChunkSize;
-    const configuredChunkSize = parseInt(limits['chunk_size'] || '', 10);
-    const defaultChunkSize = 20 * 1024 * 1024; // 20MB default
-    const effectiveChunkSize = Math.min(
-      Number.isFinite(configuredChunkSize) && configuredChunkSize > 0 ? configuredChunkSize : defaultChunkSize,
-      hardMaxChunkSize
-    );
-    const effectiveMaxFileSize = await getGlobalUploadMaxFileSize();
+      const hardMaxChunkSize = config.limits.maxChunkSize;
+      const configuredChunkSize = parseInt(limits['chunk_size'] || '', 10);
+      const defaultChunkSize = 20 * 1024 * 1024; // 20MB default
+      const effectiveChunkSize = Math.min(
+        Number.isFinite(configuredChunkSize) && configuredChunkSize > 0 ? configuredChunkSize : defaultChunkSize,
+        hardMaxChunkSize
+      );
+      const effectiveMaxFileSize = await getGlobalUploadMaxFileSize();
 
-    res.json({
-      maxFileSize: String(effectiveMaxFileSize),
-      chunkSize: String(effectiveChunkSize),
-      concurrentChunks: limits['concurrent_chunks'] || '4',
-    });
-  } catch (error) {
-    // Return defaults on error
-    res.json({
-      maxFileSize: String(config.storage.maxFileSize),
-      chunkSize: String(Math.min(20 * 1024 * 1024, config.limits.maxChunkSize)),
-      concurrentChunks: '4',
-    });
-  }
-});
-
-// Public health ping (for load balancers - no details exposed)
-app.get('/api/health/ping', (req, res) => {
-  res.status(200).json({ status: 'ok' });
-});
-
-// Prometheus metrics endpoint (admin only)
-app.get('/api/metrics', authenticate, requireAdmin, metricsHandler);
-
-// Detailed health check endpoint (admin only - exposes infrastructure details)
-app.get('/api/health', authenticate, requireAdmin, async (req, res) => {
-  const healthChecks: Record<string, { status: 'healthy' | 'unhealthy' | 'degraded' | 'warning'; message?: string;[key: string]: any }> = {};
-  let overallHealthy = true;
-  const isProduction = config.nodeEnv === 'production';
-
-  // Check database connection
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-    healthChecks.database = { status: 'healthy' };
-  } catch (error) {
-    healthChecks.database = { status: 'unhealthy', message: 'Database connection failed' };
-    overallHealthy = false;
-  }
-
-
-  // Check storage directory
-  try {
-    const fs = await import('fs/promises');
-    const storagePath = getStoragePath('files');
-    await fs.access(storagePath);
-    healthChecks.storage = { status: 'healthy' };
-  } catch (error) {
-    healthChecks.storage = { status: 'unhealthy', message: 'Storage directory not accessible' };
-    overallHealthy = false;
-  }
-
-  // Check SMTP configuration (optional - don't fail if not configured)
-  try {
-    const smtpSettings = await prisma.settings.findFirst({
-      where: { key: 'smtp_host' },
-    });
-    if (smtpSettings?.value) {
-      healthChecks.smtp = { status: 'healthy', message: 'SMTP configured' };
-    } else {
-      healthChecks.smtp = { status: 'healthy', message: 'SMTP not configured (optional)' };
+      res.json({
+        maxFileSize: String(effectiveMaxFileSize),
+        chunkSize: String(effectiveChunkSize),
+        concurrentChunks: limits['concurrent_chunks'] || '4',
+      });
+    } catch (error) {
+      // Return defaults on error
+      res.json({
+        maxFileSize: String(config.storage.maxFileSize),
+        chunkSize: String(Math.min(20 * 1024 * 1024, config.limits.maxChunkSize)),
+        concurrentChunks: '4',
+      });
     }
-  } catch (error) {
-    healthChecks.smtp = { status: 'healthy', message: 'SMTP check skipped' };
-  }
+  });
 
-  // Check Redis/transcoding queue
-  try {
-    const queueStats = await getQueueStats();
+  // Public health ping (for load balancers - no details exposed)
+  app.get('/api/health/ping', (req, res) => {
+    res.status(200).json({ status: 'ok' });
+  });
 
-    if (queueStats.isRedisAvailable) {
-      healthChecks.transcoding = {
-        status: 'healthy',
-        message: `Redis connected, ${queueStats.active} active jobs`,
-        usingRedis: true,
-        workerMode: 'dedicated',
-      };
-    } else if (isProduction) {
-      // Production without Redis is unhealthy
-      healthChecks.transcoding = {
-        status: 'unhealthy',
-        message: 'CRITICAL: Redis required for transcoding in production - jobs will be rejected',
-        usingRedis: false,
-        workerMode: 'disabled',
-      };
+  // Prometheus metrics endpoint (admin only)
+  app.get('/api/metrics', authenticate, requireAdmin, metricsHandler);
+
+  // Detailed health check endpoint (admin only - exposes infrastructure details)
+  app.get('/api/health', authenticate, requireAdmin, async (req, res) => {
+    const healthChecks: Record<string, { status: 'healthy' | 'unhealthy' | 'degraded' | 'warning'; message?: string;[key: string]: any }> = {};
+    let overallHealthy = true;
+    const isProduction = config.nodeEnv === 'production';
+
+    // Check database connection
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      healthChecks.database = { status: 'healthy' };
+    } catch (error) {
+      healthChecks.database = { status: 'unhealthy', message: 'Database connection failed' };
       overallHealthy = false;
-    } else {
-      // Development fallback warning
-      healthChecks.transcoding = {
-        status: 'warning',
-        message: 'Fallback mode (dev only) - CPU competes with API. Set up Redis for production.',
-        usingRedis: false,
-        workerMode: 'inline-fallback',
-      };
     }
-  } catch (error) {
-    healthChecks.transcoding = { status: 'degraded', message: 'Queue check failed' };
-  }
 
-  // Check thumbnail queue
-  try {
-    const thumbnailStats = await getThumbnailQueueStats();
-
-    if (thumbnailStats.usingRedis) {
-      healthChecks.thumbnails = {
-        status: 'healthy',
-        message: `Redis connected, ${thumbnailStats.active} active, ${thumbnailStats.waiting} waiting`,
-        usingRedis: true,
-        workerMode: 'dedicated',
-      };
-    } else if (isProduction) {
-      // Production without Redis is unhealthy
-      healthChecks.thumbnails = {
-        status: 'unhealthy',
-        message: 'CRITICAL: Redis required for thumbnails in production - jobs will be rejected',
-        usingRedis: false,
-        workerMode: 'disabled',
-      };
+    // Check storage directory
+    try {
+      const fs = await import('fs/promises');
+      const storagePath = getStoragePath('files');
+      await fs.access(storagePath);
+      healthChecks.storage = { status: 'healthy' };
+    } catch (error) {
+      healthChecks.storage = { status: 'unhealthy', message: 'Storage directory not accessible' };
       overallHealthy = false;
-    } else {
-      // Development fallback warning
-      healthChecks.thumbnails = {
-        status: 'warning',
-        message: `Fallback mode (dev only), ${thumbnailStats.active} active - Set up Redis for production.`,
-        usingRedis: false,
-        workerMode: 'inline-fallback',
-      };
     }
-  } catch (error) {
-    healthChecks.thumbnails = { status: 'degraded', message: 'Thumbnail queue check failed' };
-  }
 
-  // Check cache
-  try {
-    const cacheStats = await getCacheStats();
-    healthChecks.cache = {
-      status: cacheStats ? 'healthy' : 'degraded',
-      message: cacheStats
-        ? `Redis connected, ${cacheStats.keys} keys, ${cacheStats.memory} memory`
-        : 'Cache disabled - all queries hit database directly',
-      usingRedis: !!cacheStats,
+    // Check SMTP configuration (optional - don't fail if not configured)
+    try {
+      const smtpSettings = await prisma.settings.findFirst({
+        where: { key: 'smtp_host' },
+      });
+      if (smtpSettings?.value) {
+        healthChecks.smtp = { status: 'healthy', message: 'SMTP configured' };
+      } else {
+        healthChecks.smtp = { status: 'healthy', message: 'SMTP not configured (optional)' };
+      }
+    } catch (error) {
+      healthChecks.smtp = { status: 'healthy', message: 'SMTP check skipped' };
+    }
+
+    // Check Redis/transcoding queue
+    try {
+      const queueStats = await getQueueStats();
+
+      if (queueStats.isRedisAvailable) {
+        healthChecks.transcoding = {
+          status: 'healthy',
+          message: `Redis connected, ${queueStats.active} active jobs`,
+          usingRedis: true,
+          workerMode: 'dedicated',
+        };
+      } else if (isProduction) {
+        // Production without Redis is unhealthy
+        healthChecks.transcoding = {
+          status: 'unhealthy',
+          message: 'CRITICAL: Redis required for transcoding in production - jobs will be rejected',
+          usingRedis: false,
+          workerMode: 'disabled',
+        };
+        overallHealthy = false;
+      } else {
+        // Development fallback warning
+        healthChecks.transcoding = {
+          status: 'warning',
+          message: 'Fallback mode (dev only) - CPU competes with API. Set up Redis for production.',
+          usingRedis: false,
+          workerMode: 'inline-fallback',
+        };
+      }
+    } catch (error) {
+      healthChecks.transcoding = { status: 'degraded', message: 'Queue check failed' };
+    }
+
+    // Check thumbnail queue
+    try {
+      const thumbnailStats = await getThumbnailQueueStats();
+
+      if (thumbnailStats.usingRedis) {
+        healthChecks.thumbnails = {
+          status: 'healthy',
+          message: `Redis connected, ${thumbnailStats.active} active, ${thumbnailStats.waiting} waiting`,
+          usingRedis: true,
+          workerMode: 'dedicated',
+        };
+      } else if (isProduction) {
+        // Production without Redis is unhealthy
+        healthChecks.thumbnails = {
+          status: 'unhealthy',
+          message: 'CRITICAL: Redis required for thumbnails in production - jobs will be rejected',
+          usingRedis: false,
+          workerMode: 'disabled',
+        };
+        overallHealthy = false;
+      } else {
+        // Development fallback warning
+        healthChecks.thumbnails = {
+          status: 'warning',
+          message: `Fallback mode (dev only), ${thumbnailStats.active} active - Set up Redis for production.`,
+          usingRedis: false,
+          workerMode: 'inline-fallback',
+        };
+      }
+    } catch (error) {
+      healthChecks.thumbnails = { status: 'degraded', message: 'Thumbnail queue check failed' };
+    }
+
+    // Check cache
+    try {
+      const cacheStats = await getCacheStats();
+      healthChecks.cache = {
+        status: cacheStats ? 'healthy' : 'degraded',
+        message: cacheStats
+          ? `Redis connected, ${cacheStats.keys} keys, ${cacheStats.memory} memory`
+          : 'Cache disabled - all queries hit database directly',
+        usingRedis: !!cacheStats,
+      };
+    } catch (error) {
+      healthChecks.cache = { status: 'degraded', message: 'Cache check failed' };
+    }
+
+    // Check session store
+    try {
+      const sessionStats = await getSessionStats();
+      healthChecks.sessions = {
+        status: sessionStats ? 'healthy' : 'degraded',
+        message: sessionStats
+          ? `Redis connected, ${sessionStats.totalSessions} active sessions`
+          : 'Session store using database fallback - no instant invalidation',
+        usingRedis: !!sessionStats,
+      };
+    } catch (error) {
+      healthChecks.sessions = { status: 'degraded', message: 'Session store check failed' };
+    }
+
+    // Check rate limiting
+    try {
+      const rateLimitStats = getRateLimitStats();
+      healthChecks.rateLimiting = {
+        status: rateLimitStats.usingRedis ? 'healthy' : 'degraded',
+        message: rateLimitStats.usingRedis
+          ? 'Redis connected - distributed rate limiting active'
+          : `In-memory fallback (single-node only), ${rateLimitStats.inMemoryEntries} tracked users`,
+        usingRedis: rateLimitStats.usingRedis,
+      };
+    } catch (error) {
+      healthChecks.rateLimiting = { status: 'degraded', message: 'Rate limiting check failed' };
+    }
+
+    // Check WebSocket connections
+    try {
+      const connectedUsers = getConnectedUserCount();
+      healthChecks.websocket = {
+        status: 'healthy',
+        message: `${connectedUsers} users connected`,
+      };
+    } catch (error) {
+      healthChecks.websocket = { status: 'healthy', message: 'WebSocket check skipped' };
+    }
+
+    // Security: Only expose version in development mode
+    const response: Record<string, any> = {
+      status: overallHealthy ? 'healthy' : 'unhealthy',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      checks: healthChecks,
     };
-  } catch (error) {
-    healthChecks.cache = { status: 'degraded', message: 'Cache check failed' };
-  }
 
-  // Check session store
-  try {
-    const sessionStats = await getSessionStats();
-    healthChecks.sessions = {
-      status: sessionStats ? 'healthy' : 'degraded',
-      message: sessionStats
-        ? `Redis connected, ${sessionStats.totalSessions} active sessions`
-        : 'Session store using database fallback - no instant invalidation',
-      usingRedis: !!sessionStats,
-    };
-  } catch (error) {
-    healthChecks.sessions = { status: 'degraded', message: 'Session store check failed' };
-  }
+    if (config.nodeEnv === 'development') {
+      response.version = process.env.npm_package_version || '1.0.0';
+    }
 
-  // Check rate limiting
-  try {
-    const rateLimitStats = getRateLimitStats();
-    healthChecks.rateLimiting = {
-      status: rateLimitStats.usingRedis ? 'healthy' : 'degraded',
-      message: rateLimitStats.usingRedis
-        ? 'Redis connected - distributed rate limiting active'
-        : `In-memory fallback (single-node only), ${rateLimitStats.inMemoryEntries} tracked users`,
-      usingRedis: rateLimitStats.usingRedis,
-    };
-  } catch (error) {
-    healthChecks.rateLimiting = { status: 'degraded', message: 'Rate limiting check failed' };
-  }
+    res.status(overallHealthy ? 200 : 503).json(response);
+  });
 
-  // Check WebSocket connections
-  try {
-    const connectedUsers = getConnectedUserCount();
-    healthChecks.websocket = {
-      status: 'healthy',
-      message: `${connectedUsers} users connected`,
-    };
-  } catch (error) {
-    healthChecks.websocket = { status: 'healthy', message: 'WebSocket check skipped' };
-  }
-
-  // Security: Only expose version in development mode
-  const response: Record<string, any> = {
-    status: overallHealthy ? 'healthy' : 'unhealthy',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    checks: healthChecks,
-  };
-
-  if (config.nodeEnv === 'development') {
-    response.version = process.env.npm_package_version || '1.0.0';
-  }
-
-  res.status(overallHealthy ? 200 : 503).json(response);
-});
-
-// Serve static files from data directory
-// Serve static files from data directory - REMOVED FOR SECURITY
-// app.use('/data', express.static(path.resolve(config.storage.path)));
-
-// Error handler
-app.use(errorHandler);
+  // Serve static files from data directory
+  // Serve static files from data directory - REMOVED FOR SECURITY
+  // app.use('/data', express.static(path.resolve(config.storage.path)));
+};
 
 // Cleanup expired trash items (run every hour)
 const cleanupTrash = async () => {
@@ -770,6 +768,9 @@ const start = async () => {
       logger.info('Distributed rate limiting initialized with Redis');
     }
 
+    // Register routes after rate limit store is initialized
+    registerRoutes();
+
     // Initialize Bull Board for queue monitoring (requires Redis)
     const bullBoardAdapter = await initBullBoard();
     if (bullBoardAdapter) {
@@ -777,6 +778,9 @@ const start = async () => {
       app.use('/admin/queues', authenticate, requireAdmin, bullBoardAdapter.getRouter());
       logger.info('Bull Board initialized at /admin/queues');
     }
+
+    // Error handler (must be after all routes)
+    app.use(errorHandler);
 
     // Run initial cleanups
     await cleanupTrash();

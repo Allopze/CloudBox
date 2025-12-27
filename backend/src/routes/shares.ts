@@ -40,11 +40,10 @@ function setShareAccessCookie(res: Response, shareToken: string): void {
   });
 }
 
-// Verify share access from cookie or query param (backward compat)
+// Verify share access from cookie
 async function verifyShareAccess(
   req: Request,
-  share: { password: string | null; publicToken: string },
-  queryPassword?: string
+  share: { password: string | null; publicToken: string }
 ): Promise<{ valid: boolean; fromCookie: boolean }> {
   // If no password required, it's valid
   if (!share.password) {
@@ -62,14 +61,8 @@ async function verifyShareAccess(
         return { valid: true, fromCookie: true };
       }
     } catch {
-      // Token invalid/expired, fall through to password check
+      // Token invalid/expired, require verification via /verify
     }
-  }
-
-  // Fallback: Check query param password (deprecated but kept for backward compat)
-  if (queryPassword) {
-    const valid = await bcrypt.compare(queryPassword, share.password);
-    return { valid, fromCookie: false };
   }
 
   return { valid: false, fromCookie: false };
@@ -430,21 +423,11 @@ router.get('/public/:token', shareRateLimiter(), optionalAuth, async (req: Reque
     }
 
     if (share.password) {
-      const { password } = req.query;
-      if (!password || typeof password !== 'string') {
+      const accessResult = await verifyShareAccess(req, { password: share.password, publicToken: token });
+      if (!accessResult.valid) {
         res.status(401).json({ error: 'Password required', hasPassword: true });
         return;
       }
-
-      const valid = await bcrypt.compare(password, share.password);
-      if (!valid) {
-        // SECURITY FIX: Record failed password attempt for rate limiting
-        res.locals.recordPasswordFailure?.();
-        res.status(401).json({ error: 'Invalid password', hasPassword: true });
-        return;
-      }
-      // SECURITY FIX: Clear rate limit on successful password
-      res.locals.recordPasswordSuccess?.();
     }
 
     let files: any[] = [];
@@ -543,7 +526,6 @@ async function fileBelongsToSharedFolder(fileFolderId: string | null, shareFolde
 router.get('/public/:token/files/:fileId/view', shareRateLimiter(), async (req: Request, res: Response) => {
   try {
     const { token, fileId } = req.params;
-    const password = typeof req.query.password === 'string' ? req.query.password : undefined;
 
     if (!isValidUUID(fileId)) {
       res.status(400).json({ error: 'Invalid file ID format' });
@@ -578,17 +560,11 @@ router.get('/public/:token/files/:fileId/view', shareRateLimiter(), async (req: 
       return;
     }
 
-    // H-03: Use cookie-based auth with query param fallback
-    const accessResult = await verifyShareAccess(req, { password: share.password, publicToken: token }, password);
+    // H-03: Use cookie-based auth
+    const accessResult = await verifyShareAccess(req, { password: share.password, publicToken: token });
     if (!accessResult.valid) {
-      if (!accessResult.fromCookie) {
-        res.locals.recordPasswordFailure?.();
-      }
       res.status(401).json({ error: 'Password required', hasPassword: !!share.password });
       return;
-    }
-    if (!accessResult.fromCookie && share.password) {
-      res.locals.recordPasswordSuccess?.();
     }
 
     // Ensure the requested file actually belongs to this share
@@ -632,7 +608,6 @@ router.get('/public/:token/files/:fileId/view', shareRateLimiter(), async (req: 
 router.get('/public/:token/files/:fileId/thumbnail', shareRateLimiter(), async (req: Request, res: Response) => {
   try {
     const { token, fileId } = req.params;
-    const password = typeof req.query.password === 'string' ? req.query.password : undefined;
 
     if (!isValidUUID(fileId)) {
       res.status(400).json({ error: 'Invalid file ID format' });
@@ -667,17 +642,11 @@ router.get('/public/:token/files/:fileId/thumbnail', shareRateLimiter(), async (
       return;
     }
 
-    // H-03: Use cookie-based auth with query param fallback
-    const accessResult = await verifyShareAccess(req, { password: share.password, publicToken: token }, password);
+    // H-03: Use cookie-based auth
+    const accessResult = await verifyShareAccess(req, { password: share.password, publicToken: token });
     if (!accessResult.valid) {
-      if (!accessResult.fromCookie) {
-        res.locals.recordPasswordFailure?.();
-      }
       res.status(401).json({ error: 'Password required', hasPassword: !!share.password });
       return;
-    }
-    if (!accessResult.fromCookie && share.password) {
-      res.locals.recordPasswordSuccess?.();
     }
 
     if (share.fileId && share.fileId !== fileId) {
@@ -759,18 +728,11 @@ router.get('/public/:token/download', shareRateLimiter(), async (req: Request, r
       return;
     }
 
-    // H-03: Use cookie-based auth with query param fallback
-    const password = typeof req.query.password === 'string' ? req.query.password : undefined;
-    const accessResult = await verifyShareAccess(req, { password: share.password, publicToken: token }, password);
+    // H-03: Use cookie-based auth
+    const accessResult = await verifyShareAccess(req, { password: share.password, publicToken: token });
     if (!accessResult.valid) {
-      if (!accessResult.fromCookie) {
-        res.locals.recordPasswordFailure?.();
-      }
       res.status(401).json({ error: 'Password required', hasPassword: !!share.password });
       return;
-    }
-    if (!accessResult.fromCookie && share.password) {
-      res.locals.recordPasswordSuccess?.();
     }
 
     // P1-2: Validate allowDownload setting before serving file
@@ -884,7 +846,6 @@ router.get('/public/:token/download', shareRateLimiter(), async (req: Request, r
 router.get('/public/:token/files/:fileId/download', shareRateLimiter(), async (req: Request, res: Response) => {
   try {
     const { token, fileId } = req.params;
-    const { password } = req.query;
 
     const share = await prisma.share.findFirst({
       where: { publicToken: token, type: 'PUBLIC' },
@@ -910,20 +871,11 @@ router.get('/public/:token/files/:fileId/download', shareRateLimiter(), async (r
     }
 
     if (share.password) {
-      if (!password || typeof password !== 'string') {
+      const accessResult = await verifyShareAccess(req, { password: share.password, publicToken: token });
+      if (!accessResult.valid) {
         res.status(401).json({ error: 'Password required' });
         return;
       }
-
-      const valid = await bcrypt.compare(password, share.password);
-      if (!valid) {
-        // SECURITY FIX: Record failed password attempt for rate limiting
-        res.locals.recordPasswordFailure?.();
-        res.status(401).json({ error: 'Invalid password' });
-        return;
-      }
-      // SECURITY FIX: Clear rate limit on successful password
-      res.locals.recordPasswordSuccess?.();
     }
 
     if (!share.allowDownload) {

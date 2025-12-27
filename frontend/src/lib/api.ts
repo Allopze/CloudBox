@@ -36,7 +36,7 @@ migrateFromLocalStorage();
  * ============================================================================
  */
 
-// Security: Generate signed URL for file access (preferred over query string tokens)
+// Security: Request file access and receive a direct URL (cookie-based auth)
 export const getSignedFileUrl = async (fileId: string, action: 'view' | 'download' | 'stream' | 'thumbnail' = 'view'): Promise<string> => {
   const response = await api.post(`/files/${fileId}/signed-url`, { action });
   return response.data.signedUrl;

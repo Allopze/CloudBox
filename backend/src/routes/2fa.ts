@@ -9,13 +9,15 @@ import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { encryptSecret, decryptSecret } from '../lib/encryption.js';
 import { config } from '../config/index.js';
+import { generateAccessToken, generateRefreshToken, hashToken } from '../lib/jwt.js';
+import { createSession, isSessionStoreAvailable } from '../lib/sessionStore.js';
 import {
     verify2FASchema,
     disable2FASchema,
     recovery2FASchema,
     login2FASchema,
 } from '../schemas/index.js';
-import { auditLog } from '../lib/audit.js';
+import { auditLog, getClientIP } from '../lib/audit.js';
 
 const router = Router();
 
@@ -24,6 +26,7 @@ const TOTP_ISSUER = 'CloudBox';
 const RECOVERY_CODE_COUNT = 10;
 const RECOVERY_CODE_LENGTH = 10;
 const TEMP_TOKEN_EXPIRY = 5 * 60; // 5 minutes
+const REFRESH_TOKEN_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 /**
  * Generate a secure random recovery code
@@ -99,12 +102,50 @@ function verifyTempToken(token: string): { userId: string } | null {
     }
 }
 
+// Refresh token cookie options (align with auth routes)
+const getRefreshTokenCookieOptions = () => ({
+    httpOnly: true,
+    secure: config.cookies.secure,
+    sameSite: config.cookies.sameSite,
+    path: '/api/auth',
+    maxAge: REFRESH_TOKEN_MAX_AGE,
+});
+
+const setAuthCookies = (res: Response, refreshToken: string) => {
+    res.cookie('refreshToken', refreshToken, getRefreshTokenCookieOptions());
+};
+
+const storeRefreshTokenWithSession = async (
+    userId: string,
+    token: string,
+    jti: string,
+    familyId: string,
+    expiresAt: Date,
+    deviceInfo: { userAgent?: string; ip?: string }
+): Promise<void> => {
+    const tokenHash = hashToken(token);
+
+    await prisma.refreshToken.create({
+        data: {
+            tokenHash,
+            jti,
+            userId,
+            familyId,
+            expiresAt,
+        },
+    });
+
+    if (isSessionStoreAvailable()) {
+        await createSession(userId, tokenHash, deviceInfo);
+    }
+};
+
 // ============================================================
 // 2FA Setup - Generate secret and QR code
 // ============================================================
 router.post('/setup', authenticate, async (req: Request, res: Response) => {
     try {
-        const userId = (req as any).userId;
+        const userId = req.user!.userId;
 
         const user = await prisma.user.findUnique({
             where: { id: userId },
@@ -181,7 +222,7 @@ router.post('/setup', authenticate, async (req: Request, res: Response) => {
 // ============================================================
 router.post('/enable', authenticate, validate(verify2FASchema), async (req: Request, res: Response) => {
     try {
-        const userId = (req as any).userId;
+        const userId = req.user!.userId;
         const { code } = req.body;
 
         const user = await prisma.user.findUnique({
@@ -263,7 +304,7 @@ router.post('/enable', authenticate, validate(verify2FASchema), async (req: Requ
 // ============================================================
 router.post('/disable', authenticate, validate(disable2FASchema), async (req: Request, res: Response) => {
     try {
-        const userId = (req as any).userId;
+        const userId = req.user!.userId;
         const { password, code } = req.body;
 
         const user = await prisma.user.findUnique({
@@ -415,47 +456,30 @@ router.post('/verify', validate(login2FASchema), async (req: Request, res: Respo
             return;
         }
 
-        // Generate real tokens
-        const { generateAccessToken, generateRefreshToken } = await import('../lib/jwt.js');
-
         const accessToken = generateAccessToken({
             userId: user.id,
             email: user.email,
             role: user.role,
         });
 
-        const familyId = crypto.randomUUID();
-        const jti = crypto.randomUUID();
-        const refreshToken = generateRefreshToken({
+        const { token: refreshToken, jti, familyId } = generateRefreshToken({
             userId: user.id,
             email: user.email,
             role: user.role,
+        });
+
+        const expiresAt = new Date(Date.now() + REFRESH_TOKEN_MAX_AGE);
+        await storeRefreshTokenWithSession(
+            user.id,
+            refreshToken,
             jti,
             familyId,
-        });
-
-        // Store refresh token
-        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-        const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
-
-        await prisma.refreshToken.create({
-            data: {
-                tokenHash,
-                jti,
-                userId: user.id,
-                familyId,
-                expiresAt,
-            },
-        });
+            expiresAt,
+            { userAgent: req.headers['user-agent'], ip: getClientIP(req) }
+        );
 
         // Set refresh token in httpOnly cookie
-        res.cookie('refreshToken', refreshToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-            path: '/',
-        });
+        setAuthCookies(res, refreshToken);
 
         await auditLog({
             action: '2FA_VERIFY_SUCCESS',
@@ -552,47 +576,30 @@ router.post('/recovery', validate(recovery2FASchema), async (req: Request, res: 
         // Count remaining codes
         const remainingCodes = hashes.filter(h => h !== '').length;
 
-        // Generate real tokens
-        const { generateAccessToken, generateRefreshToken } = await import('../lib/jwt.js');
-
         const accessToken = generateAccessToken({
             userId: user.id,
             email: user.email,
             role: user.role,
         });
 
-        const familyId = crypto.randomUUID();
-        const jti = crypto.randomUUID();
-        const refreshToken = generateRefreshToken({
+        const { token: refreshToken, jti, familyId } = generateRefreshToken({
             userId: user.id,
             email: user.email,
             role: user.role,
+        });
+
+        const expiresAt = new Date(Date.now() + REFRESH_TOKEN_MAX_AGE);
+        await storeRefreshTokenWithSession(
+            user.id,
+            refreshToken,
             jti,
             familyId,
-        });
-
-        // Store refresh token
-        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-        const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
-
-        await prisma.refreshToken.create({
-            data: {
-                tokenHash,
-                jti,
-                userId: user.id,
-                familyId,
-                expiresAt,
-            },
-        });
+            expiresAt,
+            { userAgent: req.headers['user-agent'], ip: getClientIP(req) }
+        );
 
         // Set refresh token in httpOnly cookie
-        res.cookie('refreshToken', refreshToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-            path: '/',
-        });
+        setAuthCookies(res, refreshToken);
 
         await auditLog({
             action: '2FA_RECOVERY_SUCCESS',
@@ -627,7 +634,7 @@ router.post('/recovery', validate(recovery2FASchema), async (req: Request, res: 
 // ============================================================
 router.get('/status', authenticate, async (req: Request, res: Response) => {
     try {
-        const userId = (req as any).userId;
+        const userId = req.user!.userId;
 
         const user = await prisma.user.findUnique({
             where: { id: userId },
@@ -667,7 +674,7 @@ router.get('/status', authenticate, async (req: Request, res: Response) => {
 // ============================================================
 router.post('/regenerate-recovery', authenticate, validate(verify2FASchema), async (req: Request, res: Response) => {
     try {
-        const userId = (req as any).userId;
+        const userId = req.user!.userId;
         const { code } = req.body;
 
         const user = await prisma.user.findUnique({

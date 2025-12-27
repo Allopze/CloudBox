@@ -37,6 +37,7 @@ export default defineConfig({
   },
   server: {
     port: 5000,
+    allowedHosts: ['www.cloudbox.lat'],
     proxy: {
       '/api': {
         target: 'http://localhost:3001',

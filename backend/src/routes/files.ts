@@ -35,8 +35,9 @@ import {
 import { generateThumbnail } from '../lib/thumbnail.js';
 import { thumbnailQueue } from '../lib/thumbnailQueue.js';
 import { config } from '../config/index.js';
-import { sanitizeFilename, validateMimeType, isDangerousExtension, checkUserRateLimit } from '../lib/security.js';
+import { sanitizeFilename, validateMimeType, isDangerousExtension, checkUserRateLimitDistributed } from '../lib/security.js';
 import { auditLog } from '../lib/audit.js';
+import { addFileAccessToken, getFileAccessTokens, setFileAccessCookie } from '../lib/fileAccessCookies.js';
 import logger from '../lib/logger.js';
 import ExcelJS from 'exceljs';
 import * as cache from '../lib/cache.js';
@@ -194,7 +195,7 @@ router.post('/upload', authenticate, uploadFile.array('files', UPLOAD_LIMITS.MAX
     }
 
     // Rate limiting per user for uploads
-    const rateLimit = checkUserRateLimit(userId, 300, 60000); // 300 uploads per minute
+    const rateLimit = await checkUserRateLimitDistributed(userId, 300, 60000); // 300 uploads per minute
     if (!rateLimit.allowed) {
       await auditLog({
         action: 'FILE_UPLOAD',
@@ -420,7 +421,7 @@ router.post('/upload-with-folders', authenticate, uploadFile.array('files', UPLO
     }
 
     // Rate limiting per user for uploads
-    const rateLimit = checkUserRateLimit(userId, 300, 60000); // 300 uploads per minute for folder uploads
+    const rateLimit = await checkUserRateLimitDistributed(userId, 300, 60000); // 300 uploads per minute for folder uploads
     if (!rateLimit.allowed) {
       await auditLog({
         action: 'FILE_UPLOAD',
@@ -2398,7 +2399,7 @@ router.post('/create-empty', authenticate, async (req: Request, res: Response) =
   }
 });
 
-// Security: Generate signed URL for secure file access without query string tokens
+// Security: Issue short-lived file access cookies and return direct file URL
 router.post('/:id/signed-url', authenticate, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -2445,6 +2446,10 @@ router.post('/:id/signed-url', authenticate, async (req: Request, res: Response)
       },
     });
 
+    const existingTokens = getFileAccessTokens(req);
+    const updatedTokens = addFileAccessToken(existingTokens, token);
+    setFileAccessCookie(res, updatedTokens);
+
     // Clean up expired signed URLs (async, don't wait)
     prisma.signedUrl.deleteMany({
       where: { expiresAt: { lt: new Date() } },
@@ -2457,7 +2462,7 @@ router.post('/:id/signed-url', authenticate, async (req: Request, res: Response)
     const origin = host ? `${req.protocol}://${host}` : config.frontendUrl.replace(/\/$/, '');
 
     res.json({
-      signedUrl: `${origin.replace(/\/$/, '')}/api/files/${id}/${action}?sig=${token}`,
+      signedUrl: `${origin.replace(/\/$/, '')}/api/files/${id}/${action}`,
       expiresAt: expiresAt.toISOString(),
     });
   } catch (error) {

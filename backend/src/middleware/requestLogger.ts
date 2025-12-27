@@ -31,7 +31,7 @@ export const requestContextMiddleware: RequestHandler = (req: Request, res: Resp
         const context = {
             requestId: req.id,
             method: req.method,
-            url: req.originalUrl || req.url,
+            url: req.path, // Avoid logging query params (may contain secrets)
             statusCode: res.statusCode,
             duration: `${duration}ms`,
             ip: getClientIP(req),

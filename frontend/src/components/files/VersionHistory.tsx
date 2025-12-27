@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { api, API_URL } from '../../lib/api';
+import { api } from '../../lib/api';
 import { formatBytes, formatDateTime } from '../../lib/utils';
 import { History, Download, RotateCcw, Trash2, Loader2, Clock } from 'lucide-react';
 import Button from '../ui/Button';
@@ -64,17 +64,10 @@ export default function VersionHistory({
 
     const handleDownload = async (version: FileVersion) => {
         try {
-            const url = `${API_URL}/files/${fileId}/versions/${version.id}/download`;
-            const response = await fetch(url, {
-                credentials: 'include',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
-                },
+            const response = await api.get(`/files/${fileId}/versions/${version.id}/download`, {
+                responseType: 'blob',
             });
-
-            if (!response.ok) throw new Error('Download failed');
-
-            const blob = await response.blob();
+            const blob = response.data as Blob;
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
             const ext = fileName.includes('.') ? fileName.substring(fileName.lastIndexOf('.')) : '';

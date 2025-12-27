@@ -4,6 +4,7 @@
 
 import { io, Socket } from 'socket.io-client';
 import { API_URL } from './api';
+import { getAccessToken } from './tokenManager';
 
 // Events emitted by server
 export interface ServerToClientEvents {
@@ -70,13 +71,13 @@ class SocketManager {
     this.connecting = true;
 
     // Get auth token
-    const token = localStorage.getItem('accessToken');
+    const token = getAccessToken();
 
     // Connect to WebSocket server
     const wsUrl = API_URL.replace('/api', '').replace('http', 'ws');
     
     this.socket = io(wsUrl, {
-      auth: { token },
+      auth: token ? { token } : {},
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: this.maxReconnectAttempts,

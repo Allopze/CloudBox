@@ -1,4 +1,7 @@
 import { PrismaClient } from '@prisma/client';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const globalForPrisma = global as unknown as { prisma: PrismaClient };
 
@@ -17,6 +20,10 @@ const connectionPoolConfig = {
 // Build connection URL with pool parameters if using PostgreSQL
 const getDatabaseUrl = (): string => {
   const baseUrl = process.env.DATABASE_URL || '';
+
+  if (!baseUrl) {
+    throw new Error('DATABASE_URL is not set. Copy backend/.env.example to backend/.env and set DATABASE_URL.');
+  }
   
   // If using SQLite (for development), return as-is
   if (baseUrl.startsWith('file:')) {
@@ -24,7 +31,12 @@ const getDatabaseUrl = (): string => {
   }
   
   // For PostgreSQL, append connection pool parameters
-  const url = new URL(baseUrl);
+  let url: URL;
+  try {
+    url = new URL(baseUrl);
+  } catch {
+    throw new Error('DATABASE_URL must be a valid URL (e.g., postgresql://user:pass@host:5432/db).');
+  }
   
   // Connection pool settings via query parameters
   if (!url.searchParams.has('connection_limit')) {
