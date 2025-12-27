@@ -42,7 +42,7 @@ interface DocumentViewerProps {
 }
 
 type LeftTabType = 'thumbnails' | 'index' | 'bookmarks';
-type DocumentType = 'pdf' | 'text' | 'office' | 'unknown';
+type DocumentType = 'pdf' | 'text' | 'spreadsheet' | 'office' | 'unknown';
 
 interface ContextMenuState {
     show: boolean;
@@ -53,18 +53,24 @@ interface ContextMenuState {
 
 // Helper to determine document type
 function getDocumentType(mimeType: string, fileName: string): DocumentType {
-    if (mimeType === 'application/pdf' || fileName.endsWith('.pdf')) {
+    const lowerName = fileName.toLowerCase();
+    if (mimeType === 'application/pdf' || lowerName.endsWith('.pdf')) {
         return 'pdf';
     }
-    if (mimeType.startsWith('text/') || fileName.endsWith('.txt') || fileName.endsWith('.md') ||
-        fileName.endsWith('.json') || fileName.endsWith('.xml') || fileName.endsWith('.csv')) {
+    if (mimeType.startsWith('text/') || lowerName.endsWith('.txt') || lowerName.endsWith('.md') ||
+        lowerName.endsWith('.json') || lowerName.endsWith('.xml') || lowerName.endsWith('.csv')) {
         return 'text';
+    }
+    const isXlsx = mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+        lowerName.endsWith('.xlsx');
+    if (isXlsx) {
+        return 'spreadsheet';
     }
     if (mimeType.includes('word') || mimeType.includes('excel') || mimeType.includes('powerpoint') ||
         mimeType.includes('spreadsheet') || mimeType.includes('presentation') ||
-        fileName.endsWith('.doc') || fileName.endsWith('.docx') ||
-        fileName.endsWith('.xls') || fileName.endsWith('.xlsx') ||
-        fileName.endsWith('.ppt') || fileName.endsWith('.pptx')) {
+        lowerName.endsWith('.doc') || lowerName.endsWith('.docx') ||
+        lowerName.endsWith('.xls') ||
+        lowerName.endsWith('.ppt') || lowerName.endsWith('.pptx')) {
         return 'office';
     }
     return 'unknown';
@@ -98,6 +104,9 @@ export default function DocumentViewer({
     const [loadError, setLoadError] = useState<string | null>(null);
     const [numPages, setNumPages] = useState<number>(0);
     const [textContent, setTextContent] = useState<string | null>(null);
+    const [spreadsheetHtml, setSpreadsheetHtml] = useState<string | null>(null);
+    const [spreadsheetSheets, setSpreadsheetSheets] = useState<string[]>([]);
+    const [spreadsheetSheetIndex, setSpreadsheetSheetIndex] = useState(0);
     const shareId = (file as any)?.shareId as string | undefined;
     const blobUrlRef = useRef<string | null>(null);
 
@@ -107,6 +116,42 @@ export default function DocumentViewer({
             blobUrlRef.current = null;
         }
     }, []);
+
+    const loadSpreadsheetPreview = useCallback(async (sheetIndex: number) => {
+        if (!file) return;
+        setIsLoading(true);
+        setLoadError(null);
+        setSpreadsheetHtml(null);
+
+        try {
+            const endpoint = shareId
+                ? `/shares/${shareId}/files/${file.id}/excel-html`
+                : `/files/${file.id}/excel-html`;
+            const response = await api.get(endpoint, {
+                params: { sheet: sheetIndex },
+                validateStatus: (status) => status < 500,
+            });
+
+            if (response.status !== 200 || !response.data?.html) {
+                setLoadError(t('errorLoadingSpreadsheet', 'Error loading spreadsheet.'));
+                setIsLoading(false);
+                return;
+            }
+
+            setSpreadsheetHtml(response.data.html);
+            setSpreadsheetSheets(response.data.sheetNames || []);
+            if (typeof response.data.currentSheet === 'number') {
+                setSpreadsheetSheetIndex(response.data.currentSheet);
+            } else {
+                setSpreadsheetSheetIndex(sheetIndex);
+            }
+            setIsLoading(false);
+        } catch (error) {
+            console.error('Error loading spreadsheet:', error);
+            setLoadError(t('errorLoadingSpreadsheet', 'Error loading spreadsheet.'));
+            setIsLoading(false);
+        }
+    }, [file, t, shareId]);
 
     // Office PDF conversion state
     const [isConverting, setIsConverting] = useState(false);
@@ -136,6 +181,7 @@ export default function DocumentViewer({
             url: signedUrl,
             cMapUrl: 'https://unpkg.com/pdfjs-dist@5.4.296/cmaps/',
             cMapPacked: true,
+            withCredentials: true,
         };
     }, [signedUrl]);
 
@@ -151,6 +197,9 @@ export default function DocumentViewer({
         setLoadError(null);
         setSignedUrl(null);
         setTextContent(null);
+        setSpreadsheetHtml(null);
+        setSpreadsheetSheets([]);
+        setSpreadsheetSheetIndex(0);
         setCurrentPage(1);
         setNumPages(0);
         setIsConverting(false);
@@ -189,6 +238,8 @@ export default function DocumentViewer({
                         });
                         setTextContent(response.data);
                         setIsLoading(false);
+                    } else if (documentType === 'spreadsheet') {
+                        await loadSpreadsheetPreview(0);
                     } else if (documentType === 'office') {
                         if (shareId) {
                             setConversionFailed(true);
@@ -216,7 +267,7 @@ export default function DocumentViewer({
 
                 const fetchPdfPreview = async () => {
                     revokeBlobUrl();
-                    const pdfResponse = await api.get(`/document-preview/${file.id}/pdf-preview`, {
+                    const pdfResponse = await api.get(`/files/${file.id}/pdf-preview`, {
                         responseType: 'arraybuffer',
                     });
                     const blob = new Blob([pdfResponse.data], { type: 'application/pdf' });
@@ -225,7 +276,7 @@ export default function DocumentViewer({
                     setSignedUrl(url);
                 };
 
-                const response = await api.get(`/document-preview/${file.id}/pdf-preview`, {
+                const response = await api.get(`/files/${file.id}/pdf-preview`, {
                     validateStatus: (status) => status < 500, // Don't throw on 202/404
                 });
 
@@ -281,7 +332,7 @@ export default function DocumentViewer({
                 }
 
                 try {
-                    const statusResponse = await api.get(`/document-preview/${file.id}/pdf-preview/status`, {
+                    const statusResponse = await api.get(`/files/${file.id}/pdf-preview/status`, {
                         validateStatus: (status) => status < 500,
                     });
 
@@ -321,7 +372,13 @@ export default function DocumentViewer({
             }
             revokeBlobUrl();
         };
-    }, [isOpen, file, documentType, t, shareId, revokeBlobUrl]);
+    }, [isOpen, file, documentType, t, shareId, revokeBlobUrl, loadSpreadsheetPreview]);
+
+    const handleSheetChange = useCallback((index: number) => {
+        if (index === spreadsheetSheetIndex) return;
+        setSpreadsheetSheetIndex(index);
+        void loadSpreadsheetPreview(index);
+    }, [spreadsheetSheetIndex, loadSpreadsheetPreview]);
 
     // --- Keyboard Shortcuts ---
     useEffect(() => {
@@ -709,6 +766,37 @@ export default function DocumentViewer({
                             <pre className="whitespace-pre-wrap font-mono text-sm text-gray-800 dark:text-gray-200 overflow-x-auto">
                                 {textContent}
                             </pre>
+                        </div>
+                    )}
+
+                    {/* Spreadsheet Content */}
+                    {documentType === 'spreadsheet' && spreadsheetHtml && !loadError && (
+                        <div className="flex flex-col items-center gap-4 w-full">
+                            {spreadsheetSheets.length > 1 && (
+                                <div className="flex flex-wrap items-center justify-center gap-2 px-4">
+                                    {spreadsheetSheets.map((sheet, index) => (
+                                        <button
+                                            key={`${sheet}-${index}`}
+                                            type="button"
+                                            onClick={() => handleSheetChange(index)}
+                                            className={cn(
+                                                "px-3 py-1.5 text-xs rounded-full border transition-colors",
+                                                spreadsheetSheetIndex === index
+                                                    ? "bg-primary-600 text-white border-primary-600"
+                                                    : "bg-white dark:bg-dark-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-dark-700 hover:bg-gray-50 dark:hover:bg-dark-700"
+                                            )}
+                                        >
+                                            {sheet || `${t('documents.sheet', 'Sheet')} ${index + 1}`}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                            <div
+                                className="bg-white dark:bg-dark-800 shadow-lg rounded-lg p-4 mx-4 overflow-auto w-full"
+                                style={{ width: 'min(1600px, 95vw)', minHeight: '70vh', maxHeight: '85vh' }}
+                            >
+                                <div dangerouslySetInnerHTML={{ __html: spreadsheetHtml }} />
+                            </div>
                         </div>
                     )}
 

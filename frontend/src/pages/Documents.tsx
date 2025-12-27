@@ -442,6 +442,7 @@ export default function Documents() {
                       fileId={doc.id}
                       fileName={doc.name}
                       mimeType={doc.mimeType}
+                      thumbnailPath={doc.thumbnailPath}
                     />
                   </div>
 

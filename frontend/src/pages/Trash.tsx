@@ -148,16 +148,16 @@ export default function Trash() {
     e.preventDefault();
     e.stopPropagation();
 
-    // Obtener el estado actual directamente del store (sÃ­ncrono)
+    // Obtener el estado actual directamente del store (síncrono)
     const currentSelectedItems = useFileStore.getState().selectedItems;
 
-    // Si el item clickeado no estÃ¡ en la selecciÃ³n, seleccionarlo solo
+    // Si el item clickeado no está en la selección, seleccionarlo solo
     if (!currentSelectedItems.has(item.id)) {
       selectSingle(item.id);
-      // Guardar solo este item como selecciÃ³n
+      // Guardar solo este item como selección
       setContextMenuSelection(new Set([item.id]));
     } else {
-      // Guardar la selecciÃ³n actual para usar en las acciones del menÃº
+      // Guardar la selección actual para usar en las acciones del menú
       setContextMenuSelection(new Set(currentSelectedItems));
     }
 
@@ -169,13 +169,13 @@ export default function Trash() {
   const handleRestoreFromMenu = async () => {
     if (!contextMenu) return;
 
-    // Usar la selecciÃ³n capturada al abrir el menÃº
+    // Usar la selección capturada al abrir el menú
     const selectedFilesList = data.files.filter(f => contextMenuSelection.has(f.id));
     const selectedFoldersList = data.folders.filter(f => contextMenuSelection.has(f.id));
     const total = selectedFilesList.length + selectedFoldersList.length;
 
     if (total === 0) {
-      // Si no hay selecciÃ³n, restaurar solo el item del menÃº
+      // Si no hay selección, restaurar solo el item del menú
       if (contextMenu.type === 'file') {
         await restoreFile(contextMenu.item as FileItem);
       } else {
@@ -189,7 +189,7 @@ export default function Trash() {
         await restoreFolder(selectedFoldersList[0]);
       }
     } else {
-      // MÃºltiples elementos seleccionados
+      // Múltiples elementos seleccionados
       const opId = addOperation({
         id: `restore-${Date.now()}`,
         type: 'move',
@@ -220,13 +220,13 @@ export default function Trash() {
   const handleDeleteFromMenu = async () => {
     if (!contextMenu) return;
 
-    // Usar la selecciÃ³n capturada al abrir el menÃº
+    // Usar la selección capturada al abrir el menú
     const selectedFilesList = data.files.filter(f => contextMenuSelection.has(f.id));
     const selectedFoldersList = data.folders.filter(f => contextMenuSelection.has(f.id));
     const total = selectedFilesList.length + selectedFoldersList.length;
 
     if (total === 0) {
-      // Si no hay selecciÃ³n, eliminar solo el item del menÃº
+      // Si no hay selección, eliminar solo el item del menú
       if (contextMenu.type === 'file') {
         await deleteFile(contextMenu.item as FileItem);
       } else {
@@ -240,7 +240,7 @@ export default function Trash() {
         await deleteFolder(selectedFoldersList[0]);
       }
     } else {
-      // MÃºltiples elementos seleccionados - mostrar modal de confirmaciÃ³n
+      // Múltiples elementos seleccionados - mostrar modal de confirmación
       setDeleteConfirmation({ files: selectedFilesList, folders: selectedFoldersList });
       closeContextMenu();
       return;
