@@ -15,6 +15,7 @@ import {
   Info,
   Eye,
   Tag,
+  History,
 } from 'lucide-react';
 import { formatBytes, formatDate, cn } from '../../lib/utils';
 import { api, openSignedFileUrl } from '../../lib/api';
@@ -25,6 +26,7 @@ import MoveModal from '../modals/MoveModal';
 import CompressModal from '../modals/CompressModal';
 import InfoModal from '../modals/InfoModal';
 import TagModal from '../modals/TagModal';
+import VersionHistory from './VersionHistory';
 import ContextMenu, { ContextMenuItemOrDivider, ContextMenuDividerItem } from '../ui/ContextMenu';
 import { motion, useReducedMotion } from 'framer-motion';
 import { FileExtensionIcon } from '../icons/SolidIcons';
@@ -106,6 +108,7 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview, on
   const [showCompressModal, setShowCompressModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [showTagModal, setShowTagModal] = useState(false);
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [contextMenuSelection, setContextMenuSelection] = useState<Set<string>>(new Set());
 
@@ -251,6 +254,7 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview, on
     { id: 'compress', label: t('fileCard.compress'), icon: FileArchive, onClick: () => setShowCompressModal(true) },
     ContextMenuDividerItem(),
     { id: 'tags', label: t('tags.title'), icon: Tag, onClick: () => setShowTagModal(true) },
+    { id: 'versions', label: t('versions.title'), icon: History, onClick: () => setShowVersionHistory(true) },
     { id: 'info', label: t('common.info'), icon: Info, onClick: () => setShowInfoModal(true) },
     {
       id: 'delete',
@@ -386,6 +390,15 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview, on
             fileId={file.id}
           />
         )}
+        {showVersionHistory && (
+          <VersionHistory
+            isOpen={showVersionHistory}
+            onClose={() => setShowVersionHistory(false)}
+            fileId={file.id}
+            fileName={file.name}
+            onVersionRestored={onRefresh}
+          />
+        )}
       </>
     );
   }
@@ -504,6 +517,15 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview, on
           isOpen={showTagModal}
           onClose={() => setShowTagModal(false)}
           fileId={file.id}
+        />
+      )}
+      {showVersionHistory && (
+        <VersionHistory
+          isOpen={showVersionHistory}
+          onClose={() => setShowVersionHistory(false)}
+          fileId={file.id}
+          fileName={file.name}
+          onVersionRestored={onRefresh}
         />
       )}
     </>

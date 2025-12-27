@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getAccessToken, setAccessToken, clearAccessToken, migrateFromLocalStorage } from './tokenManager';
 
 export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -7,54 +8,30 @@ export const api = axios.create({
   withCredentials: true, // Required for httpOnly cookies
 });
 
+// SECURITY FIX P0-1: Migrate any existing token from localStorage to memory on module load
+migrateFromLocalStorage();
+
 /**
  * ============================================================================
  * SECURITY NOTE: Token Storage Strategy
  * ============================================================================
  * 
- * CURRENT STATE:
- * - Access tokens are stored in localStorage for simplicity
+ * CURRENT STATE (SECURITY FIX P0-1 APPLIED):
+ * - Access tokens are stored in MEMORY (not localStorage) to prevent XSS theft
  * - Refresh tokens are stored in httpOnly cookies (secure)
+ * - On page refresh, a silent refresh obtains a new access token
  * 
- * SECURITY CONCERN:
- * localStorage is accessible to JavaScript, making it vulnerable to XSS attacks.
- * If an attacker injects malicious JavaScript (XSS), they could steal the access token.
+ * SECURITY IMPROVEMENTS:
+ * 1. Access tokens are short-lived (15 minutes)
+ * 2. Access tokens are stored in memory (not accessible via XSS to localStorage)
+ * 3. Refresh tokens are stored in httpOnly cookies (not accessible to JS)
+ * 4. CSP headers restrict script sources to prevent most XSS
+ * 5. Input sanitization on user-generated content
  * 
- * MITIGATIONS IN PLACE:
- * 1. Access tokens are short-lived (typically 15 minutes)
- * 2. Refresh tokens are stored in httpOnly cookies (not accessible to JS)
- * 3. CSP headers restrict script sources to prevent most XSS
- * 4. Input sanitization on user-generated content
- * 
- * RECOMMENDED IMPROVEMENTS FOR PRODUCTION:
- * 
- * Option A: Full httpOnly Cookie Approach (Recommended)
- * - Move access token to httpOnly cookie as well
- * - Server sets both tokens in httpOnly cookies
- * - Frontend never handles tokens directly
- * - Requires CSRF protection (double-submit cookie pattern)
- * - Pros: Most secure against XSS
- * - Cons: Requires CSRF token handling, slightly more complex
- * 
- * Option B: BFF (Backend For Frontend) Pattern
- * - Create a dedicated BFF service that handles authentication
- * - Frontend only communicates with BFF
- * - BFF stores tokens in httpOnly cookies
- * - Pros: Clean separation, works well with SSR
- * - Cons: Additional service to maintain
- * 
- * Option C: Memory + Silent Refresh (Partial Improvement)
- * - Store access token in memory only (not localStorage)
- * - On page load, use refresh token cookie to get new access token
- * - Pros: Token not persisted, slightly safer
- * - Cons: Still vulnerable during session, requires page reload handling
- * 
- * ADDITIONAL SECURITY MEASURES:
- * - Implement strict Content Security Policy (CSP) - DONE
- * - Use SameSite=Strict for cookies - DONE (refresh token)
- * - Enable HTTPS only in production - DONE (HSTS header)
- * - Implement token rotation on refresh
- * - Add device fingerprinting for suspicious activity detection
+ * TRADE-OFFS:
+ * - On page refresh, a silent refresh is performed to get a new token
+ * - Multiple tabs each get their own token via refresh
+ * - This is more secure than localStorage storage
  * 
  * ============================================================================
  */
@@ -110,12 +87,12 @@ export const getFileUrl = (pathOrFileId: string, endpoint?: 'view' | 'stream' | 
 /**
  * Request interceptor for auth token
  * 
- * SECURITY: Access token is retrieved from localStorage here.
- * See security notes above for recommended improvements.
+ * SECURITY FIX P0-1: Access token is retrieved from memory (not localStorage).
+ * This prevents XSS attacks from stealing the token via localStorage access.
  */
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('accessToken');
+    const token = getAccessToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -166,7 +143,7 @@ api.interceptors.response.use(
         return Promise.reject(error);
       }
 
-      const token = localStorage.getItem('accessToken');
+      const token = getAccessToken();
       // If there's no access token, don't attempt refresh; let callers handle the 401.
       if (!token) {
         return Promise.reject(error);
@@ -198,8 +175,8 @@ api.interceptors.response.use(
 
         const { accessToken } = response.data;
 
-        localStorage.setItem('accessToken', accessToken);
-        // Note: refreshToken is now in httpOnly cookie, not stored in localStorage
+        setAccessToken(accessToken);
+        // SECURITY FIX P0-1: Token stored in memory, not localStorage
 
         processQueue(null, accessToken);
 
@@ -207,7 +184,7 @@ api.interceptors.response.use(
         return api(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
-        localStorage.removeItem('accessToken');
+        clearAccessToken();
         // Note: refreshToken cookie is cleared by the server
         window.location.href = '/login';
         return Promise.reject(refreshError);

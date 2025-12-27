@@ -17,6 +17,9 @@ model User {
   avatar            String?
   emailVerified     Boolean             @default(false)
   googleId          String?             @unique
+  twoFactorEnabled  Boolean             @default(false)
+  twoFactorSecret   String?             // Encrypted TOTP secret
+  recoveryCodes     String?             // Hashed recovery codes (JSON array)
   storageQuota      BigInt              @default(5368709120)
   storageUsed       BigInt              @default(0)
   tempStorage       BigInt              @default(0)
@@ -126,6 +129,7 @@ model File {
   shares         Share[]
   transcodingJob TranscodingJob?
   fileTags       FileTag[]
+  versions       FileVersion[]
 
   @@index([userId])
   @@index([folderId])
@@ -403,3 +407,19 @@ model FileTag {
   @@map("file_tags")
 }
 
+model FileVersion {
+  id          String   @id @default(uuid()) @db.Uuid
+  fileId      String   @db.Uuid
+  version     Int
+  size        BigInt
+  path        String   // Path to versioned file storage
+  mimeType    String
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+  createdBy   String?  @db.Uuid
+
+  file        File     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([fileId])
+  @@index([createdAt])
+  @@map("file_versions")
+}

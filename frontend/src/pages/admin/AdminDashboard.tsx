@@ -11,6 +11,7 @@ import BrandingSection from '../../components/admin/sections/BrandingSection';
 import EmailSection from '../../components/admin/sections/EmailSection';
 import LegalSection from '../../components/admin/sections/LegalSection';
 import ActivitySection from '../../components/admin/sections/ActivitySection';
+import StorageRequestsSection from '../../components/admin/sections/StorageRequestsSection';
 import { toast } from '../../components/ui/Toast';
 
 export default function AdminDashboard() {
@@ -20,23 +21,23 @@ export default function AdminDashboard() {
   // Get active section from URL, default to 'overview'
   const activeSection = (searchParams.get('section') as AdminSection) || 'overview';
 
-  const [stats, setStats] = useState(null);
+  const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Only load stats if we are on the overview
+    // Only load summary if we are on the overview
     if (activeSection === 'overview') {
-      loadStats();
+      loadSummary();
     }
   }, [activeSection]);
 
-  const loadStats = async () => {
+  const loadSummary = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/admin/stats');
-      setStats(response.data);
+      const response = await api.get('/admin/summary');
+      setSummary(response.data);
     } catch (error) {
-      console.error('Failed to load admin stats', error);
+      console.error('Failed to load admin summary', error);
       toast(t('admin.loadError'), 'error');
     } finally {
       setLoading(false);
@@ -46,14 +47,14 @@ export default function AdminDashboard() {
   const renderContent = () => {
     switch (activeSection) {
       case 'overview':
-        if (loading && !stats) {
+        if (loading && !summary) {
           return (
             <div className="flex justify-center items-center h-64">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
             </div>
           );
         }
-        return <OverviewSection stats={stats} />;
+        return <OverviewSection summary={summary} />;
       case 'users':
         return <UsersSection />;
       case 'settings':
@@ -76,6 +77,8 @@ export default function AdminDashboard() {
         return <LegalSection />;
       case 'activity':
         return <ActivitySection />;
+      case 'storage-requests':
+        return <StorageRequestsSection />;
       default:
         return <div>Section not found</div>;
     }

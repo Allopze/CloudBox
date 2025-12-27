@@ -171,8 +171,12 @@ jobs:
 
       - name: Run npm audit (backend)
         working-directory: backend
-        run: npm audit --audit-level=high || true
+        # H-12: Fail CI on high severity vulnerabilities
+        run: npm audit --audit-level=high
+        continue-on-error: false
 
       - name: Run npm audit (frontend)
         working-directory: frontend
-        run: npm audit --audit-level=high || true
+        # H-12: Fail CI on high severity vulnerabilities
+        run: npm audit --audit-level=high
+        continue-on-error: false

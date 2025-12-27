@@ -4,7 +4,7 @@ import { Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
+  variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'outline';
   size?: 'sm' | 'md' | 'lg';
   loading?: boolean;
   icon?: ReactNode;
@@ -37,6 +37,8 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         'text-dark-600 hover:bg-dark-100 dark:text-dark-400 dark:hover:bg-dark-700 focus:ring-dark-500',
       danger:
         'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
+      outline:
+        'border border-dark-300 dark:border-dark-600 text-dark-700 dark:text-dark-300 hover:bg-dark-100 dark:hover:bg-dark-700 focus:ring-dark-500',
     };
 
     const sizes = {

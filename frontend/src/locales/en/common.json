@@ -74,7 +74,8 @@
       "branding": "Branding",
       "fileIcons": "File Icons",
       "legal": "Legal Pages",
-      "activity": "Activity Log"
+      "activity": "Activity Log",
+      "storageRequests": "Requests"
     }
   },
   "layout": {
@@ -558,6 +559,65 @@
       "INVALID_EMAIL": "The email format is not valid.",
       "WEAK_PASSWORD": "The password is too weak. Use at least 8 characters with uppercase, numbers and symbols.",
       "REGISTRATION_DISABLED": "Registration of new users is temporarily disabled."
+    },
+    "twoFactor": {
+      "title": "Two-Factor Authentication",
+      "enterCodeDescription": "Enter the 6-digit code from your authenticator app.",
+      "enterRecoveryCodeDescription": "Enter one of your recovery codes.",
+      "enterSixDigits": "Please enter all 6 digits",
+      "enterRecoveryCode": "Please enter a recovery code",
+      "verifying": "Verifying...",
+      "verify": "Verify",
+      "verificationSuccess": "Verification successful!",
+      "verificationFailed": "Invalid code. Please try again.",
+      "useRecoveryCode": "Use a recovery code instead",
+      "backToAuthenticator": "Back to authenticator",
+      "recoveryCodePlaceholder": "Enter recovery code",
+      "cancel": "Cancel and go back",
+      "setup": {
+        "title": "Set up Two-Factor Authentication",
+        "description": "Add an extra layer of security to your account.",
+        "step1": "Scan QR Code",
+        "step1Description": "Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)",
+        "step2": "Enter Code",
+        "step2Description": "Enter the 6-digit code from your authenticator app to verify",
+        "step3": "Save Recovery Codes",
+        "step3Description": "Save these recovery codes in a safe place. You can use them to access your account if you lose your device.",
+        "manualEntry": "Can't scan? Enter this code manually:",
+        "enable": "Enable Two-Factor Authentication",
+        "enabling": "Enabling...",
+        "enabled": "Two-Factor Authentication enabled!",
+        "enableFailed": "Failed to enable 2FA. Check your code and try again.",
+        "copySecret": "Copy secret",
+        "secretCopied": "Secret copied to clipboard",
+        "copyRecoveryCodes": "Copy recovery codes",
+        "recoveryCodesCopied": "Recovery codes copied to clipboard",
+        "downloadRecoveryCodes": "Download recovery codes",
+        "recoveryCodesWarning": "These codes will only be shown once. Save them now!",
+        "finish": "Finish setup"
+      },
+      "disable": {
+        "title": "Disable Two-Factor Authentication",
+        "description": "You will need to enter your password and current 2FA code to disable.",
+        "warning": "Warning: This will make your account less secure.",
+        "password": "Your password",
+        "code": "Current 2FA code",
+        "disable": "Disable 2FA",
+        "disabling": "Disabling...",
+        "disabled": "Two-Factor Authentication disabled",
+        "disableFailed": "Failed to disable 2FA. Check your password and code."
+      },
+      "status": {
+        "enabled": "Two-Factor Authentication is enabled",
+        "disabled": "Two-Factor Authentication is not enabled",
+        "enableDescription": "Protect your account with an authenticator app.",
+        "setupButton": "Set up 2FA",
+        "disableButton": "Disable 2FA",
+        "regenerateCodes": "Regenerate recovery codes",
+        "regenerating": "Regenerating...",
+        "codesRegenerated": "Recovery codes regenerated",
+        "regenerateFailed": "Failed to regenerate codes"
+      }
     }
   },
   "language": {
@@ -1454,5 +1514,117 @@
   },
   "accessibility": {
     "skipToMainContent": "Skip to main content"
+  },
+  "admin": {
+    "title": "Administration",
+    "subtitle": "Control Panel",
+    "backToFiles": "Back",
+    "menu": {
+      "overview": "Overview",
+      "users": "Users",
+      "settings": "Settings",
+      "email": "Email",
+      "branding": "Branding",
+      "fileIcons": "Icons",
+      "legal": "Legal",
+      "activity": "Activity"
+    },
+    "overview": {
+      "title": "Overview",
+      "subtitle": "Current system status and key metrics.",
+      "refresh": "Refresh",
+      "export": "Export diagnostic",
+      "lastUpdated": "Updated",
+      "autoRefresh": "Auto-refresh",
+      "health": {
+        "title": "System Health",
+        "api": "CloudBox API",
+        "database": "Database",
+        "storage": "Storage",
+        "jobs": "Job Queue",
+        "smtp": "SMTP",
+        "version": "Deployed Version",
+        "latency": "Latency",
+        "pending": "Pending",
+        "migrationsPending": "pending migrations",
+        "statusOk": "OK",
+        "statusAlert": "Alert",
+        "statusCritical": "Critical",
+        "statusDegraded": "Degraded",
+        "statusDown": "Down",
+        "statusConfigured": "Configured",
+        "statusNotConfigured": "Not configured"
+      },
+      "metrics": {
+        "totalUsers": "Total users",
+        "activeUsers": "Active",
+        "newUsers": "New",
+        "today": "Today",
+        "week": "Week",
+        "uploads": "Uploads (24h)",
+        "downloads": "Downloads (24h)"
+      },
+      "capacity": {
+        "diskUsage": "Disk usage (last 7 days)",
+        "projection": "Projection",
+        "daysRemaining": "days remaining (estimated)",
+        "topFiles": "Top 10 large files",
+        "viewInExplorer": "View in explorer",
+        "noData": "No data"
+      },
+      "alerts": {
+        "title": "Alerts",
+        "noAlerts": "No alerts",
+        "viewLogs": "View logs",
+        "retryJobs": "Retry jobs",
+        "testSmtp": "Test SMTP"
+      },
+      "actions": {
+        "title": "Quick Actions",
+        "testSmtp": "Test SMTP",
+        "forceReindex": "Force reindex",
+        "regenerateThumbnails": "Regenerate thumbnails",
+        "toggleMaintenance": "Enable/Disable maintenance mode",
+        "viewLogs": "View recent logs",
+        "maintenanceEnabled": "Maintenance mode enabled",
+        "maintenanceDisabled": "Maintenance mode disabled",
+        "notImplemented": "Feature not implemented yet"
+      },
+      "security": {
+        "title": "Security and Access",
+        "logins24h": "Logins (24h)",
+        "failed24h": "Failed (24h)",
+        "topFailIps": "IPs with most failures"
+      }
+    },
+    "loadError": "Failed to load data",
+    "saveError": "Failed to save data",
+    "deleteError": "Failed to delete",
+    "storageRequests": {
+      "title": "Storage Requests",
+      "noRequests": "No requests",
+      "approved": "Request approved",
+      "rejected": "Request rejected",
+      "approveError": "Failed to approve",
+      "rejectError": "Failed to reject"
+    }
+  },
+  "versions": {
+    "title": "Version History",
+    "previousVersions": "previous versions",
+    "current": "Current version",
+    "latest": "Latest",
+    "version": "Version",
+    "download": "Download",
+    "restore": "Restore this version",
+    "delete": "Delete version",
+    "noVersions": "No previous versions available",
+    "noVersionsHint": "Versions are created when you upload a file with the same name",
+    "restored": "Version restored successfully",
+    "deleted": "Version deleted",
+    "loadError": "Error loading versions",
+    "downloadError": "Error downloading version",
+    "restoreError": "Error restoring version",
+    "deleteError": "Error deleting version"
   }
 }

@@ -41,6 +41,7 @@ import logger from '../lib/logger.js';
 import ExcelJS from 'exceljs';
 import * as cache from '../lib/cache.js';
 import { getGlobalUploadMaxFileSize } from '../lib/limits.js';
+import { addTranscodingJob, getTranscodingJobStatus } from '../lib/transcodingQueue.js';
 
 const router = Router();
 
@@ -240,12 +241,12 @@ router.post('/upload', authenticate, uploadFile.array('files', UPLOAD_LIMITS.MAX
         throw new Error(`Total upload size exceeds maximum limit of ${maxTotalRequestSize} bytes`);
       }
 
-        for (const file of files) {
-          if (file.size > maxFileSize) {
-            const maxSizeMB = Math.round(maxFileSize / 1024 / 1024);
-            throw new Error(`File ${decodeFilename(file.originalname)} exceeds maximum size limit of ${maxSizeMB}MB`);
-          }
+      for (const file of files) {
+        if (file.size > maxFileSize) {
+          const maxSizeMB = Math.round(maxFileSize / 1024 / 1024);
+          throw new Error(`File ${decodeFilename(file.originalname)} exceeds maximum size limit of ${maxSizeMB}MB`);
         }
+      }
 
       await ensureUserDir(userId);
 
@@ -464,12 +465,12 @@ router.post('/upload-with-folders', authenticate, uploadFile.array('files', UPLO
         throw new Error(`Total upload size exceeds maximum limit of ${maxTotalRequestSize} bytes`);
       }
 
-        for (const file of files) {
-          if (file.size > maxFileSize) {
-            const maxSizeMB = Math.round(maxFileSize / 1024 / 1024);
-            throw new Error(`File ${decodeFilename(file.originalname)} exceeds maximum size limit of ${maxSizeMB}MB`);
-          }
+      for (const file of files) {
+        if (file.size > maxFileSize) {
+          const maxSizeMB = Math.round(maxFileSize / 1024 / 1024);
+          throw new Error(`File ${decodeFilename(file.originalname)} exceeds maximum size limit of ${maxSizeMB}MB`);
         }
+      }
 
       if (totalSize > remainingQuota) {
         throw new Error('Storage quota exceeded');
@@ -872,11 +873,11 @@ router.post('/upload/init', authenticate, validate(uploadInitSchema), async (req
       }
 
       const totalSizeBigInt = BigInt(totalSize);
-        const maxFileSize = BigInt(Math.min(Number(user.maxFileSize), globalMaxFileSize));
-        if (totalSizeBigInt > maxFileSize) {
-          const maxSizeMB = Math.round(Number(maxFileSize) / 1024 / 1024);
-          throw new Error(`File exceeds maximum size limit of ${maxSizeMB}MB`);
-        }
+      const maxFileSize = BigInt(Math.min(Number(user.maxFileSize), globalMaxFileSize));
+      if (totalSizeBigInt > maxFileSize) {
+        const maxSizeMB = Math.round(Number(maxFileSize) / 1024 / 1024);
+        throw new Error(`File exceeds maximum size limit of ${maxSizeMB}MB`);
+      }
 
       // Calculate remaining quota including temporary reserved storage
       const remainingQuota = user.storageQuota - user.storageUsed - (user.tempStorage || 0n);
@@ -929,10 +930,10 @@ router.post('/upload/init', authenticate, validate(uploadInitSchema), async (req
       res.status(404).json({ error: 'User not found' });
     } else if (error.message === 'Folder not found') {
       res.status(404).json({ error: 'Folder not found', code: UPLOAD_ERROR_CODES.INVALID_FOLDER });
-      } else if (typeof error.message === 'string' && error.message.includes('exceeds maximum size limit')) {
-        res.status(400).json({ error: error.message, code: UPLOAD_ERROR_CODES.FILE_TOO_LARGE });
-      } else if (error.message === 'Storage quota exceeded') {
-        res.status(400).json({ error: error.message, code: UPLOAD_ERROR_CODES.QUOTA_EXCEEDED });
+    } else if (typeof error.message === 'string' && error.message.includes('exceeds maximum size limit')) {
+      res.status(400).json({ error: error.message, code: UPLOAD_ERROR_CODES.FILE_TOO_LARGE });
+    } else if (error.message === 'Storage quota exceeded') {
+      res.status(400).json({ error: error.message, code: UPLOAD_ERROR_CODES.QUOTA_EXCEEDED });
     } else {
       res.status(500).json({ error: 'Failed to initialize upload' });
     }
@@ -1655,32 +1656,7 @@ router.patch('/:id/move', authenticate, validate(moveFileSchema), async (req: Re
   }
 });
 
-// Toggle favorite
-router.patch('/:id/favorite', authenticate, async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const userId = req.user!.userId;
-
-    const file = await prisma.file.findFirst({
-      where: { id, userId },
-    });
-
-    if (!file) {
-      res.status(404).json({ error: 'File not found' });
-      return;
-    }
-
-    const updated = await prisma.file.update({
-      where: { id },
-      data: { isFavorite: !file.isFavorite },
-    });
-
-    res.json({ ...updated, size: updated.size.toString() });
-  } catch (error) {
-    logger.error('Toggle favorite error', {}, error instanceof Error ? error : undefined);
-    res.status(500).json({ error: 'Failed to toggle favorite' });
-  }
-});
+// P1-4: Duplicate route removed - toggle favorite is defined above at line ~1563
 
 // Delete file (move to trash)
 router.delete('/:id', authenticate, async (req: Request, res: Response) => {
@@ -1888,33 +1864,45 @@ router.get('/:id/stream', authOptional, async (req: Request, res: Response) => {
 
     const stat = await fs.stat(file.path);
 
-    // For video transcoding to MP4 - delegate to worker/queue for non-blocking
+    // H-08: For video transcoding to MP4 - delegate to worker queue (non-blocking)
     if (req.query.transcode === 'true' && file.mimeType.startsWith('video/') && !file.mimeType.includes('mp4')) {
-      // TODO: Move transcoding to a worker queue for scalability
-      // For now, stream directly but log the operation
-      logger.info('Video transcoding requested', { fileId: id, mimeType: file.mimeType });
+      logger.info('Video transcoding requested, delegating to queue', { fileId: id, mimeType: file.mimeType });
 
-      const { spawn } = await import('child_process');
+      // Check if job already exists/completed
+      const existingStatus = await getTranscodingJobStatus(id);
+      if (existingStatus) {
+        if (existingStatus.status === 'completed') {
+          // Serve the transcoded file
+          const transcodedPath = getStoragePath('files', userId, `${id}_transcoded.mp4`);
+          if (await fileExists(transcodedPath)) {
+            const transcodedStat = await fs.stat(transcodedPath);
+            return streamFile(req, res, { path: transcodedPath, mimeType: 'video/mp4', name: file.name }, transcodedStat);
+          }
+        }
+        // Return current status
+        res.status(202).json({
+          message: 'Transcoding in progress',
+          jobId: id,
+          status: existingStatus.status,
+          progress: existingStatus.progress,
+        });
+        return;
+      }
 
-      res.setHeader('Content-Type', 'video/mp4');
+      // Queue new transcoding job
+      const jobId = await addTranscodingJob(id, file.path, userId, 'mp4', 'medium');
 
-      const ffmpeg = spawn('ffmpeg', [
-        '-i', file.path,
-        '-c:v', 'libx264',
-        '-preset', 'ultrafast',
-        '-c:a', 'aac',
-        '-movflags', 'frag_keyframe+empty_moov',
-        '-f', 'mp4',
-        'pipe:1'
-      ]);
+      if (!jobId) {
+        res.status(503).json({ error: 'Transcoding service unavailable', code: 'TRANSCODING_UNAVAILABLE' });
+        return;
+      }
 
-      ffmpeg.stdout.pipe(res);
-      ffmpeg.stderr.on('data', () => { }); // Suppress ffmpeg logs
-
-      req.on('close', () => {
-        ffmpeg.kill('SIGTERM');
+      res.status(202).json({
+        message: 'Transcoding started',
+        jobId: id,
+        status: 'queued',
+        progress: 0,
       });
-
       return;
     }
 
@@ -2351,13 +2339,13 @@ router.post('/create-empty', authenticate, async (req: Request, res: Response) =
       return;
     }
 
-      const maxFileSize = Number(user.maxFileSize);
-      const effectiveMaxFileSize = Math.min(maxFileSize, await getGlobalUploadMaxFileSize());
-      if (fileSize > effectiveMaxFileSize) {
-        const maxSizeMB = Math.round(effectiveMaxFileSize / 1024 / 1024);
-        res.status(400).json({ error: `File exceeds maximum size limit of ${maxSizeMB}MB` });
-        return;
-      }
+    const maxFileSize = Number(user.maxFileSize);
+    const effectiveMaxFileSize = Math.min(maxFileSize, await getGlobalUploadMaxFileSize());
+    if (fileSize > effectiveMaxFileSize) {
+      const maxSizeMB = Math.round(effectiveMaxFileSize / 1024 / 1024);
+      res.status(400).json({ error: `File exceeds maximum size limit of ${maxSizeMB}MB` });
+      return;
+    }
 
     const remainingQuota = Number(user.storageQuota) - Number(user.storageUsed) - Number(user.tempStorage || 0);
     if (fileSize > remainingQuota) {

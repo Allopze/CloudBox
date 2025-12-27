@@ -8,6 +8,7 @@ export interface User {
   storageQuota: string;
   storageUsed: string;
   maxFileSize?: string;
+  twoFactorEnabled?: boolean;
   createdAt: string;
 }
 

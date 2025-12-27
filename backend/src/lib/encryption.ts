@@ -14,9 +14,28 @@ const SALT_LENGTH = 32;
 /**
  * Derive encryption key from master secret
  * Uses PBKDF2 with SHA-512 for key derivation
+ * 
+ * H-07 SECURITY: In production, ENCRYPTION_KEY is required and must be 
+ * different from JWT_SECRET to prevent key reuse vulnerabilities.
  */
 function deriveKey(salt: Buffer): Buffer {
-  const masterKey = process.env.ENCRYPTION_KEY || config.jwt.secret;
+  const masterKey = process.env.ENCRYPTION_KEY;
+
+  if (!masterKey) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(
+        'ENCRYPTION_KEY environment variable is required in production. ' +
+        'Set a unique 32+ character random string for encrypting sensitive data.'
+      );
+    }
+    // Development fallback with warning
+    console.warn(
+      '[SECURITY WARNING] ENCRYPTION_KEY not set - using JWT_SECRET as fallback. ' +
+      'This is NOT recommended for production. Set ENCRYPTION_KEY in your environment.'
+    );
+    return crypto.pbkdf2Sync(config.jwt.secret, salt, 100000, 32, 'sha512');
+  }
+
   return crypto.pbkdf2Sync(masterKey, salt, 100000, 32, 'sha512');
 }
 
@@ -26,18 +45,18 @@ function deriveKey(salt: Buffer): Buffer {
  */
 export function encryptSecret(plaintext: string): string {
   if (!plaintext) return '';
-  
+
   const salt = crypto.randomBytes(SALT_LENGTH);
   const key = deriveKey(salt);
   const iv = crypto.randomBytes(IV_LENGTH);
-  
+
   const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
-  
+
   let encrypted = cipher.update(plaintext, 'utf8', 'hex');
   encrypted += cipher.final('hex');
-  
+
   const authTag = cipher.getAuthTag();
-  
+
   // Combine: salt (32) + iv (16) + authTag (16) + ciphertext
   const combined = Buffer.concat([
     salt,
@@ -45,7 +64,7 @@ export function encryptSecret(plaintext: string): string {
     authTag,
     Buffer.from(encrypted, 'hex'),
   ]);
-  
+
   return combined.toString('base64');
 }
 
@@ -55,24 +74,24 @@ export function encryptSecret(plaintext: string): string {
  */
 export function decryptSecret(encryptedBase64: string): string {
   if (!encryptedBase64) return '';
-  
+
   try {
     const combined = Buffer.from(encryptedBase64, 'base64');
-    
+
     // Extract components
     const salt = combined.subarray(0, SALT_LENGTH);
     const iv = combined.subarray(SALT_LENGTH, SALT_LENGTH + IV_LENGTH);
     const authTag = combined.subarray(SALT_LENGTH + IV_LENGTH, SALT_LENGTH + IV_LENGTH + AUTH_TAG_LENGTH);
     const ciphertext = combined.subarray(SALT_LENGTH + IV_LENGTH + AUTH_TAG_LENGTH);
-    
+
     const key = deriveKey(salt);
-    
+
     const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
     decipher.setAuthTag(authTag);
-    
+
     let decrypted = decipher.update(ciphertext.toString('hex'), 'hex', 'utf8');
     decrypted += decipher.final('utf8');
-    
+
     return decrypted;
   } catch (error) {
     console.error('Failed to decrypt secret:', error);
@@ -86,7 +105,7 @@ export function decryptSecret(encryptedBase64: string): string {
  */
 export function isEncrypted(value: string): boolean {
   if (!value) return false;
-  
+
   try {
     const decoded = Buffer.from(value, 'base64');
     // Minimum length: salt (32) + iv (16) + authTag (16) + at least 1 byte ciphertext

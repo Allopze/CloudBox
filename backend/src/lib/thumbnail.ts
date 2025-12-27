@@ -201,7 +201,29 @@ export const generatePdfThumbnail = async (inputPath: string, fileId: string): P
         return outputPath;
       }
     } catch {
-      // convert not available either
+      // convert not available
+    }
+
+    // Fallback to GraphicsMagick (gm) - installed in Docker Alpine
+    try {
+      await execAsync(
+        `gm convert -density 150 "${inputPath}[0]" -resize ${THUMBNAIL_SIZE * 2}x${THUMBNAIL_SIZE * 2} "${tempPath}"`
+      );
+
+      if (await fileExists(tempPath)) {
+        await sharp(tempPath)
+          .resize(THUMBNAIL_SIZE, THUMBNAIL_SIZE, {
+            fit: 'cover',
+            position: 'north',
+          })
+          .webp({ quality: 80 })
+          .toFile(outputPath);
+
+        await fs.unlink(tempPath).catch(() => { });
+        return outputPath;
+      }
+    } catch {
+      // GraphicsMagick not available either
     }
 
     return null;

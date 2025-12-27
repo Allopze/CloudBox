@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
+import RedisStore from 'rate-limit-redis';
+import Redis from 'ioredis';
 import helmet from 'helmet';
 import compression from 'compression';
 import path from 'path';
@@ -20,9 +22,14 @@ import { initCache, getCacheStats } from './lib/cache.js';
 import { initSessionStore, getSessionStats } from './lib/sessionStore.js';
 import { initBullBoard, closeBullBoard } from './lib/bullBoard.js';
 import { authenticate, requireAdmin } from './middleware/auth.js';
-import { initRateLimitRedis, getRateLimitStats } from './lib/security.js';
+import { initRateLimitRedis, getRateLimitStats, isDistributedRateLimitAvailable } from './lib/security.js';
 import { metricsMiddleware, metricsHandler } from './lib/metrics.js';
 import { getGlobalUploadMaxFileSize } from './lib/limits.js';
+import { httpLogger } from './middleware/requestLogger.js';
+import { initSentry } from './lib/sentry.js';
+
+// P0-4: Redis client for rate limiting (will be initialized after Redis check)
+let rateLimitRedisClient: import('ioredis').Redis | null = null;
 
 // Routes
 import authRoutes from './routes/auth.js';
@@ -38,6 +45,8 @@ import adminRoutes from './routes/admin.js';
 import documentPreviewRoutes from './routes/documentPreview.js';
 import tagsRoutes from './routes/tags.js';
 import fileIconRoutes from './routes/fileIcons.js';
+import twoFactorRoutes from './routes/2fa.js';
+import versionRoutes from './routes/versions.js';
 
 const app = express();
 
@@ -141,6 +150,7 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb', parameterLimit: 10000 }));
 app.use(cookieParser());
+app.use(httpLogger); // H-11: Request logging with correlation IDs
 app.use(metricsMiddleware());
 
 // Audit context - attach audit helper to all requests
@@ -150,46 +160,68 @@ app.use(auditContext);
 app.use(suspiciousActivityDetector);
 
 // Global rate limiting - more generous
-const globalLimiter = rateLimit({
+// P0-4: Helper function to create Redis store for rate limiting
+function createRateLimitStore(prefix: string) {
+  // Try to use Redis if available (checked during startup)
+  if (rateLimitRedisClient) {
+    return new RedisStore({
+      // @ts-expect-error - RedisStore expects call/callAsync methods
+      sendCommand: (...args: string[]) => rateLimitRedisClient!.call(...args),
+      prefix: `ratelimit:${prefix}:`,
+    });
+  }
+  return undefined; // Use in-memory store (default)
+}
+
+// P0-4: Rate limiters are created as functions so they can use Redis after init
+const createGlobalLimiter = () => rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 10000, // limit each IP to 10000 requests per windowMs
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests, please try again later' },
+  store: createRateLimitStore('global'),
   skip: (req) => {
     // Skip rate limiting for health checks
     return req.originalUrl === '/api/health' || req.path === '/health';
   },
 });
-app.use('/api/', globalLimiter);
 
-// Auth rate limiting (stricter)
-const authLimiter = rateLimit({
+const createAuthLimiter = () => rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: createRateLimitStore('auth'),
+  message: { error: 'Too many authentication attempts, please try again later' },
 });
-app.use('/api/auth/login', authLimiter);
-app.use('/api/auth/register', authLimiter);
 
-// Security Fix: Rate limiting for password reset and email verification endpoints
-const sensitiveAuthLimiter = rateLimit({
+const createSensitiveAuthLimiter = () => rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 5, // 5 requests per hour per IP
   message: { error: 'Too many attempts. Please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
+  store: createRateLimitStore('sensitive'),
 });
-app.use('/api/auth/forgot-password', sensitiveAuthLimiter);
-app.use('/api/auth/reset-password', sensitiveAuthLimiter);
-app.use('/api/auth/verify-email', sensitiveAuthLimiter);
 
-// Issue #22: Rate limiting for admin endpoints
-const adminLimiter = rateLimit({
+const createAdminLimiter = () => rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000, // 1000 requests per window for admin operations (investigate reduced limit for prod)
+  max: 1000, // 1000 requests per window for admin operations
   message: { error: 'Too many admin requests, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: createRateLimitStore('admin'),
 });
-app.use('/api/admin', adminLimiter);
+
+// Apply rate limiters (will use memory initially, reapplied with Redis after init)
+app.use('/api/', createGlobalLimiter());
+app.use('/api/auth/login', createAuthLimiter());
+app.use('/api/auth/register', createAuthLimiter());
+app.use('/api/auth/forgot-password', createSensitiveAuthLimiter());
+app.use('/api/auth/reset-password', createSensitiveAuthLimiter());
+app.use('/api/auth/verify-email', createSensitiveAuthLimiter());
+app.use('/api/admin', createAdminLimiter());
 
 // API Routes
 app.use('/api/auth', authRoutes);
@@ -205,6 +237,8 @@ app.use('/api/activity', activityRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/tags', tagsRoutes);
 app.use('/api/file-icons', fileIconRoutes);
+app.use('/api/2fa', twoFactorRoutes);
+app.use('/api/files', versionRoutes); // Version history routes
 
 // Public config endpoint for upload limits (no auth required for frontend to fetch)
 app.get('/api/config/upload-limits', async (req, res) => {
@@ -680,6 +714,9 @@ const cleanupIntervals: NodeJS.Timeout[] = [];
 // Initialize and start server
 const start = async () => {
   try {
+    // H-11: Initialize error tracking (Sentry/GlitchTip)
+    initSentry();
+
     // Initialize storage directories
     await initStorage();
 
@@ -714,6 +751,22 @@ const start = async () => {
     // Initialize distributed rate limiting (Redis-based)
     const rateLimitRedisEnabled = await initRateLimitRedis();
     if (rateLimitRedisEnabled) {
+      // P0-4: Initialize Redis client for express-rate-limit store
+      try {
+        const RedisClient = Redis.default || Redis;
+        rateLimitRedisClient = new RedisClient({
+          host: process.env.REDIS_HOST || 'localhost',
+          port: parseInt(process.env.REDIS_PORT || '6379'),
+          password: process.env.REDIS_PASSWORD || undefined,
+          db: parseInt(process.env.REDIS_DB || '0'),
+          maxRetriesPerRequest: 3,
+        });
+        logger.info('Rate limit Redis store initialized');
+      } catch (err) {
+        logger.warn('Failed to initialize rate limit Redis store, using memory fallback', {
+          error: err instanceof Error ? err.message : 'Unknown',
+        });
+      }
       logger.info('Distributed rate limiting initialized with Redis');
     }
 

@@ -549,6 +549,33 @@ export async function invalidateAdminStats(): Promise<void> {
   await del('admin:stats');
 }
 
+// ==================== Admin Summary Cache ====================
+
+const SUMMARY_TTL = 30; // 30 seconds - dashboard data updates frequently
+
+/**
+ * Get cached admin summary dashboard data
+ */
+export async function getAdminSummary(): Promise<any | null> {
+  const key = 'admin:summary';
+  return get<any>(key);
+}
+
+/**
+ * Cache admin summary dashboard data
+ */
+export async function setAdminSummary(summary: any): Promise<boolean> {
+  const key = 'admin:summary';
+  return set(key, summary, SUMMARY_TTL);
+}
+
+/**
+ * Invalidate admin summary cache
+ */
+export async function invalidateAdminSummary(): Promise<void> {
+  await del('admin:summary');
+}
+
 // ==================== Bulk Invalidation ====================
 
 /**

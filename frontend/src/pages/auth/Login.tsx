@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../stores/authStore';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
+import TwoFactorInput from '../../components/auth/TwoFactorInput';
 import { Mail, Lock, Eye, EyeOff, AlertCircle, Clock, Info } from 'lucide-react';
 import { toast } from '../../components/ui/Toast';
 
@@ -13,7 +14,7 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export default function Login() {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { login, isLoggingIn } = useAuthStore();
+  const { login, isLoggingIn, requires2FA } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -179,6 +180,15 @@ export default function Login() {
   };
 
   const isLocked = countdown > 0;
+
+  // If 2FA is required, show the 2FA input instead of login form
+  if (requires2FA) {
+    return (
+      <div className="py-8">
+        <TwoFactorInput onSuccess={() => navigate('/files')} />
+      </div>
+    );
+  }
 
   return (
     <div>

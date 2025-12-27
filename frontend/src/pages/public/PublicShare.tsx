@@ -40,15 +40,16 @@ export default function PublicShare() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [, setCurrentFolder] = useState<string | null>(null);
 
+  // H-03: Cookie is now set by /verify endpoint, no need for password in URL
   const getPublicFileUrl = useCallback((fileId: string, action: 'view' | 'thumbnail') => {
-    const pwd = password ? `?password=${encodeURIComponent(password)}` : '';
-    return `${API_URL}/shares/public/${token}/files/${fileId}/${action}${pwd}`;
-  }, [password, token]);
+    return `${API_URL}/shares/public/${token}/files/${fileId}/${action}`;
+  }, [token]);
 
-  const loadShare = useCallback(async (pwd?: string) => {
+  // H-03: Cookie is sent automatically with credentials: 'include'
+  const loadShare = useCallback(async () => {
     try {
       const response = await api.get(`/shares/public/${token}`, {
-        params: pwd ? { password: pwd } : undefined,
+        withCredentials: true, // Send cookie
       });
       setData(response.data);
       setNeedsPassword(false);
@@ -61,7 +62,7 @@ export default function PublicShare() {
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, t]);
 
   useEffect(() => {
     loadShare();
@@ -72,14 +73,37 @@ export default function PublicShare() {
     if (!password) return;
 
     setVerifying(true);
-    await loadShare(password);
-    setVerifying(false);
+    try {
+      // H-03: POST to /verify sets httpOnly cookie for subsequent requests
+      await api.post(`/shares/public/${token}/verify`, { password }, {
+        withCredentials: true, // Required for cookies
+      });
+      // Cookie is now set, reload share data
+      await loadShare();
+    } catch (error: any) {
+      if (error.response?.status === 401) {
+        toast(t('publicShare.invalidPassword'), 'error');
+      } else {
+        toast(t('publicShare.verifyError'), 'error');
+      }
+    } finally {
+      setVerifying(false);
+    }
   };
 
+  // H-03: No password in URL - cookie is sent automatically
   const downloadFile = async (file: FileItem) => {
     try {
-      const url = `${API_URL}/shares/public/${token}/files/${file.id}/download?password=${encodeURIComponent(password)}`;
-      window.open(url, '_blank');
+      const url = `${API_URL}/shares/public/${token}/files/${file.id}/download`;
+      // Use fetch with credentials to include cookie, then trigger download
+      const response = await fetch(url, { credentials: 'include' });
+      if (!response.ok) throw new Error('Download failed');
+      const blob = await response.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = file.name;
+      a.click();
+      URL.revokeObjectURL(a.href);
     } catch (error) {
       toast(t('publicShare.downloadError'), 'error');
     }
@@ -87,8 +111,15 @@ export default function PublicShare() {
 
   const downloadAll = async () => {
     try {
-      const url = `${API_URL}/shares/public/${token}/download?password=${encodeURIComponent(password)}`;
-      window.open(url, '_blank');
+      const url = `${API_URL}/shares/public/${token}/download`;
+      const response = await fetch(url, { credentials: 'include' });
+      if (!response.ok) throw new Error('Download failed');
+      const blob = await response.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${data?.share?.name || 'share'}.zip`;
+      a.click();
+      URL.revokeObjectURL(a.href);
     } catch (error) {
       toast(t('publicShare.downloadError'), 'error');
     }

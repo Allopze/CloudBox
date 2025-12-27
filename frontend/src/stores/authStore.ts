@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import api from '../lib/api';
+import { setAccessToken, clearAccessToken, hasAccessToken } from '../lib/tokenManager';
 import type { User } from '../types';
 
 interface AuthState {
@@ -9,6 +10,9 @@ interface AuthState {
   isLoading: boolean;
   isLoggingIn: boolean; // Separate flag for login process
   isRegistering: boolean; // Separate flag for register process
+  // 2FA state
+  requires2FA: boolean;
+  temp2FAToken: string | null;
   login: (email: string, password: string) => Promise<void>;
   loginWithGoogle: (token: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
@@ -17,6 +21,10 @@ interface AuthState {
   updateUser: (user: Partial<User>) => void;
   refreshUser: () => Promise<void>;
   resendVerification: () => Promise<void>;
+  // 2FA actions
+  verify2FA: (code: string) => Promise<void>;
+  verify2FARecovery: (code: string) => Promise<void>;
+  cancel2FA: () => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -27,15 +35,29 @@ export const useAuthStore = create<AuthState>()(
       isLoading: true,
       isLoggingIn: false,
       isRegistering: false,
+      // 2FA state
+      requires2FA: false,
+      temp2FAToken: null,
 
       login: async (email, password) => {
         set({ isLoggingIn: true });
         try {
           const response = await api.post('/auth/login', { email, password });
-          const { user, accessToken } = response.data;
+          const { user, accessToken, requires2FA, tempToken } = response.data;
 
-          localStorage.setItem('accessToken', accessToken);
-          // Note: refreshToken is now stored in httpOnly cookie by the server
+          // Check if 2FA is required
+          if (requires2FA && tempToken) {
+            set({
+              requires2FA: true,
+              temp2FAToken: tempToken,
+              isLoggingIn: false
+            });
+            return;
+          }
+
+          // SECURITY FIX P0-1: Store token in memory, not localStorage
+          setAccessToken(accessToken);
+          // Note: refreshToken is stored in httpOnly cookie by the server
 
           set({ user, isAuthenticated: true, isLoading: false, isLoggingIn: false });
         } catch (error) {
@@ -50,8 +72,8 @@ export const useAuthStore = create<AuthState>()(
           const response = await api.post('/auth/google', { token });
           const { user, accessToken } = response.data;
 
-          localStorage.setItem('accessToken', accessToken);
-          // Note: refreshToken is now stored in httpOnly cookie by the server
+          // SECURITY FIX P0-1: Store token in memory, not localStorage
+          setAccessToken(accessToken);
 
           set({ user, isAuthenticated: true, isLoggingIn: false });
         } catch (error) {
@@ -66,8 +88,8 @@ export const useAuthStore = create<AuthState>()(
           const response = await api.post('/auth/register', { email, password, name });
           const { user, accessToken } = response.data;
 
-          localStorage.setItem('accessToken', accessToken);
-          // Note: refreshToken is now stored in httpOnly cookie by the server
+          // SECURITY FIX P0-1: Store token in memory, not localStorage
+          setAccessToken(accessToken);
 
           set({ user, isAuthenticated: true, isRegistering: false });
         } catch (error) {
@@ -84,28 +106,47 @@ export const useAuthStore = create<AuthState>()(
           // Ignore errors
         }
 
-        localStorage.removeItem('accessToken');
-        // Note: refreshToken cookie is cleared by the server
+        // SECURITY FIX P0-1: Clear token from memory
+        clearAccessToken();
 
         set({ user: null, isAuthenticated: false });
       },
 
       checkAuth: async (signal?: AbortSignal) => {
-        const token = localStorage.getItem('accessToken');
+        // SECURITY FIX P0-1: Token is stored in memory, not localStorage
+        // On page refresh, memory is cleared, so we need to attempt a silent refresh
+        // using the httpOnly refresh token cookie
 
-        if (!token) {
-          set({ isLoading: false, isAuthenticated: false, user: null });
-          return;
+        if (!hasAccessToken()) {
+          // No token in memory - try to get a new one via refresh token (cookie)
+          try {
+            const refreshResponse = await api.post('/auth/refresh', {}, { signal });
+            if (signal?.aborted) return;
+
+            const { accessToken } = refreshResponse.data;
+            setAccessToken(accessToken);
+
+            // Now fetch user data with the new token
+            const userResponse = await api.get('/users/me', { signal });
+            if (signal?.aborted) return;
+            set({ user: userResponse.data, isAuthenticated: true, isLoading: false });
+            return;
+          } catch {
+            // Refresh failed - user needs to login again
+            if (signal?.aborted) return;
+            set({ isLoading: false, isAuthenticated: false, user: null });
+            return;
+          }
         }
 
+        // Token exists in memory - validate it
         try {
           const response = await api.get('/users/me', { signal });
           if (signal?.aborted) return;
           set({ user: response.data, isAuthenticated: true, isLoading: false });
         } catch (error) {
           if (signal?.aborted) return;
-          localStorage.removeItem('accessToken');
-          // Note: refreshToken cookie is cleared by the server on logout
+          clearAccessToken();
           set({ user: null, isAuthenticated: false, isLoading: false });
         }
       },
@@ -128,6 +169,56 @@ export const useAuthStore = create<AuthState>()(
 
       resendVerification: async () => {
         await api.post('/auth/resend-verification');
+      },
+
+      // 2FA verification with TOTP code
+      verify2FA: async (code: string) => {
+        const tempToken = get().temp2FAToken;
+        if (!tempToken) throw new Error('No 2FA session');
+
+        const response = await api.post('/2fa/verify', {
+          tempToken,
+          code
+        });
+        const { user, accessToken } = response.data;
+
+        setAccessToken(accessToken);
+        set({
+          user,
+          isAuthenticated: true,
+          requires2FA: false,
+          temp2FAToken: null,
+          isLoading: false
+        });
+      },
+
+      // 2FA verification with recovery code
+      verify2FARecovery: async (code: string) => {
+        const tempToken = get().temp2FAToken;
+        if (!tempToken) throw new Error('No 2FA session');
+
+        const response = await api.post('/2fa/recovery', {
+          tempToken,
+          recoveryCode: code
+        });
+        const { user, accessToken } = response.data;
+
+        setAccessToken(accessToken);
+        set({
+          user,
+          isAuthenticated: true,
+          requires2FA: false,
+          temp2FAToken: null,
+          isLoading: false
+        });
+      },
+
+      // Cancel 2FA verification and go back to login
+      cancel2FA: () => {
+        set({
+          requires2FA: false,
+          temp2FAToken: null
+        });
       },
     }),
     {

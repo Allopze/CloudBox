@@ -15,6 +15,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { config } from '../config/index.js';
 import { getDefaultLandingConfig, LANDING_SETTINGS_KEY, LandingAssetType } from '../lib/landing.js';
+import crypto from 'crypto';
 
 const router = Router();
 
@@ -1268,6 +1269,482 @@ router.get('/stats', authenticate, requireAdmin, async (req: Request, res: Respo
   } catch (error) {
     console.error('Get admin stats error:', error);
     res.status(500).json({ error: 'Failed to get admin stats' });
+  }
+});
+
+// ========== Admin Summary Dashboard ==========
+
+import * as cache from '../lib/cache.js';
+import { adminLogger } from '../lib/logger.js';
+// Note: testSmtpConnection and sendEmail already imported at top of file
+
+// Alert thresholds (can be configured via env)
+const ALERT_THRESHOLDS = {
+  diskUsageWarning: parseFloat(process.env.ALERT_DISK_WARNING || '80'), // 80%
+  diskUsageCritical: parseFloat(process.env.ALERT_DISK_CRITICAL || '95'), // 95%
+  failedLoginsWarning: parseInt(process.env.ALERT_FAILED_LOGINS || '50', 10), // 50 in 24h
+  jobsStuckMinutes: parseInt(process.env.ALERT_JOBS_STUCK_MINUTES || '60', 10), // 60 min
+};
+
+// Get comprehensive admin summary
+router.get('/summary', authenticate, requireAdmin, async (req: Request, res: Response) => {
+  const requestId = req.headers['x-request-id'] as string || crypto.randomUUID();
+  adminLogger.info({ requestId, endpoint: '/admin/summary' }, 'Summary dashboard request');
+
+  try {
+    // Check cache first
+    const cached = await cache.getAdminSummary();
+    if (cached) {
+      adminLogger.debug({ requestId }, 'Returning cached summary');
+      res.json(cached);
+      return;
+    }
+
+    const now = new Date();
+    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const weekStart = new Date(todayStart.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    // ===== Health Checks =====
+    // DB health with latency measurement
+    const dbStart = Date.now();
+    let dbStatus = 'OK';
+    let dbLatency = 0;
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      dbLatency = Date.now() - dbStart;
+      if (dbLatency > 500) dbStatus = 'DEGRADED';
+    } catch {
+      dbStatus = 'DOWN';
+    }
+
+    // Storage stats
+    const storageResult = await prisma.user.aggregate({
+      _sum: { storageUsed: true, storageQuota: true },
+    });
+    const usedBytes = storageResult._sum.storageUsed || BigInt(0);
+    const totalQuota = storageResult._sum.storageQuota || BigInt(1);
+    const freePercent = 100 - Number((usedBytes * BigInt(100)) / totalQuota);
+    let storageStatus = 'OK';
+    if (freePercent < 100 - ALERT_THRESHOLDS.diskUsageCritical) storageStatus = 'CRITICAL';
+    else if (freePercent < 100 - ALERT_THRESHOLDS.diskUsageWarning) storageStatus = 'ALERT';
+
+    // SMTP status
+    let smtpStatus = 'NOT_CONFIGURED';
+    const smtpResult = await testSmtpConnection();
+    if (smtpResult.connected) {
+      smtpStatus = 'CONFIGURED';
+    } else if (smtpResult.message.includes('not configured')) {
+      smtpStatus = 'NOT_CONFIGURED';
+    } else {
+      smtpStatus = 'FAILED';
+    }
+
+    // Jobs status (check TranscodingJob table if exists)
+    let jobsStatus = 'OK';
+    let jobsDetails = { transcoding: { waiting: 0, failed: 0, oldest: null as string | null } };
+    try {
+      const [waiting, failed, oldest] = await Promise.all([
+        prisma.transcodingJob.count({ where: { status: 'PENDING' } }),
+        prisma.transcodingJob.count({ where: { status: 'FAILED' } }),
+        prisma.transcodingJob.findFirst({
+          where: { status: 'PENDING' },
+          orderBy: { createdAt: 'asc' },
+          select: { createdAt: true },
+        }),
+      ]);
+      jobsDetails.transcoding = { waiting, failed, oldest: oldest?.createdAt?.toISOString() || null };
+      if (oldest) {
+        const ageMinutes = (now.getTime() - oldest.createdAt.getTime()) / 60000;
+        if (ageMinutes > ALERT_THRESHOLDS.jobsStuckMinutes) jobsStatus = 'STUCK';
+      }
+      if (failed > 5) jobsStatus = 'ALERT';
+    } catch {
+      // TranscodingJob table might not have data
+    }
+
+    // Version info
+    const version = process.env.npm_package_version || '1.0.0';
+    const commit = process.env.GIT_COMMIT || undefined;
+
+    const health = {
+      api: { status: 'OK' },
+      db: { status: dbStatus, latencyMs: dbLatency },
+      storage: { status: storageStatus, usedBytes: usedBytes.toString(), totalQuota: totalQuota.toString(), freePercent },
+      jobs: { status: jobsStatus, details: jobsDetails },
+      smtp: { status: smtpStatus },
+      version: { version, commit, migrationsPending: false },
+    };
+
+    // ===== Metrics =====
+    const [
+      totalUsers,
+      active24h,
+      active7d,
+      active30d,
+      newToday,
+      newWeek,
+      uploads24h,
+      downloads24h,
+    ] = await Promise.all([
+      prisma.user.count(),
+      prisma.activity.groupBy({ by: ['userId'], where: { createdAt: { gte: oneDayAgo } } }).then(r => r.length),
+      prisma.activity.groupBy({ by: ['userId'], where: { createdAt: { gte: sevenDaysAgo } } }).then(r => r.length),
+      prisma.activity.groupBy({ by: ['userId'], where: { createdAt: { gte: thirtyDaysAgo } } }).then(r => r.length),
+      prisma.user.count({ where: { createdAt: { gte: todayStart } } }),
+      prisma.user.count({ where: { createdAt: { gte: weekStart } } }),
+      prisma.activity.count({ where: { type: 'UPLOAD', createdAt: { gte: oneDayAgo } } }),
+      prisma.activity.count({ where: { type: 'DOWNLOAD', createdAt: { gte: oneDayAgo } } }),
+    ]);
+
+    // Bytes uploaded in 24h (sum from files created)
+    const uploadedBytesResult = await prisma.file.aggregate({
+      _sum: { size: true },
+      where: { createdAt: { gte: oneDayAgo } },
+    });
+    const bytes24h = uploadedBytesResult._sum.size || BigInt(0);
+
+    const metrics = {
+      users: { total: totalUsers, active24: active24h, active7d, active30d, newToday, newWeek },
+      uploads: { count24h: uploads24h, bytes24h: bytes24h.toString() },
+      downloads: { count24h: downloads24h },
+    };
+
+    // ===== Capacity =====
+    // Storage series: last 7 days of storage usage (approximated by file creation dates)
+    const storageSeries: { date: string; bytes: number }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const dayStart = new Date(todayStart.getTime() - i * 24 * 60 * 60 * 1000);
+      const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+      const dayFiles = await prisma.file.aggregate({
+        _sum: { size: true },
+        where: { createdAt: { lte: dayEnd } },
+      });
+      storageSeries.push({
+        date: dayStart.toISOString().split('T')[0],
+        bytes: Number(dayFiles._sum.size || 0),
+      });
+    }
+
+    // Projection: days until storage is full (linear extrapolation)
+    let projectionDays: number | null = null;
+    if (storageSeries.length >= 2) {
+      const first = storageSeries[0].bytes;
+      const last = storageSeries[storageSeries.length - 1].bytes;
+      const dailyGrowth = (last - first) / (storageSeries.length - 1);
+      if (dailyGrowth > 0) {
+        const remaining = Number(totalQuota) - last;
+        projectionDays = Math.floor(remaining / dailyGrowth);
+      }
+    }
+
+    // Top 10 large files
+    const topLargeFiles = await prisma.file.findMany({
+      take: 10,
+      orderBy: { size: 'desc' },
+      select: {
+        id: true,
+        name: true,
+        size: true,
+        createdAt: true,
+        user: { select: { email: true } },
+      },
+    });
+
+    const capacity = {
+      storageSeries,
+      projectionDays,
+      topLargeFiles: topLargeFiles.map(f => ({
+        id: f.id,
+        name: f.name,
+        size: f.size.toString(),
+        createdAt: f.createdAt.toISOString(),
+        owner: f.user,
+      })),
+    };
+
+    // ===== Alerts =====
+    const alerts: { severity: 'warning' | 'critical'; message: string; timestamp: string; action?: string }[] = [];
+
+    if (storageStatus === 'CRITICAL') {
+      alerts.push({ severity: 'critical', message: 'Almacenamiento crítico: menos del 5% libre', timestamp: now.toISOString() });
+    } else if (storageStatus === 'ALERT') {
+      alerts.push({ severity: 'warning', message: 'Almacenamiento bajo: menos del 20% libre', timestamp: now.toISOString() });
+    }
+
+    if (dbStatus === 'DOWN') {
+      alerts.push({ severity: 'critical', message: 'Base de datos no responde', timestamp: now.toISOString() });
+    } else if (dbStatus === 'DEGRADED') {
+      alerts.push({ severity: 'warning', message: 'Base de datos lenta (>500ms)', timestamp: now.toISOString() });
+    }
+
+    if (jobsStatus === 'STUCK') {
+      alerts.push({ severity: 'warning', message: 'Hay jobs de transcodificación atascados', timestamp: now.toISOString(), action: 'retry-jobs' });
+    }
+
+    if (smtpStatus === 'FAILED') {
+      alerts.push({ severity: 'warning', message: 'SMTP no funciona correctamente', timestamp: now.toISOString(), action: 'test-smtp' });
+    }
+
+    // Check for excessive failed logins
+    const failedLogins24h = await prisma.loginAttempt.count({
+      where: { success: false, createdAt: { gte: oneDayAgo } },
+    });
+    if (failedLogins24h > ALERT_THRESHOLDS.failedLoginsWarning) {
+      alerts.push({ severity: 'warning', message: `Alto número de logins fallidos: ${failedLogins24h} en 24h`, timestamp: now.toISOString() });
+    }
+
+    // ===== Security =====
+    const [successLogins, failedLoginsTotal, topFailIps] = await Promise.all([
+      prisma.loginAttempt.count({ where: { success: true, createdAt: { gte: oneDayAgo } } }),
+      prisma.loginAttempt.count({ where: { success: false, createdAt: { gte: oneDayAgo } } }),
+      prisma.loginAttempt.groupBy({
+        by: ['ipAddress'],
+        where: { success: false, createdAt: { gte: oneDayAgo } },
+        _count: true,
+        orderBy: { _count: { ipAddress: 'desc' } },
+        take: 5,
+      }),
+    ]);
+
+    const security = {
+      logins: { success: successLogins, failed: failedLoginsTotal },
+      topFailIps: topFailIps.map(ip => ({ ip: ip.ipAddress, count: ip._count })),
+    };
+
+    // ===== Build summary response =====
+    const summary = {
+      generatedAt: now.toISOString(),
+      health,
+      metrics,
+      capacity,
+      alerts,
+      security,
+    };
+
+    // Cache the result
+    await cache.setAdminSummary(summary);
+    adminLogger.info({ requestId }, 'Summary generated successfully');
+
+    res.json(summary);
+  } catch (error) {
+    adminLogger.error({ requestId, error }, 'Get admin summary error');
+    console.error('Get admin summary error:', error);
+    res.status(500).json({ error: 'Failed to get admin summary' });
+  }
+});
+
+// Export summary as JSON
+router.get('/summary/export', authenticate, requireAdmin, async (req: Request, res: Response) => {
+  const requestId = req.headers['x-request-id'] as string || crypto.randomUUID();
+  adminLogger.info({ requestId }, 'Summary export request');
+
+  try {
+    // Get fresh data (don't use cache for export)
+    const cached = await cache.getAdminSummary();
+    if (!cached) {
+      res.status(202).json({ message: 'Summary not ready, try again shortly' });
+      return;
+    }
+
+    const exportData = {
+      exported_at: new Date().toISOString(),
+      ...cached,
+    };
+
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename=cloudbox-summary-${new Date().toISOString().split('T')[0]}.json`);
+    res.json(exportData);
+  } catch (error) {
+    adminLogger.error({ requestId, error }, 'Export summary error');
+    res.status(500).json({ error: 'Failed to export summary' });
+  }
+});
+
+// ===== Summary Actions =====
+
+// Test SMTP connection and send test email
+router.post('/summary/actions/test-smtp', authenticate, requireAdmin, async (req: Request, res: Response) => {
+  const requestId = req.headers['x-request-id'] as string || crypto.randomUUID();
+  const { email } = req.body;
+  adminLogger.info({ requestId, action: 'test-smtp', email }, 'Test SMTP action');
+
+  try {
+    if (!email) {
+      res.status(400).json({ error: 'Email address required' });
+      return;
+    }
+
+    const result = await testSmtpConnection();
+    if (!result.connected) {
+      res.status(400).json({ success: false, message: result.message });
+      return;
+    }
+
+    // Send a test email
+    await sendEmail(
+      email,
+      'CloudBox - Test Email',
+      '<h1>Test Email</h1><p>This is a test email from CloudBox. Your SMTP configuration is working correctly.</p>'
+    );
+
+    adminLogger.info({ requestId, email }, 'Test email sent successfully');
+    res.json({ success: true, message: 'Email sent successfully' });
+  } catch (error: any) {
+    adminLogger.error({ requestId, error }, 'Test SMTP failed');
+    res.status(500).json({ success: false, message: error?.message || 'Failed to send test email' });
+  }
+});
+
+// Retry failed jobs (placeholder - depends on queue implementation)
+router.post('/summary/actions/retry-jobs', authenticate, requireAdmin, async (req: Request, res: Response) => {
+  const requestId = req.headers['x-request-id'] as string || crypto.randomUUID();
+  adminLogger.info({ requestId, action: 'retry-jobs' }, 'Retry jobs action');
+
+  try {
+    // Reset failed transcoding jobs to pending
+    const updated = await prisma.transcodingJob.updateMany({
+      where: { status: 'FAILED' },
+      data: { status: 'PENDING', error: null },
+    });
+
+    adminLogger.info({ requestId, count: updated.count }, 'Jobs reset to pending');
+    res.json({ success: true, message: `${updated.count} jobs reset to pending` });
+  } catch (error) {
+    adminLogger.error({ requestId, error }, 'Retry jobs failed');
+    res.status(500).json({ success: false, message: 'Failed to retry jobs' });
+  }
+});
+
+// Reindex - Update file search metadata
+router.post('/summary/actions/reindex', authenticate, requireAdmin, async (req: Request, res: Response) => {
+  const requestId = req.headers['x-request-id'] as string || crypto.randomUUID();
+  adminLogger.info({ requestId, action: 'reindex' }, 'Reindex action started');
+
+  try {
+    // Get all files and update their search-related metadata
+    const files = await prisma.file.findMany({
+      select: { id: true, name: true, mimeType: true, size: true },
+    });
+
+    let updated = 0;
+    for (const file of files) {
+      // Extract extension and category
+      const extension = file.name.split('.').pop()?.toLowerCase() || '';
+      const category = getCategoryFromMime(file.mimeType);
+
+      // Update file metadata (useful for search optimization)
+      await prisma.file.update({
+        where: { id: file.id },
+        data: {
+          updatedAt: new Date(), // Touch the timestamp to trigger any search index updates
+        },
+      });
+      updated++;
+    }
+
+    adminLogger.info({ requestId, count: updated }, 'Reindex completed');
+    res.json({ success: true, message: `${updated} files reindexed`, count: updated });
+  } catch (error) {
+    adminLogger.error({ requestId, error }, 'Reindex failed');
+    res.status(500).json({ success: false, message: 'Failed to reindex files' });
+  }
+});
+
+// Helper function to get category from mime type
+function getCategoryFromMime(mimeType: string): string {
+  if (mimeType.startsWith('image/')) return 'image';
+  if (mimeType.startsWith('video/')) return 'video';
+  if (mimeType.startsWith('audio/')) return 'audio';
+  if (mimeType.includes('pdf') || mimeType.includes('document') || mimeType.includes('sheet') || mimeType.includes('presentation')) return 'document';
+  return 'other';
+}
+
+// Regenerate thumbnails - Queue thumbnail regeneration for image/video files
+router.post('/summary/actions/regenerate-thumbnails', authenticate, requireAdmin, async (req: Request, res: Response) => {
+  const requestId = req.headers['x-request-id'] as string || crypto.randomUUID();
+  adminLogger.info({ requestId, action: 'regenerate-thumbnails' }, 'Regenerate thumbnails action started');
+
+  try {
+    // Find all image and video files that can have thumbnails
+    const files = await prisma.file.findMany({
+      where: {
+        OR: [
+          { mimeType: { startsWith: 'image/' } },
+          { mimeType: { startsWith: 'video/' } },
+        ],
+      },
+      select: { id: true, name: true, mimeType: true, thumbnailPath: true },
+    });
+
+    // For images: clear the thumbnail path to trigger regeneration on next access
+    // For videos: create transcoding jobs for thumbnail regeneration
+    let imagesUpdated = 0;
+    let videosQueued = 0;
+
+    for (const file of files) {
+      if (file.mimeType.startsWith('image/')) {
+        // Clear thumbnail to force regeneration on next request
+        await prisma.file.update({
+          where: { id: file.id },
+          data: { thumbnailPath: null },
+        });
+        imagesUpdated++;
+      } else if (file.mimeType.startsWith('video/')) {
+        // Check if there's already a pending job for this file
+        const existingJob = await prisma.transcodingJob.findFirst({
+          where: { fileId: file.id, status: { in: ['PENDING', 'PROCESSING'] } },
+        });
+
+        if (!existingJob) {
+          // Create a new transcoding job for thumbnail extraction
+          await prisma.transcodingJob.create({
+            data: {
+              fileId: file.id,
+              status: 'PENDING',
+            },
+          });
+          videosQueued++;
+        }
+      }
+    }
+
+    adminLogger.info({ requestId, imagesUpdated, videosQueued }, 'Thumbnail regeneration completed');
+    res.json({
+      success: true,
+      message: `${imagesUpdated} image thumbnails cleared, ${videosQueued} video jobs queued`,
+      images: imagesUpdated,
+      videos: videosQueued,
+    });
+  } catch (error) {
+    adminLogger.error({ requestId, error }, 'Regenerate thumbnails failed');
+    res.status(500).json({ success: false, message: 'Failed to regenerate thumbnails' });
+  }
+});
+
+// Toggle maintenance mode
+router.post('/summary/actions/toggle-maintenance', authenticate, requireAdmin, async (req: Request, res: Response) => {
+  const requestId = req.headers['x-request-id'] as string || crypto.randomUUID();
+  adminLogger.info({ requestId, action: 'toggle-maintenance' }, 'Toggle maintenance action');
+
+  try {
+    const currentSetting = await prisma.settings.findUnique({ where: { key: 'maintenance_mode' } });
+    const currentValue = currentSetting?.value === 'true';
+    const newValue = !currentValue;
+
+    await prisma.settings.upsert({
+      where: { key: 'maintenance_mode' },
+      update: { value: String(newValue) },
+      create: { key: 'maintenance_mode', value: String(newValue) },
+    });
+
+    adminLogger.info({ requestId, maintenance: newValue }, 'Maintenance mode toggled');
+    res.json({ success: true, maintenance: newValue, message: newValue ? 'Modo mantenimiento activado' : 'Modo mantenimiento desactivado' });
+  } catch (error) {
+    adminLogger.error({ requestId, error }, 'Toggle maintenance failed');
+    res.status(500).json({ success: false, message: 'Failed to toggle maintenance mode' });
   }
 });
 

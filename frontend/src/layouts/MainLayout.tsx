@@ -319,9 +319,9 @@ export default function MainLayout() {
       }
     }
 
-      if (allFiles.length === 0) return;
+    if (allFiles.length === 0) return;
 
-      await ensureConfigLoaded();
+    await ensureConfigLoaded();
 
     // Calculate total size for progress tracking
     const totalSize = allFiles.reduce((sum, { file }) => sum + file.size, 0);
@@ -335,113 +335,113 @@ export default function MainLayout() {
 
     // Upload files one by one to preserve folder structure
     // The backend will create folders as needed based on relativePath
-      let successCount = 0;
-      let errorCount = 0;
-      let lastErrorMessage: string | null = null;
-      let lastErrorCode: string | null = null;
+    let successCount = 0;
+    let errorCount = 0;
+    let lastErrorMessage: string | null = null;
+    let lastErrorCode: string | null = null;
 
-      for (const { file, relativePath } of allFiles) {
-        let uploadSucceeded = false;
-        try {
-          // For folder uploads, we need to pass the relative path to the backend
-          // We'll use the upload endpoint that supports folder structure
-          const formData = new FormData();
-          formData.append('files', file);
-          formData.append('paths', relativePath);
-          if (folderId) {
-            formData.append('folderId', folderId);
-          }
-
-          // For small files, use direct upload with folder support
-          // For large files, use chunked upload (folders will be created via path)
-          if (file.size <= 50 * 1024 * 1024) { // 50MB threshold for direct upload
-            await api.post('/files/upload-with-folders', formData, {
-              headers: { 'Content-Type': 'multipart/form-data' },
-              onUploadProgress: (progressEvent) => {
-                const loaded = progressEvent.loaded || 0;
-                const now = Date.now();
-                const timeDiff = (now - lastSpeedUpdate) / 1000;
-
-                if (timeDiff > 0.1) {
-                  currentSpeed = (uploadedTotal + loaded - lastUploadedTotal) / timeDiff;
-                  lastSpeedUpdate = now;
-                  lastUploadedTotal = uploadedTotal + loaded;
-                }
-
-                setGlobalProgress(uploadedTotal + loaded, totalSize, currentSpeed);
-              },
-            });
-            uploadSucceeded = true;
-          } else {
-            // Use chunked upload for large files
-            const result = await uploadFile(
-              file,
-              folderId,
-              (progress) => {
-                const now = Date.now();
-                const timeDiff = (now - lastSpeedUpdate) / 1000;
-
-                if (timeDiff > 0.1) {
-                  currentSpeed = progress.speed || currentSpeed;
-                  lastSpeedUpdate = now;
-                }
-
-                setGlobalProgress(uploadedTotal + progress.uploadedSize, totalSize, currentSpeed);
-              },
-              { relativePath }
-            );
-            if (!result.success) {
-              if (result.error) {
-                lastErrorMessage = result.error;
-              }
-              if (result.errorCode) {
-                lastErrorCode = result.errorCode;
-              }
-            } else {
-              uploadSucceeded = true;
-            }
-          }
-
-          uploadedTotal += file.size;
-        } catch (error: unknown) {
-          console.error(`Failed to upload ${relativePath}:`, error);
-          const errorResponse = error as { response?: { data?: { error?: string; code?: string } } };
-          if (errorResponse.response?.data?.error) {
-            lastErrorMessage = errorResponse.response.data.error;
-          }
-          if (errorResponse.response?.data?.code) {
-            lastErrorCode = errorResponse.response.data.code;
-          } else if (error instanceof Error && error.message) {
-            lastErrorMessage = error.message;
-          }
-          uploadedTotal += file.size; // Still advance progress
+    for (const { file, relativePath } of allFiles) {
+      let uploadSucceeded = false;
+      try {
+        // For folder uploads, we need to pass the relative path to the backend
+        // We'll use the upload endpoint that supports folder structure
+        const formData = new FormData();
+        formData.append('files', file);
+        formData.append('paths', relativePath);
+        if (folderId) {
+          formData.append('folderId', folderId);
         }
 
-        if (uploadSucceeded) {
-          successCount++;
+        // For small files, use direct upload with folder support
+        // For large files, use chunked upload (folders will be created via path)
+        if (file.size <= 50 * 1024 * 1024) { // 50MB threshold for direct upload
+          await api.post('/files/upload-with-folders', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+            onUploadProgress: (progressEvent) => {
+              const loaded = progressEvent.loaded || 0;
+              const now = Date.now();
+              const timeDiff = (now - lastSpeedUpdate) / 1000;
+
+              if (timeDiff > 0.1) {
+                currentSpeed = (uploadedTotal + loaded - lastUploadedTotal) / timeDiff;
+                lastSpeedUpdate = now;
+                lastUploadedTotal = uploadedTotal + loaded;
+              }
+
+              setGlobalProgress(uploadedTotal + loaded, totalSize, currentSpeed);
+            },
+          });
+          uploadSucceeded = true;
         } else {
-          errorCount++;
+          // Use chunked upload for large files
+          const result = await uploadFile(
+            file,
+            folderId,
+            (progress) => {
+              const now = Date.now();
+              const timeDiff = (now - lastSpeedUpdate) / 1000;
+
+              if (timeDiff > 0.1) {
+                currentSpeed = progress.speed || currentSpeed;
+                lastSpeedUpdate = now;
+              }
+
+              setGlobalProgress(uploadedTotal + progress.uploadedSize, totalSize, currentSpeed);
+            },
+            { relativePath }
+          );
+          if (!result.success) {
+            if (result.error) {
+              lastErrorMessage = result.error;
+            }
+            if (result.errorCode) {
+              lastErrorCode = result.errorCode;
+            }
+          } else {
+            uploadSucceeded = true;
+          }
         }
+
+        uploadedTotal += file.size;
+      } catch (error: unknown) {
+        console.error(`Failed to upload ${relativePath}:`, error);
+        const errorResponse = error as { response?: { data?: { error?: string; code?: string } } };
+        if (errorResponse.response?.data?.error) {
+          lastErrorMessage = errorResponse.response.data.error;
+        }
+        if (errorResponse.response?.data?.code) {
+          lastErrorCode = errorResponse.response.data.code;
+        } else if (error instanceof Error && error.message) {
+          lastErrorMessage = error.message;
+        }
+        uploadedTotal += file.size; // Still advance progress
       }
+
+      if (uploadSucceeded) {
+        successCount++;
+      } else {
+        errorCount++;
+      }
+    }
 
     resetGlobalProgress();
 
-      const resolvedErrorMessage = getUploadErrorMessage(lastErrorCode || undefined, lastErrorMessage || undefined);
+    const resolvedErrorMessage = getUploadErrorMessage(lastErrorCode || undefined, lastErrorMessage || undefined);
 
-      if (errorCount === 0) {
-        toast(t('files.uploadSuccess', { count: successCount }), 'success');
-      } else if (successCount > 0) {
-        const message = resolvedErrorMessage
-          ? `${t('files.uploadPartialSuccess', { success: successCount, failed: errorCount })} - ${resolvedErrorMessage}`
-          : t('files.uploadPartialSuccess', { success: successCount, failed: errorCount });
-        toast(message, 'warning');
-      } else {
-        toast(resolvedErrorMessage || t('files.uploadError'), 'error');
-      }
+    if (errorCount === 0) {
+      toast(t('files.uploadSuccess', { count: successCount }), 'success');
+    } else if (successCount > 0) {
+      const message = resolvedErrorMessage
+        ? `${t('files.uploadPartialSuccess', { success: successCount, failed: errorCount })} - ${resolvedErrorMessage}`
+        : t('files.uploadPartialSuccess', { success: successCount, failed: errorCount });
+      toast(message, 'warning');
+    } else {
+      toast(resolvedErrorMessage || t('files.uploadError'), 'error');
+    }
 
     triggerRefresh();
     refreshUser(); // Update storage info in sidebar
-    }, [setGlobalProgress, resetGlobalProgress, isInternalDragging, refreshUser, t, getUploadErrorMessage]);
+  }, [setGlobalProgress, resetGlobalProgress, isInternalDragging, refreshUser, t, getUploadErrorMessage]);
 
   // Set up global drag/drop listeners and global marquee start
   useEffect(() => {
@@ -997,12 +997,12 @@ export default function MainLayout() {
                 {/* Settings title */}
                 {isSettingsPage ? (
                   <div className="flex items-center gap-2 ml-2">
-                    <Settings className="w-5 h-5 text-[#FF3B3B]" />
+                    <Settings className="w-5 h-5 text-primary-600 dark:text-primary-400" />
                     <span className="text-base font-semibold text-dark-900 dark:text-white">{t('layout.settings')}</span>
                   </div>
                 ) : isAdminPage ? (
                   <div className="flex items-center gap-2 ml-2">
-                    <ShieldCheck className="w-5 h-5 text-[#FF3B3B]" />
+                    <ShieldCheck className="w-5 h-5 text-primary-600 dark:text-primary-400" />
                     <span className="text-base font-semibold text-dark-900 dark:text-white">{t('layout.administration')}</span>
                   </div>
                 ) : isSharedPage ? (

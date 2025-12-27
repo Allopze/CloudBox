@@ -6,7 +6,8 @@ import { api } from '../lib/api';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Modal from '../components/ui/Modal';
-import { Lock, Upload, Save, Moon, Sun, Calendar, Shield as ShieldIcon, User, HardDrive, Clock, CheckCircle, XCircle, Loader2, Globe, Smartphone, Trash2, Monitor } from 'lucide-react';
+import TwoFactorSetup from '../components/auth/TwoFactorSetup';
+import { Lock, Upload, Save, Moon, Sun, Calendar, Shield as ShieldIcon, User, HardDrive, Clock, CheckCircle, XCircle, Loader2, Globe, Smartphone, Trash2, Monitor, Key } from 'lucide-react';
 import { toast } from '../components/ui/Toast';
 import { formatBytes } from '../lib/utils';
 
@@ -62,6 +63,14 @@ export default function Settings() {
   const [terminatingSession, setTerminatingSession] = useState<string | null>(null);
   const [terminatingAll, setTerminatingAll] = useState(false);
   const [sessionsAvailable, setSessionsAvailable] = useState(true);
+
+  // 2FA state
+  const [show2FASetup, setShow2FASetup] = useState(false);
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(user?.twoFactorEnabled || false);
+  const [disabling2FA, setDisabling2FA] = useState(false);
+  const [show2FADisableModal, setShow2FADisableModal] = useState(false);
+  const [disable2FAPassword, setDisable2FAPassword] = useState('');
+  const [disable2FACode, setDisable2FACode] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -439,6 +448,132 @@ export default function Settings() {
           {t('settings.changePassword')}
         </Button>
       </section>
+
+      {/* Two-Factor Authentication Section */}
+      <section className="bg-white dark:bg-dark-800 rounded-2xl border border-dark-100 dark:border-dark-700 p-6 mb-6">
+        <div className="flex items-center gap-2 mb-1">
+          <Key className="w-4 h-4 text-primary-600" />
+          <h2 className="text-lg font-semibold text-dark-900 dark:text-white">{t('auth.twoFactor.title')}</h2>
+        </div>
+        <p className="text-sm text-dark-500 dark:text-dark-400 mb-4">
+          {twoFactorEnabled
+            ? t('auth.twoFactor.status.enabled')
+            : t('auth.twoFactor.status.enableDescription')
+          }
+        </p>
+
+        <div className="flex items-center gap-4">
+          {twoFactorEnabled ? (
+            <>
+              <div className="flex items-center gap-2 px-3 py-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-lg">
+                <CheckCircle className="w-4 h-4" />
+                <span className="text-sm font-medium">{t('auth.twoFactor.status.enabled')}</span>
+              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setShow2FADisableModal(true)}
+                className="text-red-600 hover:text-red-700"
+              >
+                {t('auth.twoFactor.status.disableButton')}
+              </Button>
+            </>
+          ) : (
+            <Button
+              variant="secondary"
+              icon={<ShieldIcon className="w-4 h-4" />}
+              onClick={() => setShow2FASetup(true)}
+            >
+              {t('auth.twoFactor.status.setupButton')}
+            </Button>
+          )}
+        </div>
+      </section>
+
+      {/* TwoFactorSetup Modal */}
+      <TwoFactorSetup
+        isOpen={show2FASetup}
+        onClose={() => setShow2FASetup(false)}
+        onSuccess={() => {
+          setTwoFactorEnabled(true);
+          updateUser({ twoFactorEnabled: true });
+        }}
+      />
+
+      {/* 2FA Disable Modal */}
+      <Modal
+        isOpen={show2FADisableModal}
+        onClose={() => {
+          setShow2FADisableModal(false);
+          setDisable2FAPassword('');
+          setDisable2FACode('');
+        }}
+        title={t('auth.twoFactor.disable.title')}
+      >
+        <div className="space-y-4">
+          <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+            <p className="text-sm text-yellow-700 dark:text-yellow-500">
+              {t('auth.twoFactor.disable.warning')}
+            </p>
+          </div>
+
+          <Input
+            label={t('auth.twoFactor.disable.password')}
+            type="password"
+            value={disable2FAPassword}
+            onChange={(e) => setDisable2FAPassword(e.target.value)}
+          />
+
+          <Input
+            label={t('auth.twoFactor.disable.code')}
+            type="text"
+            inputMode="numeric"
+            maxLength={6}
+            value={disable2FACode}
+            onChange={(e) => setDisable2FACode(e.target.value.replace(/\D/g, ''))}
+            placeholder="000000"
+          />
+
+          <div className="flex justify-end gap-3 pt-2">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setShow2FADisableModal(false);
+                setDisable2FAPassword('');
+                setDisable2FACode('');
+              }}
+            >
+              {t('common.cancel')}
+            </Button>
+            <Button
+              variant="danger"
+              loading={disabling2FA}
+              disabled={!disable2FAPassword || disable2FACode.length !== 6}
+              onClick={async () => {
+                setDisabling2FA(true);
+                try {
+                  await api.post('/2fa/disable', {
+                    password: disable2FAPassword,
+                    code: disable2FACode,
+                  });
+                  setTwoFactorEnabled(false);
+                  updateUser({ twoFactorEnabled: false });
+                  toast(t('auth.twoFactor.disable.disabled'), 'success');
+                  setShow2FADisableModal(false);
+                  setDisable2FAPassword('');
+                  setDisable2FACode('');
+                } catch (err: any) {
+                  toast(err.response?.data?.error || t('auth.twoFactor.disable.disableFailed'), 'error');
+                } finally {
+                  setDisabling2FA(false);
+                }
+              }}
+            >
+              {t('auth.twoFactor.disable.disable')}
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Sessions Section */}
       <section className="bg-white dark:bg-dark-800 rounded-2xl border border-dark-100 dark:border-dark-700 p-6 mb-6">

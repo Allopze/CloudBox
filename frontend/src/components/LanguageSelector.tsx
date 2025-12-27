@@ -54,14 +54,14 @@ const LanguageSelector = () => {
                                 key={lang.code}
                                 onClick={() => handleLanguageChange(lang.code)}
                                 className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${i18n.language === lang.code
-                                    ? 'bg-[#F44336]/10 text-[#F44336] font-medium'
+                                    ? 'bg-primary-500/10 text-primary-600 dark:text-primary-400 font-medium'
                                     : 'text-dark-700 dark:text-dark-300 hover:bg-dark-50 dark:hover:bg-dark-700'
                                     }`}
                             >
                                 <span className="text-lg">{lang.flag}</span>
                                 <span>{lang.name}</span>
                                 {i18n.language === lang.code && (
-                                    <Check className="w-4 h-4 ml-auto text-[#F44336]" />
+                                    <Check className="w-4 h-4 ml-auto text-primary-600 dark:text-primary-400" />
                                 )}
                             </button>
                         ))}

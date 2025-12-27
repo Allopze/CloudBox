@@ -567,3 +567,36 @@ export const UPLOAD_ERROR_CODES = {
   UPLOAD_NOT_FOUND: 'UPLOAD_NOT_FOUND',
   MAX_FILES_EXCEEDED: 'MAX_FILES_EXCEEDED',
 } as const;
+
+// ============================================================
+// Two-Factor Authentication (2FA) Schemas
+// ============================================================
+
+export const verify2FASchema = z.object({
+  body: z.object({
+    code: z.string().length(6, 'Code must be 6 digits').regex(/^\d+$/, 'Code must contain only digits'),
+    tempToken: z.string().optional(),  // For login flow
+  }),
+});
+
+export const disable2FASchema = z.object({
+  body: z.object({
+    password: z.string().min(1, 'Password is required'),
+    code: z.string().length(6, 'Code must be 6 digits').regex(/^\d+$/, 'Code must contain only digits'),
+  }),
+});
+
+export const recovery2FASchema = z.object({
+  body: z.object({
+    tempToken: z.string().min(1, 'Temporary token is required'),
+    recoveryCode: z.string().min(8, 'Recovery code is required').max(20),
+  }),
+});
+
+export const login2FASchema = z.object({
+  body: z.object({
+    tempToken: z.string().min(1, 'Temporary token is required'),
+    code: z.string().length(6, 'Code must be 6 digits').regex(/^\d+$/, 'Code must contain only digits'),
+  }),
+});
+
