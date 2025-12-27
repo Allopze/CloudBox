@@ -169,6 +169,26 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Semgrep
+        run: pip install semgrep
+
+      - name: Run Semgrep (SAST)
+        continue-on-error: true
+        run: semgrep --config p/ci --sarif --output semgrep.sarif
+
+      - name: Upload Semgrep report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-sarif
+          path: semgrep.sarif
+          if-no-files-found: warn
+
       - name: Run npm audit (backend)
         working-directory: backend
         # H-12: Fail CI on high severity vulnerabilities
@@ -180,3 +200,50 @@ jobs:
         # H-12: Fail CI on high severity vulnerabilities
         run: npm audit --audit-level=high
         continue-on-error: false
+
+      - name: Start services for DAST
+        run: docker compose -f docker-compose.yml up -d postgres redis backend frontend
+
+      - name: Wait for services
+        run: |
+          set -e
+          for i in {1..30}; do
+            if curl -fsS http://localhost:3001/api/health/ping >/dev/null && curl -fsS http://localhost:8080/health >/dev/null; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Services did not become ready in time"
+          exit 1
+
+      - name: ZAP Baseline (frontend)
+        continue-on-error: true
+        run: |
+          docker run --network host -t owasp/zap2docker-stable zap-baseline.py \
+            -t http://localhost:8080 \
+            -r zap-frontend.html \
+            -J zap-frontend.json
+
+      - name: ZAP Baseline (api)
+        continue-on-error: true
+        run: |
+          docker run --network host -t owasp/zap2docker-stable zap-baseline.py \
+            -t http://localhost:3001/api/health/ping \
+            -r zap-api.html \
+            -J zap-api.json
+
+      - name: Upload ZAP reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-reports
+          path: |
+            zap-frontend.html
+            zap-frontend.json
+            zap-api.html
+            zap-api.json
+          if-no-files-found: warn
+
+      - name: Teardown DAST services
+        if: always()
+        run: docker compose -f docker-compose.yml down -v

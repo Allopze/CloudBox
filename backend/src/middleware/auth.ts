@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { verifyAccessToken } from '../lib/jwt.js';
 import prisma from '../lib/prisma.js';
+import { isEmailVerificationRequired, shouldEnforceEmailVerification } from './emailVerification.js';
 
 declare global {
   namespace Express {
@@ -33,7 +34,7 @@ export const authenticate = async (
     // Verify user still exists
     const user = await prisma.user.findUnique({
       where: { id: payload.userId },
-      select: { id: true, email: true, role: true },
+      select: { id: true, email: true, role: true, emailVerified: true, createdAt: true },
     });
     
     if (!user) {
@@ -41,6 +42,14 @@ export const authenticate = async (
       return;
     }
     
+    if (shouldEnforceEmailVerification(req) && isEmailVerificationRequired(user)) {
+      res.status(403).json({
+        error: 'Email verification required',
+        code: 'EMAIL_NOT_VERIFIED',
+      });
+      return;
+    }
+
     req.user = {
       userId: user.id,
       email: user.email,
