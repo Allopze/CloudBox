@@ -816,6 +816,67 @@ router.put('/settings/limits', authenticate, requireAdmin, async (req: Request, 
   }
 });
 
+// ========== CORS Configuration ==========
+
+// Get allowed origins
+router.get('/settings/cors', authenticate, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const setting = await prisma.settings.findUnique({
+      where: { key: 'allowed_origins' },
+    });
+
+    res.json({
+      allowedOrigins: setting?.value || '',
+    });
+  } catch (error) {
+    console.error('Get CORS settings error:', error);
+    res.status(500).json({ error: 'Failed to get CORS settings' });
+  }
+});
+
+// Save allowed origins
+router.put('/settings/cors', authenticate, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { allowedOrigins } = req.body;
+
+    // Validate: should be empty string or valid URLs separated by newlines/commas
+    if (typeof allowedOrigins !== 'string') {
+      res.status(400).json({ error: 'allowedOrigins must be a string' });
+      return;
+    }
+
+    // Parse and validate each origin
+    const origins = allowedOrigins
+      .split(/[,\n]/)
+      .map((s: string) => s.trim())
+      .filter((s: string) => s.length > 0);
+
+    for (const origin of origins) {
+      try {
+        new URL(origin);
+      } catch {
+        res.status(400).json({ error: `Invalid URL: ${origin}` });
+        return;
+      }
+    }
+
+    await prisma.settings.upsert({
+      where: { key: 'allowed_origins' },
+      update: { value: origins.join(',') },
+      create: { key: 'allowed_origins', value: origins.join(',') },
+    });
+
+    // Invalidate cache
+    const { invalidateAllowedOriginsCache } = await import('../lib/cors.js');
+    await invalidateAllowedOriginsCache();
+
+    res.json({ message: 'CORS settings saved successfully' });
+  } catch (error) {
+    console.error('Save CORS settings error:', error);
+    res.status(500).json({ error: 'Failed to save CORS settings' });
+  }
+});
+
 
 // ========== Email Templates ==========
 
@@ -2555,6 +2616,82 @@ router.delete('/legal/:slug', authenticate, requireAdmin, async (req: Request, r
   } catch (error) {
     console.error('Reset legal page error:', error);
     res.status(500).json({ error: 'Failed to reset legal page' });
+  }
+});
+
+// ========== Queue Management ==========
+
+// Get detailed queue statistics
+router.get('/queues/stats', authenticate, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { getDetailedQueueStats } = await import('../lib/transcodingQueue.js');
+    const stats = await getDetailedQueueStats();
+    res.json(stats);
+  } catch (error) {
+    console.error('Get queue stats error:', error);
+    res.status(500).json({ error: 'Failed to get queue stats' });
+  }
+});
+
+// Retry all failed jobs
+router.post('/queues/retry-failed', authenticate, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { retryAllFailedJobs } = await import('../lib/transcodingQueue.js');
+    const count = await retryAllFailedJobs();
+    res.json({ success: true, message: `Retried ${count} failed jobs`, count });
+  } catch (error) {
+    console.error('Retry failed jobs error:', error);
+    res.status(500).json({ error: 'Failed to retry jobs' });
+  }
+});
+
+// Clear stalled jobs
+router.post('/queues/clear-stalled', authenticate, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { clearStalledJobs } = await import('../lib/transcodingQueue.js');
+    const count = await clearStalledJobs();
+    res.json({ success: true, message: `Cleared ${count} stalled jobs`, count });
+  } catch (error) {
+    console.error('Clear stalled jobs error:', error);
+    res.status(500).json({ error: 'Failed to clear stalled jobs' });
+  }
+});
+
+// Cleanup failed jobs (remove without retry)
+router.post('/queues/cleanup', authenticate, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { cleanupAllFailedJobs, cleanupOldJobs } = await import('../lib/transcodingQueue.js');
+    const [failedCount, oldCount] = await Promise.all([
+      cleanupAllFailedJobs(),
+      cleanupOldJobs(7),
+    ]);
+    res.json({
+      success: true,
+      message: `Cleaned up ${failedCount} failed jobs and ${oldCount} old jobs`,
+      failedCount,
+      oldCount,
+    });
+  } catch (error) {
+    console.error('Cleanup jobs error:', error);
+    res.status(500).json({ error: 'Failed to cleanup jobs' });
+  }
+});
+
+// Cancel all pending jobs
+router.post('/queues/cancel-pending', authenticate, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const result = await prisma.transcodingJob.updateMany({
+      where: { status: 'PENDING' },
+      data: { status: 'CANCELLED' },
+    });
+    res.json({
+      success: true,
+      message: `Cancelled ${result.count} pending jobs`,
+      count: result.count,
+    });
+  } catch (error) {
+    console.error('Cancel pending jobs error:', error);
+    res.status(500).json({ error: 'Failed to cancel pending jobs' });
   }
 });
 

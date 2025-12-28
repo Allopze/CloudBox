@@ -125,22 +125,27 @@ app.use(compression({
 }));
 
 // CORS configuration
+// Note: We use a sync wrapper because cors expects a sync callback,
+// but we need async DB lookups. On first request, it may allow while cache loads.
+import { isOriginAllowed } from './lib/cors.js';
+
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-
-    // In development, allow any localhost port
-    if (config.nodeEnv === 'development' && origin.startsWith('http://localhost:')) {
-      return callback(null, true);
-    }
-
-    // In production, only allow configured frontend URL
-    if (origin === config.frontendUrl) {
-      return callback(null, true);
-    }
-
-    callback(new Error('Not allowed by CORS'));
+    // isOriginAllowed is async, but cors expects sync callback
+    isOriginAllowed(origin).then(allowed => {
+      if (allowed) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    }).catch(() => {
+      // On error, fall back to checking just the env config
+      if (!origin || origin === config.frontendUrl) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    });
   },
   credentials: true,
   exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],

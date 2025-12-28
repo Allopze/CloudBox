@@ -5,7 +5,7 @@ import { cn } from '../../../lib/utils';
 import Button from '../../ui/Button';
 import Input from '../../ui/Input';
 import { toast } from '../../ui/Toast';
-import { Globe, HardDrive, FileType, Check, Upload, Save, TrendingUp } from 'lucide-react';
+import { Globe, HardDrive, FileType, Check, Upload, Save, TrendingUp, Shield } from 'lucide-react';
 
 // Helper functions (copied from AdminDashboard)
 const bytesToUnit = (bytes: string): { value: string; unit: string } => {
@@ -60,7 +60,11 @@ export default function SettingsSection() {
 
     const [savingSystem, setSavingSystem] = useState(false);
     const [savingUploadLimits, setSavingUploadLimits] = useState(false);
+    const [savingCors, setSavingCors] = useState(false);
     const [loading, setLoading] = useState(true);
+
+    // CORS State
+    const [allowedOrigins, setAllowedOrigins] = useState('');
 
     // Helper State
     const [quotaValue, setQuotaValue] = useState('');
@@ -79,9 +83,10 @@ export default function SettingsSection() {
 
     const loadSettings = async () => {
         try {
-            const [systemRes, limitsRes] = await Promise.all([
+            const [systemRes, limitsRes, corsRes] = await Promise.all([
                 api.get('/admin/settings/system').catch(() => ({ data: {} })),
-                api.get('/admin/settings/limits').catch(() => ({ data: {} }))
+                api.get('/admin/settings/limits').catch(() => ({ data: {} })),
+                api.get('/admin/settings/cors').catch(() => ({ data: {} }))
             ]);
 
             if (systemRes.data) {
@@ -107,6 +112,11 @@ export default function SettingsSection() {
                 const chunkParsed = bytesToUnit(limitsRes.data.chunkSize);
                 setUploadChunkValue(chunkParsed.value);
                 setUploadChunkUnit(chunkParsed.unit);
+            }
+
+            if (corsRes.data) {
+                // Convert comma-separated to newline-separated for textarea
+                setAllowedOrigins((corsRes.data.allowedOrigins || '').split(',').filter((s: string) => s).join('\n'));
             }
         } catch (error) {
             toast(t('admin.loadError'), 'error');
@@ -173,6 +183,19 @@ export default function SettingsSection() {
             toast(error.response?.data?.error || t('admin.limitsSaveError'), 'error');
         } finally {
             setSavingUploadLimits(false);
+        }
+    };
+
+    // CORS handlers
+    const saveCorsSettings = async () => {
+        setSavingCors(true);
+        try {
+            await api.put('/admin/settings/cors', { allowedOrigins });
+            toast(t('admin.corsSaved', 'Orígenes permitidos guardados'), 'success');
+        } catch (error: any) {
+            toast(error.response?.data?.error || t('admin.corsError', 'Error al guardar CORS'), 'error');
+        } finally {
+            setSavingCors(false);
         }
     };
 
@@ -273,6 +296,28 @@ export default function SettingsSection() {
                                     <option value="TB">TB</option>
                                 </select>
                             </div>
+                        </div>
+                    </div>
+
+                    {/* Allowed Origins */}
+                    <div className="mb-6">
+                        <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">
+                            <Shield className="w-4 h-4 inline mr-1" /> {t('admin.general.allowedOrigins', 'Orígenes CORS Permitidos')}
+                        </label>
+                        <p className="text-xs text-dark-500 mb-2">
+                            {t('admin.general.allowedOriginsDesc', 'Dominios adicionales permitidos para acceder a la API (uno por línea). Ej: https://app.ejemplo.com')}
+                        </p>
+                        <textarea
+                            value={allowedOrigins}
+                            onChange={(e) => setAllowedOrigins(e.target.value)}
+                            rows={4}
+                            placeholder="https://ejemplo.com&#10;https://app.ejemplo.com"
+                            className="w-full px-3 py-2 rounded-xl border border-dark-300 dark:border-dark-600 bg-transparent text-dark-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono text-sm"
+                        />
+                        <div className="flex justify-end mt-2">
+                            <Button onClick={saveCorsSettings} loading={savingCors} variant="secondary" icon={<Save className="w-4 h-4" />}>
+                                {t('admin.general.saveCors', 'Guardar Orígenes')}
+                            </Button>
                         </div>
                     </div>
 

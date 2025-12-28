@@ -59,7 +59,7 @@
     "trashEmptyError": "Errore durante lo svuotamento del cestino",
     "movedTo": "{{count}} elemento/i spostato/i in {{category}}",
     "incompatibleItems": "Gli elementi selezionati non sono compatibili con questa categoria",
-    "backToFiles": "← Torna ai file",
+    "backToFiles": "Torna ai file",
     "categories": {
       "files": "File",
       "photos": "Foto",

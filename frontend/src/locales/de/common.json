@@ -59,7 +59,7 @@
     "trashEmptyError": "Fehler beim Leeren des Papierkorbs",
     "movedTo": "{{count}} Element(e) nach {{category}} verschoben",
     "incompatibleItems": "Ausgewählte Elemente sind mit dieser Kategorie nicht kompatibel",
-    "backToFiles": "← Zurück zu Dateien",
+    "backToFiles": "Zurück zu Dateien",
     "categories": {
       "files": "Dateien",
       "photos": "Fotos",

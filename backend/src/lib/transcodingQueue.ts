@@ -131,12 +131,12 @@ async function checkRedisConnection(): Promise<boolean> {
         cleanup();
         resolve();
       });
-      
+
       redis.once('error', (err: Error) => {
         cleanup();
         reject(err);
       });
-      
+
       setTimeout(() => {
         cleanup();
         reject(new Error('Redis connection timeout'));
@@ -244,13 +244,13 @@ async function processTranscodingJob(job: Job<TranscodingJobData>): Promise<Tran
     await transcodeVideo(inputPath, outputPath, format, preset, (progress) => {
       job.progress(progress);
       emitTranscodingProgress(fileId, progress, 'PROCESSING');
-      
+
       // Update database periodically
       if (progress % 10 === 0) {
         prisma.transcodingJob.update({
           where: { fileId },
           data: { progress },
-        }).catch(() => {});
+        }).catch(() => { });
       }
     }, duration);
 
@@ -288,7 +288,7 @@ async function processTranscodingJob(job: Job<TranscodingJobData>): Promise<Tran
         status: 'FAILED',
         error: errorMessage,
       },
-    }).catch(() => {});
+    }).catch(() => { });
 
     // Emit error progress
     emitTranscodingProgress(fileId, 0, 'FAILED');
@@ -343,7 +343,7 @@ async function transcodeVideo(
   return new Promise((resolve, reject) => {
     // Ensure output directory exists
     const outputDir = path.dirname(outputPath);
-    fs.mkdir(outputDir, { recursive: true }).catch(() => {});
+    fs.mkdir(outputDir, { recursive: true }).catch(() => { });
 
     const args = [
       '-i', inputPath,
@@ -365,11 +365,11 @@ async function transcodeVideo(
     ffmpeg.stdout.on('data', (data) => {
       const output = data.toString();
       const timeMatch = output.match(/out_time_us=(\d+)/);
-      
+
       if (timeMatch && totalDuration > 0) {
         const currentTime = parseInt(timeMatch[1]) / 1000000;
         const progress = Math.min(99, Math.round((currentTime / totalDuration) * 100));
-        
+
         if (progress > lastProgress) {
           lastProgress = progress;
           onProgress(progress);
@@ -430,38 +430,38 @@ export async function addTranscodingJob(
 
   // Production mode: reject jobs if Redis is required but not available
   if (requireRedis) {
-    logger.error('Transcoding job rejected: Redis required in production but not available', { 
+    logger.error('Transcoding job rejected: Redis required in production but not available', {
       fileId,
       userId,
     });
-    
+
     // Update job status to reflect the failure
     await prisma.transcodingJob.upsert({
       where: { fileId },
-      create: { 
-        fileId, 
-        status: 'FAILED', 
+      create: {
+        fileId,
+        status: 'FAILED',
         progress: 0,
         error: 'Transcoding unavailable: Redis workers not configured',
       },
-      update: { 
-        status: 'FAILED', 
+      update: {
+        status: 'FAILED',
         error: 'Transcoding unavailable: Redis workers not configured',
       },
     });
-    
+
     return null;
   }
 
   // Fallback: Process with concurrency limit to avoid CPU saturation (development only)
   // This ensures uploads/downloads aren't impacted by transcoding
-  logger.warn('Processing transcoding job in fallback mode (development only)', { 
-    fileId, 
+  logger.warn('Processing transcoding job in fallback mode (development only)', {
+    fileId,
     concurrencyLimit: FALLBACK_CONCURRENCY,
     pendingJobs: fallbackLimiter.pendingCount,
     activeJobs: fallbackLimiter.activeCount,
   });
-  
+
   // Create a fake job object for the processor
   const fakeJob = {
     id: fileId,
@@ -516,7 +516,7 @@ export async function cancelTranscodingJob(fileId: string): Promise<boolean> {
     data: {
       status: 'CANCELLED',
     },
-  }).catch(() => {});
+  }).catch(() => { });
 
   return true;
 }
@@ -572,4 +572,162 @@ export async function cleanupOldJobs(daysOld: number = 7): Promise<number> {
   });
 
   return count;
+}
+
+/**
+ * Retry all failed jobs in the queue
+ */
+export async function retryAllFailedJobs(): Promise<number> {
+  if (!transcodingQueue || !isRedisAvailable) {
+    return 0;
+  }
+
+  const failedJobs = await transcodingQueue.getFailed();
+  let retriedCount = 0;
+
+  for (const job of failedJobs) {
+    try {
+      await job.retry();
+      retriedCount++;
+    } catch (error) {
+      logger.warn('Failed to retry job', { jobId: job.id, error: error instanceof Error ? error.message : 'Unknown' });
+    }
+  }
+
+  // Also update database records
+  await prisma.transcodingJob.updateMany({
+    where: { status: 'FAILED' },
+    data: { status: 'PENDING', error: null },
+  });
+
+  return retriedCount;
+}
+
+/**
+ * Clear all stalled jobs from the queue
+ */
+export async function clearStalledJobs(): Promise<number> {
+  if (!transcodingQueue || !isRedisAvailable) {
+    return 0;
+  }
+
+  // Get stalled jobs count before clearing
+  const stalledJobs = await transcodingQueue.getJobs(['active']);
+  let clearedCount = 0;
+
+  try {
+    // Clean active jobs that may be stalled (older than 1 hour)
+    await transcodingQueue.clean(3600000, 'active'); // 1 hour in ms
+    clearedCount = stalledJobs.length;
+  } catch (error) {
+    logger.error('Failed to clear stalled jobs', {}, error instanceof Error ? error : new Error(String(error)));
+  }
+
+  return clearedCount;
+}
+
+/**
+ * Remove all failed jobs without retry
+ */
+export async function cleanupAllFailedJobs(): Promise<number> {
+  if (!transcodingQueue || !isRedisAvailable) {
+    // Only cleanup database records
+    const { count } = await prisma.transcodingJob.deleteMany({
+      where: { status: 'FAILED' },
+    });
+    return count;
+  }
+
+  const failedJobs = await transcodingQueue.getFailed();
+  let removedCount = 0;
+
+  for (const job of failedJobs) {
+    try {
+      await job.remove();
+      removedCount++;
+    } catch (error) {
+      logger.warn('Failed to remove job', { jobId: job.id, error: error instanceof Error ? error.message : 'Unknown' });
+    }
+  }
+
+  // Also cleanup database records
+  await prisma.transcodingJob.deleteMany({
+    where: { status: 'FAILED' },
+  });
+
+  return removedCount;
+}
+
+/**
+ * Get detailed queue statistics including stalled jobs
+ */
+export async function getDetailedQueueStats(): Promise<{
+  waiting: number;
+  active: number;
+  completed: number;
+  failed: number;
+  delayed: number;
+  paused: number;
+  isRedisAvailable: boolean;
+  dbStats: {
+    pending: number;
+    processing: number;
+    completed: number;
+    failed: number;
+    cancelled: number;
+  };
+}> {
+  // Get database stats
+  const dbStats = await prisma.transcodingJob.groupBy({
+    by: ['status'],
+    _count: { status: true },
+  });
+
+  const dbStatsMap = {
+    pending: 0,
+    processing: 0,
+    completed: 0,
+    failed: 0,
+    cancelled: 0,
+  };
+
+  for (const stat of dbStats) {
+    const key = stat.status.toLowerCase() as keyof typeof dbStatsMap;
+    if (key in dbStatsMap) {
+      dbStatsMap[key] = stat._count.status;
+    }
+  }
+
+  if (!transcodingQueue || !isRedisAvailable) {
+    return {
+      waiting: 0,
+      active: 0,
+      completed: 0,
+      failed: 0,
+      delayed: 0,
+      paused: 0,
+      isRedisAvailable: false,
+      dbStats: dbStatsMap,
+    };
+  }
+
+  const [waiting, active, completed, failed, delayed, paused] = await Promise.all([
+    transcodingQueue.getWaitingCount(),
+    transcodingQueue.getActiveCount(),
+    transcodingQueue.getCompletedCount(),
+    transcodingQueue.getFailedCount(),
+    transcodingQueue.getDelayedCount(),
+    transcodingQueue.getPausedCount(),
+  ]);
+
+  return {
+    waiting,
+    active,
+    completed,
+    failed,
+    delayed,
+    paused,
+    isRedisAvailable: true,
+    dbStats: dbStatsMap,
+  };
 }

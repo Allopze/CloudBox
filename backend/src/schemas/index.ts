@@ -216,12 +216,12 @@ export type PaginationQuery = {
 
 export const smtpConfigSchema = z.object({
   body: z.object({
-    host: z.string().min(1),
-    port: z.number().int().positive(),
-    secure: z.boolean(),
-    user: z.string(),
-    pass: z.string(),
-    from: z.string(),
+    host: z.string().min(1, 'SMTP host is required'),
+    port: z.coerce.number().int().positive().default(587),
+    secure: z.coerce.boolean().default(false),
+    user: z.string().optional().default(''),
+    pass: z.string().optional().default(''),
+    from: z.string().optional().default(''),
   }),
 });
 
