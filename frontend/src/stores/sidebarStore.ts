@@ -43,6 +43,7 @@ export const defaultAdminNavItems: AdminNavItem[] = [
   { id: 'users', icon: 'Users', labelKey: 'sidebar.admin.users' },
   { id: 'settings', icon: 'Settings', labelKey: 'sidebar.admin.settings' },
   { id: 'storage-requests', icon: 'HardDrive', labelKey: 'sidebar.admin.storageRequests' },
+  { id: 'queues', icon: 'Layers', labelKey: 'sidebar.admin.queues' },
   { id: 'email', icon: 'Mail', labelKey: 'sidebar.admin.email' },
   { id: 'branding', icon: 'Palette', labelKey: 'sidebar.admin.branding' },
   { id: 'file-icons', icon: 'FileType', labelKey: 'sidebar.admin.fileIcons' },
@@ -67,7 +68,7 @@ export const useSidebarStore = create<SidebarState>()(
         }),
     }),
     {
-      name: 'sidebar-storage-v5',
+      name: 'sidebar-storage-v6',
       migrate: (_persistedState: unknown) => {
         // Always reset to defaults to use new labelKey format
         return {
@@ -76,7 +77,7 @@ export const useSidebarStore = create<SidebarState>()(
           adminNavItems: defaultAdminNavItems,
         };
       },
-      version: 5,
+      version: 6,
     }
   )
 );

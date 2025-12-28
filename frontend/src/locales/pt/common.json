@@ -59,7 +59,7 @@
     "trashEmptyError": "Erro ao esvaziar a lixeira",
     "movedTo": "{{count}} item(ns) movido(s) para {{category}}",
     "incompatibleItems": "Os itens selecionados não são compatíveis com esta categoria",
-    "backToFiles": "← Voltar aos arquivos",
+    "backToFiles": "Voltar aos arquivos",
     "categories": {
       "files": "Arquivos",
       "photos": "Fotos",
