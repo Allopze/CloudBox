@@ -287,7 +287,7 @@ export default function QueuesSection() {
                     </Button>
 
                     <Button
-                        variant="destructive"
+                        variant="danger"
                         onClick={handleCancelPending}
                         loading={cancelling}
                         disabled={(stats?.dbStats.pending || 0) === 0}
