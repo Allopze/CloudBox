@@ -11,7 +11,7 @@ CREATE TABLE "users" (
     "storageQuota" BIGINT NOT NULL DEFAULT 5368709120,
     "storageUsed" BIGINT NOT NULL DEFAULT 0,
     "tempStorage" BIGINT NOT NULL DEFAULT 0,
-    "maxFileSize" BIGINT NOT NULL DEFAULT 104857600,
+    "maxFileSize" BIGINT NOT NULL DEFAULT 1073741824,
     "resetToken" TEXT,
     "resetTokenExpiry" TIMESTAMP(3),
     "verifyToken" TEXT,

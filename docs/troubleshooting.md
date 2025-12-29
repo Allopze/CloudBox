@@ -281,7 +281,7 @@ Ensure `FRONTEND_URL` in backend `.env` matches your frontend URL:
 FRONTEND_URL=http://localhost:5000
 
 # Docker (dev)
-FRONTEND_URL=http://localhost:8080
+FRONTEND_URL=http://localhost:5000
 
 # Production
 FRONTEND_URL=https://your-domain.com

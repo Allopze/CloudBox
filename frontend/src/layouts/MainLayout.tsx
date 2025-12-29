@@ -325,7 +325,6 @@ export default function MainLayout() {
 
     // Calculate total size for progress tracking
     const totalSize = allFiles.reduce((sum, { file }) => sum + file.size, 0);
-    let uploadedTotal = 0;
     let lastSpeedUpdate = Date.now();
     let lastUploadedTotal = 0;
     let currentSpeed = 0;
@@ -333,78 +332,137 @@ export default function MainLayout() {
     // Show initial progress
     setGlobalProgress(0, totalSize, 0);
 
-    // Upload files one by one to preserve folder structure
-    // The backend will create folders as needed based on relativePath
+    // Upload files in batches with limited concurrency to reduce per-request overhead
     let successCount = 0;
     let errorCount = 0;
     let lastErrorMessage: string | null = null;
     let lastErrorCode: string | null = null;
 
-    for (const { file, relativePath } of allFiles) {
-      let uploadSucceeded = false;
-      try {
-        // For folder uploads, we need to pass the relative path to the backend
-        // We'll use the upload endpoint that supports folder structure
+    const DIRECT_UPLOAD_LIMIT = 50 * 1024 * 1024;
+    const MAX_FILES_PER_BATCH = 20;
+    const MAX_PARALLEL_UPLOADS = Math.max(1, Math.min(UPLOAD_CONFIG.MAX_CONCURRENT_FILES, 6));
+
+    let completedBytes = 0;
+    const inFlightBytes = new Map<string, number>();
+
+    const updateProgress = () => {
+      let inFlightTotal = 0;
+      for (const bytes of inFlightBytes.values()) {
+        inFlightTotal += bytes;
+      }
+
+      const uploadedSoFar = Math.min(completedBytes + inFlightTotal, totalSize);
+      const now = Date.now();
+      const timeDiff = (now - lastSpeedUpdate) / 1000;
+
+      if (timeDiff > 0.1) {
+        currentSpeed = (uploadedSoFar - lastUploadedTotal) / timeDiff;
+        lastSpeedUpdate = now;
+        lastUploadedTotal = uploadedSoFar;
+      }
+
+      setGlobalProgress(uploadedSoFar, totalSize, currentSpeed);
+    };
+
+    const updateInFlight = (id: string, loaded: number) => {
+      inFlightBytes.set(id, loaded);
+      updateProgress();
+    };
+
+    const finishJob = (id: string, size: number) => {
+      inFlightBytes.delete(id);
+      completedBytes += size;
+      updateProgress();
+    };
+
+    const directItems = allFiles.filter(({ file }) => file.size <= DIRECT_UPLOAD_LIMIT);
+    const chunkedItems = allFiles.filter(({ file }) => file.size > DIRECT_UPLOAD_LIMIT);
+
+    const batches: { file: File; relativePath: string }[][] = [];
+    for (let i = 0; i < directItems.length; i += MAX_FILES_PER_BATCH) {
+      batches.push(directItems.slice(i, i + MAX_FILES_PER_BATCH));
+    }
+
+    type UploadJob =
+      | { id: string; type: 'batch'; items: { file: File; relativePath: string }[]; size: number }
+      | { id: string; type: 'chunked'; item: { file: File; relativePath: string }; size: number };
+
+    const jobs: UploadJob[] = [
+      ...batches.map((items, index) => ({
+        id: `batch-${index}-${Date.now()}`,
+        type: 'batch' as const,
+        items,
+        size: items.reduce((sum, item) => sum + item.file.size, 0),
+      })),
+      ...chunkedItems.map((item, index) => ({
+        id: `chunked-${index}-${Date.now()}`,
+        type: 'chunked' as const,
+        item,
+        size: item.file.size,
+      })),
+    ];
+
+    const runJob = async (job: UploadJob) => {
+      if (job.type === 'batch') {
         const formData = new FormData();
-        formData.append('files', file);
-        formData.append('paths', relativePath);
+        for (const { file, relativePath } of job.items) {
+          formData.append('files', file);
+          formData.append('paths', relativePath);
+        }
         if (folderId) {
           formData.append('folderId', folderId);
         }
 
-        // For small files, use direct upload with folder support
-        // For large files, use chunked upload (folders will be created via path)
-        if (file.size <= 50 * 1024 * 1024) { // 50MB threshold for direct upload
+        updateInFlight(job.id, 0);
+        try {
           await api.post('/files/upload-with-folders', formData, {
             headers: { 'Content-Type': 'multipart/form-data' },
             onUploadProgress: (progressEvent) => {
-              const loaded = progressEvent.loaded || 0;
-              const now = Date.now();
-              const timeDiff = (now - lastSpeedUpdate) / 1000;
-
-              if (timeDiff > 0.1) {
-                currentSpeed = (uploadedTotal + loaded - lastUploadedTotal) / timeDiff;
-                lastSpeedUpdate = now;
-                lastUploadedTotal = uploadedTotal + loaded;
-              }
-
-              setGlobalProgress(uploadedTotal + loaded, totalSize, currentSpeed);
+              const loaded = Math.min(progressEvent.loaded || 0, job.size);
+              updateInFlight(job.id, loaded);
             },
           });
-          uploadSucceeded = true;
+          successCount += job.items.length;
+        } catch (error: unknown) {
+          errorCount += job.items.length;
+          const errorResponse = error as { response?: { data?: { error?: string; code?: string } } };
+          if (errorResponse.response?.data?.error) {
+            lastErrorMessage = errorResponse.response.data.error;
+          }
+          if (errorResponse.response?.data?.code) {
+            lastErrorCode = errorResponse.response.data.code;
+          } else if (error instanceof Error && error.message) {
+            lastErrorMessage = error.message;
+          }
+        } finally {
+          finishJob(job.id, job.size);
+        }
+        return;
+      }
+
+      updateInFlight(job.id, 0);
+      try {
+        const result = await uploadFile(
+          job.item.file,
+          folderId,
+          (progress) => {
+            updateInFlight(job.id, Math.min(progress.uploadedSize, job.size));
+          },
+          { relativePath: job.item.relativePath }
+        );
+        if (result.success) {
+          successCount += 1;
         } else {
-          // Use chunked upload for large files
-          const result = await uploadFile(
-            file,
-            folderId,
-            (progress) => {
-              const now = Date.now();
-              const timeDiff = (now - lastSpeedUpdate) / 1000;
-
-              if (timeDiff > 0.1) {
-                currentSpeed = progress.speed || currentSpeed;
-                lastSpeedUpdate = now;
-              }
-
-              setGlobalProgress(uploadedTotal + progress.uploadedSize, totalSize, currentSpeed);
-            },
-            { relativePath }
-          );
-          if (!result.success) {
-            if (result.error) {
-              lastErrorMessage = result.error;
-            }
-            if (result.errorCode) {
-              lastErrorCode = result.errorCode;
-            }
-          } else {
-            uploadSucceeded = true;
+          errorCount += 1;
+          if (result.error) {
+            lastErrorMessage = result.error;
+          }
+          if (result.errorCode) {
+            lastErrorCode = result.errorCode;
           }
         }
-
-        uploadedTotal += file.size;
       } catch (error: unknown) {
-        console.error(`Failed to upload ${relativePath}:`, error);
+        errorCount += 1;
         const errorResponse = error as { response?: { data?: { error?: string; code?: string } } };
         if (errorResponse.response?.data?.error) {
           lastErrorMessage = errorResponse.response.data.error;
@@ -414,13 +472,33 @@ export default function MainLayout() {
         } else if (error instanceof Error && error.message) {
           lastErrorMessage = error.message;
         }
-        uploadedTotal += file.size; // Still advance progress
+      } finally {
+        finishJob(job.id, job.size);
+      }
+    };
+
+    const pendingJobs = [...jobs];
+    const executing: Promise<void>[] = [];
+
+    const startJob = (job: UploadJob) => {
+      const promise = runJob(job)
+        .catch(() => { })
+        .finally(() => {
+          const index = executing.indexOf(promise);
+          if (index >= 0) {
+            executing.splice(index, 1);
+          }
+        });
+      executing.push(promise);
+    };
+
+    while (pendingJobs.length > 0 || executing.length > 0) {
+      while (executing.length < MAX_PARALLEL_UPLOADS && pendingJobs.length > 0) {
+        startJob(pendingJobs.shift()!);
       }
 
-      if (uploadSucceeded) {
-        successCount++;
-      } else {
-        errorCount++;
+      if (executing.length > 0) {
+        await Promise.race(executing);
       }
     }
 

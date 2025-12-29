@@ -23,7 +23,7 @@ model User {
   storageQuota      BigInt              @default(5368709120)
   storageUsed       BigInt              @default(0)
   tempStorage       BigInt              @default(0)
-  maxFileSize       BigInt              @default(104857600)
+  maxFileSize       BigInt              @default(1073741824)
   resetToken        String?
   resetTokenExpiry  DateTime?
   verifyToken       String?

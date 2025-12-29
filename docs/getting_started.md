@@ -58,13 +58,13 @@ This guide helps you run CloudBox locally (frontend + backend + database).
 
 ## Option B: Dockerized local run (no hot reload)
 
-This runs the backend + a built frontend behind NGINX (use Option A for Vite HMR).
+This runs the backend + a built frontend behind Caddy (use Option A for Vite HMR).
 
 ```bash
 docker-compose up -d --build
 ```
 
-- Frontend: `http://localhost:8080`
+- Frontend: `http://localhost:5000`
 - Backend: `http://localhost:3001`
 
 ## Useful Commands

@@ -23,7 +23,12 @@
     "release": "node scripts/release.js",
     "release:patch": "node scripts/release.js patch",
     "release:minor": "node scripts/release.js minor",
-    "release:major": "node scripts/release.js major"
+    "release:major": "node scripts/release.js major",
+    "start": "npm run start:backend",
+    "start:backend": "cd backend && npm start",
+    "start:frontend": "cd frontend && npm run serve",
+    "db:migrate": "cd backend && npm run db:migrate",
+    "db:deploy": "cd backend && npx prisma migrate deploy"
   },
   "devDependencies": {
     "archiver": "^7.0.1",

@@ -1,29 +1,44 @@
 # ================================
 # CloudBox - Docker Compose for Production
 # ================================
-# Optimized for Cloudflare Tunnels (no reverse proxy needed)
+# Optimized for Cloudflare Tunnels
 # ================================
 # Usage: docker-compose -f docker-compose.prod.yml up -d
 # ================================
 # Prerequisites:
 # 1. Copy .env.production.example to .env and configure all values
 # 2. Set up Cloudflare Tunnel pointing to http://localhost:3001 (API) 
-#    and http://localhost:8080 (Frontend)
+#    and http://localhost:5000 (Frontend)
 # 3. Configure backup strategy for volumes
 # ================================
 
 services:
+  # Init service - Creates data directories with proper permissions
+  init:
+    image: alpine:latest
+    container_name: cloudbox-init
+    command: >
+      sh -c "mkdir -p /data/postgres /data/redis /data/cloudbox /data/glitchtip-postgres &&
+             chmod -R 777 /data &&
+             echo 'Data directories created successfully'"
+    volumes:
+      - ./data:/data
+    restart: "no"
+
   # PostgreSQL Database
   postgres:
     image: postgres:16-alpine
     container_name: cloudbox-postgres
     restart: always
+    depends_on:
+      init:
+        condition: service_completed_successfully
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-cloudbox}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
-      POSTGRES_DB: ${POSTGRES_DB:-cloudbox}
+      POSTGRES_USER: "${POSTGRES_USER:-cloudbox}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
+      POSTGRES_DB: "${POSTGRES_DB:-cloudbox}"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./data/postgres:/var/lib/postgresql/data
     networks:
       - cloudbox-internal
     healthcheck:
@@ -38,13 +53,23 @@ services:
     image: redis:7-alpine
     container_name: cloudbox-redis
     restart: always
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    environment:
+      REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
+    command: >
+      sh -c "if [ -n \"$$REDIS_PASSWORD\" ]; then
+               exec redis-server --appendonly yes --requirepass \"$$REDIS_PASSWORD\";
+             else
+               exec redis-server --appendonly yes;
+             fi"
     volumes:
-      - redis_data:/data
+      - ./data/redis:/data
     networks:
       - cloudbox-internal
     healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
+      test: [ "CMD-SHELL", "if [ -n \"$$REDIS_PASSWORD\" ]; then redis-cli -a \"$$REDIS_PASSWORD\" ping; else redis-cli ping; fi" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -65,17 +90,18 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3001
-      DATABASE_URL: postgresql://${POSTGRES_USER:-cloudbox}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-cloudbox}
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-cloudbox}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-cloudbox}"
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
-      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET is required}
-      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
-      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
-      FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL is required}
+      REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
+      JWT_SECRET: "${JWT_SECRET:?JWT_SECRET is required}"
+      JWT_REFRESH_SECRET: "${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET is required}"
+      ENCRYPTION_KEY: "${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}"
+      JWT_EXPIRES_IN: "${JWT_EXPIRES_IN:-15m}"
+      JWT_REFRESH_EXPIRES_IN: "${JWT_REFRESH_EXPIRES_IN:-7d}"
+      FRONTEND_URL: "${FRONTEND_URL:?FRONTEND_URL is required}"
       STORAGE_PATH: /app/data
-      MAX_FILE_SIZE: ${MAX_FILE_SIZE:-104857600}
+      MAX_FILE_SIZE: ${MAX_FILE_SIZE:-1073741824}
       DEFAULT_QUOTA: ${DEFAULT_QUOTA:-5368709120}
       TRASH_RETENTION_DAYS: ${TRASH_RETENTION_DAYS:-30}
       # Error tracking (GlitchTip - self-hosted Sentry)
@@ -88,7 +114,7 @@ services:
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-}
     volumes:
-      - cloudbox_data:/app/data
+      - ./data/cloudbox:/app/data
     ports:
       # Exposed for Cloudflare Tunnel
       - "3001:3001"
@@ -101,7 +127,7 @@ services:
       retries: 3
       start_period: 30s
 
-  # Frontend (NGINX)
+  # Frontend (Caddy)
   frontend:
     image: ${REGISTRY:-}cloudbox-frontend:${VERSION:-latest}
     build:
@@ -115,11 +141,11 @@ services:
       - backend
     ports:
       # Exposed for Cloudflare Tunnel
-      - "8080:8080"
+      - "5000:5000"
     networks:
       - cloudbox-internal
     healthcheck:
-      test: [ "CMD", "wget", "-q", "--spider", "http://localhost:8080/health" ]
+      test: [ "CMD", "wget", "-q", "--spider", "http://localhost:5000/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -141,7 +167,7 @@ services:
       POSTGRES_PASSWORD: ${GLITCHTIP_DB_PASSWORD:-glitchtip_secret}
       POSTGRES_DB: glitchtip
     volumes:
-      - glitchtip_postgres:/var/lib/postgresql/data
+      - ./data/glitchtip-postgres:/var/lib/postgresql/data
     networks:
       - cloudbox-internal
     healthcheck:
@@ -161,8 +187,8 @@ services:
       redis:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://glitchtip:${GLITCHTIP_DB_PASSWORD:-glitchtip_secret}@glitchtip-postgres:5432/glitchtip
-      REDIS_URL: redis://:${REDIS_PASSWORD:-}@redis:6379/1
+      DATABASE_URL: "postgres://glitchtip:${GLITCHTIP_DB_PASSWORD:-glitchtip_secret}@glitchtip-postgres:5432/glitchtip"
+      REDIS_URL: "redis://:${REDIS_PASSWORD:-}@redis:6379/1"
       SECRET_KEY: ${GLITCHTIP_SECRET_KEY:-change-me-in-production}
       PORT: 8000
       EMAIL_URL: ${GLITCHTIP_EMAIL_URL:-consolemail://}
@@ -193,21 +219,13 @@ services:
       redis:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://glitchtip:${GLITCHTIP_DB_PASSWORD:-glitchtip_secret}@glitchtip-postgres:5432/glitchtip
-      REDIS_URL: redis://:${REDIS_PASSWORD:-}@redis:6379/1
+      DATABASE_URL: "postgres://glitchtip:${GLITCHTIP_DB_PASSWORD:-glitchtip_secret}@glitchtip-postgres:5432/glitchtip"
+      REDIS_URL: "redis://:${REDIS_PASSWORD:-}@redis:6379/1"
       SECRET_KEY: ${GLITCHTIP_SECRET_KEY:-change-me-in-production}
     networks:
       - cloudbox-internal
 
-volumes:
-  postgres_data:
-    driver: local
-  redis_data:
-    driver: local
-  cloudbox_data:
-    driver: local
-  glitchtip_postgres:
-    driver: local
+# Volumes removed - using bind mounts to ./data/ folder instead
 
 networks:
   cloudbox-internal:

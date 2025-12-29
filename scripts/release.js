@@ -122,7 +122,11 @@ async function main() {
     // Step 2: Build frontend
     console.log('\n🔨 Building frontend...');
     try {
-        execSync('npm run build', { cwd: path.join(rootDir, 'frontend'), stdio: 'inherit' });
+        execSync('npm run build', {
+            cwd: path.join(rootDir, 'frontend'),
+            stdio: 'inherit',
+            env: { ...process.env, VITE_API_URL: '/api' }
+        });
     } catch (error) {
         console.error('❌ Frontend build failed');
         process.exit(1);
@@ -148,15 +152,33 @@ async function main() {
         );
     }
 
-    // Copy package.json (production dependencies only)
+    // Copy package.json and package-lock.json (for reproducible installs)
     const backendPkg = JSON.parse(fs.readFileSync(path.join(rootDir, 'backend', 'package.json'), 'utf8'));
     delete backendPkg.devDependencies;
     backendPkg.scripts = {
         start: 'node dist/index.js',
         'db:migrate': 'npx prisma migrate deploy',
         'db:generate': 'npx prisma generate',
+        'db:seed': 'node dist/prisma/seed.js',
     };
     fs.writeFileSync(path.join(backendDest, 'package.json'), JSON.stringify(backendPkg, null, 2));
+
+    // Copy defaults.json for branding and file icons
+    const defaultsJsonSource = path.join(rootDir, 'backend', 'src', 'prisma', 'defaults.json');
+    const defaultsJsonDest = path.join(backendDest, 'dist', 'prisma', 'defaults.json');
+    if (fs.existsSync(defaultsJsonSource)) {
+        fs.mkdirSync(path.join(backendDest, 'dist', 'prisma'), { recursive: true });
+        fs.copyFileSync(defaultsJsonSource, defaultsJsonDest);
+        console.log('   ✓ defaults.json copied (branding & file icons)');
+    }
+
+    // Copy package-lock.json for reproducible builds
+    if (fs.existsSync(path.join(rootDir, 'backend', 'package-lock.json'))) {
+        fs.copyFileSync(
+            path.join(rootDir, 'backend', 'package-lock.json'),
+            path.join(backendDest, 'package-lock.json')
+        );
+    }
 
     // Copy .env.example
     fs.copyFileSync(
@@ -178,13 +200,151 @@ async function main() {
     };
     fs.writeFileSync(path.join(tempDir, 'frontend', 'package.json'), JSON.stringify(frontendPkg, null, 2));
 
-    // Step 5: Create root files
+    // Step 5: Copy default branding assets
+    console.log('🎨 Copying default branding assets...');
+    const brandingSource = path.join(rootDir, 'data', 'branding');
+    const brandingDest = path.join(tempDir, 'data', 'branding');
+    if (fs.existsSync(brandingSource)) {
+        copyDirSync(brandingSource, brandingDest);
+        console.log('   ✓ Branding assets copied (logos, favicon)');
+    } else {
+        console.log('   ⚠ No branding assets found in data/branding/');
+    }
+
+    // Step 6: Copy Docker files
+    console.log('🐳 Creating production Docker files...');
+
+    // Docker Compose files
+    if (fs.existsSync(path.join(rootDir, 'docker-compose.yml'))) {
+        fs.copyFileSync(
+            path.join(rootDir, 'docker-compose.yml'),
+            path.join(tempDir, 'docker-compose.yml')
+        );
+    }
+    if (fs.existsSync(path.join(rootDir, 'docker-compose.prod.yml'))) {
+        fs.copyFileSync(
+            path.join(rootDir, 'docker-compose.prod.yml'),
+            path.join(tempDir, 'docker-compose.prod.yml')
+        );
+    }
+
+    // Backend Release Dockerfile (Debian-based for canvas compatibility)
+    const backendDockerfile = `# CloudBox Backend - Production (Release)
+# Using Debian slim instead of Alpine for canvas prebuilt binaries
+FROM node:20-slim
+
+WORKDIR /app
+
+# Install OS dependencies for native modules
+RUN apt-get update && apt-get install -y --no-install-recommends \\
+    ffmpeg \\
+    p7zip-full \\
+    graphicsmagick \\
+    poppler-utils \\
+    tini \\
+    wget \\
+    build-essential \\
+    libcairo2-dev \\
+    libpango1.0-dev \\
+    libjpeg-dev \\
+    libgif-dev \\
+    librsvg2-dev \\
+    libpixman-1-dev \\
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy package files first for better caching
+COPY package*.json ./
+COPY prisma ./prisma
+
+# Install production dependencies
+RUN npm ci --omit=dev
+
+# Generate Prisma client for this specific OS
+RUN npx prisma generate
+
+# Copy pre-built application
+COPY dist ./dist
+
+# Create non-root user and set permissions
+RUN groupadd -g 1001 cloudbox && \\
+    useradd -u 1001 -g cloudbox -s /bin/sh cloudbox && \\
+    mkdir -p /app/data && \\
+    chown -R cloudbox:cloudbox /app
+
+USER cloudbox
+
+EXPOSE 3001
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \\
+    CMD wget -q --spider http://localhost:3001/api/health/ping || exit 1
+
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]
+`;
+    fs.writeFileSync(path.join(tempDir, 'backend', 'Dockerfile'), backendDockerfile);
+
+    // Frontend Release Dockerfile (Caddy-based)
+    const frontendDockerfile = `# CloudBox Frontend - Production (Release)
+FROM caddy:alpine
+
+COPY Caddyfile /etc/caddy/Caddyfile
+COPY dist /srv
+
+RUN addgroup -g 1001 -S cloudbox && adduser -S cloudbox -u 1001 -G cloudbox && \\
+    chown -R cloudbox:cloudbox /srv && \\
+    chown -R cloudbox:cloudbox /config && \\
+    chown -R cloudbox:cloudbox /data
+
+USER cloudbox
+EXPOSE 5000
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 CMD wget -q --spider http://localhost:5000/health || exit 1
+
+CMD ["caddy", "run", "--config", "/etc/caddy/Caddyfile"]
+`;
+    fs.writeFileSync(path.join(tempDir, 'frontend', 'Dockerfile'), frontendDockerfile);
+
+    // Copy frontend Caddyfile
+    if (fs.existsSync(path.join(rootDir, 'frontend', 'Caddyfile'))) {
+        fs.copyFileSync(
+            path.join(rootDir, 'frontend', 'Caddyfile'),
+            path.join(tempDir, 'frontend', 'Caddyfile')
+        );
+    }
+
+    // Production environment example
+    if (fs.existsSync(path.join(rootDir, '.env.production.example'))) {
+        fs.copyFileSync(
+            path.join(rootDir, '.env.production.example'),
+            path.join(tempDir, '.env.production.example')
+        );
+    }
+
+    // Step 6: Create root files
     console.log('📁 Creating release files...');
 
     // Create README
     const readme = `# CloudBox v${version}
 
-## Quick Start
+## 🐳 Docker Deployment (Recommended)
+
+### Quick Start
+\`\`\`bash
+cp .env.production.example .env
+# Edit .env with your configuration (set passwords, FRONTEND_URL, ENCRYPTION_KEY, etc.)
+docker-compose -f docker-compose.prod.yml up -d --build
+\`\`\`
+
+Access:
+- Frontend: http://localhost:5000
+- Backend API: http://localhost:3001
+
+### First-time Setup
+After starting the containers, create the initial admin user:
+\`\`\`bash
+docker-compose -f docker-compose.prod.yml exec backend node dist/prisma/seed.js
+\`\`\`
+
+## 📦 Manual Installation
 
 ### 1. Backend Setup
 \`\`\`bash
@@ -202,7 +362,7 @@ cd frontend
 npm run serve
 \`\`\`
 
-Or serve the \`frontend/dist\` folder with any static file server (nginx, apache, etc.)
+Or serve the \`frontend/dist\` folder with any static file server (Caddy, nginx, etc.)
 
 ## Requirements
 - Node.js >= 18
@@ -211,6 +371,7 @@ Or serve the \`frontend/dist\` folder with any static file server (nginx, apache
 
 ## Environment Variables
 See \`backend/.env.example\` for all available configuration options.
+For Docker deployments, see \`.env.production.example\`.
 `;
     fs.writeFileSync(path.join(tempDir, 'README.md'), readme);
 
@@ -220,16 +381,18 @@ See \`backend/.env.example\` for all available configuration options.
         version: version,
         description: 'CloudBox - Cloud Storage Platform',
         scripts: {
+            'start': 'npm run start:backend',
             'start:backend': 'cd backend && npm start',
             'start:frontend': 'cd frontend && npm run serve',
             'install:all': 'cd backend && npm install --production && cd ../frontend && npm install',
             'db:migrate': 'cd backend && npm run db:migrate',
+            'db:deploy': 'cd backend && npx prisma migrate deploy',
         },
         engines: { node: '>=18.0.0' },
     };
     fs.writeFileSync(path.join(tempDir, 'package.json'), JSON.stringify(rootPkg, null, 2));
 
-    // Step 6: Create ZIP
+    // Step 7: Create ZIP
     console.log('\n📦 Creating ZIP archive...');
     await createZip(tempDir, outputZip);
 

@@ -50,9 +50,6 @@ import versionRoutes from './routes/versions.js';
 
 const app = express();
 
-// Trust proxy for rate limiting behind reverse proxy
-app.set('trust proxy', 1);
-
 // Security headers with Helmet
 // Production-hardened CSP and security headers
 const isProduction = config.nodeEnv === 'production';
@@ -466,9 +463,26 @@ const registerRoutes = () => {
     res.status(overallHealthy ? 200 : 503).json(response);
   });
 
-  // Serve static files from data directory
   // Serve static files from data directory - REMOVED FOR SECURITY
   // app.use('/data', express.static(path.resolve(config.storage.path)));
+
+  // Serve frontend static files in production
+  if (config.nodeEnv === 'production') {
+    const __dirname = path.resolve();
+    const frontendDistPath = path.join(__dirname, '..', 'frontend', 'dist');
+
+    // Serve static assets
+    app.use(express.static(frontendDistPath));
+
+    // SPA fallback: handle all non-API routes by serving index.html
+    app.get('*', (req, res, next) => {
+      // Skip API and Socket.IO routes
+      if (req.path.startsWith('/api') || req.path.startsWith('/socket.io')) {
+        return next();
+      }
+      res.sendFile(path.join(frontendDistPath, 'index.html'));
+    });
+  }
 };
 
 // Cleanup expired trash items (run every hour)

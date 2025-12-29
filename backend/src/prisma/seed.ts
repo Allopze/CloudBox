@@ -11,13 +11,13 @@ const generateSecurePassword = (): string => {
 
 async function main() {
   const isProduction = process.env.NODE_ENV === 'production';
-  
+
   // Security: In production, require explicit admin credentials via environment variables
   // Never use hardcoded credentials in production
   if (isProduction) {
     const adminEmail = process.env.ADMIN_EMAIL;
     const adminPassword = process.env.ADMIN_PASSWORD;
-    
+
     if (!adminEmail || !adminPassword) {
       console.log('Production mode: Skipping admin seed. Set ADMIN_EMAIL and ADMIN_PASSWORD env vars to create admin.');
       // Skip admin creation in production without explicit credentials
@@ -26,7 +26,7 @@ async function main() {
       if (adminPassword.length < 12) {
         throw new Error('ADMIN_PASSWORD must be at least 12 characters in production');
       }
-      
+
       const existingAdmin = await prisma.user.findUnique({
         where: { email: adminEmail },
       });
@@ -135,7 +135,76 @@ async function main() {
     }
   }
 
-  console.log('Seed completed!');
+  // Create default branding settings
+  console.log('\n🎨 Setting up default branding...');
+  const defaultBrandingSettings = [
+    { key: 'site_name', value: 'CloudBox' },
+    { key: 'branding_primary_color', value: '#dc2626' },
+  ];
+
+  for (const setting of defaultBrandingSettings) {
+    const existing = await prisma.settings.findUnique({
+      where: { key: setting.key },
+    });
+
+    if (!existing) {
+      await prisma.settings.create({
+        data: setting,
+      });
+      console.log(`   ✓ Created setting: ${setting.key}`);
+    }
+  }
+
+  // Load default file icons from defaults.json if it exists
+  const defaultsPath = new URL('./defaults.json', import.meta.url);
+  try {
+    const { readFileSync, existsSync } = await import('fs');
+    const { fileURLToPath } = await import('url');
+    const defaultsFilePath = fileURLToPath(defaultsPath);
+
+    if (existsSync(defaultsFilePath)) {
+      console.log('\n🎯 Loading default file icons...');
+      const defaults = JSON.parse(readFileSync(defaultsFilePath, 'utf-8'));
+
+      if (defaults.fileIcons && Array.isArray(defaults.fileIcons)) {
+        for (const icon of defaults.fileIcons) {
+          const existing = await prisma.settings.findUnique({
+            where: { key: icon.key },
+          });
+
+          if (!existing) {
+            await prisma.settings.create({
+              data: { key: icon.key, value: icon.value },
+            });
+            const category = icon.key.replace('file_icon_', '');
+            console.log(`   ✓ Created icon: ${category}`);
+          }
+        }
+      }
+
+      // Also load additional branding settings from defaults.json
+      if (defaults.branding && Array.isArray(defaults.branding)) {
+        for (const setting of defaults.branding) {
+          const existing = await prisma.settings.findUnique({
+            where: { key: setting.key },
+          });
+
+          if (!existing) {
+            await prisma.settings.create({
+              data: { key: setting.key, value: setting.value },
+            });
+            console.log(`   ✓ Created branding: ${setting.key}`);
+          }
+        }
+      }
+    } else {
+      console.log('   ℹ No defaults.json found, using built-in defaults');
+    }
+  } catch (error) {
+    console.log('   ℹ Could not load defaults.json, using built-in defaults');
+  }
+
+  console.log('\n✅ Seed completed!')
 }
 
 main()

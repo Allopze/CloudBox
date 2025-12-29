@@ -6,7 +6,7 @@ Esta guía describe cómo desplegar CloudBox con Docker usando `docker-compose.p
 
 - Docker 24+ y Docker Compose v2+
 - Un dominio (si lo vas a exponer públicamente)
-- Recomendado: Cloudflare Tunnel o un reverse proxy (NGINX/Caddy) para HTTPS
+- Recomendado: Cloudflare Tunnel para HTTPS
 
 ### Hardware mínimo
 
@@ -27,12 +27,14 @@ FRONTEND_URL=https://cloud.example.com
 POSTGRES_PASSWORD=...
 JWT_SECRET=...
 JWT_REFRESH_SECRET=...
+ENCRYPTION_KEY=...
 ```
 
 Generar secrets seguros:
 
 ```bash
-openssl rand -base64 64
+openssl rand -base64 64  # JWT secrets
+openssl rand -base64 32  # ENCRYPTION_KEY
 ```
 
 ## 2) Levantar servicios
@@ -45,26 +47,29 @@ docker-compose -f docker-compose.prod.yml ps
 Health checks:
 
 - Backend (público): `http://localhost:3001/api/health/ping`
-- Frontend: `http://localhost:8080/health`
+- Frontend: `http://localhost:5000/health`
 - Health detallado (admin): `GET /api/health` con token de `ADMIN`
 
-## 3) Exponer públicamente (Cloudflare Tunnel o reverse proxy)
+## 3) Acceso LAN + WAN
 
-`docker-compose.prod.yml` expone `:3001` (API) y `:8080` (frontend) para que lo conectes a un túnel o proxy.
+CloudBox usa **Caddy** como servidor web para el frontend. Caddy escucha en el puerto `5000` y funciona tanto para acceso local como remoto:
 
-### Opción A: Cloudflare Tunnel
+### Acceso desde la red local (LAN)
+
+```
+http://192.168.1.100:5000   → Frontend con Caddy
+http://192.168.1.100:3001   → API directa
+```
+
+### Acceso público (WAN) con Cloudflare Tunnel
 
 Configura reglas de ingress para que:
 
-- `https://cloud.example.com/api/*` → `http://localhost:3001`
-- `https://cloud.example.com/*` → `http://localhost:8080`
+- `https://cloud.example.com/*` → `http://localhost:5000`
 
-### Opción B: Caddy (opcional)
+> **Nota**: Caddy hace proxy automático de `/api/*` al backend, así que solo necesitas exponer el puerto 5000 al túnel.
 
-El repo incluye `Caddyfile` (usa `DOMAIN`). Si usas Caddy, proxyea:
-
-- `/api/*` → backend
-- `/*` → frontend
+Cloudflare maneja HTTPS en el borde. El tráfico llega a Caddy en HTTP, que es seguro dentro del túnel.
 
 ## 4) Crear el primer admin (producción)
 
@@ -108,3 +113,19 @@ docker run --rm -v cloudbox_cloudbox_data:/data -v $(pwd):/backup \
 
 - GlitchTip (local): `http://localhost:8000`
 - Configura `SENTRY_DSN` en `.env` para enviar errores.
+
+## 8) Sobre Caddy vs NGINX
+
+El proyecto usa **Caddy** como servidor web del frontend por las siguientes razones:
+
+| Aspecto | Caddy | NGINX |
+|---------|-------|-------|
+| Configuración | ~65 líneas | ~124 líneas |
+| HTTPS automático | ✅ Si lo necesitas | Manual |
+| HTTP/2 & HTTP/3 | Por defecto | Requiere config |
+| Rendimiento | Excelente | Ligeramente mejor |
+
+Para casos con Cloudflare Tunnel, ambos funcionan igual porque Cloudflare maneja HTTPS.
+
+
+

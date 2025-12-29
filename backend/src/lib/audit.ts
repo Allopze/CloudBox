@@ -39,7 +39,7 @@ interface AuditLogEntry {
   userId?: string;
   targetId?: string;
   targetType?: 'user' | 'file' | 'folder' | 'share' | 'settings';
-  ipAddress: string;
+  ipAddress?: string;
   userAgent?: string;
   details?: Record<string, any>;
   success: boolean;

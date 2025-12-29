@@ -220,7 +220,7 @@ export const smtpConfigSchema = z.object({
     port: z.coerce.number().int().positive().default(587),
     secure: z.coerce.boolean().default(false),
     user: z.string().optional().default(''),
-    pass: z.string().optional().default(''),
+    pass: z.string().optional(),
     from: z.string().optional().default(''),
   }),
 });

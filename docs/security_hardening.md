@@ -119,7 +119,7 @@ ingress:
 ```
 cloud.example.com {
     reverse_proxy /api/* localhost:3001
-    reverse_proxy /* localhost:8080
+    reverse_proxy /* localhost:5000
 }
 ```
 

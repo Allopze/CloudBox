@@ -151,7 +151,7 @@ Follow these steps to deploy CloudBox on a production server using Docker.
 -   A Linux server (Ubuntu 22.04+ recommended).
 -   [Docker](https://docs.docker.com/engine/install/) and [Docker Compose](https://docs.docker.com/compose/install/) (v2.x) installed.
 -   A domain name pointing to your server (e.g., `cloud.example.com`).
--   (Recommended) [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) or a reverse proxy like Caddy/Nginx for HTTPS.
+-   (Recommended) Cloudflare Tunnel for secure remote access.
 
 ### 1. Clone the Repository
 
@@ -170,22 +170,22 @@ nano .env # or use your preferred editor
 ```
 
 **Required variables to set:**
--   `DOMAIN`: Your domain (e.g., `cloud.example.com`).
 -   `FRONTEND_URL`: Full URL with `https://` (e.g., `https://cloud.example.com`).
 -   `POSTGRES_PASSWORD`: A strong, unique password.
--   `JWT_SECRET` / `JWT_REFRESH_SECRET`: Generate with `openssl rand -base64 64`.
+-   `JWT_SECRET` / `JWT_REFRESH_SECRET`: Generate with \`openssl rand -base64 64\`.
+-   `ENCRYPTION_KEY`: Generate with \`openssl rand -base64 32\`.
 
 ### 3. Start All Services
 
 ```bash
-docker-compose -f docker-compose.prod.yml up -d
+docker-compose -f docker-compose.prod.yml up -d --build
 ```
 
 This command will build the images (if not present) and start:
 -   `cloudbox-postgres`: Database.
 -   `cloudbox-redis`: Cache and job queue.
 -   `cloudbox-backend`: API server on port `3001`.
--   `cloudbox-frontend`: Nginx server on port `8080`.
+-   `cloudbox-frontend`: Caddy server on port `5000`.
 -   `cloudbox-glitchtip` (optional): Error tracking.
 
 ### 4. Run Database Migrations
@@ -196,30 +196,32 @@ The backend container runs migrations on startup. You can verify the database is
 docker-compose -f docker-compose.prod.yml logs backend
 ```
 
-### 5. Create the First Admin User
+### 5. Create Admin User and Apply Default Branding
 
 Run the seed script inside the backend container:
 
 ```bash
-docker-compose -f docker-compose.prod.yml exec backend node dist/prisma/seed.js
+docker-compose -f docker-compose.prod.yml exec backend npm run db:seed
 ```
 
-This uses `ADMIN_EMAIL` and `ADMIN_PASSWORD` from your `.env` file. Ensure the password is at least 12 characters.
+This will:
+- Create the admin user using `ADMIN_EMAIL` and `ADMIN_PASSWORD` from your `.env` file (password must be at least 12 characters)
+- Apply default branding settings (site name, primary color)
+- Load custom file icons for all supported file types
 
-### 6. Configure HTTPS with Cloudflare Tunnel
+> **Note**: The seed only creates settings if they don't exist. Running it multiple times won't overwrite your customizations.
 
 Point your Cloudflare Tunnel to the services:
--   **Frontend**: `http://localhost:8080`
--   **Backend API**: `http://localhost:3001`
-
-Alternatively, use the included `Caddyfile` or your own Nginx configuration for TLS termination.
+-   **Frontend**: `http://localhost:5000` (Caddy will proxy API requests automatically)
+-   **Backend API**: `http://localhost:3001` (Use this for direct manual access)
 
 ### 7. Verify Deployment
 
-Navigate to your domain. Log in with the admin credentials you configured. Check the health endpoint:
+Navigate to your domain or `http://your-server-ip:3001` (if manual).
+Check the health endpoint:
 
 ```bash
-curl https://cloud.example.com/api/health/ping
+curl http://localhost:3001/api/health/ping
 # Expected: {"status":"ok"}
 ```
 
@@ -228,3 +230,5 @@ curl https://cloud.example.com/api/health/ping
 ## License
 
 MIT License. See `LICENSE`.
+
+

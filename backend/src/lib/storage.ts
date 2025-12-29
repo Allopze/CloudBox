@@ -10,6 +10,7 @@ const STORAGE_DIRS = {
   landing: 'landing',
   chunks: 'chunks',
   temp: 'temp',
+  versions: 'versions',
 };
 
 // Ensure storage path is absolute

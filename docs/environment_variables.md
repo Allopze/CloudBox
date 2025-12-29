@@ -14,7 +14,7 @@ Complete reference for all environment variables used in CloudBox.
 
 Notes for `FRONTEND_URL`:
 - Local dev (`npm run dev`): `http://localhost:5000`
-- Docker dev (`docker-compose up --build`): `http://localhost:8080`
+- Docker dev (`docker-compose up --build`): `http://localhost:5000`
 - Production: your real domain (e.g. `https://cloud.example.com`)
 
 ---
@@ -51,6 +51,19 @@ DATABASE_URL="postgresql://cloudbox:password@localhost:5432/cloudbox?schema=publ
 **Generate secure secrets:**
 ```bash
 openssl rand -base64 64
+```
+
+---
+
+## Encryption
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ENCRYPTION_KEY` | (required in production) | Encrypts sensitive data (SMTP passwords, 2FA secrets) |
+
+**Generate secure key:**
+```bash
+openssl rand -base64 32
 ```
 
 ---
@@ -209,4 +222,3 @@ REDIS_PORT=6379
 ```bash
 VITE_API_URL=http://localhost:3001/api
 ```
-
