@@ -1,0 +1,7 @@
+{
+  "name": "cloudbox-frontend",
+  "version": "1.0.0",
+  "scripts": {
+    "serve": "npx serve -s dist -l 5000"
+  }
+}

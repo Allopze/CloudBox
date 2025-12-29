@@ -47,7 +47,7 @@ export default function BrandingSection() {
         formData.append('type', type);
 
         try {
-            await api.post('/admin/branding/upload', formData, {
+            await api.post(`/admin/branding/${type}`, formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
                 },

@@ -19,7 +19,7 @@ const DEFAULT_CONFIG = {
   MAX_RETRIES: 3,
   RETRY_BASE_DELAY: 1000, // 1 second
   CHUNKED_UPLOAD_THRESHOLD: 10 * 1024 * 1024, // 10MB
-  MAX_FILE_SIZE: 50 * 1024 * 1024 * 1024, // 50GB default
+  MAX_FILE_SIZE: 1024 * 1024 * 1024, // 1GB default
 };
 
 // Dynamic configuration (loaded from server)

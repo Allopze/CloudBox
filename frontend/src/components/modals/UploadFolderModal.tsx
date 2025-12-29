@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import { useDropzone, FileWithPath } from 'react-dropzone';
@@ -8,9 +8,9 @@ import Progress from '../ui/Progress';
 import { Upload, FolderOpen, X, CheckCircle, XCircle } from 'lucide-react';
 import { api } from '../../lib/api';
 import { formatBytes, cn } from '../../lib/utils';
+import { uploadFile, UPLOAD_CONFIG, ensureConfigLoaded } from '../../lib/chunkedUpload';
 import { toast } from '../ui/Toast';
 import { useAuthStore } from '../../stores/authStore';
-import type { Folder } from '../../types';
 
 interface UploadFolderModalProps {
   isOpen: boolean;
@@ -38,8 +38,6 @@ export default function UploadFolderModal({
   const [files, setFiles] = useState<FolderUploadItem[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [searchParams] = useSearchParams();
-  const childrenCache = useRef<Record<string, Folder[]>>({});
-  const folderIdCache = useRef<Map<string, string>>(new Map());
   const { refreshUser } = useAuthStore();
 
   const getCurrentFolderId = () => {
@@ -48,75 +46,6 @@ export default function UploadFolderModal({
     return currentFolder || undefined;
   };
 
-  const getChildrenKey = (parentId: string | undefined) => parentId ?? 'root';
-
-  const loadChildren = async (parentId: string | undefined) => {
-    const key = getChildrenKey(parentId);
-    if (childrenCache.current[key]) {
-      return childrenCache.current[key];
-    }
-
-    const response = await api.get('/folders', {
-      params: { parentId: parentId || undefined },
-    });
-
-    const folders = response.data || [];
-    childrenCache.current[key] = folders;
-    return folders;
-  };
-
-  const ensureFolder = async (name: string, parentId: string | undefined) => {
-    const cacheKey = `${parentId ?? 'root'}:${name}`;
-    if (folderIdCache.current.has(cacheKey)) {
-      return folderIdCache.current.get(cacheKey)!;
-    }
-
-    const children = await loadChildren(parentId);
-    const existing = children.find((folder: Folder) => folder.name === name);
-    if (existing) {
-      folderIdCache.current.set(cacheKey, existing.id);
-      return existing.id;
-    }
-
-    try {
-      const response = await api.post('/folders', {
-        name,
-        parentId: parentId || undefined,
-      });
-      const created: Folder = response.data;
-      childrenCache.current[getChildrenKey(parentId)] = [...children, created];
-      folderIdCache.current.set(cacheKey, created.id);
-      return created.id;
-    } catch (error: any) {
-      if (
-        error.response?.status === 400 &&
-        typeof error.response?.data?.error === 'string' &&
-        error.response.data.error.includes('already exists')
-      ) {
-        const refreshedChildren = await loadChildren(parentId);
-        const duplicate = refreshedChildren.find((folder: Folder) => folder.name === name);
-        if (duplicate) {
-          folderIdCache.current.set(cacheKey, duplicate.id);
-          return duplicate.id;
-        }
-      }
-      throw error;
-    }
-  };
-
-  const resolveFolderForPath = async (relativePath: string) => {
-    const parts = relativePath.split('/').filter(Boolean);
-    const directories = parts.slice(0, -1);
-    if (directories.length === 0) {
-      return getCurrentFolderId();
-    }
-
-    let parentId = getCurrentFolderId();
-    for (const segment of directories) {
-      parentId = await ensureFolder(segment, parentId);
-    }
-    return parentId;
-  };
 
   const onDrop = useCallback((acceptedFiles: FileWithPath[]) => {
     const newFiles = acceptedFiles.map((file) => {
@@ -147,72 +76,178 @@ export default function UploadFolderModal({
     useFsAccessApi: false, // Needed for folder drag & drop to work properly
   });
 
-  const uploadFile = async (fileItem: FolderUploadItem, targetFolderId: string | undefined) => {
-    const formData = new FormData();
-    formData.append('files', fileItem.file);
-    if (targetFolderId) {
-      formData.append('folderId', targetFolderId);
-    }
-
-    try {
-      setFiles((prev) =>
-        prev.map((f) =>
-          f.id === fileItem.id ? { ...f, status: 'uploading' } : f
-        )
-      );
-
-      await api.post('/files/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-        onUploadProgress: (progressEvent) => {
-          const progress = progressEvent.total
-            ? Math.round((progressEvent.loaded * 100) / progressEvent.total)
-            : 0;
-          setFiles((prev) =>
-            prev.map((f) =>
-              f.id === fileItem.id ? { ...f, progress } : f
-            )
-          );
-        },
-      });
-
-      setFiles((prev) =>
-        prev.map((f) =>
-          f.id === fileItem.id ? { ...f, status: 'completed', progress: 100 } : f
-        )
-      );
-    } catch (err: any) {
-      const message = err.response?.data?.error || t('modals.uploadFolder.uploadError');
-      setFiles((prev) =>
-        prev.map((f) =>
-          f.id === fileItem.id
-            ? { ...f, status: 'error', error: message }
-            : f
-        )
-      );
-    }
-  };
-
   const handleUpload = async () => {
     if (files.length === 0) return;
 
     setIsUploading(true);
+    await ensureConfigLoaded();
     const pendingFiles = files.filter((file) => file.status === 'pending');
-    const folderPathCache = new Map<string, string | undefined>();
+    const baseFolderId = getCurrentFolderId() || null;
 
-    for (const fileItem of pendingFiles) {
-      const directoryPath = fileItem.relativePath.split('/').slice(0, -1).join('/');
-      const cacheKey = directoryPath || '__root__';
-      let targetFolderId = folderPathCache.get(cacheKey);
-      if (targetFolderId === undefined) {
-        targetFolderId = await resolveFolderForPath(fileItem.relativePath);
-        folderPathCache.set(cacheKey, targetFolderId);
+    const DIRECT_UPLOAD_LIMIT = 50 * 1024 * 1024;
+    const MAX_FILES_PER_BATCH = 20;
+    const MAX_PARALLEL_UPLOADS = Math.max(1, Math.min(UPLOAD_CONFIG.MAX_CONCURRENT_FILES, 6));
+
+    const directItems = pendingFiles.filter((item) => item.file.size <= DIRECT_UPLOAD_LIMIT);
+    const chunkedItems = pendingFiles.filter((item) => item.file.size > DIRECT_UPLOAD_LIMIT);
+
+    const batches: FolderUploadItem[][] = [];
+    for (let i = 0; i < directItems.length; i += MAX_FILES_PER_BATCH) {
+      batches.push(directItems.slice(i, i + MAX_FILES_PER_BATCH));
+    }
+
+    let hadErrors = false;
+
+    const uploadBatch = async (batch: FolderUploadItem[]) => {
+      const batchIds = new Set(batch.map((item) => item.id));
+      const batchTotal = batch.reduce((sum, item) => sum + item.file.size, 0);
+
+      setFiles((prev) =>
+        prev.map((file) =>
+          batchIds.has(file.id)
+            ? { ...file, status: 'uploading', progress: 0, error: undefined }
+            : file
+        )
+      );
+
+      const formData = new FormData();
+      for (const item of batch) {
+        formData.append('files', item.file);
+        formData.append('paths', item.relativePath);
       }
-      await uploadFile(fileItem, targetFolderId);
+      if (baseFolderId) {
+        formData.append('folderId', baseFolderId);
+      }
+
+      try {
+        await api.post('/files/upload-with-folders', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          onUploadProgress: (progressEvent) => {
+            const loaded = Math.min(progressEvent.loaded || 0, batchTotal);
+            const progress = batchTotal > 0 ? Math.round((loaded * 100) / batchTotal) : 0;
+            setFiles((prev) =>
+              prev.map((file) =>
+                batchIds.has(file.id)
+                  ? { ...file, status: 'uploading', progress }
+                  : file
+              )
+            );
+          },
+        });
+
+        setFiles((prev) =>
+          prev.map((file) =>
+            batchIds.has(file.id)
+              ? { ...file, status: 'completed', progress: 100 }
+              : file
+          )
+        );
+      } catch (err: any) {
+        hadErrors = true;
+        const message = err.response?.data?.error || t('modals.uploadFolder.uploadError');
+        setFiles((prev) =>
+          prev.map((file) =>
+            batchIds.has(file.id)
+              ? { ...file, status: 'error', error: message }
+              : file
+          )
+        );
+      }
+    };
+
+    const uploadChunked = async (item: FolderUploadItem) => {
+      setFiles((prev) =>
+        prev.map((file) =>
+          file.id === item.id
+            ? { ...file, status: 'uploading', progress: 0, error: undefined }
+            : file
+        )
+      );
+
+      try {
+        const result = await uploadFile(
+          item.file,
+          baseFolderId,
+          (progress) => {
+            setFiles((prev) =>
+              prev.map((file) =>
+                file.id === item.id
+                  ? { ...file, status: 'uploading', progress: progress.progress }
+                  : file
+              )
+            );
+          },
+          { relativePath: item.relativePath }
+        );
+
+        if (result.success) {
+          setFiles((prev) =>
+            prev.map((file) =>
+              file.id === item.id
+                ? { ...file, status: 'completed', progress: 100 }
+                : file
+            )
+          );
+        } else {
+          hadErrors = true;
+          const message = result.error || t('modals.uploadFolder.uploadError');
+          setFiles((prev) =>
+            prev.map((file) =>
+              file.id === item.id
+                ? { ...file, status: 'error', error: message }
+                : file
+            )
+          );
+        }
+      } catch (err: any) {
+        hadErrors = true;
+        const message = err.response?.data?.error || err.message || t('modals.uploadFolder.uploadError');
+        setFiles((prev) =>
+          prev.map((file) =>
+            file.id === item.id
+              ? { ...file, status: 'error', error: message }
+              : file
+          )
+        );
+      }
+    };
+
+    type UploadJob =
+      | { type: 'batch'; items: FolderUploadItem[] }
+      | { type: 'chunked'; item: FolderUploadItem };
+
+    const jobs: UploadJob[] = [
+      ...batches.map((items) => ({ type: 'batch' as const, items })),
+      ...chunkedItems.map((item) => ({ type: 'chunked' as const, item })),
+    ];
+
+    const pendingJobs = [...jobs];
+    const executing: Promise<void>[] = [];
+
+    const startJob = (job: UploadJob) => {
+      const promise = (job.type === 'batch' ? uploadBatch(job.items) : uploadChunked(job.item))
+        .catch(() => { })
+        .finally(() => {
+          const index = executing.indexOf(promise);
+          if (index >= 0) {
+            executing.splice(index, 1);
+          }
+        });
+      executing.push(promise);
+    };
+
+    while (pendingJobs.length > 0 || executing.length > 0) {
+      while (executing.length < MAX_PARALLEL_UPLOADS && pendingJobs.length > 0) {
+        startJob(pendingJobs.shift()!);
+      }
+
+      if (executing.length > 0) {
+        await Promise.race(executing);
+      }
     }
 
     setIsUploading(false);
-    const hasErrors = files.some((file) => file.status === 'error');
-    if (!hasErrors) {
+    if (!hadErrors) {
       toast(t('modals.uploadFolder.success'), 'success');
       onSuccess?.();
       refreshUser(); // Update storage info in sidebar
@@ -225,8 +260,6 @@ export default function UploadFolderModal({
   const handleClose = () => {
     if (isUploading) return;
     setFiles([]);
-    childrenCache.current = {};
-    folderIdCache.current.clear();
     onClose();
   };
 

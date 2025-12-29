@@ -69,7 +69,7 @@ export const config = {
 
   storage: {
     path: process.env.STORAGE_PATH || '../data',
-    maxFileSize: parseInt(process.env.MAX_FILE_SIZE || '104857600'),
+    maxFileSize: parseInt(process.env.MAX_FILE_SIZE || '1073741824'),
     defaultQuota: BigInt(process.env.DEFAULT_QUOTA || '5368709120'),
   },
 

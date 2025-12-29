@@ -121,14 +121,17 @@ export default function EmailSection() {
     const saveSmtpConfig = async () => {
         setSavingSmtp(true);
         try {
-            await api.post('/admin/smtp', {
+            const payload: Record<string, unknown> = {
                 host: smtpConfig.host,
                 port: smtpConfig.port,
                 secure: smtpConfig.secure,
                 user: smtpConfig.auth.user,
-                pass: smtpConfig.auth.pass,
                 from: smtpConfig.from,
-            });
+            };
+            if (smtpConfig.auth.pass) {
+                payload.pass = smtpConfig.auth.pass;
+            }
+            await api.post('/admin/smtp', payload);
             toast(t('admin.smtp.saved'), 'success');
         } catch (error) {
             toast(t('admin.smtp.saveError'), 'error');
@@ -138,10 +141,16 @@ export default function EmailSection() {
     };
 
     const testSmtpConnection = async () => {
+        if (!testEmailAddress) {
+            toast(t('admin.enterEmail'), 'error');
+            return;
+        }
         setTestingSmtp(true);
         try {
-            await api.post('/admin/smtp/test', { to: testEmailAddress || undefined });
-            toast(t('admin.smtp.testSuccess'), 'success');
+            const res = await api.post('/admin/settings/smtp/test', { email: testEmailAddress });
+            const details = res.data?.details;
+            const messageId = details?.messageId ? ` ${details.messageId}` : '';
+            toast(`${t('admin.smtp.testSuccess')}${messageId}`, 'success');
         } catch (error: any) {
             toast(error.response?.data?.error || t('admin.smtp.testError'), 'error');
         } finally {
@@ -191,7 +200,7 @@ export default function EmailSection() {
         try {
             // We send the current state of the template, not necessarily the saved one
             await api.post(`/admin/email-templates/${editingTemplate.name}/test`, {
-                to: testEmailAddress,
+                email: testEmailAddress,
                 subject: editingTemplate.subject,
                 body: editingTemplate.body
             });
@@ -342,14 +351,20 @@ export default function EmailSection() {
                     </div>
 
                     <div className="flex flex-col sm:flex-row justify-between gap-4 pt-4 border-t border-dark-100 dark:border-dark-700">
-                        <div className="flex gap-2 w-full sm:w-auto">
-                            <Input
-                                placeholder={t('admin.enterEmail')}
-                                value={testEmailAddress}
-                                onChange={(e) => setTestEmailAddress(e.target.value)}
-                                className="min-w-[200px]"
-                            />
-                            <Button variant="secondary" onClick={testSmtpConnection} loading={testingSmtp}>
+                        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                            <div className="flex-1 min-w-[200px]">
+                                <Input
+                                    placeholder={t('admin.enterEmail')}
+                                    value={testEmailAddress}
+                                    onChange={(e) => setTestEmailAddress(e.target.value)}
+                                />
+                            </div>
+                            <Button
+                                variant="secondary"
+                                onClick={testSmtpConnection}
+                                loading={testingSmtp}
+                                className="whitespace-nowrap shrink-0"
+                            >
                                 {t('admin.smtp.test')}
                             </Button>
                         </div>

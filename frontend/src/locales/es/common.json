@@ -1438,12 +1438,33 @@
       "pass": "Contraseña",
       "from": "Remitente (From)",
       "secure": "Usar SSL/TLS",
-      "test": "Probar Conexión",
+      "test": "Enviar prueba",
       "save": "Guardar SMTP",
       "testSuccess": "Correo de prueba enviado correctamente",
       "saved": "Configuración SMTP guardada",
       "saveError": "Error al guardar configuración SMTP",
       "testError": "Error al enviar email de prueba"
+    },
+    "templates": {
+      "title": "Plantillas de Email",
+      "saved": "Plantilla guardada",
+      "saveError": "Error al guardar la plantilla",
+      "resetSuccess": "Plantilla restablecida",
+      "resetError": "Error al restablecer la plantilla",
+      "variableInserted": "Variable insertada",
+      "variableAdded": "Variable agregada",
+      "initialized": "Plantillas inicializadas correctamente",
+      "initError": "Error al inicializar plantillas",
+      "welcome": "Bienvenida",
+      "resetPassword": "Restablecer contraseña",
+      "verifyEmail": "Verificar email",
+      "storageWarning": "Advertencia de almacenamiento",
+      "noTemplates": "No se encontraron plantillas",
+      "restoreDefaults": "Restaurar por defecto",
+      "subject": "Asunto",
+      "htmlContent": "Contenido HTML",
+      "reset": "Restablecer",
+      "save": "Guardar"
     },
     "activity": {
       "title": "Registro de Actividad",
@@ -1484,3 +1505,4 @@
     "deleteError": "Error al eliminar versión"
   }
 }
+

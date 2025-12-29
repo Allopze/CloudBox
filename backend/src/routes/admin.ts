@@ -677,17 +677,18 @@ router.post('/smtp', authenticate, requireAdmin, validate(smtpConfigSchema), asy
   try {
     const { host, port, secure, user, pass, from } = req.body;
 
-    // Security: Encrypt SMTP password before storing in database
-    const encryptedPass = pass ? encryptSecret(pass) : '';
-
     const settings = [
       { key: 'smtp_host', value: host },
       { key: 'smtp_port', value: String(port) },
       { key: 'smtp_secure', value: String(secure) },
       { key: 'smtp_user', value: user },
-      { key: 'smtp_pass', value: encryptedPass },
       { key: 'smtp_from', value: from },
     ];
+
+    if (typeof pass === 'string' && pass.length > 0) {
+      // Security: Encrypt SMTP password before storing in database
+      settings.push({ key: 'smtp_pass', value: encryptSecret(pass) });
+    }
 
     for (const setting of settings) {
       await prisma.settings.upsert({
@@ -974,9 +975,10 @@ router.delete('/email-templates/:name', authenticate, requireAdmin, async (req: 
 router.post('/email-templates/:name/test', authenticate, requireAdmin, async (req: Request, res: Response) => {
   try {
     const { name } = req.params;
-    const { email } = req.body;
+    const { email, to, subject: draftSubject, body: draftBody } = req.body;
+    const recipient = email || to;
 
-    if (!email) {
+    if (!recipient) {
       res.status(400).json({ error: 'Email is required' });
       return;
     }
@@ -986,19 +988,23 @@ router.post('/email-templates/:name/test', authenticate, requireAdmin, async (re
       include: { variables: true },
     });
 
-    let subject = 'Test Email';
-    let body = '<p>Test email content</p>';
+    let subject = typeof draftSubject === 'string' ? draftSubject : 'Test Email';
+    let body = typeof draftBody === 'string' ? draftBody : '<p>Test email content</p>';
 
     if (template) {
-      subject = template.subject;
-      body = template.body;
+      if (typeof draftSubject !== 'string') {
+        subject = template.subject;
+      }
+      if (typeof draftBody !== 'string') {
+        body = template.body;
+      }
 
       // Replace system variables with test values
       const systemTestValues: Record<string, string> = {
         name: 'Usuario de Prueba',
         verifyUrl: '#',
         resetUrl: '#',
-        email: email,
+        email: recipient,
         appName: 'CloudBox',
         appUrl: config.frontendUrl,
         date: new Date().toLocaleDateString('es-ES'),
@@ -1020,7 +1026,7 @@ router.post('/email-templates/:name/test', authenticate, requireAdmin, async (re
       }
     }
 
-    await sendEmail(email, subject, body);
+    await sendEmail(recipient, subject, body);
 
     res.json({ message: 'Test email sent' });
   } catch (error) {
