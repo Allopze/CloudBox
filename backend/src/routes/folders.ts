@@ -23,7 +23,7 @@ const serializeFolder = (folder: any) => ({
 // Create folder
 router.post('/', authenticate, validate(createFolderSchema), async (req: Request, res: Response) => {
   try {
-    const { name, parentId, color, category } = req.body;
+    const { name, parentId, color, icon, category } = req.body;
     const userId = req.user!.userId;
     const safeName = sanitizeFilename(name);
 
@@ -54,6 +54,7 @@ router.post('/', authenticate, validate(createFolderSchema), async (req: Request
         name: safeName,
         parentId: parentId || null,
         color,
+        icon,
         category,
         userId,
       },
@@ -193,7 +194,7 @@ router.get('/:id', authenticate, async (req: Request, res: Response) => {
 router.patch('/:id', authenticate, validate(updateFolderSchema), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, color, category } = req.body;
+    const { name, color, icon, category } = req.body;
     const userId = req.user!.userId;
     const safeName = name ? sanitizeFilename(name) : undefined;
 
@@ -223,6 +224,7 @@ router.patch('/:id', authenticate, validate(updateFolderSchema), async (req: Req
       data: {
         ...(safeName && { name: safeName }),
         ...(color !== undefined && { color }),
+        ...(icon !== undefined && { icon }),
         ...(category !== undefined && { category }),
       },
     });
@@ -677,46 +679,46 @@ router.post('/bulk/delete', authenticate, async (req: Request, res: Response) =>
       return;
     }
 
-      if (permanent === true) {
-        // Permanent delete with recursive cleanup
-        for (const folder of folders) {
-          const deleteRecursively = async (folderId: string, depth: number = 0) => {
-            if (depth > config.limits.maxFolderDepth) {
-              console.error(`Maximum folder depth (${config.limits.maxFolderDepth}) exceeded during bulk delete`);
-              return;
+    if (permanent === true) {
+      // Permanent delete with recursive cleanup
+      for (const folder of folders) {
+        const deleteRecursively = async (folderId: string, depth: number = 0) => {
+          if (depth > config.limits.maxFolderDepth) {
+            console.error(`Maximum folder depth (${config.limits.maxFolderDepth}) exceeded during bulk delete`);
+            return;
+          }
+
+          const folderToDelete = await prisma.folder.findUnique({ where: { id: folderId } });
+          if (!folderToDelete) return;
+
+          const files = await prisma.file.findMany({ where: { folderId } });
+          for (const file of files) {
+            await deleteStorageFile(file.path);
+            if (file.thumbnailPath) {
+              await deleteStorageFile(file.thumbnailPath);
             }
+            await prisma.file.delete({ where: { id: file.id } });
 
-            const folderToDelete = await prisma.folder.findUnique({ where: { id: folderId } });
-            if (!folderToDelete) return;
+            await prisma.user.update({
+              where: { id: userId },
+              data: { storageUsed: { decrement: Number(file.size) } },
+            });
+          }
 
-            const files = await prisma.file.findMany({ where: { folderId } });
-            for (const file of files) {
-              await deleteStorageFile(file.path);
-              if (file.thumbnailPath) {
-                await deleteStorageFile(file.thumbnailPath);
-              }
-              await prisma.file.delete({ where: { id: file.id } });
+          const subfolders = await prisma.folder.findMany({ where: { parentId: folderId } });
+          for (const subfolder of subfolders) {
+            await deleteRecursively(subfolder.id, depth + 1);
+          }
 
-              await prisma.user.update({
-                where: { id: userId },
-                data: { storageUsed: { decrement: Number(file.size) } },
-              });
-            }
-
-            const subfolders = await prisma.folder.findMany({ where: { parentId: folderId } });
-            for (const subfolder of subfolders) {
-              await deleteRecursively(subfolder.id, depth + 1);
-            }
-
-            await prisma.folder.delete({ where: { id: folderId } });
-            if (folderToDelete.parentId) {
-              const deletedFolderSize = (folderToDelete as any).size ?? BigInt(0);
-              await updateParentFolderSizes(folderToDelete.parentId, deletedFolderSize, prisma, 'decrement');
-            }
-          };
-          await deleteRecursively(folder.id, 0);
-        }
-      } else {
+          await prisma.folder.delete({ where: { id: folderId } });
+          if (folderToDelete.parentId) {
+            const deletedFolderSize = (folderToDelete as any).size ?? BigInt(0);
+            await updateParentFolderSizes(folderToDelete.parentId, deletedFolderSize, prisma, 'decrement');
+          }
+        };
+        await deleteRecursively(folder.id, 0);
+      }
+    } else {
       // Move to trash
       await prisma.folder.updateMany({
         where: { id: { in: folderIds }, userId },

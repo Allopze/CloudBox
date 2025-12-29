@@ -29,7 +29,9 @@
             }
             header_up X-Real-IP {remote_host}
             header_up X-Forwarded-For {remote_host}
-            header_up X-Forwarded-Proto {scheme}
+            # Pass through original headers from Cloudflare
+            header_up X-Forwarded-Proto {header.X-Forwarded-Proto}
+            header_up X-Forwarded-Host {header.Host}
         }
     }
     
@@ -37,9 +39,10 @@
     @socketio path /socket.io/*
     handle @socketio {
         reverse_proxy backend:3001 {
-            header_up Connection {http.request.header.Connection}
-            header_up Upgrade {http.request.header.Upgrade}
-            header_up X-Forwarded-Proto {scheme}
+            header_up Connection {header.Connection}
+            header_up Upgrade {header.Upgrade}
+            header_up X-Forwarded-Proto {header.X-Forwarded-Proto}
+            header_up X-Forwarded-Host {header.Host}
         }
     }
     

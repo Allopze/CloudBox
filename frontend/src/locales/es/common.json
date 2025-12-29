@@ -820,7 +820,20 @@
     "preparingDownload": "Preparando descarga...",
     "downloadStarted": "Descarga iniciada",
     "downloadError": "Error al descargar carpeta",
-    "compressingFolder": "Comprimiendo carpeta..."
+    "compressingFolder": "Comprimiendo carpeta...",
+    "customize": "Personalizar"
+  },
+  "folderColor": {
+    "title": "Personalizar carpeta",
+    "icon": "Icono",
+    "color": "Color",
+    "selectIcon": "Selecciona un icono",
+    "presetColors": "Colores predefinidos",
+    "customColor": "Color personalizado",
+    "resetToDefault": "Restablecer",
+    "saved": "Carpeta personalizada",
+    "saveError": "Error al guardar",
+    "reset": "Restablecido"
   },
   "dragPreview": {
     "itemsCount": "{{count}} elementos",
@@ -1505,4 +1518,3 @@
     "deleteError": "Error al eliminar versión"
   }
 }
-

@@ -651,7 +651,25 @@
     "deleteFolderError": "Erreur lors de la suppression du dossier",
     "itemsMovedTo": "{{count}} élément(s) déplacé(s) vers \"{{name}}\"",
     "moveError": "Erreur lors du déplacement des éléments",
-    "itemsCount": "{{count}} éléments"
+    "itemsCount": "{{count}} éléments",
+    "downloadAsZip": "Télécharger en ZIP",
+    "preparingDownload": "Préparation du téléchargement...",
+    "downloadStarted": "Téléchargement démarré",
+    "downloadError": "Erreur lors du téléchargement du dossier",
+    "compressingFolder": "Compression du dossier...",
+    "customize": "Personnaliser"
+  },
+  "folderColor": {
+    "title": "Personnaliser le dossier",
+    "icon": "Icône",
+    "color": "Couleur",
+    "selectIcon": "Sélectionner une icône",
+    "presetColors": "Couleurs prédéfinies",
+    "customColor": "Couleur personnalisée",
+    "resetToDefault": "Réinitialiser",
+    "saved": "Dossier personnalisé",
+    "saveError": "Erreur lors de l'enregistrement",
+    "reset": "Réinitialisé"
   },
   "modals": {
     "upload": {
