@@ -60,6 +60,7 @@ export const createFolderSchema = z.object({
     name: z.string().min(1, 'Folder name is required').max(255),
     parentId: z.string().uuid().optional().nullable(),
     color: z.string().optional(),
+    icon: z.string().max(50).optional().nullable(),
     category: z.string().optional(),
   }),
 });
@@ -71,6 +72,7 @@ export const updateFolderSchema = z.object({
   body: z.object({
     name: z.string().min(1).max(255).optional(),
     color: z.string().optional(),
+    icon: z.string().max(50).optional().nullable(),
     category: z.string().optional(),
   }),
 });

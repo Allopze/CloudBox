@@ -37,6 +37,7 @@ export interface Folder {
   id: string;
   name: string;
   color: string | null;
+  icon: string | null;
   category: string | null;
   parentId: string | null;
   userId: string;

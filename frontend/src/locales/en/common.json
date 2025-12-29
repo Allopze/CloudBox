@@ -748,7 +748,20 @@
     "preparingDownload": "Preparing download...",
     "downloadStarted": "Download started",
     "downloadError": "Error downloading folder",
-    "compressingFolder": "Compressing folder..."
+    "compressingFolder": "Compressing folder...",
+    "customize": "Customize"
+  },
+  "folderColor": {
+    "title": "Customize folder",
+    "icon": "Icon",
+    "color": "Color",
+    "selectIcon": "Select an icon",
+    "presetColors": "Preset colors",
+    "customColor": "Custom color",
+    "resetToDefault": "Reset",
+    "saved": "Folder customized",
+    "saveError": "Error saving",
+    "reset": "Reset complete"
   },
   "dragPreview": {
     "itemsCount": "{{count}} items",

@@ -651,7 +651,22 @@
     "deleteFolderError": "Erro ao excluir pasta",
     "itemsMovedTo": "{{count}} item(ns) movido(s) para \"{{name}}\"",
     "moveError": "Erro ao mover itens",
-    "itemsCount": "{{count}} itens"
+    "itemsCount": "{{count}} itens",
+    "downloadAsZip": "Baixar como ZIP",
+    "preparingDownload": "Preparando download...",
+    "downloadStarted": "Download iniciado",
+    "downloadError": "Erro ao baixar pasta",
+    "compressingFolder": "Compactando pasta...",
+    "customize": "Personalizar"
+  },
+  "folderColor": {
+    "title": "Personalizar pasta",
+    "presetColors": "Cores predefinidas",
+    "customColor": "Cor personalizada",
+    "resetToDefault": "Restaurar",
+    "saved": "Cor da pasta salva",
+    "saveError": "Erro ao salvar cor",
+    "reset": "Cor restaurada"
   },
   "modals": {
     "upload": {

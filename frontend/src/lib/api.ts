@@ -42,25 +42,38 @@ export const getSignedFileUrl = async (fileId: string, action: 'view' | 'downloa
   return response.data.signedUrl;
 };
 
-// Open signed URL in a new tab without exposing tokens in URLs.
-// Uses a synchronous window.open to reduce popup blocking, then navigates once the URL is resolved.
+// Open signed URL in a new tab or trigger download.
+// For 'download' action, uses an invisible anchor to avoid leaving about:blank tabs open.
+// For 'view'/'stream', opens in new tab as before.
 export const openSignedFileUrl = async (
   fileId: string,
   action: 'view' | 'download' | 'stream' | 'thumbnail' = 'view',
   target: string = '_blank'
 ): Promise<void> => {
-  const win = window.open('about:blank', target, 'noopener,noreferrer');
-  if (win) win.opener = null;
-
   try {
     const url = await getSignedFileUrl(fileId, action);
-    if (win) {
-      win.location.href = url;
+
+    if (action === 'download') {
+      // Use invisible anchor for downloads - doesn't leave a blank tab open
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = ''; // Browser will use filename from Content-Disposition
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     } else {
-      window.location.href = url;
+      // For view/stream, open in new tab
+      // Use synchronous window.open first to avoid popup blockers
+      const win = window.open('about:blank', target, 'noopener,noreferrer');
+      if (win) {
+        win.opener = null;
+        win.location.href = url;
+      } else {
+        window.location.href = url;
+      }
     }
   } catch (error) {
-    if (win) win.close();
     console.error('Failed to open signed URL:', error);
   }
 };

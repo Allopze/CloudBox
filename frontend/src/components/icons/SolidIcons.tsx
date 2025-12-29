@@ -4,6 +4,7 @@ import { useFileIconStore, getCategoryFromExtension, FileIconCategory } from '..
 interface IconProps {
     className?: string;
     size?: number;
+    style?: React.CSSProperties;
 }
 
 interface FileExtensionIconProps extends IconProps {
@@ -215,14 +216,15 @@ export function FileExtensionIcon({ className = '', size = 64, extension }: File
 
 
 // Solid folder icon matching the reference design
-export function SolidFolderIcon({ className = '', size = 64 }: IconProps) {
+export function SolidFolderIcon({ className = '', size = 64, style }: IconProps) {
     return (
         <svg
             viewBox="0 0 64 48"
             width={size}
             height={size * 0.75}
-            className={className}
+            className={className || 'text-primary-600'}
             fill="currentColor"
+            style={style}
         >
             {/* Folder body */}
             <path d="M4 8C4 5.79086 5.79086 4 8 4H24L28 10H56C58.2091 10 60 11.7909 60 14V40C60 42.2091 58.2091 44 56 44H8C5.79086 44 4 42.2091 4 40V8Z" />

@@ -15,6 +15,7 @@ import {
   Info,
   Download,
   Loader2,
+  Palette,
 } from 'lucide-react';
 import { SolidFolderIcon } from '../icons/SolidIcons';
 import { formatDate, cn } from '../../lib/utils';
@@ -27,6 +28,7 @@ import MoveModal from '../modals/MoveModal';
 import CompressModal from '../modals/CompressModal';
 import InfoModal from '../modals/InfoModal';
 import ContextMenu, { ContextMenuItemOrDivider, ContextMenuDividerItem } from '../ui/ContextMenu';
+import FolderColorModal, { FOLDER_ICON_MAP } from '../modals/FolderColorModal';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 
 interface FolderCardProps {
@@ -50,6 +52,7 @@ export default function FolderCard({ folder, view = 'grid', onRefresh, disableAn
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [showCompressModal, setShowCompressModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
+  const [showColorModal, setShowColorModal] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [contextMenuSelection, setContextMenuSelection] = useState<Set<string>>(new Set());
   const [isDownloading, setIsDownloading] = useState(false);
@@ -232,6 +235,7 @@ export default function FolderCard({ folder, view = 'grid', onRefresh, disableAn
     { id: 'compress', label: t('folderCard.compress'), icon: FileArchive, onClick: () => setShowCompressModal(true) },
     ContextMenuDividerItem(),
     { id: 'info', label: t('common.info'), icon: Info, onClick: () => setShowInfoModal(true) },
+    { id: 'customize', label: t('folderCard.customize'), icon: Palette, onClick: () => setShowColorModal(true) },
     {
       id: 'delete',
       label: t('folderCard.moveToTrash'),
@@ -287,7 +291,14 @@ export default function FolderCard({ folder, view = 'grid', onRefresh, disableAn
         >
           {/* Folder Icon */}
           <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center">
-            <SolidFolderIcon size={28} className="text-primary-600" />
+            {(() => {
+              const CustomIcon = folder.icon ? FOLDER_ICON_MAP[folder.icon] : null;
+              return CustomIcon ? (
+                <CustomIcon size={28} style={{ color: folder.color || undefined }} />
+              ) : (
+                <SolidFolderIcon size={28} className="" style={{ color: folder.color || undefined }} />
+              );
+            })()}
           </div>
 
           {/* Content */}
@@ -347,6 +358,17 @@ export default function FolderCard({ folder, view = 'grid', onRefresh, disableAn
             onClose={() => setShowInfoModal(false)}
             item={folder}
             type="folder"
+          />
+        )}
+        {showColorModal && (
+          <FolderColorModal
+            isOpen={showColorModal}
+            onClose={() => setShowColorModal(false)}
+            folderId={folder.id}
+            folderName={folder.name}
+            currentColor={folder.color}
+            currentIcon={folder.icon}
+            onSuccess={onRefresh}
           />
         )}
         <AnimatePresence>
@@ -469,7 +491,14 @@ export default function FolderCard({ folder, view = 'grid', onRefresh, disableAn
 
         {/* Folder Icon Area */}
         <div className="premium-card-thumbnail">
-          <SolidFolderIcon size={60} className="text-primary-600" />
+          {(() => {
+            const CustomIcon = folder.icon ? FOLDER_ICON_MAP[folder.icon] : null;
+            return CustomIcon ? (
+              <CustomIcon size={60} style={{ color: folder.color || undefined }} />
+            ) : (
+              <SolidFolderIcon size={60} style={{ color: folder.color || undefined }} />
+            );
+          })()}
         </div>
 
         {/* Content Area - Overlay at bottom */}
@@ -526,6 +555,17 @@ export default function FolderCard({ folder, view = 'grid', onRefresh, disableAn
           onClose={() => setShowInfoModal(false)}
           item={folder}
           type="folder"
+        />
+      )}
+      {showColorModal && (
+        <FolderColorModal
+          isOpen={showColorModal}
+          onClose={() => setShowColorModal(false)}
+          folderId={folder.id}
+          folderName={folder.name}
+          currentColor={folder.color}
+          currentIcon={folder.icon}
+          onSuccess={onRefresh}
         />
       )}
       <AnimatePresence>
