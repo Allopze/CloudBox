@@ -36,7 +36,7 @@ export function TabList({ children, className }: TabListProps) {
     <div
       role="tablist"
       className={cn(
-        'flex border-b border-dark-200 dark:border-dark-700',
+        'inline-flex border-b border-dark-200 dark:border-dark-700',
         className
       )}
     >
@@ -68,7 +68,7 @@ export function Tab({ value, children, className }: TabProps) {
         onChange?.(value);
       }}
       className={cn(
-        'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+        'inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap',
         isActive
           ? 'border-primary-600 text-primary-600'
           : 'border-transparent text-dark-500 hover:text-dark-900 dark:text-dark-400 dark:hover:text-white',

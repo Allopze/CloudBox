@@ -1,9 +1,11 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import DOMPurify from 'dompurify';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams, useLocation } from 'react-router-dom';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { Folder } from '../../types';
 import { useFileStore } from '../../stores/fileStore';
+import { useFileIconStore, FileIconCategory } from '../../stores/fileIconStore';
 import { useDragDropStore } from '../../stores/dragDropStore';
 import {
   Star,
@@ -50,7 +52,7 @@ export default function FolderCard({ folder, view = 'grid', onRefresh, disableAn
   const isSelected = useFileStore(useCallback((state) => state.selectedItems.has(folder.id), [folder.id]));
   // Use getState() for action functions to avoid unnecessary subscriptions
   const { addToSelection, removeFromSelection, selectRange, selectSingle, clearSelection } = useFileStore.getState();
-  const { draggedItems } = useDragDropStore();
+  const { draggedItems, isDragging: isGlobalDragging } = useDragDropStore();
   const [showShareModal, setShowShareModal] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [showMoveModal, setShowMoveModal] = useState(false);
@@ -64,6 +66,48 @@ export default function FolderCard({ folder, view = 'grid', onRefresh, disableAn
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState({ progress: 0, currentFile: '' });
   const dragData = useMemo(() => JSON.stringify(folder), [folder]);
+  const isShared = folder.isShared ?? (folder._count?.shares ?? 0) > 0;
+  const iconCategory: FileIconCategory = folder.isProtected
+    ? 'folderProtected'
+    : isShared
+      ? 'folderShared'
+      : 'folder';
+  const customFolderSvg = useFileIconStore((state) => state.icons[iconCategory] || null);
+  const sanitizedFolderSvg = useMemo(() => {
+    if (!customFolderSvg) return null;
+    return DOMPurify.sanitize(customFolderSvg, {
+      USE_PROFILES: { svg: true, svgFilters: true },
+    });
+  }, [customFolderSvg]);
+  const hasCustomAppearance = Boolean(folder.color || folder.icon);
+  const useCustomSvg = Boolean(sanitizedFolderSvg) && (iconCategory !== 'folder' || !hasCustomAppearance);
+
+  const renderFolderIcon = (size: number) => {
+    if (useCustomSvg && sanitizedFolderSvg) {
+      return (
+        <div
+          className="custom-file-icon"
+          style={{
+            width: size,
+            height: size,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: folder.color || undefined,
+          }}
+          dangerouslySetInnerHTML={{ __html: sanitizedFolderSvg }}
+        />
+      );
+    }
+
+    return (
+      <SolidFolderIcon
+        size={size}
+        style={{ color: folder.color || undefined }}
+        IconComponent={folder.icon ? FOLDER_ICON_MAP[folder.icon] : undefined}
+      />
+    );
+  };
 
   // Check if this folder is being dragged (can't drop on itself)
   const isSelfDragged = draggedItems.some(item => item.type === 'folder' && item.item.id === folder.id);
@@ -94,7 +138,7 @@ export default function FolderCard({ folder, view = 'grid', onRefresh, disableAn
   };
 
   // Apply transform style when dragging - completely hide from view
-  const dragStyle: React.CSSProperties | undefined = isDragging ? {
+  const dragStyle: React.CSSProperties | undefined = (isDragging && isGlobalDragging) ? {
     visibility: 'hidden',
     position: 'fixed',
     top: -9999,
@@ -305,17 +349,13 @@ export default function FolderCard({ folder, view = 'grid', onRefresh, disableAn
           className={cn(
             'premium-card-list group',
             isSelected && 'selected',
-            isDragging && 'dragging',
+            (isDragging && isGlobalDragging) && 'dragging',
             isDropTarget && 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/30'
           )}
         >
           {/* Folder Icon */}
           <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center">
-            <SolidFolderIcon
-              size={28}
-              style={{ color: folder.color || undefined }}
-              IconComponent={folder.icon ? FOLDER_ICON_MAP[folder.icon] : undefined}
-            />
+            {renderFolderIcon(28)}
           </div>
 
           {/* Content */}
@@ -328,9 +368,6 @@ export default function FolderCard({ folder, view = 'grid', onRefresh, disableAn
 
           {/* Badges */}
           <div className="flex items-center gap-2 flex-shrink-0">
-            {folder.isProtected && (
-              <Lock className="w-4 h-4 text-amber-500" />
-            )}
             {folder.isFavorite && (
               <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
             )}
@@ -489,7 +526,7 @@ export default function FolderCard({ folder, view = 'grid', onRefresh, disableAn
         className={cn(
           'premium-card group',
           isSelected && 'selected',
-          isDragging && 'dragging',
+          (isDragging && isGlobalDragging) && 'dragging',
           isDropTarget && 'drop-target'
         )}
       >
@@ -520,9 +557,6 @@ export default function FolderCard({ folder, view = 'grid', onRefresh, disableAn
 
         {/* Badges */}
         <div className="premium-card-badges">
-          {folder.isProtected && (
-            <Lock className="w-4 h-4 text-amber-500 drop-shadow-md" />
-          )}
           {folder.isFavorite && (
             <Star className="w-4 h-4 text-yellow-400 fill-yellow-400 drop-shadow-md" />
           )}
@@ -530,11 +564,7 @@ export default function FolderCard({ folder, view = 'grid', onRefresh, disableAn
 
         {/* Folder Icon Area */}
         <div className="premium-card-thumbnail">
-          <SolidFolderIcon
-            size={60}
-            style={{ color: folder.color || undefined }}
-            IconComponent={folder.icon ? FOLDER_ICON_MAP[folder.icon] : undefined}
-          />
+          {renderFolderIcon(60)}
         </div>
 
         {/* Content Area - Overlay at bottom */}

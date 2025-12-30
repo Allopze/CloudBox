@@ -222,8 +222,10 @@ export function FileExtensionIcon({ className = '', size = 64, extension }: File
 export function SolidFolderIcon({ className = '', size = 64, style, IconComponent }: IconProps) {
     // Extract the fill color from style.color or use default red
     const fillColor = style?.color || '#dc2626';
-    // Calculate inner icon size (about 40% of folder size)
-    const innerIconSize = Math.round(size * 0.4);
+    // Keep the inner icon smaller and centered within the lighter folder area
+    const innerIconSize = Math.round(size * 0.32);
+    const overlayTop = size * (10 / 24);
+    const overlayHeight = size * (10 / 24);
 
     return (
         <div className={className} style={{ position: 'relative', width: size, height: size, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -247,7 +249,19 @@ export function SolidFolderIcon({ className = '', size = 64, style, IconComponen
             </svg>
             {/* Inner icon centered on the folder */}
             {IconComponent && (
-                <div style={{ position: 'relative', marginTop: size * 0.15, zIndex: 1 }}>
+                <div
+                    style={{
+                        position: 'absolute',
+                        top: overlayTop,
+                        left: 0,
+                        width: size,
+                        height: overlayHeight,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 1,
+                    }}
+                >
                     <IconComponent size={innerIconSize} className="text-white/90" />
                 </div>
             )}

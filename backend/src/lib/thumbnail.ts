@@ -7,10 +7,33 @@ import { getThumbnailPath, fileExists, getStoragePath } from './storage.js';
 import * as mm from 'music-metadata';
 import ExcelJS from 'exceljs';
 import ffmpegPath from 'ffmpeg-static';
+import logger from './logger.js';
 
 const execAsync = promisify(exec);
 
 const THUMBNAIL_SIZE = 300;
+
+const isSharpUnsupportedFormatError = (error: unknown): boolean => {
+  if (!(error instanceof Error)) return false;
+  return /unsupported image format/i.test(error.message);
+};
+
+const getFfmpegErrorOutput = (error: unknown): string => {
+  const execError = error as { message?: string; stderr?: string };
+  const message = execError?.message ?? '';
+  const stderr = execError?.stderr ?? '';
+  return `${message}\n${stderr}`.trim();
+};
+
+const isFfmpegInvalidInputError = (error: unknown): boolean => {
+  const output = getFfmpegErrorOutput(error);
+  return /moov atom not found|invalid data found when processing input|error opening input|format .* detected only with low score/i.test(output);
+};
+
+const isSpreadsheetFormatError = (error: unknown): boolean => {
+  if (!(error instanceof Error)) return false;
+  return /end of central directory|zip file/i.test(error.message);
+};
 
 export const generateImageThumbnail = async (inputPath: string, fileId: string): Promise<string | null> => {
   try {
@@ -26,7 +49,11 @@ export const generateImageThumbnail = async (inputPath: string, fileId: string):
 
     return outputPath;
   } catch (error) {
-    console.error('Error generating image thumbnail:', error);
+    if (isSharpUnsupportedFormatError(error)) {
+      logger.debug('Skipping image thumbnail for unsupported format', { fileId });
+    } else {
+      logger.error('Error generating image thumbnail', { fileId }, error instanceof Error ? error : undefined);
+    }
     return null;
   }
 };
@@ -42,7 +69,7 @@ export const generateVideoThumbnail = async (inputPath: string, fileId: string):
   const tempPath = outputPath.replace('.webp', '_temp.jpg');
 
   if (!ffmpegPath) {
-    console.error('ffmpeg-static binary not found');
+    logger.error('ffmpeg-static binary not found', { fileId });
     return null;
   }
 
@@ -66,7 +93,11 @@ export const generateVideoThumbnail = async (inputPath: string, fileId: string):
 
     return outputPath;
   } catch (error) {
-    console.error('Error generating video thumbnail:', error);
+    if (isFfmpegInvalidInputError(error)) {
+      logger.debug('Skipping video thumbnail for invalid input', { fileId });
+    } else {
+      logger.error('Error generating video thumbnail', { fileId }, error instanceof Error ? error : undefined);
+    }
     // Clean up temp file on error
     await fs.unlink(tempPath).catch(() => { });
     return null;
@@ -125,7 +156,7 @@ export const generateAudioCover = async (inputPath: string, fileId: string): Pro
     return null;
   } catch (error) {
     // Audio might not have cover art
-    console.error('Error extracting audio cover:', error);
+    logger.debug('Audio cover extraction skipped', { fileId });
     return null;
   }
 };
@@ -228,7 +259,7 @@ export const generatePdfThumbnail = async (inputPath: string, fileId: string): P
 
     return null;
   } catch (error) {
-    console.error('Error generating PDF thumbnail:', error);
+    logger.error('Error generating PDF thumbnail', { fileId }, error instanceof Error ? error : undefined);
     return null;
   }
 };
@@ -236,6 +267,10 @@ export const generatePdfThumbnail = async (inputPath: string, fileId: string): P
 export const generateSpreadsheetThumbnail = async (inputPath: string, fileId: string): Promise<string | null> => {
   try {
     const outputPath = getThumbnailPath(fileId);
+    const ext = path.extname(inputPath).toLowerCase();
+    if (ext === '.xls') {
+      return generateExcelThumbnail(fileId);
+    }
 
     // Use ExcelJS to read the spreadsheet and render it as an HTML table, then convert to image
     const workbook = new ExcelJS.Workbook();
@@ -366,7 +401,11 @@ export const generateSpreadsheetThumbnail = async (inputPath: string, fileId: st
 
     return outputPath;
   } catch (error) {
-    console.error('Error generating spreadsheet thumbnail:', error);
+    if (isSpreadsheetFormatError(error)) {
+      logger.debug('Skipping spreadsheet preview for unsupported format', { fileId });
+    } else {
+      logger.error('Error generating spreadsheet thumbnail', { fileId }, error instanceof Error ? error : undefined);
+    }
     // Fallback to static Excel icon
     return generateExcelThumbnail(fileId);
   }
@@ -415,7 +454,7 @@ export const generateExcelThumbnail = async (fileId: string): Promise<string | n
 
     return outputPath;
   } catch (error) {
-    console.error('Error generating Excel thumbnail:', error);
+    logger.error('Error generating Excel thumbnail', { fileId }, error instanceof Error ? error : undefined);
     return null;
   }
 };
@@ -447,7 +486,7 @@ export const generateDocumentThumbnail = async (inputPath: string, fileId: strin
 
     return outputPath;
   } catch (error) {
-    console.error('Error generating document thumbnail:', error);
+    logger.error('Error generating document thumbnail', { fileId }, error instanceof Error ? error : undefined);
     return null;
   }
 };
@@ -477,13 +516,20 @@ export const generateThumbnail = async (
   if (
     mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
     mimeType === 'application/msword' ||
-    mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
     mimeType === 'application/vnd.ms-excel' ||
+    mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
     mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' ||
     mimeType === 'application/vnd.ms-powerpoint'
   ) {
     // If it's a spreadsheet, try to generate a real preview
-    if (mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || mimeType === 'application/vnd.ms-excel') {
+    if (mimeType === 'application/vnd.ms-excel') {
+      const ext = path.extname(inputPath).toLowerCase();
+      if (ext === '.xlsx') {
+        return generateSpreadsheetThumbnail(inputPath, fileId);
+      }
+      return generateExcelThumbnail(fileId);
+    }
+    if (mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
       return generateSpreadsheetThumbnail(inputPath, fileId);
     }
     return generateDocumentThumbnail(inputPath, fileId, mimeType);

@@ -48,6 +48,27 @@
   .custom-focus:focus-visible {
     @apply ring-0 ring-offset-0;
   }
+
+  /* Color input should display the selected color edge-to-edge */
+  .color-input {
+    -webkit-appearance: none;
+    appearance: none;
+    padding: 0;
+  }
+
+  .color-input::-webkit-color-swatch-wrapper {
+    padding: 0;
+  }
+
+  .color-input::-webkit-color-swatch {
+    border: none;
+    border-radius: 0.5rem;
+  }
+
+  .color-input::-moz-color-swatch {
+    border: none;
+    border-radius: 0.5rem;
+  }
 }
 
 

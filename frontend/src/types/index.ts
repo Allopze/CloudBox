@@ -45,11 +45,12 @@ export interface Folder {
   isFavorite: boolean;
   isTrash: boolean;
   isProtected?: boolean;
+  isShared?: boolean;
   trashedAt: string | null;
   createdAt: string;
   updatedAt: string;
   size?: string;
-  _count?: { files: number; children?: number; items?: number };
+  _count?: { files: number; children?: number; items?: number; shares?: number };
 }
 
 export interface Share {

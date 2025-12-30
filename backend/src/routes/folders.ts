@@ -22,6 +22,26 @@ const serializeFolder = (folder: any) => ({
   protectionHash: undefined, // Never expose password hash
 });
 
+// Helper to check if a folder is shared or inside a shared folder structure
+const isFolderSharedOrInsideShared = async (folderId: string): Promise<boolean> => {
+  let currentId: string | null = folderId;
+  while (currentId) {
+    const folderWithShares: any = await prisma.folder.findUnique({
+      where: { id: currentId },
+      select: { id: true, parentId: true, _count: { select: { shares: true } } },
+    });
+
+    if (!folderWithShares) return false;
+    // Check if current folder has active shares
+    if ((folderWithShares._count?.shares || 0) > 0) return true;
+
+    currentId = folderWithShares.parentId;
+    // Safety check just in case
+    if (currentId === folderId) break;
+  }
+  return false;
+};
+
 // Create folder
 router.post('/', authenticate, validate(createFolderSchema), async (req: Request, res: Response) => {
   try {
@@ -106,8 +126,6 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
 
     // When searching, ignore parentId to search across all folders (global search)
     // When not searching, respect the folder navigation
-    // When searching, ignore parentId to search across all folders (global search)
-    // When not searching, respect the folder navigation
     if (search) {
       where.name = { contains: search as string, mode: 'insensitive' };
     } else if (parentId === 'null' || parentId === '' || parentId === undefined) {
@@ -124,7 +142,7 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
       where,
       orderBy: { name: 'asc' },
       include: {
-        _count: { select: { files: true, children: true } },
+        _count: { select: { files: true, children: true, shares: true } },
       },
     });
 
@@ -133,6 +151,7 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
     const serializedFolders = folders.map(folder => ({
       ...folder,
       size: folder.size?.toString() ?? '0',
+      isShared: (folder._count?.shares || 0) > 0,
       _count: {
         ...folder._count,
         // Total items = files + subfolders
@@ -291,6 +310,20 @@ router.patch('/:id/move', authenticate, validate(moveFolderSchema), async (req: 
       if (!parent) {
         res.status(404).json({ error: 'Destination folder not found' });
         return;
+      }
+
+      // Check if destination is shared to prevent moving sensitive content
+      if (await isFolderSharedOrInsideShared(parentId)) {
+        // Fetch source folder with shares info
+        const sourceCheck = await prisma.folder.findUnique({
+          where: { id },
+          include: { _count: { select: { shares: true } } }
+        });
+
+        if (sourceCheck && (sourceCheck.isProtected || (sourceCheck._count?.shares || 0) > 0)) {
+          res.status(400).json({ error: 'Cannot move protected or shared folder into a shared folder' });
+          return;
+        }
       }
     }
 
@@ -607,6 +640,25 @@ router.post('/bulk/move', authenticate, async (req: Request, res: Response) => {
         res.status(400).json({ error: 'Cannot move folder into itself' });
         return;
       }
+
+      // Check if destination is shared to prevent moving sensitive content
+      if (await isFolderSharedOrInsideShared(parentId)) {
+        const sensitiveFolders = await prisma.folder.findFirst({
+          where: {
+            id: { in: folderIds },
+            userId,
+            OR: [
+              { isProtected: true },
+              { shares: { some: {} } }
+            ]
+          }
+        });
+
+        if (sensitiveFolders) {
+          res.status(400).json({ error: 'Cannot move protected or shared folders into a shared folder' });
+          return;
+        }
+      }
     }
 
     // Get folders to move
@@ -869,4 +921,3 @@ router.delete('/:id/protect', authenticate, async (req: Request, res: Response) 
 });
 
 export default router;
-

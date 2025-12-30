@@ -4,6 +4,7 @@ import { useLocation } from 'react-router-dom';
 import { useDraggable } from '@dnd-kit/core';
 import { FileItem } from '../../types';
 import { useFileStore } from '../../stores/fileStore';
+import { useDragDropStore } from '../../stores/dragDropStore';
 import {
   Star,
   Download,
@@ -102,6 +103,7 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview, on
   const isSelected = useFileStore(useCallback((state) => state.selectedItems.has(file.id), [file.id]));
   // Use getState() for action functions to avoid unnecessary subscriptions
   const { addToSelection, removeFromSelection, selectRange, selectSingle } = useFileStore.getState();
+  const { isDragging: isGlobalDragging } = useDragDropStore();
   const [showShareModal, setShowShareModal] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [showMoveModal, setShowMoveModal] = useState(false);
@@ -119,7 +121,7 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview, on
   });
 
   // Apply transform style when dragging - completely hide from view
-  const dragStyle: React.CSSProperties | undefined = isDragging ? {
+  const dragStyle: React.CSSProperties | undefined = (isDragging && isGlobalDragging) ? {
     visibility: 'hidden',
     position: 'fixed',
     top: -9999,
@@ -302,7 +304,7 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview, on
           className={cn(
             'premium-card-list group',
             isSelected && 'selected',
-            isDragging && 'dragging'
+            (isDragging && isGlobalDragging) && 'dragging'
           )}
         >
           {/* Type-specific Icon with extension or Thumbnail */}
@@ -417,7 +419,7 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview, on
         className={cn(
           'premium-card group',
           isSelected && 'selected',
-          isDragging && 'dragging'
+          (isDragging && isGlobalDragging) && 'dragging'
         )}
       >
         {/* Quick Actions - visible on hover */}
