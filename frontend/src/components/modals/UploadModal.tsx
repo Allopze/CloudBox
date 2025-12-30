@@ -60,16 +60,20 @@ export default function UploadModal({
     }
   }, [isOpen, configLoaded]);
 
-  // User quota info for validation - use the strictest limit available
+  // User quota info for validation
+  // Use the MAXIMUM of user limit and global config (global can raise user limits)
   const userQuota = useMemo(() => ({
     storageUsed: Number(user?.storageUsed || 0),
     storageQuota: Number(user?.storageQuota || 0),
     maxFileSize: (() => {
       const userMax = Number(user?.maxFileSize || 0);
-      if (!Number.isFinite(userMax) || userMax <= 0) {
-        return UPLOAD_CONFIG.MAX_FILE_SIZE;
+      const globalMax = UPLOAD_CONFIG.MAX_FILE_SIZE;
+      // If user has a valid limit, take the higher of user or global
+      // This allows admin to raise limits globally without editing each user
+      if (Number.isFinite(userMax) && userMax > 0) {
+        return Math.max(userMax, globalMax);
       }
-      return Math.min(userMax, UPLOAD_CONFIG.MAX_FILE_SIZE);
+      return globalMax;
     })(),
   }), [user, configLoaded]);
 
@@ -250,22 +254,22 @@ export default function UploadModal({
       size="lg"
     >
       {/* Validation warning for combined quota */}
-        {validationErrors.has('_combined') && (
-          <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg flex items-start gap-2">
-            <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
-                {t('modals.upload.quotaWarning')}
-              </p>
-              <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-1">
-                {getUploadErrorMessage(
-                  validationErrors.get('_combined')?.errorCode,
-                  validationErrors.get('_combined')?.error
-                )}
-              </p>
-            </div>
+      {validationErrors.has('_combined') && (
+        <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg flex items-start gap-2">
+          <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+              {t('modals.upload.quotaWarning')}
+            </p>
+            <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-1">
+              {getUploadErrorMessage(
+                validationErrors.get('_combined')?.errorCode,
+                validationErrors.get('_combined')?.error
+              )}
+            </p>
           </div>
-        )}
+        </div>
+      )}
 
       {/* Upload speed indicator when uploading */}
       {isUploading && uploadingCount > 0 && (
@@ -350,11 +354,11 @@ export default function UploadModal({
                   {fileUpload.status === 'uploading' && (
                     <Progress value={fileUpload.progress} size="sm" className="mt-2" />
                   )}
-                    {fileUpload.status === 'error' && (
-                      <p className="text-xs text-red-600 mt-1">
-                        {getUploadErrorMessage(fileUpload.errorCode, fileUpload.error)}
-                      </p>
-                    )}
+                  {fileUpload.status === 'error' && (
+                    <p className="text-xs text-red-600 mt-1">
+                      {getUploadErrorMessage(fileUpload.errorCode, fileUpload.error)}
+                    </p>
+                  )}
                 </div>
                 {fileUpload.status === 'completed' ? (
                   <CheckCircle className="w-5 h-5 text-green-500" />

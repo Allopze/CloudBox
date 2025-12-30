@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -7,18 +7,24 @@ import {
   ChevronRight,
   Play,
   Pause,
-  ZoomIn,
-  ZoomOut,
   Download,
   Share2,
-  Maximize2,
-  RotateCw,
+  Info,
+  Keyboard,
+  AlertTriangle,
+  RefreshCw,
+  Star,
+  Move,
+  Edit,
+  Trash2,
+  Link,
   Loader2
 } from 'lucide-react';
 import { FileItem } from '../../types';
 import { getSignedFileUrl, api } from '../../lib/api';
 import { cn } from '../../lib/utils';
-import AuthenticatedImage from '../AuthenticatedImage';
+import ImageCanvas from './MediaViewer/ImageCanvas';
+import DetailsPanel from './MediaViewer/DetailsPanel';
 
 interface ImageGalleryProps {
   images: FileItem[];
@@ -27,6 +33,11 @@ interface ImageGalleryProps {
   onClose: () => void;
   onShare?: (file: FileItem) => void;
   onDownload?: (file: FileItem) => void;
+  onFavorite?: (file: FileItem) => void;
+  onMove?: (file: FileItem) => void;
+  onRename?: (file: FileItem) => void;
+  onDelete?: (file: FileItem) => void;
+  onCopyLink?: (file: FileItem) => void;
 }
 
 // Check if an image format supports transparency
@@ -36,6 +47,8 @@ const supportsTransparency = (mimeType: string): boolean => {
     mimeType === 'image/webp' ||
     mimeType === 'image/gif';
 };
+
+const PRELOAD_MAX_BYTES = 8 * 1024 * 1024;
 
 // Analyze image to detect if it's dark with transparency
 const analyzeImage = (img: HTMLImageElement, mimeType: string): boolean => {
@@ -99,19 +112,31 @@ export default function ImageGallery({
   onClose,
   onShare,
   onDownload,
+  onFavorite,
+  onMove,
+  onRename,
+  onDelete,
+  onCopyLink,
 }: ImageGalleryProps) {
   const { t } = useTranslation();
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [isPlaying, setIsPlaying] = useState(false);
   const [zoom, setZoom] = useState(1);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
   const [rotation, setRotation] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [showControls, setShowControls] = useState(true);
   const [needsLightBackground, setNeedsLightBackground] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
   const slideInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const controlsTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const imageRef = useRef<HTMLImageElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const previousActiveElement = useRef<HTMLElement | null>(null);
+  const titleId = useRef(`image-gallery-title-${Math.random().toString(36).slice(2)}`);
+  const objectUrlCacheRef = useRef<Map<string, string>>(new Map());
+  const preloadedIdsRef = useRef<Set<string>>(new Set());
 
   const currentImage = images[currentIndex];
   const shareId = (currentImage as any)?.shareId as string | undefined;
@@ -119,26 +144,62 @@ export default function ImageGallery({
   // Auth state for signed URL
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [loadingSignedUrl, setLoadingSignedUrl] = useState(false);
-  const blobUrlRef = useRef<string | null>(null);
-
-  const revokeBlobUrl = useCallback(() => {
-    if (blobUrlRef.current) {
-      URL.revokeObjectURL(blobUrlRef.current);
-      blobUrlRef.current = null;
+  const revokeObjectUrls = useCallback(() => {
+    for (const url of objectUrlCacheRef.current.values()) {
+      URL.revokeObjectURL(url);
     }
+    objectUrlCacheRef.current.clear();
+    preloadedIdsRef.current.clear();
   }, []);
+
+  const fetchObjectUrl = useCallback(async (file: FileItem) => {
+    const cached = objectUrlCacheRef.current.get(file.id);
+    if (cached) return cached;
+
+    const response = shareId
+      ? await api.get(`/shares/${shareId}/files/${file.id}/view`, { responseType: 'blob' })
+      : await api.get(`/files/${file.id}/view`, { responseType: 'blob' });
+
+    const url = URL.createObjectURL(response.data);
+    objectUrlCacheRef.current.set(file.id, url);
+    return url;
+  }, [shareId]);
+
+  const loadImageUrl = useCallback(async () => {
+    if (!currentImage) return;
+
+    setLoadingSignedUrl(true);
+    setImageError(null);
+    setIsLoading(true);
+    setSignedUrl(null);
+    try {
+      const url = await fetchObjectUrl(currentImage);
+      setSignedUrl(url);
+    } catch (err) {
+      console.error('Failed to get image URL', err);
+      setSignedUrl(null);
+      setImageError(t('gallery.imageError', 'Failed to load image.'));
+    } finally {
+      setLoadingSignedUrl(false);
+    }
+  }, [currentImage, fetchObjectUrl, t]);
 
   // Reset state when gallery opens
   useEffect(() => {
     if (isOpen) {
       setCurrentIndex(initialIndex);
       setZoom(1);
+      setPosition({ x: 0, y: 0 });
       setRotation(0);
       setIsPlaying(false);
       setShowControls(true);
       setNeedsLightBackground(false);
+      setShowDetails(false);
+      setShowShortcuts(false);
+      setImageError(null);
+      setIsLoading(true);
     }
-  }, [isOpen, initialIndex]);
+  }, [isOpen, initialIndex, images.length]);
 
   // Slideshow functionality
   useEffect(() => {
@@ -161,23 +222,129 @@ export default function ImageGallery({
     if (controlsTimeout.current) {
       clearTimeout(controlsTimeout.current);
     }
+    if (showDetails || showShortcuts) return;
     controlsTimeout.current = setTimeout(() => {
-      if (isPlaying) {
-        setShowControls(false);
-      }
+      setShowControls(false);
     }, 3000);
-  }, [isPlaying]);
+  }, [showDetails, showShortcuts]);
 
-  // Keyboard navigation
+  useEffect(() => {
+    if (showDetails || showShortcuts) {
+      setShowControls(true);
+    }
+  }, [showDetails, showShortcuts]);
+
+  useEffect(() => {
+    if (isOpen) {
+      resetControlsTimeout();
+    }
+  }, [isOpen, resetControlsTimeout]);
+
+  useEffect(() => {
+    return () => {
+      if (controlsTimeout.current) {
+        clearTimeout(controlsTimeout.current);
+      }
+    };
+  }, []);
+
+  const resetViewState = useCallback(() => {
+    setIsLoading(true);
+    setZoom(1);
+    setPosition({ x: 0, y: 0 });
+    setRotation(0);
+    setNeedsLightBackground(false);
+    setImageError(null);
+    setSignedUrl(null);
+  }, []);
+
+  const goToPrevious = useCallback(() => {
+    resetViewState();
+    setCurrentIndex((prev) => (prev - 1 + images.length) % images.length);
+  }, [images.length, resetViewState]);
+
+  const goToNext = useCallback(() => {
+    resetViewState();
+    setCurrentIndex((prev) => (prev + 1) % images.length);
+  }, [images.length, resetViewState]);
+
+  const toggleSlideshow = useCallback(() => {
+    setIsPlaying((prev) => !prev);
+  }, []);
+
+  const handleZoomIn = useCallback(() => {
+    setZoom((prev) => Math.min(prev + 0.25, 5));
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    setZoom((prev) => Math.max(prev - 0.25, 0.25));
+  }, []);
+
+  const handleZoomReset = useCallback(() => {
+    setZoom(1);
+    setPosition({ x: 0, y: 0 });
+    setRotation(0);
+  }, []);
+
+  const handleRotate = useCallback(() => {
+    setRotation((prev) => (prev + 90) % 360);
+  }, []);
+
+  const handleMouseMove = () => {
+    resetControlsTimeout();
+  };
+
+  const getFocusableElements = useCallback(() => {
+    if (!dialogRef.current) return [];
+    return Array.from(
+      dialogRef.current.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      )
+    ).filter((el) => !el.hasAttribute('disabled') && el.offsetParent !== null);
+  }, []);
+
+  const controlsVisible = showControls || showDetails || showShortcuts;
+
+  // Keyboard navigation + focus trap
   useEffect(() => {
     if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && dialogRef.current && !dialogRef.current.contains(target)) {
+        return;
+      }
+
       resetControlsTimeout();
+
+      if (e.key === 'Tab') {
+        const focusable = getFocusableElements();
+        if (focusable.length === 0) return;
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+
+        if (e.shiftKey) {
+          if (document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+        return;
+      }
 
       switch (e.key) {
         case 'Escape':
-          onClose();
+          if (showShortcuts) {
+            setShowShortcuts(false);
+          } else if (showDetails) {
+            setShowDetails(false);
+          } else {
+            onClose();
+          }
           break;
         case 'ArrowLeft':
           e.preventDefault();
@@ -201,322 +368,458 @@ export default function ImageGallery({
           handleZoomOut();
           break;
         case 'r':
+        case 'R':
           e.preventDefault();
           handleRotate();
           break;
         case '0':
           e.preventDefault();
-          setZoom(1);
-          setRotation(0);
+          handleZoomReset();
+          break;
+        case 'i':
+        case 'I':
+          e.preventDefault();
+          setShowDetails((prev) => !prev);
+          break;
+        case '?':
+          e.preventDefault();
+          setShowShortcuts((prev) => !prev);
+          break;
+        case '/':
+          if (e.shiftKey) {
+            e.preventDefault();
+            setShowShortcuts((prev) => !prev);
+          }
           break;
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose, resetControlsTimeout]);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [
+    isOpen,
+    onClose,
+    resetControlsTimeout,
+    getFocusableElements,
+    showShortcuts,
+    showDetails,
+    goToPrevious,
+    goToNext,
+    toggleSlideshow,
+    handleZoomIn,
+    handleZoomOut,
+    handleRotate,
+    handleZoomReset,
+  ]);
 
-  const goToPrevious = () => {
-    setIsLoading(true);
-    setZoom(1);
-    setRotation(0);
-    setNeedsLightBackground(false);
-    setCurrentIndex((prev) => (prev - 1 + images.length) % images.length);
-  };
+  useEffect(() => {
+    if (!isOpen) return;
+    previousActiveElement.current = document.activeElement as HTMLElement;
+    document.body.style.overflow = 'hidden';
 
-  const goToNext = () => {
-    setIsLoading(true);
-    setZoom(1);
-    setRotation(0);
-    setNeedsLightBackground(false);
-    setCurrentIndex((prev) => (prev + 1) % images.length);
-  };
+    requestAnimationFrame(() => {
+      const focusable = getFocusableElements();
+      if (focusable.length > 0) {
+        focusable[0].focus();
+      } else {
+        dialogRef.current?.focus();
+      }
+    });
 
-  const toggleSlideshow = () => {
-    setIsPlaying(!isPlaying);
-  };
+    return () => {
+      document.body.style.overflow = '';
+      if (previousActiveElement.current) {
+        previousActiveElement.current.focus();
+      }
+    };
+  }, [isOpen, getFocusableElements]);
 
-  const handleZoomIn = () => {
-    setZoom((prev) => Math.min(prev + 0.25, 3));
-  };
+  const handleCopyLink = useCallback(async () => {
+    if (!currentImage) return;
+    if (onCopyLink) {
+      onCopyLink(currentImage);
+      return;
+    }
+    if (shareId) return;
 
-  const handleZoomOut = () => {
-    setZoom((prev) => Math.max(prev - 0.25, 0.5));
-  };
+    try {
+      const url = await getSignedFileUrl(currentImage.id, 'view');
+      await navigator.clipboard.writeText(url);
+    } catch (err) {
+      console.error('Failed to copy link', err);
+    }
+  }, [currentImage, onCopyLink, shareId]);
 
-  const handleRotate = () => {
-    setRotation((prev) => (prev + 90) % 360);
-  };
+  const detailActions = useMemo(() => {
+    if (!currentImage) return [];
 
-  const handleMouseMove = () => {
-    resetControlsTimeout();
-  };
+    const actions = [];
+
+    if (onFavorite) {
+      actions.push({
+        id: 'favorite',
+        label: currentImage.isFavorite
+          ? t('common.removeFromFavorites')
+          : t('common.addToFavorites'),
+        icon: Star,
+        active: currentImage.isFavorite,
+        onClick: () => onFavorite(currentImage),
+      });
+    }
+
+    if (onMove) {
+      actions.push({
+        id: 'move',
+        label: t('mediaViewer.moveTo'),
+        icon: Move,
+        onClick: () => onMove(currentImage),
+      });
+    }
+
+    if (onRename) {
+      actions.push({
+        id: 'rename',
+        label: t('common.rename'),
+        icon: Edit,
+        onClick: () => onRename(currentImage),
+      });
+    }
+
+    if (onDelete) {
+      actions.push({
+        id: 'delete',
+        label: t('common.delete'),
+        icon: Trash2,
+        danger: true,
+        onClick: () => onDelete(currentImage),
+      });
+    }
+
+    if (onCopyLink || !shareId) {
+      actions.push({
+        id: 'copy-link',
+        label: t('mediaViewer.copyLink'),
+        icon: Link,
+        onClick: () => void handleCopyLink(),
+      });
+    }
+
+    return actions;
+  }, [currentImage, onFavorite, onMove, onRename, onDelete, onCopyLink, shareId, handleCopyLink, t]);
+
+  const handleImageLoad = useCallback((img: HTMLImageElement) => {
+    setIsLoading(false);
+    setImageError(null);
+
+    const mimeType = currentImage?.mimeType || '';
+    const isDarkWithTransparency = analyzeImage(img, mimeType);
+    setNeedsLightBackground(isDarkWithTransparency);
+  }, [currentImage?.mimeType]);
+
+  const handleImageError = useCallback(() => {
+    setIsLoading(false);
+    setImageError(t('gallery.imageError', 'Failed to load image.'));
+  }, [t]);
 
   // Fetch signed URL when current image changes
   useEffect(() => {
     if (isOpen && currentImage) {
-      setLoadingSignedUrl(true);
-      revokeBlobUrl();
-
-      const loadUrl = async () => {
-        try {
-          if (shareId) {
-            const response = await api.get(`/shares/${shareId}/files/${currentImage.id}/view`, {
-              responseType: 'blob',
-            });
-            const url = URL.createObjectURL(response.data);
-            blobUrlRef.current = url;
-            setSignedUrl(url);
-          } else {
-            const url = await getSignedFileUrl(currentImage.id, 'view');
-            setSignedUrl(url);
-          }
-        } catch (err) {
-          console.error('Failed to get image URL', err);
-          setSignedUrl(null);
-        } finally {
-          setLoadingSignedUrl(false);
-        }
-      };
-
-      void loadUrl();
+      void loadImageUrl();
     } else {
-      revokeBlobUrl();
+      revokeObjectUrls();
       setSignedUrl(null);
     }
 
     return () => {
-      revokeBlobUrl();
+      revokeObjectUrls();
     };
-  }, [isOpen, currentImage, shareId, revokeBlobUrl]);
+  }, [isOpen, currentImage, loadImageUrl, revokeObjectUrls]);
+
+  const preloadImage = useCallback(async (file: FileItem) => {
+    if (preloadedIdsRef.current.has(file.id)) return;
+
+    try {
+      const sizeBytes = Number(file.size);
+      if (!Number.isNaN(sizeBytes) && sizeBytes > PRELOAD_MAX_BYTES) {
+        preloadedIdsRef.current.add(file.id);
+        return;
+      }
+
+      await fetchObjectUrl(file);
+      preloadedIdsRef.current.add(file.id);
+    } catch {
+      // Ignore prefetch errors
+    }
+  }, [fetchObjectUrl]);
+
+  useEffect(() => {
+    if (!isOpen || !currentImage || shareId || images.length < 2) return;
+
+    const prevIndex = (currentIndex - 1 + images.length) % images.length;
+    const nextIndex = (currentIndex + 1) % images.length;
+
+    void preloadImage(images[prevIndex]);
+    void preloadImage(images[nextIndex]);
+  }, [isOpen, currentImage, currentIndex, images, shareId, preloadImage]);
+
+  const shortcutItems = useMemo(() => {
+    const items = [
+      { keys: ['Esc'], label: t('gallery.shortcutClose', 'Close viewer') },
+      { keys: ['\u2190', '\u2192'], label: t('gallery.shortcutNavigate', 'Previous / next') },
+      { keys: ['+', '-'], label: t('gallery.shortcutZoom', 'Zoom in/out') },
+      { keys: ['0'], label: t('gallery.shortcutReset', 'Reset view') },
+      { keys: ['R'], label: t('gallery.shortcutRotate', 'Rotate') },
+      { keys: ['I'], label: t('gallery.shortcutDetails', 'Toggle details') },
+      { keys: ['?'], label: t('gallery.shortcutHelp', 'Toggle shortcuts') },
+    ];
+
+    if (images.length > 1) {
+      items.splice(2, 0, { keys: ['Space'], label: t('gallery.shortcutSlideshow', 'Play/Pause slideshow') });
+    }
+
+    return items;
+  }, [images.length, t]);
 
   if (!isOpen || !currentImage) return null;
 
   return createPortal(
-    <div
-      ref={containerRef}
-      className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center"
-      onMouseMove={handleMouseMove}
-      onClick={(e) => {
-        if (e.target === containerRef.current) {
-          onClose();
-        }
-      }}
-    >
-      {/* Top bar */}
+    <div className="fixed inset-0 z-50">
       <div
-        className={cn(
-          'absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/80 to-transparent z-10 transition-opacity duration-300',
-          showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
-        )}
+        className="absolute inset-0 bg-black/95"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId.current}
+        tabIndex={-1}
+        className="absolute inset-0 outline-none"
+        onMouseMove={handleMouseMove}
+        onTouchStart={handleMouseMove}
       >
-        <div className="flex items-center justify-between max-w-screen-xl mx-auto">
-          <div className="text-white">
-            <h3 className="font-medium truncate max-w-md">{currentImage.name}</h3>
-            <p className="text-sm text-gray-400">
-              {currentIndex + 1} / {images.length}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {onDownload && (
-              <button
-                onClick={() => onDownload(currentImage)}
-                className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-                title={t('gallery.download')}
-              >
-                <Download className="w-5 h-5" />
-              </button>
+        <div
+          className={cn(
+            'relative w-full h-full flex items-center justify-center transition-colors duration-300',
+            needsLightBackground && 'bg-white/20'
+          )}
+        >
+          {/* Top bar */}
+          <div
+            className={cn(
+              'absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/80 to-transparent z-20 transition-opacity duration-300',
+              controlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
             )}
-            {onShare && (
-              <button
-                onClick={() => onShare(currentImage)}
-                className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-                title={t('gallery.share')}
-              >
-                <Share2 className="w-5 h-5" />
-              </button>
-            )}
-            <button
-              onClick={onClose}
-              className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-              title={t('gallery.close')}
-            >
-              <X className="w-5 h-5" />
-            </button>
+          >
+            <div className="flex items-center justify-between max-w-screen-xl mx-auto gap-4">
+              <div className="text-white min-w-0">
+                <h3 id={titleId.current} className="font-medium truncate max-w-md">
+                  {currentImage.name}
+                </h3>
+                <p className="text-sm text-gray-400">
+                  {currentIndex + 1} / {images.length}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {images.length > 1 && (
+                  <button
+                    onClick={toggleSlideshow}
+                    className={cn(
+                      'p-2 rounded-lg transition-colors',
+                      isPlaying
+                        ? 'bg-primary-500 text-white'
+                        : 'text-white/80 hover:text-white hover:bg-white/10'
+                    )}
+                    title={isPlaying ? t('gallery.pause') : t('gallery.play')}
+                    aria-label={isPlaying ? t('gallery.pause') : t('gallery.play')}
+                    aria-pressed={isPlaying}
+                  >
+                    {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowDetails((prev) => !prev)}
+                  className={cn(
+                    'p-2 rounded-lg transition-colors',
+                    showDetails
+                      ? 'bg-white/20 text-white'
+                      : 'text-white/80 hover:text-white hover:bg-white/10'
+                  )}
+                  title={t('mediaViewer.details')}
+                  aria-label={t('mediaViewer.details')}
+                  aria-pressed={showDetails}
+                >
+                  <Info className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={() => setShowShortcuts((prev) => !prev)}
+                  className={cn(
+                    'p-2 rounded-lg transition-colors',
+                    showShortcuts
+                      ? 'bg-white/20 text-white'
+                      : 'text-white/80 hover:text-white hover:bg-white/10'
+                  )}
+                  title={t('gallery.shortcuts', 'Shortcuts')}
+                  aria-label={t('gallery.shortcuts', 'Shortcuts')}
+                  aria-pressed={showShortcuts}
+                >
+                  <Keyboard className="w-5 h-5" />
+                </button>
+                {onDownload && (
+                  <button
+                    onClick={() => onDownload(currentImage)}
+                    className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                    title={t('gallery.download')}
+                    aria-label={t('gallery.download')}
+                  >
+                    <Download className="w-5 h-5" />
+                  </button>
+                )}
+                {onShare && (
+                  <button
+                    onClick={() => onShare(currentImage)}
+                    className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                    title={t('gallery.share')}
+                    aria-label={t('gallery.share')}
+                  >
+                    <Share2 className="w-5 h-5" />
+                  </button>
+                )}
+                <button
+                  onClick={onClose}
+                  className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                  title={t('gallery.close')}
+                  aria-label={t('gallery.close')}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
 
-      {/* Main image */}
-      <div className={cn(
-        "relative w-full h-full flex items-center justify-center p-16 transition-colors duration-300",
-        needsLightBackground && "bg-white/20"
-      )}>
-        {loadingSignedUrl || !signedUrl ? (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <Loader2 className="w-10 h-10 animate-spin text-white/50" />
-          </div>
-        ) : (
-          <>
-            {isLoading && (
+          {/* Main image */}
+          <div className="relative w-full h-full flex items-center justify-center p-6 sm:p-12">
+            {signedUrl && !imageError && (
+              <ImageCanvas
+                src={signedUrl}
+                alt={currentImage.name}
+                zoom={zoom}
+                position={position}
+                rotation={rotation}
+                onZoomChange={setZoom}
+                onPositionChange={setPosition}
+                onZoomIn={handleZoomIn}
+                onZoomOut={handleZoomOut}
+                onZoomReset={handleZoomReset}
+                onRotate={handleRotate}
+                onImageLoad={handleImageLoad}
+                onImageError={handleImageError}
+              />
+            )}
+            {(loadingSignedUrl || isLoading) && !imageError && (
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <Loader2 className="w-10 h-10 animate-spin text-white/60" />
               </div>
             )}
-            <img
-              ref={imageRef}
-              src={signedUrl}
-              alt={currentImage.name}
-              crossOrigin="anonymous"
-              className={cn(
-                "max-w-full max-h-full object-contain transition-all duration-200",
-                needsLightBackground && "rounded-lg shadow-2xl"
-              )}
-              style={{
-                transform: `scale(${zoom}) rotate(${rotation}deg)`,
-                opacity: isLoading ? 0 : 1,
-              }}
-              onLoad={(e) => {
-                setIsLoading(false);
-                // Analyze image to detect if it needs light background
-                const img = e.currentTarget;
-                const mimeType = currentImage.mimeType || '';
-                const isDarkWithTransparency = analyzeImage(img, mimeType);
-                setNeedsLightBackground(isDarkWithTransparency);
-              }}
-              draggable={false}
-            />
-          </>
-        )}
-      </div>
-
-      {/* Navigation arrows */}
-      {images.length > 1 && (
-        <>
-          <button
-            onClick={goToPrevious}
-            className={cn(
-              'absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-black/50 hover:bg-black/70 text-white rounded-full transition-all',
-              showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            {imageError && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-white gap-3 px-6 text-center">
+                <AlertTriangle className="w-8 h-8 text-white/70" />
+                <p className="text-sm text-white/80">{imageError}</p>
+                <button
+                  onClick={() => void loadImageUrl()}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  {t('common.retry')}
+                </button>
+              </div>
             )}
-            title={t('gallery.previous')}
-          >
-            <ChevronLeft className="w-6 h-6" />
-          </button>
-          <button
-            onClick={goToNext}
-            className={cn(
-              'absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-black/50 hover:bg-black/70 text-white rounded-full transition-all',
-              showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
-            )}
-            title={t('gallery.next')}
-          >
-            <ChevronRight className="w-6 h-6" />
-          </button>
-        </>
-      )}
+          </div>
 
-      {/* Bottom bar with controls */}
-      <div
-        className={cn(
-          'absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent z-10 transition-opacity duration-300',
-          showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
-        )}
-      >
-        <div className="flex items-center justify-center gap-2 max-w-screen-xl mx-auto">
-          {/* Slideshow control */}
+          {/* Navigation arrows */}
           {images.length > 1 && (
-            <button
-              onClick={toggleSlideshow}
-              className={cn(
-                'p-2 rounded-lg transition-colors',
-                isPlaying
-                  ? 'bg-primary-500 text-white'
-                  : 'text-white/80 hover:text-white hover:bg-white/10'
-              )}
-              title={isPlaying ? t('gallery.pause') : t('gallery.play')}
-            >
-              {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
-            </button>
+            <>
+              <button
+                onClick={goToPrevious}
+                className={cn(
+                  'absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-black/50 hover:bg-black/70 text-white rounded-full transition-all',
+                  controlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                )}
+                title={t('gallery.previous')}
+                aria-label={t('gallery.previous')}
+              >
+                <ChevronLeft className="w-6 h-6" />
+              </button>
+              <button
+                onClick={goToNext}
+                className={cn(
+                  'absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-black/50 hover:bg-black/70 text-white rounded-full transition-all',
+                  controlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none',
+                  showDetails && 'right-[340px]'
+                )}
+                title={t('gallery.next')}
+                aria-label={t('gallery.next')}
+              >
+                <ChevronRight className="w-6 h-6" />
+              </button>
+            </>
           )}
 
-          <div className="w-px h-6 bg-white/20 mx-2" />
+          {/* Details panel */}
+          <DetailsPanel
+            file={currentImage}
+            isOpen={showDetails}
+            onClose={() => setShowDetails(false)}
+            onCopyLink={handleCopyLink}
+            actions={detailActions}
+          />
 
-          {/* Zoom controls */}
-          <button
-            onClick={handleZoomOut}
-            disabled={zoom <= 0.5}
-            className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            title={t('gallery.zoomOut')}
-          >
-            <ZoomOut className="w-5 h-5" />
-          </button>
-          <span className="text-white/80 text-sm min-w-[60px] text-center">
-            {Math.round(zoom * 100)}%
-          </span>
-          <button
-            onClick={handleZoomIn}
-            disabled={zoom >= 3}
-            className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            title={t('gallery.zoomIn')}
-          >
-            <ZoomIn className="w-5 h-5" />
-          </button>
-
-          <div className="w-px h-6 bg-white/20 mx-2" />
-
-          {/* Rotate */}
-          <button
-            onClick={handleRotate}
-            className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-            title={t('gallery.rotate')}
-          >
-            <RotateCw className="w-5 h-5" />
-          </button>
-
-          {/* Reset */}
-          <button
-            onClick={() => {
-              setZoom(1);
-              setRotation(0);
-            }}
-            className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-            title={t('gallery.reset')}
-          >
-            <Maximize2 className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Thumbnail strip */}
-        {images.length > 1 && images.length <= 20 && (
-          <div className="flex items-center justify-center gap-2 mt-4 overflow-x-auto pb-2">
-            {images.map((image, index) => (
-              <button
-                key={image.id}
-                onClick={() => {
-                  setIsLoading(true);
-                  setZoom(1);
-                  setRotation(0);
-                  setNeedsLightBackground(false);
-                  setCurrentIndex(index);
-                }}
-                className={cn(
-                  'flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden border-2 transition-all',
-                  index === currentIndex
-                    ? 'border-primary-500 scale-110'
-                    : 'border-transparent opacity-60 hover:opacity-100'
-                )}
+          {/* Shortcuts overlay */}
+          {showShortcuts && (
+            <div
+              className="absolute inset-0 z-30 flex items-center justify-center bg-black/60 px-4"
+              onClick={() => setShowShortcuts(false)}
+            >
+              <div
+                className="w-full max-w-md rounded-2xl bg-white dark:bg-dark-800 shadow-2xl border border-dark-200 dark:border-dark-700 p-5"
+                onClick={(e) => e.stopPropagation()}
               >
-                <AuthenticatedImage
-                  fileId={image.id}
-                  endpoint={image.thumbnailPath ? 'thumbnail' : 'view'}
-                  alt={image.name}
-                  className="w-full h-full object-cover"
-                />
-              </button>
-            ))}
-          </div>
-        )}
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-dark-900 dark:text-white">
+                    {t('gallery.shortcuts', 'Shortcuts')}
+                  </h3>
+                  <button
+                    onClick={() => setShowShortcuts(false)}
+                    className="p-2 -m-2 text-dark-500 hover:text-dark-900 dark:hover:text-white rounded-lg hover:bg-dark-100 dark:hover:bg-dark-700 transition-colors"
+                    aria-label={t('gallery.close')}
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {shortcutItems.map((item) => (
+                    <div key={item.keys.join('-')} className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-1">
+                        {item.keys.map((key) => (
+                          <span
+                            key={key}
+                            className="px-2 py-1 text-xs font-semibold rounded-md bg-dark-100 dark:bg-dark-700 text-dark-700 dark:text-dark-200"
+                          >
+                            {key}
+                          </span>
+                        ))}
+                      </div>
+                      <span className="text-sm text-dark-600 dark:text-dark-300">
+                        {item.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>,
     document.body

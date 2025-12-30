@@ -78,25 +78,27 @@ model SignedUrl {
 }
 
 model Folder {
-  id         String    @id @default(uuid()) @db.Uuid
-  name       String
-  color      String?
-  icon       String?
-  category   String?
-  parentId   String?   @db.Uuid
-  userId     String    @db.Uuid
-  isFavorite Boolean   @default(false)
-  isTrash    Boolean   @default(false)
-  trashedAt  DateTime? @db.Timestamptz(6)
-  createdAt  DateTime  @default(now()) @db.Timestamptz(6)
-  updatedAt  DateTime  @updatedAt @db.Timestamptz(6)
-  size       BigInt    @default(0)
-  files      File[]
-  parent     Folder?   @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
-  children   Folder[]  @relation("FolderTree")
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  shares     Share[]
-  uploadSessions UploadSession[]
+  id              String    @id @default(uuid()) @db.Uuid
+  name            String
+  color           String?
+  icon            String?
+  category        String?
+  parentId        String?   @db.Uuid
+  userId          String    @db.Uuid
+  isFavorite      Boolean   @default(false)
+  isTrash         Boolean   @default(false)
+  isProtected     Boolean   @default(false)
+  protectionHash  String?
+  trashedAt       DateTime? @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @db.Timestamptz(6)
+  size            BigInt    @default(0)
+  files           File[]
+  parent          Folder?   @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children        Folder[]  @relation("FolderTree")
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shares          Share[]
+  uploadSessions  UploadSession[]
 
   @@unique([name, parentId, userId])
   @@index([userId])

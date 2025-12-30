@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -240,6 +240,10 @@ export default function MediaViewer({
         { icon: Trash2, label: t('mediaViewer.delete'), action: () => currentFile && onDelete?.(currentFile), danger: true },
     ];
 
+    const detailActions = useMemo(() => ([
+        { id: 'copy-link', label: t('mediaViewer.copyLink'), icon: Copy },
+    ]), [t]);
+
     if (!isOpen || !currentFile) return null;
 
     return createPortal(
@@ -298,7 +302,6 @@ export default function MediaViewer({
                             rotation={rotation}
                             onZoomChange={setZoom}
                             onPositionChange={setPosition}
-                            showControls={showControls && !focusMode}
                             onZoomIn={handleZoomIn}
                             onZoomOut={handleZoomOut}
                             onZoomReset={handleZoomReset}
@@ -353,6 +356,7 @@ export default function MediaViewer({
                             navigator.clipboard.writeText(signedUrl);
                         }
                     }}
+                    actions={detailActions}
                 />
             </div>
 

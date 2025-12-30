@@ -26,6 +26,7 @@ export interface FileItem {
   isTrash: boolean;
   trashedAt: string | null;
   metadata: string | null;
+  transcodedPath?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -43,6 +44,7 @@ export interface Folder {
   userId: string;
   isFavorite: boolean;
   isTrash: boolean;
+  isProtected?: boolean;
   trashedAt: string | null;
   createdAt: string;
   updatedAt: string;

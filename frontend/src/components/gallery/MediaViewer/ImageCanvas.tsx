@@ -5,6 +5,7 @@ import {
     ZoomOut,
     Maximize2,
     RotateCw,
+    Scan,
 } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 
@@ -16,11 +17,13 @@ interface ImageCanvasProps {
     rotation: number;
     onZoomChange: (zoom: number) => void;
     onPositionChange: (position: { x: number; y: number }) => void;
-    showControls: boolean;
     onZoomIn: () => void;
     onZoomOut: () => void;
     onZoomReset: () => void;
     onRotate: () => void;
+    onImageLoad?: (img: HTMLImageElement) => void;
+    onImageError?: () => void;
+    hudOffset?: number;
 }
 
 export default function ImageCanvas({
@@ -31,11 +34,13 @@ export default function ImageCanvas({
     rotation,
     onZoomChange,
     onPositionChange,
-    showControls,
     onZoomIn,
     onZoomOut,
     onZoomReset,
     onRotate,
+    onImageLoad,
+    onImageError,
+    hudOffset = 80,
 }: ImageCanvasProps) {
     const { t } = useTranslation();
     const containerRef = useRef<HTMLDivElement>(null);
@@ -44,21 +49,20 @@ export default function ImageCanvas({
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
     const [isLoaded, setIsLoaded] = useState(false);
-    const [showHUD, setShowHUD] = useState(false);
 
     const hudTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const lastTapRef = useRef(0);
+    const lastTapPosRef = useRef({ x: 0, y: 0 });
 
-    // Show HUD temporarily on zoom/pan interaction
+    // Flash HUD timeout (for future use if we want to show/hide controls)
     const flashHUD = useCallback(() => {
-        setShowHUD(true);
         if (hudTimeout.current) clearTimeout(hudTimeout.current);
-        hudTimeout.current = setTimeout(() => setShowHUD(false), 2000);
+        hudTimeout.current = setTimeout(() => { }, 2000);
     }, []);
 
     // Mouse wheel zoom
-    const handleWheel = useCallback((e: WheelEvent) => {
-        if (!e.ctrlKey && !e.metaKey) return;
-
+    const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+        if (e.ctrlKey || e.metaKey) return;
         e.preventDefault();
         const delta = e.deltaY > 0 ? -0.1 : 0.1;
         const newZoom = Math.max(0.25, Math.min(5, zoom + delta));
@@ -66,22 +70,13 @@ export default function ImageCanvas({
         flashHUD();
     }, [zoom, onZoomChange, flashHUD]);
 
-    useEffect(() => {
-        const container = containerRef.current;
-        if (!container) return;
-
-        container.addEventListener('wheel', handleWheel, { passive: false });
-        return () => container.removeEventListener('wheel', handleWheel);
-    }, [handleWheel]);
-
-    // Double-click to toggle zoom
-    const handleDoubleClick = (e: React.MouseEvent) => {
+    const zoomToPoint = (clientX: number, clientY: number) => {
         if (zoom === 1) {
             // Zoom to 2x at click point
             const rect = containerRef.current?.getBoundingClientRect();
             if (rect) {
-                const x = e.clientX - rect.left - rect.width / 2;
-                const y = e.clientY - rect.top - rect.height / 2;
+                const x = clientX - rect.left - rect.width / 2;
+                const y = clientY - rect.top - rect.height / 2;
                 onPositionChange({ x: -x, y: -y });
             }
             onZoomChange(2);
@@ -89,6 +84,11 @@ export default function ImageCanvas({
             onZoomReset();
         }
         flashHUD();
+    };
+
+    // Double-click to toggle zoom
+    const handleDoubleClick = (e: React.MouseEvent) => {
+        zoomToPoint(e.clientX, e.clientY);
     };
 
     // Drag to pan when zoomed
@@ -104,7 +104,8 @@ export default function ImageCanvas({
             x: e.clientX - dragStart.x,
             y: e.clientY - dragStart.y,
         });
-    }, [isDragging, dragStart, onPositionChange]);
+        flashHUD();
+    }, [isDragging, dragStart, onPositionChange, flashHUD]);
 
     const handleMouseUp = useCallback(() => {
         setIsDragging(false);
@@ -121,22 +122,96 @@ export default function ImageCanvas({
         }
     }, [isDragging, handleMouseMove, handleMouseUp]);
 
+    const handleTouchStart = (e: React.TouchEvent) => {
+        if (e.touches.length !== 1) return;
+        const touch = e.touches[0];
+        lastTapPosRef.current = { x: touch.clientX, y: touch.clientY };
+
+        if (zoom <= 1) return;
+        setIsDragging(true);
+        setDragStart({ x: touch.clientX - position.x, y: touch.clientY - position.y });
+    };
+
+    const handleTouchMove = (e: React.TouchEvent) => {
+        if (!isDragging || zoom <= 1 || e.touches.length !== 1) return;
+        const touch = e.touches[0];
+        onPositionChange({
+            x: touch.clientX - dragStart.x,
+            y: touch.clientY - dragStart.y,
+        });
+        e.preventDefault();
+        flashHUD();
+    };
+
+    const handleTouchEnd = () => {
+        setIsDragging(false);
+        const now = Date.now();
+        if (now - lastTapRef.current < 300) {
+            const { x, y } = lastTapPosRef.current;
+            zoomToPoint(x, y);
+        }
+        lastTapRef.current = now;
+    };
+
+    const getFitScale = useCallback(() => {
+        const container = containerRef.current;
+        const image = imageRef.current;
+        if (!container || !image) return 1;
+
+        const { naturalWidth, naturalHeight } = image;
+        if (!naturalWidth || !naturalHeight) return 1;
+
+        const normalizedRotation = ((rotation % 360) + 360) % 360;
+        const rotated = normalizedRotation === 90 || normalizedRotation === 270;
+        const imageWidth = rotated ? naturalHeight : naturalWidth;
+        const imageHeight = rotated ? naturalWidth : naturalHeight;
+
+        const scale = Math.min(
+            container.clientWidth / imageWidth,
+            container.clientHeight / imageHeight
+        );
+        return Math.max(0.25, Math.min(5, scale));
+    }, [rotation]);
+
+    const handleFitToScreen = () => {
+        const scale = getFitScale();
+        onZoomChange(scale);
+        onPositionChange({ x: 0, y: 0 });
+        flashHUD();
+    };
+
+    const handleActualSize = () => {
+        onZoomChange(1);
+        onPositionChange({ x: 0, y: 0 });
+        flashHUD();
+    };
+
+    useEffect(() => {
+        setIsLoaded(false);
+    }, [src]);
+
     return (
         <div
             ref={containerRef}
             className={cn(
                 'relative w-full h-full flex items-center justify-center overflow-hidden',
+                'touch-none',
                 zoom > 1 && 'cursor-grab',
                 isDragging && 'cursor-grabbing'
             )}
             onDoubleClick={handleDoubleClick}
+            onWheel={handleWheel}
             onMouseDown={handleMouseDown}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
         >
             {/* Image */}
             <img
                 ref={imageRef}
                 src={src}
                 alt={alt}
+                crossOrigin="use-credentials"
                 draggable={false}
                 className={cn(
                     'max-w-full max-h-full object-contain select-none',
@@ -147,19 +222,27 @@ export default function ImageCanvas({
                     transform: `translate(${position.x}px, ${position.y}px) scale(${zoom}) rotate(${rotation}deg)`,
                     transformOrigin: 'center center',
                 }}
-                onLoad={() => setIsLoaded(true)}
+                onDoubleClick={handleDoubleClick}
+                onLoad={(e) => {
+                    setIsLoaded(true);
+                    onImageLoad?.(e.currentTarget);
+                }}
+                onError={() => {
+                    setIsLoaded(false);
+                    onImageError?.();
+                }}
             />
 
             {/* Zoom HUD */}
             <div
                 className={cn(
-                    'absolute bottom-20 left-1/2 -translate-x-1/2',
+                    'absolute left-1/2 -translate-x-1/2',
                     'flex items-center gap-1 p-1',
                     'bg-white/90 dark:bg-dark-800/90 backdrop-blur-sm',
                     'rounded-full shadow-lg',
-                    'transition-all duration-200',
-                    (showControls || showHUD) ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
+                    'transition-all duration-200 opacity-100 translate-y-0'
                 )}
+                style={{ bottom: hudOffset }}
             >
                 <button
                     onClick={() => { onZoomOut(); flashHUD(); }}
@@ -193,6 +276,36 @@ export default function ImageCanvas({
                     aria-label={t('gallery.zoomIn')}
                 >
                     <ZoomIn className="w-4 h-4" />
+                </button>
+
+                <div className="w-px h-5 bg-dark-200 dark:bg-dark-600 mx-1" />
+
+                <button
+                    onClick={handleFitToScreen}
+                    className={cn(
+                        'p-2 rounded-full',
+                        'text-dark-600 dark:text-dark-300',
+                        'hover:bg-dark-100 dark:hover:bg-dark-700',
+                        'transition-colors duration-150'
+                    )}
+                    aria-label={t('mediaViewer.fitToScreen')}
+                    title={t('mediaViewer.fitToScreen')}
+                >
+                    <Scan className="w-4 h-4" />
+                </button>
+
+                <button
+                    onClick={handleActualSize}
+                    className={cn(
+                        'px-2 py-1 rounded-full text-xs font-semibold',
+                        'text-dark-600 dark:text-dark-300',
+                        'hover:bg-dark-100 dark:hover:bg-dark-700',
+                        'transition-colors duration-150'
+                    )}
+                    aria-label={t('mediaViewer.actualSize')}
+                    title={t('mediaViewer.actualSize')}
+                >
+                    {t('mediaViewer.zoomLevel', { level: 100 })}
                 </button>
 
                 <div className="w-px h-5 bg-dark-200 dark:bg-dark-600 mx-1" />

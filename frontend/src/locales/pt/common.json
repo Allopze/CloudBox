@@ -1371,5 +1371,28 @@
     "downloadError": "Erro ao baixar versão",
     "restoreError": "Erro ao restaurar versão",
     "deleteError": "Erro ao excluir versão"
+  },
+  "protectedFolder": {
+    "setProtection": "Proteger pasta",
+    "removeProtection": "Remover proteção",
+    "protect": "Proteger",
+    "remove": "Remover",
+    "unlock": "Desbloquear",
+    "unlockFolder": "Desbloquear pasta",
+    "password": "Senha",
+    "confirmPassword": "Confirmar senha",
+    "currentPassword": "Senha atual",
+    "enterPassword": "Digite a senha da pasta",
+    "enterCurrentPassword": "Digite sua senha atual para remover a proteção",
+    "setPasswordDescription": "Defina uma senha para proteger esta pasta. Você precisará digitá-la para acessar o conteúdo.",
+    "folderIsProtected": "\"{{name}}\" está protegida por senha",
+    "protectionSet": "Pasta protegida com sucesso",
+    "protectionRemoved": "Proteção removida com sucesso",
+    "unlocked": "Pasta desbloqueada",
+    "invalidPassword": "Senha inválida",
+    "passwordMismatch": "As senhas não coincidem",
+    "passwordTooShort": "A senha deve ter pelo menos 4 caracteres",
+    "currentPasswordRequired": "Senha atual obrigatória",
+    "protectError": "Erro ao proteger a pasta"
   }
 }

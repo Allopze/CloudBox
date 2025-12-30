@@ -236,7 +236,8 @@ router.post('/upload', authenticate, uploadFile.array('files', UPLOAD_LIMITS.MAX
       }
 
       // Check max file size and total request size
-      const maxFileSize = Math.min(Number(user.maxFileSize), globalMaxFileSize);
+      // Use the HIGHER of user limit or global config (global can raise user limits)
+      const maxFileSize = Math.max(Number(user.maxFileSize), globalMaxFileSize);
       const maxTotalRequestSize = maxFileSize * UPLOAD_LIMITS.MAX_FILES_PER_REQUEST;
       if (totalSize > maxTotalRequestSize) {
         throw new Error(`Total upload size exceeds maximum limit of ${maxTotalRequestSize} bytes`);
@@ -460,7 +461,8 @@ router.post('/upload-with-folders', authenticate, uploadFile.array('files', UPLO
       const totalSize = files.reduce((sum: number, file: Express.Multer.File) => sum + file.size, 0);
       const remainingQuota = Number(user.storageQuota) - Number(user.storageUsed) - Number(user.tempStorage || 0);
 
-      const maxFileSize = Math.min(Number(user.maxFileSize), globalMaxFileSize);
+      // Use the HIGHER of user limit or global config (global can raise user limits)
+      const maxFileSize = Math.max(Number(user.maxFileSize), globalMaxFileSize);
       const maxTotalRequestSize = maxFileSize * UPLOAD_LIMITS.MAX_FILES_FOLDER_UPLOAD;
       if (totalSize > maxTotalRequestSize) {
         throw new Error(`Total upload size exceeds maximum limit of ${maxTotalRequestSize} bytes`);
@@ -874,7 +876,8 @@ router.post('/upload/init', authenticate, validate(uploadInitSchema), async (req
       }
 
       const totalSizeBigInt = BigInt(totalSize);
-      const maxFileSize = BigInt(Math.min(Number(user.maxFileSize), globalMaxFileSize));
+      // Use the HIGHER of user limit or global config (global can raise user limits)
+      const maxFileSize = BigInt(Math.max(Number(user.maxFileSize), globalMaxFileSize));
       if (totalSizeBigInt > maxFileSize) {
         const maxSizeMB = Math.round(Number(maxFileSize) / 1024 / 1024);
         throw new Error(`File exceeds maximum size limit of ${maxSizeMB}MB`);
@@ -1412,7 +1415,11 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
           ];
           break;
         case 'audio':
-          where.mimeType = { startsWith: 'audio/' };
+          where.OR = [
+            { mimeType: { startsWith: 'audio/' } },
+            { name: { endsWith: '.mid', mode: 'insensitive' } },
+            { name: { endsWith: '.midi', mode: 'insensitive' } },
+          ];
           break;
         case 'documents':
           where.OR = [
@@ -1681,6 +1688,9 @@ router.delete('/:id', authenticate, async (req: Request, res: Response) => {
       if (file.thumbnailPath) {
         await deleteFile(file.thumbnailPath);
       }
+      if (file.transcodedPath) {
+        await deleteFile(file.transcodedPath);
+      }
 
       await prisma.file.delete({ where: { id } });
 
@@ -1763,6 +1773,7 @@ router.get('/:id/download', authOptional, async (req: Request, res: Response) =>
     });
 
     const stat = await fs.stat(file.path);
+
     const range = req.headers.range;
 
     if (range) {
@@ -2010,6 +2021,7 @@ router.get('/:id/view', authOptional, async (req: Request, res: Response) => {
     }
 
     const stat = await fs.stat(file.path);
+
     return streamFile(req, res, file, stat);
   } catch (error) {
     logger.error('View file error', {}, error instanceof Error ? error : undefined);
@@ -2373,6 +2385,9 @@ router.post('/bulk/delete', authenticate, async (req: Request, res: Response) =>
         if (file.thumbnailPath) {
           await deleteFile(file.thumbnailPath);
         }
+        if (file.transcodedPath) {
+          await deleteFile(file.transcodedPath);
+        }
       }
 
       await prisma.$transaction(async (tx) => {
@@ -2463,7 +2478,11 @@ router.get('/search', authenticate, async (req: Request, res: Response) => {
           where.mimeType = { startsWith: 'video/' };
           break;
         case 'audio':
-          where.mimeType = { startsWith: 'audio/' };
+          where.OR = [
+            { mimeType: { startsWith: 'audio/' } },
+            { name: { endsWith: '.mid', mode: 'insensitive' } },
+            { name: { endsWith: '.midi', mode: 'insensitive' } },
+          ];
           break;
         case 'documents':
           where.OR = [

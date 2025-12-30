@@ -104,6 +104,8 @@ services:
       MAX_FILE_SIZE: ${MAX_FILE_SIZE:-1073741824}
       DEFAULT_QUOTA: ${DEFAULT_QUOTA:-5368709120}
       TRASH_RETENTION_DAYS: ${TRASH_RETENTION_DAYS:-30}
+      MIDI_SOUNDFONT_PATH: ${MIDI_SOUNDFONT_PATH:-/app/assets/soundfonts/FluidR3_GM.sf2}
+      MIDI_FLUIDSYNTH_PATH: ${MIDI_FLUIDSYNTH_PATH:-/usr/bin/fluidsynth}
       # Error tracking (GlitchTip - self-hosted Sentry)
       SENTRY_DSN: ${SENTRY_DSN:-}
       # SMTP (optional)

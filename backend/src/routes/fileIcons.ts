@@ -7,7 +7,7 @@ const router = Router();
 
 // Valid file icon categories
 const VALID_CATEGORIES = [
-    'folder', 'default',
+    'folder', 'folderShared', 'folderProtected', 'default',
     'image', 'video', 'audio',
     'pdf', 'word', 'spreadsheet', 'presentation', 'csv', 'text', 'markdown', 'ebook',
     'onenote', 'access', 'publisher',

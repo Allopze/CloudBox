@@ -71,7 +71,7 @@ export const updateFolderSchema = z.object({
   }),
   body: z.object({
     name: z.string().min(1).max(255).optional(),
-    color: z.string().optional(),
+    color: z.string().optional().nullable(),
     icon: z.string().max(50).optional().nullable(),
     category: z.string().optional(),
   }),

@@ -1,11 +1,11 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { api, getSignedFileUrl, openSignedFileUrl } from '../lib/api';
 import { FileItem, Album } from '../types';
 import { useFileStore } from '../stores/fileStore';
 import {
-  X, ChevronLeft, ChevronRight, Download, Trash2, Star, Check,
+  X, Download, Trash2, Star, Check,
   Share2, Info, Copy, Edit3, Images, FolderPlus,
   ImagePlus, ExternalLink, Plus, Loader2
 } from 'lucide-react';
@@ -18,6 +18,7 @@ import ShareModal from '../components/modals/ShareModal';
 import RenameModal from '../components/modals/RenameModal';
 import ConfirmModal from '../components/ui/ConfirmModal';
 import VideoPreview from '../components/gallery/VideoPreview';
+import ImageGallery from '../components/gallery/ImageGallery';
 import AuthenticatedImage from '../components/AuthenticatedImage';
 import VirtualizedGrid from '../components/ui/VirtualizedGrid';
 import FileCard from '../components/files/FileCard';
@@ -41,8 +42,8 @@ export default function Photos() {
 
   const [photos, setPhotos] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedPhoto, setSelectedPhoto] = useState<FileItem | null>(null);
-  const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState(0);
 
   // Pagination state
   const [page, setPage] = useState(1);
@@ -197,39 +198,23 @@ export default function Photos() {
     return file.mimeType?.startsWith('video/') || false;
   };
 
+  const imageFiles = useMemo(() => {
+    return photos.filter((photo) => photo.mimeType?.startsWith('image/'));
+  }, [photos]);
+
   const openLightbox = (photo: FileItem, index: number) => {
     // If it's a video, open video preview instead
     if (isVideo(photo)) {
       setVideoPreviewFile(photo);
-    } else {
-      setSelectedPhoto(photo);
-      setLightboxIndex(index);
+      return;
     }
+
+    const imageIndex = imageFiles.findIndex((item) => item.id === photo.id);
+    const resolvedIndex = imageIndex >= 0 ? imageIndex : index;
+
+    setGalleryIndex(Math.max(resolvedIndex, 0));
+    setGalleryOpen(true);
   };
-
-  const closeLightbox = () => {
-    setSelectedPhoto(null);
-  };
-
-  const navigateLightbox = (direction: 'prev' | 'next') => {
-    const newIndex = direction === 'prev'
-      ? (lightboxIndex - 1 + photos.length) % photos.length
-      : (lightboxIndex + 1) % photos.length;
-    setLightboxIndex(newIndex);
-    setSelectedPhoto(photos[newIndex]);
-  };
-
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (!selectedPhoto) return;
-    if (e.key === 'Escape') closeLightbox();
-    if (e.key === 'ArrowLeft') navigateLightbox('prev');
-    if (e.key === 'ArrowRight') navigateLightbox('next');
-  }, [selectedPhoto, lightboxIndex, photos]);
-
-  useEffect(() => {
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [handleKeyDown]);
 
   const handleFavorite = async (photo: FileItem) => {
     try {
@@ -242,10 +227,6 @@ export default function Photos() {
       } else {
         setPhotos(prev => prev.map(p => p.id === photo.id ? { ...p, isFavorite: !p.isFavorite } : p));
       }
-      // Also update selectedPhoto if it's being viewed in lightbox
-      if (selectedPhoto?.id === photo.id) {
-        setSelectedPhoto(prev => prev ? { ...prev, isFavorite: !prev.isFavorite } : null);
-      }
     } catch {
       toast(t('photos.favoriteError'), 'error');
     }
@@ -256,7 +237,7 @@ export default function Photos() {
       await api.delete(`/files/${photo.id}`);
       toast(t('photos.movedToTrash'), 'success');
       clearSelection();
-      closeLightbox();
+      setGalleryOpen(false);
       loadData();
     } catch {
       toast(t('photos.deleteError'), 'error');
@@ -612,82 +593,26 @@ export default function Photos() {
         </div>
       )}
 
-      {/* Lightbox */}
-      {selectedPhoto && (
-        <div className="fixed inset-0 z-50 bg-black flex items-center justify-center" role="dialog" aria-label={t('photos.imageViewer')}>
-          {/* Close button */}
-          <button
-            onClick={closeLightbox}
-            className="absolute top-4 right-4 p-2 text-white/70 hover:text-white rounded-full hover:bg-white/10 transition-colors z-10"
-            aria-label={t('photos.closeViewer')}
-          >
-            <X className="w-6 h-6" />
-          </button>
-
-          {/* Navigation */}
-          <button
-            onClick={() => navigateLightbox('prev')}
-            className="absolute left-4 p-2 text-white/70 hover:text-white rounded-full hover:bg-white/10 transition-colors"
-            aria-label={t('photos.previousPhoto')}
-          >
-            <ChevronLeft className="w-8 h-8" />
-          </button>
-          <button
-            onClick={() => navigateLightbox('next')}
-            className="absolute right-4 p-2 text-white/70 hover:text-white rounded-full hover:bg-white/10 transition-colors"
-            aria-label={t('photos.nextPhoto')}
-          >
-            <ChevronRight className="w-8 h-8" />
-          </button>
-
-          {/* Image */}
-          <AuthenticatedImage
-            fileId={selectedPhoto.id}
-            endpoint="view"
-            alt={selectedPhoto.name}
-            className="max-w-full max-h-full object-contain"
-          />
-
-          {/* Bottom bar */}
-          <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent">
-            <div className="flex items-center justify-between max-w-4xl mx-auto">
-              <div>
-                <p className="text-white font-medium">{selectedPhoto.name}</p>
-                <p className="text-white/70 text-sm">{formatDate(selectedPhoto.createdAt)}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleFavorite(selectedPhoto)}
-                  className="text-white hover:bg-white/10"
-                  aria-label={selectedPhoto.isFavorite ? t('photos.removeFromFavorites') : t('photos.addToFavorites')}
-                >
-                  <Star className={cn('w-5 h-5', selectedPhoto.isFavorite && 'fill-yellow-500 text-yellow-500')} />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => void openSignedFileUrl(selectedPhoto.id, 'download')}
-                  className="text-white hover:bg-white/10"
-                  aria-label={t('common.download')}
-                >
-                  <Download className="w-5 h-5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleDelete(selectedPhoto)}
-                  className="text-white hover:bg-white/10"
-                  aria-label={t('common.delete')}
-                >
-                  <Trash2 className="w-5 h-5" />
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Image Gallery */}
+      <ImageGallery
+        images={imageFiles}
+        initialIndex={galleryIndex}
+        isOpen={galleryOpen}
+        onClose={() => setGalleryOpen(false)}
+        onDownload={(file) => void openSignedFileUrl(file.id, 'download')}
+        onShare={(file) => {
+          setShareModalFile(file);
+          setShareModalOpen(true);
+          setGalleryOpen(false);
+        }}
+        onFavorite={handleFavorite}
+        onRename={(file) => {
+          setRenameModalFile(file);
+          setRenameModalOpen(true);
+        }}
+        onDelete={(file) => setDeleteConfirmPhoto(file)}
+        onCopyLink={handleCopyLink}
+      />
 
       {/* Context Menu */}
       <AnimatePresence>

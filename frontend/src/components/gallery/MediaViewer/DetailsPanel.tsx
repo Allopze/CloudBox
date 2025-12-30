@@ -7,7 +7,6 @@ import {
     Calendar,
     HardDrive,
     Tag,
-    Link,
     Check,
     Camera,
 } from 'lucide-react';
@@ -19,6 +18,14 @@ interface DetailsPanelProps {
     isOpen: boolean;
     onClose: () => void;
     onCopyLink?: () => void;
+    actions?: Array<{
+        id: string;
+        label: string;
+        icon: React.ComponentType<{ className?: string }>;
+        onClick?: () => void;
+        danger?: boolean;
+        active?: boolean;
+    }>;
 }
 
 export default function DetailsPanel({
@@ -26,6 +33,7 @@ export default function DetailsPanel({
     isOpen,
     onClose,
     onCopyLink,
+    actions = [],
 }: DetailsPanelProps) {
     const { t } = useTranslation();
     const [linkCopied, setLinkCopied] = useState(false);
@@ -37,9 +45,16 @@ export default function DetailsPanel({
     };
 
     // Parse metadata if available
-    const metadata = file.metadata ? JSON.parse(file.metadata) : null;
+    let metadata: any = null;
+    if (file.metadata) {
+        try {
+            metadata = JSON.parse(file.metadata);
+        } catch {
+            metadata = null;
+        }
+    }
     const dimensions = metadata?.width && metadata?.height
-        ? `${metadata.width} × ${metadata.height}`
+        ? `${metadata.width} x ${metadata.height}`
         : null;
 
     const infoItems = [
@@ -62,7 +77,7 @@ export default function DetailsPanel({
     return (
         <aside
             className={cn(
-                'absolute top-0 right-0 h-full w-[320px]',
+                'absolute top-0 right-0 h-full w-[320px] z-30',
                 'bg-white dark:bg-dark-800',
                 'border-l border-dark-100 dark:border-dark-700',
                 'shadow-xl',
@@ -96,6 +111,55 @@ export default function DetailsPanel({
                         {file.name}
                     </p>
                 </div>
+
+                {/* Quick Actions */}
+                {actions.length > 0 && (
+                    <div>
+                        <div className="flex items-center gap-2 mb-3">
+                            <Tag className="w-4 h-4 text-dark-500" />
+                            <h3 className="text-sm font-medium text-dark-700 dark:text-dark-300">
+                                {t('mediaViewer.actions', 'Quick actions')}
+                            </h3>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                            {actions.map((action) => {
+                                const isCopy = action.id === 'copy-link';
+                                const Icon = isCopy && linkCopied ? Check : action.icon;
+                                const label = isCopy && linkCopied
+                                    ? t('mediaViewer.linkCopied')
+                                    : action.label;
+
+                                return (
+                                    <button
+                                        key={action.id}
+                                        onClick={() => {
+                                            if (isCopy) {
+                                                handleCopyLink();
+                                            } else {
+                                                action.onClick?.();
+                                            }
+                                        }}
+                                        className={cn(
+                                            'flex items-center gap-2 px-3 py-2 rounded-lg text-sm',
+                                            'border border-dark-200 dark:border-dark-600',
+                                            'transition-colors duration-150',
+                                            action.danger
+                                                ? 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20'
+                                                : action.active
+                                                    ? 'text-primary-600 dark:text-primary-400 border-primary-200 dark:border-primary-700 hover:bg-primary-50/50 dark:hover:bg-primary-900/20'
+                                                    : 'text-dark-700 dark:text-dark-200 hover:bg-dark-50 dark:hover:bg-dark-700'
+                                        )}
+                                        aria-label={label}
+                                        aria-pressed={action.active}
+                                    >
+                                        <Icon className="w-4 h-4" />
+                                        <span className="truncate">{label}</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
 
                 {/* Basic Info */}
                 <div className="space-y-3">
@@ -154,32 +218,6 @@ export default function DetailsPanel({
                     </div>
                 )}
 
-                {/* Copy Link */}
-                <button
-                    onClick={handleCopyLink}
-                    className={cn(
-                        'w-full flex items-center justify-center gap-2 py-2.5 rounded-lg',
-                        'text-sm font-medium',
-                        'border border-dark-200 dark:border-dark-600',
-                        'hover:bg-dark-50 dark:hover:bg-dark-700',
-                        'transition-colors duration-150',
-                        linkCopied
-                            ? 'text-green-600 dark:text-green-400 border-green-300 dark:border-green-700'
-                            : 'text-dark-700 dark:text-dark-200'
-                    )}
-                >
-                    {linkCopied ? (
-                        <>
-                            <Check className="w-4 h-4" />
-                            {t('mediaViewer.linkCopied')}
-                        </>
-                    ) : (
-                        <>
-                            <Link className="w-4 h-4" />
-                            {t('mediaViewer.copyLink')}
-                        </>
-                    )}
-                </button>
             </div>
         </aside>
     );

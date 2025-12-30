@@ -5,6 +5,7 @@ interface IconProps {
     className?: string;
     size?: number;
     style?: React.CSSProperties;
+    IconComponent?: React.ComponentType<{ size?: number | string; className?: string }>;
 }
 
 interface FileExtensionIconProps extends IconProps {
@@ -23,6 +24,8 @@ const DocumentIcon = (className: string, size: number, glyph?: React.ReactNode) 
 // Default SVG icons for each category
 const defaultIcons: Record<FileIconCategory, (className: string, size: number) => JSX.Element> = {
     folder: (className, size) => <SolidFolderIcon className={className} size={size} />,
+    folderShared: (className, size) => <SolidFolderIcon className={className} size={size} />,
+    folderProtected: (className, size) => <SolidFolderIcon className={className} size={size} />,
     audio: (className, size) => DocumentIcon(className, size, (
         <path d="M18 14V32C18 34.2091 16.2091 36 14 36C11.7909 36 10 34.2091 10 32C10 29.7909 11.7909 28 14 28C15.1046 28 16 28.4477 16 29V18L30 14V30C30 32.2091 28.2091 34 26 34C23.7909 34 22 32.2091 22 30C22 27.7909 23.7909 26 26 26C27.1046 26 28 26.4477 28 27" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
     )),
@@ -215,20 +218,40 @@ export function FileExtensionIcon({ className = '', size = 64, extension }: File
 }
 
 
-// Solid folder icon matching the reference design
-export function SolidFolderIcon({ className = '', size = 64, style }: IconProps) {
+// Solid folder icon matching the reference design with optional inner icon
+export function SolidFolderIcon({ className = '', size = 64, style, IconComponent }: IconProps) {
+    // Extract the fill color from style.color or use default red
+    const fillColor = style?.color || '#dc2626';
+    // Calculate inner icon size (about 40% of folder size)
+    const innerIconSize = Math.round(size * 0.4);
+
     return (
-        <svg
-            viewBox="0 0 64 48"
-            width={size}
-            height={size * 0.75}
-            className={className || 'text-primary-600'}
-            fill="currentColor"
-            style={style}
-        >
-            {/* Folder body */}
-            <path d="M4 8C4 5.79086 5.79086 4 8 4H24L28 10H56C58.2091 10 60 11.7909 60 14V40C60 42.2091 58.2091 44 56 44H8C5.79086 44 4 42.2091 4 40V8Z" />
-        </svg>
+        <div className={className} style={{ position: 'relative', width: size, height: size, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg
+                viewBox="0 0 24 24"
+                width={size}
+                height={size}
+                style={{ position: 'absolute', top: 0, left: 0 }}
+            >
+                {/* Folder body with custom color */}
+                <path
+                    d="M3 7C3 5.89543 3.89543 5 5 5H9.58579C10.1162 5 10.625 5.21071 11 5.58579L13.4142 8H19C20.1046 8 21 8.89543 21 10V18C21 19.1046 20.1046 20 19 20H5C3.89543 20 3 19.1046 3 18V7Z"
+                    fill={fillColor}
+                />
+                {/* White overlay for depth effect */}
+                <path
+                    d="M3 10H21V18C21 19.1046 20.1046 20 19 20H5C3.89543 20 3 19.1046 3 18V10Z"
+                    fill="white"
+                    opacity="0.15"
+                />
+            </svg>
+            {/* Inner icon centered on the folder */}
+            {IconComponent && (
+                <div style={{ position: 'relative', marginTop: size * 0.15, zIndex: 1 }}>
+                    <IconComponent size={innerIconSize} className="text-white/90" />
+                </div>
+            )}
+        </div>
     );
 }
 

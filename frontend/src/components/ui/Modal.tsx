@@ -1,4 +1,5 @@
 import { ReactNode, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
@@ -22,6 +23,11 @@ export default function Modal({
   const modalRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
   const titleId = useRef(`modal-title-${Math.random().toString(36).substring(7)}`);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   // Focus trap - get all focusable elements within the modal
   const getFocusableElements = useCallback(() => {
@@ -36,7 +42,7 @@ export default function Modal({
   // Handle Tab key for focus trap
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key === 'Escape') {
-      onClose();
+      onCloseRef.current();
       return;
     }
 
@@ -59,30 +65,34 @@ export default function Modal({
         }
       }
     }
-  }, [onClose, getFocusableElements]);
+  }, [getFocusableElements]);
 
   useEffect(() => {
-    if (isOpen) {
-      // Store the currently focused element to restore later
-      previousActiveElement.current = document.activeElement as HTMLElement;
-      document.addEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = 'hidden';
+    if (!isOpen) return;
 
-      // Focus the first focusable element in the modal
-      requestAnimationFrame(() => {
-        const focusable = getFocusableElements();
-        if (focusable.length > 0) {
-          focusable[0].focus();
-        } else {
-          modalRef.current?.focus();
-        }
-      });
-    }
+    // Store the currently focused element to restore later
+    previousActiveElement.current = document.activeElement as HTMLElement;
+    document.addEventListener('keydown', handleKeyDown);
+    document.body.style.overflow = 'hidden';
+
+    // Focus the first focusable element in the modal
+    requestAnimationFrame(() => {
+      if (modalRef.current?.contains(document.activeElement)) {
+        return;
+      }
+      const focusable = getFocusableElements();
+      if (focusable.length > 0) {
+        focusable[0].focus();
+      } else {
+        modalRef.current?.focus();
+      }
+    });
+
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = '';
       // Restore focus to the previously focused element
-      if (previousActiveElement.current && !isOpen) {
+      if (previousActiveElement.current) {
         previousActiveElement.current.focus();
       }
     };
@@ -97,9 +107,9 @@ export default function Modal({
     xl: 'max-w-3xl',
   };
 
-  return (
+  const modal = (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby={title ? titleId.current : undefined}
@@ -116,7 +126,7 @@ export default function Modal({
         ref={modalRef}
         tabIndex={-1}
         className={cn(
-          'relative bg-white dark:bg-dark-800 rounded-3xl shadow-2xl w-full mx-4 animate-modal-in',
+          'relative bg-white dark:bg-dark-800 rounded-3xl shadow-2xl w-full animate-modal-in',
           sizes[size]
         )}
       >
@@ -148,5 +158,7 @@ export default function Modal({
       </div>
     </div>
   );
+
+  return createPortal(modal, document.body);
 }
 

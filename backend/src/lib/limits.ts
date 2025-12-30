@@ -9,18 +9,17 @@ export async function getGlobalUploadMaxFileSize(): Promise<number> {
     select: { value: true },
   });
 
-  const candidates: number[] = [config.storage.maxFileSize];
+  // Start with system default
+  const defaultMax = config.storage.maxFileSize;
+
+  // Check if admin has configured a higher limit
   for (const setting of settings) {
     const parsed = parseInt(setting.value, 10);
     if (Number.isFinite(parsed) && parsed > 0) {
-      candidates.push(parsed);
+      // Use the admin-configured value (can be higher than default)
+      return parsed;
     }
   }
 
-  const filtered = candidates.filter((value) => Number.isFinite(value) && value > 0);
-  if (filtered.length === 0) {
-    return config.storage.maxFileSize;
-  }
-
-  return Math.min(...filtered);
+  return defaultMax;
 }
