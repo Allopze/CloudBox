@@ -67,6 +67,8 @@ services:
       MAX_FILE_SIZE: 1073741824
       DEFAULT_QUOTA: 5368709120
       TRASH_RETENTION_DAYS: 30
+      MIDI_SOUNDFONT_PATH: ${MIDI_SOUNDFONT_PATH:-/app/assets/soundfonts/FluidR3_GM.sf2}
+      MIDI_FLUIDSYNTH_PATH: ${MIDI_FLUIDSYNTH_PATH:-/usr/bin/fluidsynth}
     volumes:
       - cloudbox_data:/app/data
     ports:

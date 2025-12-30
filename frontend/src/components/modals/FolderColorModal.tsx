@@ -1,20 +1,21 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     X, Check, Palette,
-    Folder, FolderHeart, FolderOpen, FolderArchive, FolderCog, FolderCode,
-    FolderDot, FolderGit2, FolderInput, FolderKanban, FolderKey, FolderLock,
-    FolderMinus, FolderOutput, FolderPen, FolderPlus, FolderSearch, FolderSymlink,
-    FolderSync, FolderTree, FolderUp, FolderX,
     Camera, Image, Music, Video, FileText, Code, Download, Star, Bookmark,
     Shield, Lock, Cloud, Database, Archive, Package, Briefcase, GraduationCap,
     Heart, Gift, ShoppingBag, Home, Plane, Car, Gamepad2, Palette as PaletteIcon,
     Wrench, Settings, User, Users, Mail, Calendar, Clock, Zap,
+    Coffee, Book, Lightbulb, Target, Flag, Award, Trophy,
+    Headphones, Mic, Film, Monitor, Smartphone, Laptop,
+    Wifi, Globe, Map, Compass, Building, Store,
     type LucideIcon
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { toast } from '../ui/Toast';
+import { SolidFolderIcon } from '../icons/SolidIcons';
 
 interface FolderCustomizeModalProps {
     isOpen: boolean;
@@ -48,44 +49,27 @@ const PRESET_COLORS = [
     { name: 'gray', value: '#6B7280' },
 ];
 
-// Available folder icons with categories
+// Available inner icons for folders (generic Lucide icons, not folder variants)
 const FOLDER_ICONS: { name: string; icon: LucideIcon; category: string }[] = [
-    // Basic folders
-    { name: 'Folder', icon: Folder, category: 'folders' },
-    { name: 'FolderHeart', icon: FolderHeart, category: 'folders' },
-    { name: 'FolderOpen', icon: FolderOpen, category: 'folders' },
-    { name: 'FolderArchive', icon: FolderArchive, category: 'folders' },
-    { name: 'FolderCog', icon: FolderCog, category: 'folders' },
-    { name: 'FolderCode', icon: FolderCode, category: 'folders' },
-    { name: 'FolderDot', icon: FolderDot, category: 'folders' },
-    { name: 'FolderGit2', icon: FolderGit2, category: 'folders' },
-    { name: 'FolderInput', icon: FolderInput, category: 'folders' },
-    { name: 'FolderKanban', icon: FolderKanban, category: 'folders' },
-    { name: 'FolderKey', icon: FolderKey, category: 'folders' },
-    { name: 'FolderLock', icon: FolderLock, category: 'folders' },
-    { name: 'FolderMinus', icon: FolderMinus, category: 'folders' },
-    { name: 'FolderOutput', icon: FolderOutput, category: 'folders' },
-    { name: 'FolderPen', icon: FolderPen, category: 'folders' },
-    { name: 'FolderPlus', icon: FolderPlus, category: 'folders' },
-    { name: 'FolderSearch', icon: FolderSearch, category: 'folders' },
-    { name: 'FolderSymlink', icon: FolderSymlink, category: 'folders' },
-    { name: 'FolderSync', icon: FolderSync, category: 'folders' },
-    { name: 'FolderTree', icon: FolderTree, category: 'folders' },
-    { name: 'FolderUp', icon: FolderUp, category: 'folders' },
-    { name: 'FolderX', icon: FolderX, category: 'folders' },
     // Media
     { name: 'Camera', icon: Camera, category: 'media' },
     { name: 'Image', icon: Image, category: 'media' },
     { name: 'Music', icon: Music, category: 'media' },
     { name: 'Video', icon: Video, category: 'media' },
+    { name: 'Headphones', icon: Headphones, category: 'media' },
+    { name: 'Mic', icon: Mic, category: 'media' },
+    { name: 'Film', icon: Film, category: 'media' },
     // Documents
     { name: 'FileText', icon: FileText, category: 'documents' },
     { name: 'Code', icon: Code, category: 'documents' },
     { name: 'Archive', icon: Archive, category: 'documents' },
+    { name: 'Book', icon: Book, category: 'documents' },
     // Actions
     { name: 'Download', icon: Download, category: 'actions' },
     { name: 'Star', icon: Star, category: 'actions' },
     { name: 'Bookmark', icon: Bookmark, category: 'actions' },
+    { name: 'Heart', icon: Heart, category: 'actions' },
+    { name: 'Flag', icon: Flag, category: 'actions' },
     // Security
     { name: 'Shield', icon: Shield, category: 'security' },
     { name: 'Lock', icon: Lock, category: 'security' },
@@ -96,17 +80,25 @@ const FOLDER_ICONS: { name: string; icon: LucideIcon; category: string }[] = [
     { name: 'Settings', icon: Settings, category: 'tech' },
     { name: 'Wrench', icon: Wrench, category: 'tech' },
     { name: 'Zap', icon: Zap, category: 'tech' },
+    { name: 'Wifi', icon: Wifi, category: 'tech' },
+    { name: 'Globe', icon: Globe, category: 'tech' },
+    { name: 'Monitor', icon: Monitor, category: 'tech' },
+    { name: 'Smartphone', icon: Smartphone, category: 'tech' },
+    { name: 'Laptop', icon: Laptop, category: 'tech' },
     // Work
     { name: 'Briefcase', icon: Briefcase, category: 'work' },
     { name: 'GraduationCap', icon: GraduationCap, category: 'work' },
     { name: 'Calendar', icon: Calendar, category: 'work' },
     { name: 'Clock', icon: Clock, category: 'work' },
+    { name: 'Target', icon: Target, category: 'work' },
+    { name: 'Lightbulb', icon: Lightbulb, category: 'work' },
+    { name: 'Award', icon: Award, category: 'work' },
+    { name: 'Trophy', icon: Trophy, category: 'work' },
     // Social
     { name: 'User', icon: User, category: 'social' },
     { name: 'Users', icon: Users, category: 'social' },
     { name: 'Mail', icon: Mail, category: 'social' },
     // Personal
-    { name: 'Heart', icon: Heart, category: 'personal' },
     { name: 'Gift', icon: Gift, category: 'personal' },
     { name: 'ShoppingBag', icon: ShoppingBag, category: 'personal' },
     { name: 'Home', icon: Home, category: 'personal' },
@@ -114,6 +106,12 @@ const FOLDER_ICONS: { name: string; icon: LucideIcon; category: string }[] = [
     { name: 'Car', icon: Car, category: 'personal' },
     { name: 'Gamepad2', icon: Gamepad2, category: 'personal' },
     { name: 'Palette', icon: PaletteIcon, category: 'personal' },
+    { name: 'Coffee', icon: Coffee, category: 'personal' },
+    // Places
+    { name: 'Building', icon: Building, category: 'places' },
+    { name: 'Store', icon: Store, category: 'places' },
+    { name: 'Map', icon: Map, category: 'places' },
+    { name: 'Compass', icon: Compass, category: 'places' },
 ];
 
 // Icon component lookup map
@@ -189,17 +187,17 @@ export default function FolderColorModal({
     const isValidHex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(activeColor);
     const previewColor = isValidHex && activeColor ? activeColor : '#3B82F6';
 
-    // Get the icon component for preview
-    const PreviewIcon = selectedIcon ? FOLDER_ICON_MAP[selectedIcon] : Folder;
+    // Get the icon component for preview (null if no icon selected)
+    const PreviewIcon = selectedIcon ? FOLDER_ICON_MAP[selectedIcon] : undefined;
 
-    return (
+    return createPortal(
         <AnimatePresence>
             {isOpen && (
                 <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+                    className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
                     onClick={onClose}
                 >
                     <motion.div
@@ -236,12 +234,11 @@ export default function FolderColorModal({
                         <div className="p-5 space-y-5">
                             {/* Preview */}
                             <div className="flex items-center justify-center py-4">
-                                <div
-                                    className="w-20 h-20 rounded-xl flex items-center justify-center transition-colors shadow-lg"
-                                    style={{ backgroundColor: previewColor }}
-                                >
-                                    <PreviewIcon className="w-12 h-12 text-white/90" />
-                                </div>
+                                <SolidFolderIcon
+                                    size={80}
+                                    style={{ color: previewColor }}
+                                    IconComponent={PreviewIcon}
+                                />
                             </div>
 
                             {/* Tabs */}
@@ -249,8 +246,8 @@ export default function FolderColorModal({
                                 <button
                                     onClick={() => setActiveTab('icon')}
                                     className={`px-4 py-2 text-sm font-medium transition-colors ${activeTab === 'icon'
-                                            ? 'text-primary-600 border-b-2 border-primary-600'
-                                            : 'text-dark-500 hover:text-dark-700 dark:hover:text-dark-300'
+                                        ? 'text-primary-600 border-b-2 border-primary-600'
+                                        : 'text-dark-500 hover:text-dark-700 dark:hover:text-dark-300'
                                         }`}
                                 >
                                     {t('folderColor.icon')}
@@ -258,8 +255,8 @@ export default function FolderColorModal({
                                 <button
                                     onClick={() => setActiveTab('color')}
                                     className={`px-4 py-2 text-sm font-medium transition-colors ${activeTab === 'color'
-                                            ? 'text-primary-600 border-b-2 border-primary-600'
-                                            : 'text-dark-500 hover:text-dark-700 dark:hover:text-dark-300'
+                                        ? 'text-primary-600 border-b-2 border-primary-600'
+                                        : 'text-dark-500 hover:text-dark-700 dark:hover:text-dark-300'
                                         }`}
                                 >
                                     {t('folderColor.color')}
@@ -278,14 +275,14 @@ export default function FolderColorModal({
                                                 key={name}
                                                 onClick={() => handleIconClick(name)}
                                                 className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all hover:scale-110 ${selectedIcon === name
-                                                        ? 'bg-primary-100 dark:bg-primary-900/30 ring-2 ring-primary-500'
-                                                        : 'hover:bg-dark-100 dark:hover:bg-dark-700'
+                                                    ? 'bg-primary-100 dark:bg-primary-900/30 ring-2 ring-primary-500'
+                                                    : 'hover:bg-dark-100 dark:hover:bg-dark-700'
                                                     }`}
                                                 title={name}
                                             >
                                                 <Icon className={`w-5 h-5 ${selectedIcon === name
-                                                        ? 'text-primary-600 dark:text-primary-400'
-                                                        : 'text-dark-600 dark:text-dark-300'
+                                                    ? 'text-primary-600 dark:text-primary-400'
+                                                    : 'text-dark-600 dark:text-dark-300'
                                                     }`} />
                                             </button>
                                         ))}
@@ -304,8 +301,8 @@ export default function FolderColorModal({
                                                     key={color.name}
                                                     onClick={() => handlePresetClick(color.value)}
                                                     className={`w-8 h-8 rounded-lg transition-all hover:scale-110 ${selectedColor === color.value
-                                                            ? 'ring-2 ring-offset-2 ring-primary-500 dark:ring-offset-dark-800'
-                                                            : ''
+                                                        ? 'ring-2 ring-offset-2 ring-primary-500 dark:ring-offset-dark-800'
+                                                        : ''
                                                         }`}
                                                     style={{ backgroundColor: color.value }}
                                                     title={color.name}
@@ -383,6 +380,7 @@ export default function FolderColorModal({
                     </motion.div>
                 </motion.div>
             )}
-        </AnimatePresence>
+        </AnimatePresence>,
+        document.body
     );
 }

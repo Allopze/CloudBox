@@ -1385,6 +1385,35 @@
       "rejected": "Request rejected",
       "approveError": "Failed to approve",
       "rejectError": "Failed to reject"
+    },
+    "fileIcons": {
+      "title": "File Type Icons",
+      "description": "Customize icons for different file types. Upload custom SVG icons for each category.",
+      "loadError": "Error loading icons",
+      "uploadSuccess": "Icon updated successfully",
+      "uploadError": "Error uploading icon",
+      "svgOnly": "Only SVG files are allowed",
+      "confirmReset": "Reset this icon to default?",
+      "resetSuccess": "Icon reset",
+      "resetError": "Error resetting icon",
+      "customIcon": "Custom icon",
+      "defaultIcon": "Default icon",
+      "upload": "Upload SVG",
+      "reset": "Reset",
+      "tips": "Tips",
+      "tip1": "Use simple SVG icons for best results",
+      "tip2": "Recommended size: 48x64 or square icons",
+      "tip3": "SVGs are sanitized for security",
+      "manageIcons": "Manage file icons",
+      "categories": {
+        "audio": "Audio",
+        "image": "Images",
+        "video": "Video",
+        "document": "Documents",
+        "archive": "Archives",
+        "code": "Code",
+        "default": "Other files"
+      }
     }
   },
   "versions": {
@@ -1404,5 +1433,28 @@
     "downloadError": "Error downloading version",
     "restoreError": "Error restoring version",
     "deleteError": "Error deleting version"
+  },
+  "protectedFolder": {
+    "setProtection": "Protect folder",
+    "removeProtection": "Remove protection",
+    "protect": "Protect",
+    "remove": "Remove",
+    "unlock": "Unlock",
+    "unlockFolder": "Unlock Folder",
+    "password": "Password",
+    "confirmPassword": "Confirm password",
+    "currentPassword": "Current password",
+    "enterPassword": "Enter folder password",
+    "enterCurrentPassword": "Enter your current password to remove protection",
+    "setPasswordDescription": "Set a password to protect this folder. You'll need to enter it to access the folder contents.",
+    "folderIsProtected": "\"{{name}}\" is password protected",
+    "protectionSet": "Folder protected successfully",
+    "protectionRemoved": "Protection removed successfully",
+    "unlocked": "Folder unlocked",
+    "invalidPassword": "Invalid password",
+    "passwordMismatch": "Passwords do not match",
+    "passwordTooShort": "Password must be at least 4 characters",
+    "currentPasswordRequired": "Current password is required",
+    "protectError": "Error protecting folder"
   }
 }

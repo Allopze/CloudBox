@@ -10,7 +10,7 @@ import FolderCard from '../components/files/FolderCard';
 import VirtualizedGrid from '../components/ui/VirtualizedGrid';
 import { FolderPlus, Loader2 } from 'lucide-react';
 import { toast } from '../components/ui/Toast';
-import { isImage, isVideo, isDocument } from '../lib/utils';
+import { isAudio, isImage, isVideo, isDocument } from '../lib/utils';
 import UploadModal from '../components/modals/UploadModal';
 import CreateFolderModal from '../components/modals/CreateFolderModal';
 import CreateFileModal from '../components/modals/CreateFileModal';
@@ -64,6 +64,7 @@ export default function Files() {
   const clearSelection = useFileStore((state) => state.clearSelection);
   const setBreadcrumbs = useFileStore((state) => state.setBreadcrumbs);
   const selectAll = useFileStore((state) => state.selectAll);
+  const selectSingle = useFileStore((state) => state.selectSingle);
   const selectedItems = useFileStore((state) => state.selectedItems);
   const { addOperation, incrementProgress, completeOperation, failOperation } = useGlobalProgressStore();
 
@@ -148,7 +149,7 @@ export default function Files() {
       }
       completeOperation(opId);
       clearSelection();
-      loadData();
+      loadData(1, false, false);
       // Note: No toast here - GlobalProgressIndicator already shows completion
     } catch (error) {
       failOperation(opId, t('files.deleteError'));
@@ -243,6 +244,36 @@ export default function Files() {
     }
   }, [getSelectedItems]);
 
+  const handleFavoriteFromGallery = useCallback(async (file: FileItem) => {
+    try {
+      await api.patch(`/files/${file.id}/favorite`);
+      toast(file.isFavorite ? t('fileCard.removedFromFavorites') : t('fileCard.addedToFavorites'), 'success');
+      setFiles((prev) => prev.map((item) => (
+        item.id === file.id ? { ...item, isFavorite: !item.isFavorite } : item
+      )));
+    } catch {
+      toast(t('fileCard.favoriteError'), 'error');
+    }
+  }, [t]);
+
+  const handleAudioOpen = useCallback((file: FileItem) => {
+    void openSignedFileUrl(file.id, 'stream');
+  }, []);
+
+  const handleMoveFromGallery = useCallback((file: FileItem) => {
+    selectSingle(file.id);
+    setMoveModalOpen(true);
+  }, [selectSingle]);
+
+  const handleRenameFromGallery = useCallback((file: FileItem) => {
+    setSelectedFileForAction(file);
+    setRenameModalOpen(true);
+  }, []);
+
+  const handleDeleteFromGallery = useCallback((file: FileItem) => {
+    openDeleteConfirmForIds([file.id]);
+  }, [openDeleteConfirmForIds]);
+
   // Preview selected item
   const handlePreviewSelected = useCallback(() => {
     const { selectedFiles } = getSelectedItems();
@@ -258,9 +289,11 @@ export default function Files() {
         setVideoPreviewFile(file);
       } else if (isDocument(file.mimeType)) {
         setDocumentPreviewFile(file);
+      } else if (isAudio(file.mimeType)) {
+        handleAudioOpen(file);
       }
     }
-  }, [getSelectedItems, imageFiles]);
+  }, [getSelectedItems, imageFiles, handleAudioOpen]);
 
   // Keyboard shortcuts
   useKeyboardShortcuts({
@@ -275,11 +308,13 @@ export default function Files() {
     enabled: !galleryOpen && !videoPreviewFile,
   });
 
-  const loadData = useCallback(async (pageNum: number = 1, append: boolean = false) => {
+  const loadData = useCallback(async (pageNum: number = 1, append: boolean = false, showLoading: boolean = true) => {
     if (append) {
       setLoadingMore(true);
     } else {
-      setLoading(true);
+      if (showLoading) {
+        setLoading(true);
+      }
       setPage(1);
       setHasMore(true);
     }
@@ -333,10 +368,16 @@ export default function Files() {
       console.error('Error loading files:', error);
       toast(t('files.errorLoading'), 'error');
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
       setLoadingMore(false);
     }
   }, [folderId, searchQuery, sortBy, sortOrder, setBreadcrumbs]);
+
+  const refreshData = useCallback(() => {
+    void loadData(1, false, false);
+  }, [loadData]);
 
   // Load more function for pagination
   const loadMore = useCallback(() => {
@@ -386,7 +427,7 @@ export default function Files() {
 
   // Listen for workzone refresh event from MainLayout context menu
   useEffect(() => {
-    const handleRefresh = () => loadData();
+    const handleRefresh = () => loadData(1, false, false);
     window.addEventListener('workzone-refresh', handleRefresh);
     return () => window.removeEventListener('workzone-refresh', handleRefresh);
   }, [loadData]);
@@ -414,8 +455,10 @@ export default function Files() {
       setVideoPreviewFile(file);
     } else if (isDocument(file.mimeType)) {
       setDocumentPreviewFile(file);
+    } else if (isAudio(file.mimeType)) {
+      handleAudioOpen(file);
     }
-  }, [imageFiles]);
+  }, [imageFiles, handleAudioOpen]);
 
   return (
     <div className="min-h-[400px]">
@@ -442,14 +485,14 @@ export default function Files() {
                 <FolderCard
                   folder={item as Folder}
                   view={viewMode}
-                  onRefresh={loadData}
+                  onRefresh={refreshData}
                   disableAnimation
                 />
               ) : (
                 <FileCard
                   file={item as FileItem}
                   view={viewMode}
-                  onRefresh={loadData}
+                  onRefresh={refreshData}
                   onPreview={handleFileClick}
                   disableAnimation
                   onFavoriteToggle={(fileId, isFavorite) => {
@@ -479,13 +522,13 @@ export default function Files() {
         isOpen={isUploadModalOpen}
         onClose={() => setUploadModalOpen(false)}
         folderId={folderId}
-        onSuccess={loadData}
+        onSuccess={refreshData}
       />
       <CreateFolderModal
         isOpen={isCreateFolderModalOpen}
         onClose={() => setCreateFolderModalOpen(false)}
         parentId={folderId}
-        onSuccess={loadData}
+        onSuccess={refreshData}
       />
 
       {/* Create File Modal */}
@@ -493,20 +536,21 @@ export default function Files() {
         isOpen={isCreateFileModalOpen}
         onClose={() => setCreateFileModalOpen(false)}
         folderId={folderId}
-        onSuccess={loadData}
+        onSuccess={refreshData}
       />
 
       {/* Share Modal */}
-      {selectedFileForAction && (
-        <ShareModal
-          isOpen={isShareModalOpen}
-          onClose={() => {
-            setShareModalOpen(false);
-            setSelectedFileForAction(null);
-          }}
-          file={selectedFileForAction}
-        />
-      )}
+        {selectedFileForAction && (
+          <ShareModal
+            isOpen={isShareModalOpen}
+            onClose={() => {
+              setShareModalOpen(false);
+              setSelectedFileForAction(null);
+            }}
+            file={selectedFileForAction}
+            onSuccess={refreshData}
+          />
+        )}
 
       {/* Rename Modal */}
       {selectedFileForAction && (
@@ -518,7 +562,7 @@ export default function Files() {
           }}
           item={selectedFileForAction}
           type="file"
-          onSuccess={loadData}
+          onSuccess={refreshData}
         />
       )}
 
@@ -534,6 +578,10 @@ export default function Files() {
           setShareModalOpen(true);
           setGalleryOpen(false);
         }}
+        onFavorite={handleFavoriteFromGallery}
+        onMove={handleMoveFromGallery}
+        onRename={handleRenameFromGallery}
+        onDelete={handleDeleteFromGallery}
       />
 
       {/* Video Preview */}

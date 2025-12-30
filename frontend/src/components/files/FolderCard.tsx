@@ -16,6 +16,7 @@ import {
   Download,
   Loader2,
   Palette,
+  Lock,
 } from 'lucide-react';
 import { SolidFolderIcon } from '../icons/SolidIcons';
 import { formatDate, cn } from '../../lib/utils';
@@ -29,6 +30,9 @@ import CompressModal from '../modals/CompressModal';
 import InfoModal from '../modals/InfoModal';
 import ContextMenu, { ContextMenuItemOrDivider, ContextMenuDividerItem } from '../ui/ContextMenu';
 import FolderColorModal, { FOLDER_ICON_MAP } from '../modals/FolderColorModal';
+import ProtectFolderModal from '../modals/ProtectFolderModal';
+import UnlockFolderModal from '../modals/UnlockFolderModal';
+import { useProtectedFolderStore } from '../../stores/protectedFolderStore';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 
 interface FolderCardProps {
@@ -53,6 +57,8 @@ export default function FolderCard({ folder, view = 'grid', onRefresh, disableAn
   const [showCompressModal, setShowCompressModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [showColorModal, setShowColorModal] = useState(false);
+  const [showProtectModal, setShowProtectModal] = useState(false);
+  const [showUnlockModal, setShowUnlockModal] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [contextMenuSelection, setContextMenuSelection] = useState<Set<string>>(new Set());
   const [isDownloading, setIsDownloading] = useState(false);
@@ -153,6 +159,19 @@ export default function FolderCard({ folder, view = 'grid', onRefresh, disableAn
 
   // Double click to navigate into folder
   const handleDoubleClick = () => {
+    // Check if folder is protected and not unlocked
+    if (folder.isProtected && !useProtectedFolderStore.getState().isUnlocked(folder.id)) {
+      setShowUnlockModal(true);
+      return;
+    }
+    clearSelection();
+    setSearchParams({ folder: folder.id });
+  };
+
+  // Handle successful unlock
+  const handleUnlockSuccess = (folderId: string) => {
+    useProtectedFolderStore.getState().addUnlockedFolder(folderId);
+    setShowUnlockModal(false);
     clearSelection();
     setSearchParams({ folder: folder.id });
   };
@@ -236,6 +255,7 @@ export default function FolderCard({ folder, view = 'grid', onRefresh, disableAn
     ContextMenuDividerItem(),
     { id: 'info', label: t('common.info'), icon: Info, onClick: () => setShowInfoModal(true) },
     { id: 'customize', label: t('folderCard.customize'), icon: Palette, onClick: () => setShowColorModal(true) },
+    { id: 'protect', label: folder.isProtected ? t('protectedFolder.removeProtection') : t('protectedFolder.setProtection'), icon: Lock, onClick: () => setShowProtectModal(true) },
     {
       id: 'delete',
       label: t('folderCard.moveToTrash'),
@@ -291,14 +311,11 @@ export default function FolderCard({ folder, view = 'grid', onRefresh, disableAn
         >
           {/* Folder Icon */}
           <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center">
-            {(() => {
-              const CustomIcon = folder.icon ? FOLDER_ICON_MAP[folder.icon] : null;
-              return CustomIcon ? (
-                <CustomIcon size={28} style={{ color: folder.color || undefined }} />
-              ) : (
-                <SolidFolderIcon size={28} className="" style={{ color: folder.color || undefined }} />
-              );
-            })()}
+            <SolidFolderIcon
+              size={28}
+              style={{ color: folder.color || undefined }}
+              IconComponent={folder.icon ? FOLDER_ICON_MAP[folder.icon] : undefined}
+            />
           </div>
 
           {/* Content */}
@@ -311,6 +328,9 @@ export default function FolderCard({ folder, view = 'grid', onRefresh, disableAn
 
           {/* Badges */}
           <div className="flex items-center gap-2 flex-shrink-0">
+            {folder.isProtected && (
+              <Lock className="w-4 h-4 text-amber-500" />
+            )}
             {folder.isFavorite && (
               <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
             )}
@@ -369,6 +389,22 @@ export default function FolderCard({ folder, view = 'grid', onRefresh, disableAn
             currentColor={folder.color}
             currentIcon={folder.icon}
             onSuccess={onRefresh}
+          />
+        )}
+        {showProtectModal && (
+          <ProtectFolderModal
+            isOpen={showProtectModal}
+            onClose={() => setShowProtectModal(false)}
+            folder={folder}
+            onSuccess={onRefresh}
+          />
+        )}
+        {showUnlockModal && (
+          <UnlockFolderModal
+            isOpen={showUnlockModal}
+            onClose={() => setShowUnlockModal(false)}
+            folder={folder}
+            onSuccess={handleUnlockSuccess}
           />
         )}
         <AnimatePresence>
@@ -482,23 +518,23 @@ export default function FolderCard({ folder, view = 'grid', onRefresh, disableAn
           </button>
         </div>
 
-        {/* Favorite badge */}
-        {folder.isFavorite && (
-          <div className="premium-card-badges">
+        {/* Badges */}
+        <div className="premium-card-badges">
+          {folder.isProtected && (
+            <Lock className="w-4 h-4 text-amber-500 drop-shadow-md" />
+          )}
+          {folder.isFavorite && (
             <Star className="w-4 h-4 text-yellow-400 fill-yellow-400 drop-shadow-md" />
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Folder Icon Area */}
         <div className="premium-card-thumbnail">
-          {(() => {
-            const CustomIcon = folder.icon ? FOLDER_ICON_MAP[folder.icon] : null;
-            return CustomIcon ? (
-              <CustomIcon size={60} style={{ color: folder.color || undefined }} />
-            ) : (
-              <SolidFolderIcon size={60} style={{ color: folder.color || undefined }} />
-            );
-          })()}
+          <SolidFolderIcon
+            size={60}
+            style={{ color: folder.color || undefined }}
+            IconComponent={folder.icon ? FOLDER_ICON_MAP[folder.icon] : undefined}
+          />
         </div>
 
         {/* Content Area - Overlay at bottom */}
@@ -566,6 +602,22 @@ export default function FolderCard({ folder, view = 'grid', onRefresh, disableAn
           currentColor={folder.color}
           currentIcon={folder.icon}
           onSuccess={onRefresh}
+        />
+      )}
+      {showProtectModal && (
+        <ProtectFolderModal
+          isOpen={showProtectModal}
+          onClose={() => setShowProtectModal(false)}
+          folder={folder}
+          onSuccess={onRefresh}
+        />
+      )}
+      {showUnlockModal && (
+        <UnlockFolderModal
+          isOpen={showUnlockModal}
+          onClose={() => setShowUnlockModal(false)}
+          folder={folder}
+          onSuccess={handleUnlockSuccess}
         />
       )}
       <AnimatePresence>

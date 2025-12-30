@@ -11,13 +11,15 @@ import { v4 as uuidv4 } from 'uuid';
 import { config } from '../config/index.js';
 import * as cache from '../lib/cache.js';
 import logger from '../lib/logger.js';
+import bcrypt from 'bcrypt';
 
 const router = Router();
 
-// Helper function to serialize folder BigInt fields
+// Helper function to serialize folder BigInt fields and exclude sensitive data
 const serializeFolder = (folder: any) => ({
   ...folder,
   size: folder.size?.toString() ?? '0',
+  protectionHash: undefined, // Never expose password hash
 });
 
 // Create folder
@@ -733,6 +735,136 @@ router.post('/bulk/delete', authenticate, async (req: Request, res: Response) =>
   } catch (error) {
     console.error('Bulk delete folders error:', error);
     res.status(500).json({ error: 'Failed to delete folders' });
+  }
+});
+
+// Set folder protection (password)
+router.post('/:id/protect', authenticate, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { password } = req.body;
+    const userId = req.user!.userId;
+
+    if (!password || typeof password !== 'string' || password.length < 4) {
+      res.status(400).json({ error: 'Password must be at least 4 characters' });
+      return;
+    }
+
+    const folder = await prisma.folder.findFirst({
+      where: { id, userId },
+    });
+
+    if (!folder) {
+      res.status(404).json({ error: 'Folder not found' });
+      return;
+    }
+
+    const protectionHash = await bcrypt.hash(password, 10);
+
+    const updated = await prisma.folder.update({
+      where: { id },
+      data: {
+        isProtected: true,
+        protectionHash
+      },
+    });
+
+    await cache.invalidateAfterFolderChange(userId);
+
+    res.json({
+      ...serializeFolder(updated),
+      protectionHash: undefined // Don't expose hash
+    });
+  } catch (error) {
+    console.error('Set folder protection error:', error);
+    res.status(500).json({ error: 'Failed to protect folder' });
+  }
+});
+
+// Verify folder password (unlock)
+router.post('/:id/unlock', authenticate, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { password } = req.body;
+    const userId = req.user!.userId;
+
+    if (!password) {
+      res.status(400).json({ error: 'Password is required' });
+      return;
+    }
+
+    const folder = await prisma.folder.findFirst({
+      where: { id, userId },
+    });
+
+    if (!folder) {
+      res.status(404).json({ error: 'Folder not found' });
+      return;
+    }
+
+    if (!folder.isProtected || !folder.protectionHash) {
+      res.status(400).json({ error: 'Folder is not protected' });
+      return;
+    }
+
+    const isValid = await bcrypt.compare(password, folder.protectionHash);
+
+    if (!isValid) {
+      res.status(401).json({ error: 'Invalid password' });
+      return;
+    }
+
+    // Return success - frontend will store unlock state
+    res.json({ success: true, folderId: id });
+  } catch (error) {
+    console.error('Unlock folder error:', error);
+    res.status(500).json({ error: 'Failed to unlock folder' });
+  }
+});
+
+// Remove folder protection
+router.delete('/:id/protect', authenticate, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { password } = req.body;
+    const userId = req.user!.userId;
+
+    const folder = await prisma.folder.findFirst({
+      where: { id, userId },
+    });
+
+    if (!folder) {
+      res.status(404).json({ error: 'Folder not found' });
+      return;
+    }
+
+    if (!folder.isProtected || !folder.protectionHash) {
+      res.status(400).json({ error: 'Folder is not protected' });
+      return;
+    }
+
+    // Verify current password
+    const isValid = await bcrypt.compare(password, folder.protectionHash);
+
+    if (!isValid) {
+      res.status(401).json({ error: 'Invalid password' });
+      return;
+    }
+
+    const updated = await prisma.folder.update({
+      where: { id },
+      data: {
+        isProtected: false,
+        protectionHash: null
+      },
+    });
+
+    await cache.invalidateAfterFolderChange(userId);
+
+    res.json(serializeFolder(updated));
+  } catch (error) {
+    console.error('Remove folder protection error:', error);
+    res.status(500).json({ error: 'Failed to remove protection' });
   }
 });
 

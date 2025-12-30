@@ -1371,5 +1371,28 @@
     "downloadError": "Errore nel download della versione",
     "restoreError": "Errore nel ripristino della versione",
     "deleteError": "Errore nell'eliminazione della versione"
+  },
+  "protectedFolder": {
+    "setProtection": "Proteggi cartella",
+    "removeProtection": "Rimuovi protezione",
+    "protect": "Proteggi",
+    "remove": "Rimuovi",
+    "unlock": "Sblocca",
+    "unlockFolder": "Sblocca cartella",
+    "password": "Password",
+    "confirmPassword": "Conferma password",
+    "currentPassword": "Password attuale",
+    "enterPassword": "Inserisci la password della cartella",
+    "enterCurrentPassword": "Inserisci la password attuale per rimuovere la protezione",
+    "setPasswordDescription": "Imposta una password per proteggere questa cartella. Dovrai inserirla per accedere al contenuto.",
+    "folderIsProtected": "\"{{name}}\" è protetta da password",
+    "protectionSet": "Cartella protetta con successo",
+    "protectionRemoved": "Protezione rimossa con successo",
+    "unlocked": "Cartella sbloccata",
+    "invalidPassword": "Password non valida",
+    "passwordMismatch": "Le password non corrispondono",
+    "passwordTooShort": "La password deve avere almeno 4 caratteri",
+    "currentPasswordRequired": "Password attuale richiesta",
+    "protectError": "Errore durante la protezione della cartella"
   }
 }

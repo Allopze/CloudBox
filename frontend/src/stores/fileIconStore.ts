@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { API_URL } from '../lib/api';
 
 export type FileIconCategory =
-    | 'folder' | 'default'
+    | 'folder' | 'folderShared' | 'folderProtected' | 'default'
     | 'image' | 'video' | 'audio'
     | 'pdf' | 'word' | 'spreadsheet' | 'presentation' | 'csv' | 'text' | 'markdown' | 'ebook'
     | 'onenote' | 'access' | 'publisher'
@@ -23,7 +23,7 @@ const extensionToCategory: Record<string, FileIconCategory> = {
     // Multimedia
     jpg: 'image', jpeg: 'image', png: 'image', gif: 'image', webp: 'image', bmp: 'image', ico: 'image', tiff: 'image', heic: 'image',
     mp4: 'video', avi: 'video', mkv: 'video', mov: 'video', wmv: 'video', flv: 'video', webm: 'video', m4v: 'video',
-    mp3: 'audio', wav: 'audio', flac: 'audio', aac: 'audio', ogg: 'audio', m4a: 'audio', wma: 'audio', opus: 'audio',
+    mp3: 'audio', wav: 'audio', flac: 'audio', aac: 'audio', ogg: 'audio', m4a: 'audio', wma: 'audio', opus: 'audio', mid: 'audio', midi: 'audio',
 
     // Documents
     pdf: 'pdf',

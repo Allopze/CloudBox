@@ -79,6 +79,7 @@ export default function Trash() {
     try {
       await api.post(`/trash/restore/file/${file.id}`);
       toast(t('trash.restored', { type: t('trash.file') }), 'success');
+      window.dispatchEvent(new CustomEvent('workzone-refresh'));
       loadData();
     } catch {
       toast(t('trash.restoreError', { type: t('trash.file') }), 'error');
@@ -89,6 +90,7 @@ export default function Trash() {
     try {
       await api.post(`/trash/restore/folder/${folder.id}`);
       toast(t('trash.restored', { type: t('trash.folder') }), 'success');
+      window.dispatchEvent(new CustomEvent('workzone-refresh'));
       loadData();
     } catch {
       toast(t('trash.restoreError', { type: t('trash.folder') }), 'error');
@@ -207,6 +209,7 @@ export default function Trash() {
         completeOperation(opId);
         toast(t('trash.itemsRestored', { count: total }), 'success');
         clearSelection();
+        window.dispatchEvent(new CustomEvent('workzone-refresh'));
         loadData();
       } catch {
         failOperation(opId, t('trash.restoreErrorGeneric'));

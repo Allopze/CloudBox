@@ -8,7 +8,7 @@ import FileCard from '../components/files/FileCard';
 import FolderCard from '../components/files/FolderCard';
 import { Search, Filter, X, Loader2, FolderOpen } from 'lucide-react';
 import { toast } from '../components/ui/Toast';
-import { isImage, isVideo, isDocument } from '../lib/utils';
+import { isAudio, isImage, isVideo, isDocument } from '../lib/utils';
 import ShareModal from '../components/modals/ShareModal';
 import ImageGallery from '../components/gallery/ImageGallery';
 import VideoPreview from '../components/gallery/VideoPreview';
@@ -135,6 +135,10 @@ export default function SearchResults() {
         { label: '1 GB', value: '1073741824' },
     ];
 
+    const handleAudioOpen = useCallback((file: FileItem) => {
+        void openSignedFileUrl(file.id, 'stream');
+    }, []);
+
     const handleFileClick = useCallback((file: FileItem) => {
         if (isImage(file.mimeType)) {
             const index = imageFiles.findIndex(f => f.id === file.id);
@@ -146,8 +150,10 @@ export default function SearchResults() {
             setVideoPreviewFile(file);
         } else if (isDocument(file.mimeType)) {
             setDocumentPreviewFile(file);
+        } else if (isAudio(file.mimeType)) {
+            handleAudioOpen(file);
         }
-    }, [imageFiles]);
+    }, [imageFiles, handleAudioOpen]);
 
     const hasFilters = query || typeFilter || favoriteFilter || dateFromFilter || dateToFilter || sizeMinFilter || sizeMaxFilter;
 

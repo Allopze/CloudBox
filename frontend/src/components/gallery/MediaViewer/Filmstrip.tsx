@@ -4,6 +4,8 @@ import {
     ChevronUp,
     ChevronDown,
     Star,
+    Minus,
+    Plus,
 } from 'lucide-react';
 import { FileItem } from '../../../types';
 import { cn } from '../../../lib/utils';
@@ -16,6 +18,11 @@ interface FilmstripProps {
     onFileSelect: (file: FileItem) => void;
     onToggle: () => void;
     onFavorite?: (file: FileItem) => void;
+    thumbSize?: number;
+    minThumbSize?: number;
+    maxThumbSize?: number;
+    sizeStep?: number;
+    onThumbSizeChange?: (size: number) => void;
 }
 
 export default function Filmstrip({
@@ -25,10 +32,17 @@ export default function Filmstrip({
     onFileSelect,
     onToggle,
     onFavorite,
+    thumbSize = 64,
+    minThumbSize = 48,
+    maxThumbSize = 96,
+    sizeStep = 16,
+    onThumbSizeChange,
 }: FilmstripProps) {
     const { t } = useTranslation();
     const scrollRef = useRef<HTMLDivElement>(null);
     const [hoveredId, setHoveredId] = useState<string | null>(null);
+    const canShrink = !!onThumbSizeChange && thumbSize > minThumbSize;
+    const canGrow = !!onThumbSizeChange && thumbSize < maxThumbSize;
 
     // Scroll to current item when it changes
     useEffect(() => {
@@ -79,6 +93,49 @@ export default function Filmstrip({
                 <span>{files.length}</span>
             </button>
 
+            {/* Size Controls */}
+            {onThumbSizeChange && (
+                <div
+                    className={cn(
+                        'absolute top-2 right-3 flex items-center gap-1',
+                        'bg-white/90 dark:bg-dark-800/90 backdrop-blur-sm',
+                        'border border-dark-100 dark:border-dark-700 rounded-full shadow-sm p-1',
+                        visible ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                    )}
+                >
+                    <button
+                        onClick={() => onThumbSizeChange(thumbSize - sizeStep)}
+                        disabled={!canShrink}
+                        className={cn(
+                            'p-1 rounded-full',
+                            'text-dark-500 dark:text-dark-300',
+                            'hover:bg-dark-100 dark:hover:bg-dark-700',
+                            'disabled:opacity-40 disabled:cursor-not-allowed',
+                            'transition-colors duration-150'
+                        )}
+                        aria-label={t('mediaViewer.thumbSizeDecrease', 'Smaller thumbnails')}
+                        title={t('mediaViewer.thumbSizeDecrease', 'Smaller thumbnails')}
+                    >
+                        <Minus className="w-3 h-3" />
+                    </button>
+                    <button
+                        onClick={() => onThumbSizeChange(thumbSize + sizeStep)}
+                        disabled={!canGrow}
+                        className={cn(
+                            'p-1 rounded-full',
+                            'text-dark-500 dark:text-dark-300',
+                            'hover:bg-dark-100 dark:hover:bg-dark-700',
+                            'disabled:opacity-40 disabled:cursor-not-allowed',
+                            'transition-colors duration-150'
+                        )}
+                        aria-label={t('mediaViewer.thumbSizeIncrease', 'Larger thumbnails')}
+                        title={t('mediaViewer.thumbSizeIncrease', 'Larger thumbnails')}
+                    >
+                        <Plus className="w-3 h-3" />
+                    </button>
+                </div>
+            )}
+
             {/* Thumbnails Container */}
             <div
                 ref={scrollRef}
@@ -100,13 +157,14 @@ export default function Filmstrip({
                             <button
                                 onClick={() => onFileSelect(file)}
                                 className={cn(
-                                    'w-16 h-16 rounded-lg overflow-hidden',
+                                    'rounded-lg overflow-hidden',
                                     'border-2 transition-all duration-150',
                                     'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2',
                                     isActive
                                         ? 'border-primary-500 scale-105 shadow-md'
                                         : 'border-transparent hover:border-dark-200 dark:hover:border-dark-600'
                                 )}
+                                style={{ width: thumbSize, height: thumbSize }}
                                 aria-label={file.name}
                                 aria-current={isActive ? 'true' : undefined}
                             >

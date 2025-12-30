@@ -21,6 +21,8 @@
     "db:studio": "cd backend && npx prisma studio",
     "setup": "npm run install:all && npm run db:generate && npm run db:push && npm run db:seed",
     "release": "node scripts/release.js",
+    "release:win64": "node scripts/release.js --platform=win64",
+    "release:linux64": "node scripts/release.js --platform=linux64",
     "release:patch": "node scripts/release.js patch",
     "release:minor": "node scripts/release.js minor",
     "release:major": "node scripts/release.js major",

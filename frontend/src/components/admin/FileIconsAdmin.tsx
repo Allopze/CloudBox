@@ -15,6 +15,8 @@ interface IconInfo {
 
 const formatExtensionName = (category: FileIconCategory): string => {
     const mapping: Partial<Record<FileIconCategory, string>> = {
+        folderShared: 'FOLDER SHARED',
+        folderProtected: 'FOLDER PROTECTED',
         pdf: '.PDF',
         word: '.DOC',
         spreadsheet: '.XLS',

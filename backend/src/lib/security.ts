@@ -144,6 +144,8 @@ export function validateMimeType(mimeType: string, filename: string): boolean {
     '.aac': ['audio/aac'],
     '.m4a': ['audio/mp4', 'audio/x-m4a'],
     '.wma': ['audio/x-ms-wma'],
+    '.mid': ['audio/midi', 'audio/x-midi', 'audio/mid', 'audio/sp-midi', 'application/x-midi'],
+    '.midi': ['audio/midi', 'audio/x-midi', 'audio/mid', 'audio/sp-midi', 'application/x-midi'],
 
     // Documents
     '.pdf': ['application/pdf'],

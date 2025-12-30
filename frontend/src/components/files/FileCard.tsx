@@ -49,7 +49,7 @@ function getFileTypeColor(mimeType: string, fileName: string): string {
   // Multimedia
   if (mimeCategory === 'image' || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'ico', 'tiff', 'heic'].includes(ext)) return 'text-emerald-500';
   if (mimeCategory === 'video' || ['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm', 'm4v'].includes(ext)) return 'text-indigo-500';
-  if (mimeCategory === 'audio' || ['mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a', 'wma', 'opus'].includes(ext)) return 'text-fuchsia-500';
+  if (mimeCategory === 'audio' || ['mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a', 'wma', 'opus', 'mid', 'midi'].includes(ext)) return 'text-fuchsia-500';
 
   // Documents
   if (ext === 'pdf' || mimeType === 'application/pdf') return 'text-primary-600'; // Rojo CloudBox

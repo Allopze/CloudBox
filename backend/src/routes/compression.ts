@@ -617,6 +617,8 @@ function getMimeType(ext: string): string {
     '.mp3': 'audio/mpeg',
     '.wav': 'audio/wav',
     '.ogg': 'audio/ogg',
+    '.mid': 'audio/midi',
+    '.midi': 'audio/midi',
     '.pdf': 'application/pdf',
     '.doc': 'application/msword',
     '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',

@@ -1371,5 +1371,28 @@
     "downloadError": "Fehler beim Herunterladen der Version",
     "restoreError": "Fehler beim Wiederherstellen der Version",
     "deleteError": "Fehler beim Löschen der Version"
+  },
+  "protectedFolder": {
+    "setProtection": "Ordner schützen",
+    "removeProtection": "Schutz entfernen",
+    "protect": "Schützen",
+    "remove": "Entfernen",
+    "unlock": "Entsperren",
+    "unlockFolder": "Ordner entsperren",
+    "password": "Passwort",
+    "confirmPassword": "Passwort bestätigen",
+    "currentPassword": "Aktuelles Passwort",
+    "enterPassword": "Ordner-Passwort eingeben",
+    "enterCurrentPassword": "Geben Sie Ihr aktuelles Passwort ein, um den Schutz zu entfernen",
+    "setPasswordDescription": "Legen Sie ein Passwort fest, um diesen Ordner zu schützen. Sie müssen es eingeben, um auf den Inhalt zuzugreifen.",
+    "folderIsProtected": "\"{{name}}\" ist passwortgeschützt",
+    "protectionSet": "Ordner erfolgreich geschützt",
+    "protectionRemoved": "Schutz erfolgreich entfernt",
+    "unlocked": "Ordner entsperrt",
+    "invalidPassword": "Ungültiges Passwort",
+    "passwordMismatch": "Passwörter stimmen nicht überein",
+    "passwordTooShort": "Passwort muss mindestens 4 Zeichen haben",
+    "currentPasswordRequired": "Aktuelles Passwort erforderlich",
+    "protectError": "Fehler beim Schützen des Ordners"
   }
 }

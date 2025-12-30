@@ -31,7 +31,12 @@ export default function MobileDrawer({
 }: MobileDrawerProps) {
     const drawerRef = useRef<HTMLDivElement>(null);
     const previousActiveElement = useRef<HTMLElement | null>(null);
+    const onCloseRef = useRef(onClose);
     const reducedMotion = useReducedMotion();
+
+    useEffect(() => {
+        onCloseRef.current = onClose;
+    }, [onClose]);
 
     // Get all focusable elements within the drawer
     const getFocusableElements = useCallback(() => {
@@ -47,7 +52,7 @@ export default function MobileDrawer({
     const handleKeyDown = useCallback(
         (e: KeyboardEvent) => {
             if (e.key === 'Escape') {
-                onClose();
+                onCloseRef.current();
                 return;
             }
 
@@ -72,36 +77,39 @@ export default function MobileDrawer({
                 }
             }
         },
-        [onClose, getFocusableElements]
+        [getFocusableElements]
     );
 
     // Focus management and event listeners
     useEffect(() => {
-        if (isOpen) {
-            // Store current focus
-            previousActiveElement.current = document.activeElement as HTMLElement;
+        if (!isOpen) return;
 
-            // Add listeners
-            document.addEventListener('keydown', handleKeyDown);
-            document.body.style.overflow = 'hidden';
+        // Store current focus
+        previousActiveElement.current = document.activeElement as HTMLElement;
 
-            // Focus first element in drawer
-            requestAnimationFrame(() => {
-                const focusable = getFocusableElements();
-                if (focusable.length > 0) {
-                    focusable[0].focus();
-                } else {
-                    drawerRef.current?.focus();
-                }
-            });
-        }
+        // Add listeners
+        document.addEventListener('keydown', handleKeyDown);
+        document.body.style.overflow = 'hidden';
+
+        // Focus first element in drawer
+        requestAnimationFrame(() => {
+            if (drawerRef.current?.contains(document.activeElement)) {
+                return;
+            }
+            const focusable = getFocusableElements();
+            if (focusable.length > 0) {
+                focusable[0].focus();
+            } else {
+                drawerRef.current?.focus();
+            }
+        });
 
         return () => {
             document.removeEventListener('keydown', handleKeyDown);
             document.body.style.overflow = '';
 
             // Restore focus
-            if (previousActiveElement.current && !isOpen) {
+            if (previousActiveElement.current) {
                 previousActiveElement.current.focus();
             }
         };
