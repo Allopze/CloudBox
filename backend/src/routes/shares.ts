@@ -14,6 +14,7 @@ import { shareRateLimiter } from '../middleware/shareRateLimiter.js';
 import archiver from 'archiver';
 import { config } from '../config/index.js';
 import logger from '../lib/logger.js';
+import * as cache from '../lib/cache.js';
 
 // H-03 SECURITY: Cookie-based share access token
 const SHARE_ACCESS_TOKEN_EXPIRY = '1h';
@@ -131,19 +132,24 @@ router.post('/', authenticate, validate(createShareSchema), async (req: Request,
       },
     });
 
-    await prisma.activity.create({
-      data: {
-        type: 'SHARE',
-        userId,
-        fileId,
-        folderId,
-        details: JSON.stringify({ type, hasPassword: !!password }),
-      },
-    });
+      await prisma.activity.create({
+        data: {
+          type: 'SHARE',
+          userId,
+          fileId,
+          folderId,
+          details: JSON.stringify({ type, hasPassword: !!password }),
+        },
+      });
 
-    res.status(201).json({
-      ...share,
-      file: share.file ? { ...share.file, size: share.file.size?.toString() } : null,
+      await cache.invalidateAfterShareChange(userId, share.publicToken || undefined);
+      if (share.folderId) {
+        await cache.invalidateAfterFolderChange(userId);
+      }
+
+      res.status(201).json({
+        ...share,
+        file: share.file ? { ...share.file, size: share.file.size?.toString() } : null,
       publicUrl: share.publicToken ? `/share/${share.publicToken}` : null,
     });
   } catch (error) {
@@ -350,16 +356,21 @@ router.delete('/:id', authenticate, async (req: Request, res: Response) => {
 
     await prisma.share.delete({ where: { id } });
 
-    await prisma.activity.create({
-      data: {
-        type: 'UNSHARE',
-        userId,
-        fileId: share.fileId,
-        folderId: share.folderId,
-      },
-    });
+      await prisma.activity.create({
+        data: {
+          type: 'UNSHARE',
+          userId,
+          fileId: share.fileId,
+          folderId: share.folderId,
+        },
+      });
 
-    res.json({ message: 'Share deleted successfully' });
+      await cache.invalidateAfterShareChange(userId, share.publicToken || undefined);
+      if (share.folderId) {
+        await cache.invalidateAfterFolderChange(userId);
+      }
+
+      res.json({ message: 'Share deleted successfully' });
   } catch (error) {
     logger.error('Delete share error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to delete share' });
@@ -377,14 +388,19 @@ router.post('/bulk-delete', authenticate, async (req: Request, res: Response) =>
       return;
     }
 
-    await prisma.share.deleteMany({
-      where: {
-        id: { in: shareIds },
-        ownerId: userId,
-      },
-    });
+      await prisma.share.deleteMany({
+        where: {
+          id: { in: shareIds },
+          ownerId: userId,
+        },
+      });
 
-    res.json({ message: 'Shares deleted successfully' });
+      await Promise.all([
+        cache.invalidateAfterShareChange(userId),
+        cache.invalidateAfterFolderChange(userId),
+      ]);
+
+      res.json({ message: 'Shares deleted successfully' });
   } catch (error) {
     logger.error('Bulk delete shares error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to delete shares' });

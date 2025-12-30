@@ -107,59 +107,94 @@ async function validateFolderOwnership(folderId: string | null, userId: string):
   return !!folder;
 }
 
+const splitRelativePath = (value: string): string[] => {
+  return value.replace(/\\/g, '/').split('/').filter(Boolean);
+};
+
+const getFolderLockKey = (userId: string, parentId: string | null, name: string): string => {
+  return `folder:${userId}:${parentId ?? 'root'}:${name}`;
+};
+
+const acquireFolderLock = async (
+  tx: typeof prisma,
+  userId: string,
+  parentId: string | null,
+  name: string
+): Promise<void> => {
+  const lockKey = getFolderLockKey(userId, parentId, name);
+  // Serialize folder creation across concurrent uploads; NULL parentId allows duplicates otherwise.
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`;
+};
+
+const findOrCreateFolder = async (
+  name: string,
+  parentId: string | null,
+  userId: string,
+  tx: typeof prisma
+) => {
+  await acquireFolderLock(tx, userId, parentId, name);
+
+  let folder = await tx.folder.findFirst({
+    where: { name, parentId, userId },
+    orderBy: [{ isTrash: 'asc' }, { createdAt: 'asc' }],
+  });
+
+  if (folder?.isTrash) {
+    folder = await tx.folder.update({
+      where: { id: folder.id },
+      data: { isTrash: false, trashedAt: null },
+    });
+  }
+
+  if (!folder) {
+    try {
+      folder = await tx.folder.create({
+        data: {
+          name,
+          parentId,
+          userId,
+        },
+      });
+    } catch (createError: any) {
+      if (createError.code === 'P2002') {
+        folder = await tx.folder.findFirst({
+          where: { name, parentId, userId },
+          orderBy: [{ isTrash: 'asc' }, { createdAt: 'asc' }],
+        });
+        if (!folder) {
+          throw createError;
+        }
+      } else {
+        throw createError;
+      }
+    }
+  }
+
+  return folder!;
+};
+
 async function getOrCreateFolderPath(
   folderPath: string,
   baseFolderId: string | null,
   userId: string,
-  tx: typeof prisma
+  tx: typeof prisma,
+  folderCache?: Map<string, string>
 ): Promise<string | null> {
-  const normalized = folderPath.replace(/\\/g, '/').split('/').filter(Boolean);
+  const normalized = splitRelativePath(folderPath);
   if (normalized.length === 0) return baseFolderId;
 
   let currentParentId: string | null = baseFolderId;
 
   for (const folderName of normalized) {
     const sanitizedFolderName = sanitizeFilename(folderName);
-
-    // Exclude trashed folders
-    let folder = await tx.folder.findFirst({
-      where: {
-        name: sanitizedFolderName,
-        parentId: currentParentId,
-        userId,
-        isTrash: false,
-      },
-    });
-
-    if (!folder) {
-      try {
-        folder = await tx.folder.create({
-          data: {
-            name: sanitizedFolderName,
-            parentId: currentParentId,
-            userId,
-          },
-        });
-      } catch (createError: any) {
-        // If unique constraint violation (P2002), folder was created by another concurrent request
-        if (createError.code === 'P2002') {
-          folder = await tx.folder.findFirst({
-            where: {
-              name: sanitizedFolderName,
-              parentId: currentParentId,
-              userId,
-              isTrash: false,
-            },
-          });
-          if (!folder) {
-            throw createError;
-          }
-        } else {
-          throw createError;
-        }
-      }
+    const cacheKey = `${currentParentId || 'root'}:${sanitizedFolderName}`;
+    if (folderCache?.has(cacheKey)) {
+      currentParentId = folderCache.get(cacheKey)!;
+      continue;
     }
 
+    const folder = await findOrCreateFolder(sanitizedFolderName, currentParentId, userId, tx);
+    folderCache?.set(cacheKey, folder.id);
     currentParentId = folder.id;
   }
 
@@ -484,79 +519,6 @@ router.post('/upload-with-folders', authenticate, uploadFile.array('files', UPLO
       // Cache for created folders: path -> folderId
       const folderCache = new Map<string, string>();
 
-      // Helper to get or create folder by path
-      const getOrCreateFolder = async (folderPath: string, parentId: string | null): Promise<string> => {
-        if (!folderPath) return parentId || '';
-
-        const cacheKey = `${parentId || 'root'}:${folderPath}`;
-        if (folderCache.has(cacheKey)) {
-          return folderCache.get(cacheKey)!;
-        }
-
-        const parts = folderPath.split('/').filter(Boolean);
-        let currentParentId = parentId;
-
-        for (const folderName of parts) {
-          // Sanitize folder name
-          const sanitizedFolderName = sanitizeFilename(folderName);
-          const partCacheKey = `${currentParentId || 'root'}:${sanitizedFolderName}`;
-
-          if (folderCache.has(partCacheKey)) {
-            currentParentId = folderCache.get(partCacheKey)!;
-            continue;
-          }
-
-          // Check if folder exists (exclude trashed folders)
-          // Use a retry mechanism to handle race conditions with concurrent uploads
-          let folder = await tx.folder.findFirst({
-            where: {
-              name: sanitizedFolderName,
-              parentId: currentParentId,
-              userId,
-              isTrash: false,
-            },
-          });
-
-          if (!folder) {
-            try {
-              // Try to create the folder
-              folder = await tx.folder.create({
-                data: {
-                  name: sanitizedFolderName,
-                  parentId: currentParentId,
-                  userId,
-                },
-              });
-            } catch (createError: any) {
-              // If unique constraint violation (P2002), folder was created by another concurrent request
-              // Retry findFirst to get the existing folder
-              if (createError.code === 'P2002') {
-                folder = await tx.folder.findFirst({
-                  where: {
-                    name: sanitizedFolderName,
-                    parentId: currentParentId,
-                    userId,
-                    isTrash: false,
-                  },
-                });
-                if (!folder) {
-                  // This shouldn't happen, but if it does, re-throw the error
-                  throw createError;
-                }
-              } else {
-                throw createError;
-              }
-            }
-          }
-
-          folderCache.set(partCacheKey, folder.id);
-          currentParentId = folder.id;
-        }
-
-        folderCache.set(cacheKey, currentParentId!);
-        return currentParentId!;
-      };
-
       const resultFiles = [];
       let accumulatedSize = 0;
 
@@ -566,7 +528,7 @@ router.post('/upload-with-folders', authenticate, uploadFile.array('files', UPLO
         const relativePath = decodeFilename(relativePaths[i] || decodedOriginalname);
 
         // Parse folder path from relative path
-        const pathParts = relativePath.split('/');
+        const pathParts = splitRelativePath(relativePath);
         const rawFileName = pathParts.pop() || decodedOriginalname;
         const fileName = sanitizeFilename(rawFileName);
         const folderPath = pathParts.join('/');
@@ -602,7 +564,7 @@ router.post('/upload-with-folders', authenticate, uploadFile.array('files', UPLO
         // Get or create the target folder
         let targetFolderId: string | null = baseFolderId;
         if (folderPath) {
-          targetFolderId = await getOrCreateFolder(folderPath, baseFolderId);
+          targetFolderId = await getOrCreateFolderPath(folderPath, baseFolderId, userId, tx as any, folderCache);
         }
 
         const fileId = uuidv4();

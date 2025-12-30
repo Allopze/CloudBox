@@ -104,7 +104,7 @@ export default function BrandingSection() {
                             type="color"
                             value={brandingSettings.primaryColor}
                             onChange={(e) => setBrandingSettings({ ...brandingSettings, primaryColor: e.target.value })}
-                            className="w-10 h-10 rounded-lg cursor-pointer border border-dark-200 dark:border-dark-600 p-1 bg-white dark:bg-dark-800"
+                            className="color-input w-10 h-10 rounded-lg cursor-pointer border border-dark-200 dark:border-dark-600 bg-white dark:bg-dark-800 overflow-hidden"
                             aria-label={t('admin.branding.primaryColor')}
                         />
                         <Input

@@ -419,10 +419,10 @@ export default function ShareModal({ isOpen, onClose, file, folder, onSuccess }:
           >
             <TabList>
               <Tab value="public">
-                <Globe className="w-4 h-4 mr-2" /> {t('modals.share.publicLinkTab')}
+                <Globe className="w-4 h-4" /> {t('modals.share.publicLinkTab')}
               </Tab>
               <Tab value="private">
-                <Lock className="w-4 h-4 mr-2" /> {t('modals.share.privateTab')}
+                <Lock className="w-4 h-4" /> {t('modals.share.privateTab')}
               </Tab>
             </TabList>
 

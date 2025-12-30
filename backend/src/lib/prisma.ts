@@ -80,22 +80,28 @@ export const updateParentFolderSizes = async (
 ): Promise<void> => {
   if (!folderId) return;
 
-  let currentId: string | null = folderId;
   const sizeBigInt = BigInt(size);
   const data = operation === 'increment' ? { increment: sizeBigInt } : { decrement: sizeBigInt };
 
-  while (currentId) {
-    await tx.folder.update({
-      where: { id: currentId },
-      data: { size: data },
-    });
+  const folderIds: string[] = [];
+  let currentId: string | null = folderId;
 
+  while (currentId) {
+    folderIds.push(currentId);
     const parentFolder: { parentId: string | null } | null = await tx.folder.findUnique({
       where: { id: currentId },
       select: { parentId: true },
     });
 
     currentId = parentFolder?.parentId || null;
+  }
+
+  const orderedIds = folderIds.reverse();
+  for (const id of orderedIds) {
+    await tx.folder.update({
+      where: { id },
+      data: { size: data },
+    });
   }
 };
 
