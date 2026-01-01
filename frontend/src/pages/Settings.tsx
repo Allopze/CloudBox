@@ -346,7 +346,7 @@ export default function Settings() {
         </div>
 
         {/* Form Fields */}
-        <div className="grid grid-cols-2 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           <Input
             label={t('settings.fullName')}
             value={name}
@@ -424,7 +424,7 @@ export default function Settings() {
         </div>
         <p className="text-sm text-dark-500 dark:text-dark-400 mb-6">{t('settings.securityDescription')}</p>
 
-        <div className="grid grid-cols-3 gap-4 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
           <Input
             label={t('settings.currentPassword')}
             type="password"

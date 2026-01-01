@@ -26,6 +26,7 @@ import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs/promises';
 import prisma from '../lib/prisma.js';
+import { config } from '../config/index.js';
 import { generateThumbnail } from '../lib/thumbnail.js';
 import { getStoragePath } from '../lib/storage.js';
 import logger from '../lib/logger.js';
@@ -49,7 +50,8 @@ const QUALITY_PRESETS = {
 };
 
 // Job interfaces
-interface TranscodingJobData {
+interface VideoTranscodingJobData {
+  type: 'video';
   fileId: string;
   inputPath: string;
   outputPath: string;
@@ -57,6 +59,16 @@ interface TranscodingJobData {
   format: 'mp4' | 'webm';
   quality: 'low' | 'medium' | 'high';
 }
+
+interface MidiTranscodingJobData {
+  type: 'midi';
+  fileId: string;
+  inputPath: string;
+  outputPath: string;
+  userId: string;
+}
+
+type TranscodingJobData = VideoTranscodingJobData | MidiTranscodingJobData;
 
 interface ThumbnailJob {
   fileId: string;
@@ -69,8 +81,7 @@ interface ThumbnailJob {
  * Process transcoding job
  */
 async function processTranscodingJob(job: Job<TranscodingJobData>): Promise<void> {
-  const { fileId, inputPath, outputPath, format, quality } = job.data;
-  const preset = QUALITY_PRESETS[quality];
+  const { fileId, inputPath, outputPath } = job.data;
 
   logger.info('Worker processing transcoding job', { jobId: job.id, fileId });
 
@@ -83,20 +94,29 @@ async function processTranscodingJob(job: Job<TranscodingJobData>): Promise<void
 
   try {
     await fs.access(inputPath);
-    
-    // Get duration for progress
-    const duration = await getVideoDuration(inputPath);
-    
-    // Transcode
-    await transcodeVideo(inputPath, outputPath, format, preset, async (progress) => {
+
+    const updateProgress = async (progress: number) => {
       job.progress(progress);
-      if (progress % 10 === 0) {
+      if (progress % 10 === 0 || progress === 0 || progress === 100) {
         await prisma.transcodingJob.update({
           where: { fileId },
           data: { progress },
         }).catch(() => {});
       }
-    }, duration);
+    };
+
+    if (job.data.type === 'video') {
+      const preset = QUALITY_PRESETS[job.data.quality];
+      const duration = await getVideoDuration(inputPath);
+
+      await transcodeVideo(inputPath, outputPath, job.data.format, preset, async (progress) => {
+        await updateProgress(progress);
+      }, duration);
+    } else {
+      await updateProgress(10);
+      await renderMidiToMp3(inputPath, outputPath, updateProgress);
+      await updateProgress(100);
+    }
 
     // Update file with transcoded path
     await prisma.file.update({
@@ -224,6 +244,93 @@ async function transcodeVideo(
     });
 
     ffmpeg.on('error', reject);
+  });
+}
+
+async function renderMidiToMp3(
+  inputPath: string,
+  outputPath: string,
+  onProgress: (progress: number) => Promise<void>
+): Promise<void> {
+  const { soundfontPath, fluidsynthPath, sampleRate, gain, mp3Quality, renderTimeoutMs } = config.midi;
+
+  if (!soundfontPath) {
+    throw new Error('MIDI soundfont path is not configured');
+  }
+
+  await fs.access(soundfontPath);
+
+  const outputDir = path.dirname(outputPath);
+  await fs.mkdir(outputDir, { recursive: true });
+
+  const tempWavPath = getStoragePath('temp', `${path.basename(outputPath, '.mp3')}_${Date.now()}.wav`);
+
+  try {
+    await runProcessWithTimeout(
+      fluidsynthPath,
+      [
+        '-ni',
+        '-g', String(gain),
+        '-r', String(sampleRate),
+        soundfontPath,
+        inputPath,
+        '-F', tempWavPath,
+      ],
+      renderTimeoutMs,
+      'fluidsynth'
+    );
+
+    await onProgress(50);
+
+    await runProcessWithTimeout(
+      'ffmpeg',
+      [
+        '-y',
+        '-i', tempWavPath,
+        '-codec:a', 'libmp3lame',
+        '-q:a', String(mp3Quality),
+        outputPath,
+      ],
+      renderTimeoutMs,
+      'ffmpeg'
+    );
+  } finally {
+    await fs.unlink(tempWavPath).catch(() => {});
+  }
+}
+
+async function runProcessWithTimeout(
+  command: string,
+  args: string[],
+  timeoutMs: number,
+  label: string
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { stdio: ['ignore', 'ignore', 'pipe'] });
+    let stderr = '';
+
+    const timeout = setTimeout(() => {
+      child.kill('SIGKILL');
+      reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    child.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    child.on('close', (code) => {
+      clearTimeout(timeout);
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`${label} exited with code ${code}: ${stderr.substring(0, 500)}`));
+      }
+    });
+
+    child.on('error', (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
   });
 }
 

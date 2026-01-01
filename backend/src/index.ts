@@ -26,6 +26,7 @@ import { initRateLimitRedis, getRateLimitStats } from './lib/security.js';
 import { metricsMiddleware, metricsHandler } from './lib/metrics.js';
 import { getGlobalUploadMaxFileSize } from './lib/limits.js';
 import { httpLogger } from './middleware/requestLogger.js';
+import { maintenanceMode, getMaintenanceStatus } from './middleware/maintenance.js';
 import { initSentry } from './lib/sentry.js';
 
 // P0-4: Redis client for rate limiting (will be initialized after Redis check)
@@ -47,6 +48,7 @@ import tagsRoutes from './routes/tags.js';
 import fileIconRoutes from './routes/fileIcons.js';
 import twoFactorRoutes from './routes/2fa.js';
 import versionRoutes from './routes/versions.js';
+import metricsRoutes from './routes/metrics.js';
 
 const app = express();
 
@@ -219,6 +221,7 @@ const createAdminLimiter = () => rateLimit({
 const registerRoutes = () => {
   // Apply rate limiters
   app.use('/api/', createGlobalLimiter());
+  app.use('/api/', maintenanceMode); // H-XX: Maintenance mode middleware
   app.use('/api/auth/login', createAuthLimiter());
   app.use('/api/auth/register', createAuthLimiter());
   app.use('/api/auth/forgot-password', createSensitiveAuthLimiter());
@@ -242,6 +245,7 @@ const registerRoutes = () => {
   app.use('/api/file-icons', fileIconRoutes);
   app.use('/api/2fa', twoFactorRoutes);
   app.use('/api/files', versionRoutes); // Version history routes
+  app.use('/api/admin/metrics', metricsRoutes); // Server metrics
 
   // Public config endpoint for upload limits (no auth required for frontend to fetch)
   app.get('/api/config/upload-limits', async (req, res) => {
@@ -284,6 +288,15 @@ const registerRoutes = () => {
   // Public health ping (for load balancers - no details exposed)
   app.get('/api/health/ping', (req, res) => {
     res.status(200).json({ status: 'ok' });
+  });
+
+  // Public maintenance status endpoint
+  app.get('/api/status/maintenance', async (req, res) => {
+    const isMaintenance = await getMaintenanceStatus();
+    res.json({
+      maintenance: isMaintenance,
+      message: isMaintenance ? 'El sistema está en mantenimiento' : 'Sistema operativo'
+    });
   });
 
   // Prometheus metrics endpoint (admin only)

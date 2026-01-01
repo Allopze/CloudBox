@@ -4,9 +4,10 @@
   "description": "CloudBox - Cloud Storage Platform",
   "private": true,
   "scripts": {
-    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run dev:worker\"",
     "dev:all": "npm run dev",
     "dev:backend": "cd backend && npm run dev",
+    "dev:worker": "cd backend && npm run worker:dev",
     "dev:frontend": "cd frontend && npm run dev",
     "build": "npm run build:backend && npm run build:frontend",
     "build:backend": "cd backend && npm run build",
@@ -28,6 +29,7 @@
     "release:major": "node scripts/release.js major",
     "start": "npm run start:backend",
     "start:backend": "cd backend && npm start",
+    "start:worker": "cd backend && npm run worker:prod",
     "start:frontend": "cd frontend && npm run serve",
     "db:migrate": "cd backend && npm run db:migrate",
     "db:deploy": "cd backend && npx prisma migrate deploy"

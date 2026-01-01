@@ -1,7 +1,17 @@
 import axios from 'axios';
 import { getAccessToken, setAccessToken, clearAccessToken, migrateFromLocalStorage } from './tokenManager';
+import { useMaintenanceStore } from '../stores/maintenanceStore';
 
-export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const normalizeApiUrl = (value?: string): string => {
+  // Prefer same-origin by default so Vite/Caddy can proxy `/api` to the backend.
+  if (!value) return '/api';
+
+  const trimmed = value.replace(/\/+$/, '');
+  if (trimmed === '/api' || trimmed.endsWith('/api')) return trimmed;
+  return `${trimmed}/api`;
+};
+
+export const API_URL = normalizeApiUrl(import.meta.env.VITE_API_URL);
 
 export const api = axios.create({
   baseURL: API_URL,
@@ -130,7 +140,17 @@ const processQueue = (error: any, token: string | null = null) => {
 };
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    const method = response.config.method?.toLowerCase();
+    const url = response.config.url || '';
+    if (method === 'delete') {
+      const match = url.match(/\/files\/([0-9a-f-]{36})(?:$|\?)/i);
+      if (match) {
+        window.dispatchEvent(new CustomEvent('files-deleted', { detail: { ids: [match[1]] } }));
+      }
+    }
+    return response;
+  },
   async (error) => {
     // Issue #26: Better handling of network errors vs server errors
     if (!error.response) {
@@ -149,6 +169,13 @@ api.interceptors.response.use(
       requestUrl.includes('/auth/google') ||
       requestUrl.includes('/auth/refresh') ||
       requestUrl.includes('/auth/logout');
+
+    // Handle Maintenance Mode (503)
+    if (error.response?.status === 503 && error.response.data?.maintenance) {
+      // Update store to show maintenance screen
+      useMaintenanceStore.getState().setIsMaintenance(true, error.response.data.message);
+      return Promise.reject(error);
+    }
 
     if (error.response?.status === 401 && !originalRequest._retry) {
       // Never try to refresh tokens for auth endpoints (prevents login/register errors from being swallowed).

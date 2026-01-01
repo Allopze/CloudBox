@@ -500,21 +500,25 @@ export default function MusicPage() {
     ? albumGroups.find(a => a.id === selectedAlbum)
     : null;
 
-  // Albums view
-  if (tab === 'albums') {
-    // Show album detail
-    if (selectedAlbumData) {
-      const albumTracks = selectedAlbumData.tracks;
+  // Main content rendering helper
+  const renderContent = () => {
+    if (loading) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
+        </div>
+      );
+    }
 
+    // 1. Album Detail View
+    if (tab === 'albums' && selectedAlbumData) {
+      const albumTracks = selectedAlbumData.tracks;
       return (
         <div className="pb-24">
           {/* Back button and album info */}
           <div className="flex items-center gap-4 mb-6">
             <button
-              onClick={() => {
-                // Update URL to remove folder
-                setSearchParams({ tab: 'albums' });
-              }}
+              onClick={() => setSearchParams({ tab: 'albums' })}
               className="p-2 rounded-full hover:bg-dark-100 dark:hover:bg-dark-800 transition-colors"
               title={t('common.back')}
               aria-label={t('common.back')}
@@ -548,13 +552,11 @@ export default function MusicPage() {
             </div>
           </div>
 
-          {/* Track list */}
           <div className="space-y-1">
             {albumTracks.map((track, index) => {
               const isCurrentTrack = currentTrack?.id === track.id;
               const [fromColor, toColor] = getGradientColors(track.name);
               const isTrackSelected = selectedItems.has(track.id);
-
               const waveInProps = waveIn(index, reducedMotion);
               const baseAnimate = typeof waveInProps.animate === 'object' ? waveInProps.animate : {};
 
@@ -569,6 +571,9 @@ export default function MusicPage() {
                   transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                   data-file-item={track.id}
                   onClick={() => {
+                    if ((window as Window & { __longPressActive?: boolean }).__longPressActive) {
+                      return;
+                    }
                     setQueue(albumTracks);
                     playTrack(track);
                   }}
@@ -641,255 +646,227 @@ export default function MusicPage() {
       );
     }
 
-    // Show albums grid
+    // 2. Albums Grid View
+    if (tab === 'albums') {
+      return (
+        <div className="pb-24">
+          {albumGroups.length > 0 ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+              {albumGroups.map((album, index) => {
+                const [fromColor, toColor] = getGradientColors(album.name);
+                const isAlbumSelected = selectedItems.has(album.id);
+                const waveInProps = waveIn(index, reducedMotion);
+                const baseAnimate = typeof waveInProps.animate === 'object' ? waveInProps.animate : {};
+
+                return (
+                  <motion.div
+                    key={album.id}
+                    initial={waveInProps.initial}
+                    animate={{
+                      ...baseAnimate,
+                      scale: isAlbumSelected ? 0.95 : 1
+                    }}
+                    transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                    data-folder-item={album.id}
+                    onClick={() => setSearchParams({ tab: 'albums', folder: album.id })}
+                    onContextMenu={(e) => handleContextMenu(e, album, 'album')}
+                    className={cn('premium-card group', isAlbumSelected && 'selected')}
+                  >
+                    {isAlbumSelected && (
+                      <div className="absolute top-2 left-2 w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center shadow-lg z-20">
+                        <Check className="w-4 h-4 text-white" />
+                      </div>
+                    )}
+                    <div className={cn('premium-card-thumbnail', !album.cover && `bg-gradient-to-br ${fromColor} ${toColor}`)}>
+                      {album.cover ? (
+                        <AuthenticatedImage fileId={album.cover} endpoint="thumbnail" alt={album.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <Disc className="w-12 h-12 text-white/80" />
+                      )}
+                    </div>
+                    <div className="premium-card-content">
+                      <p className="premium-card-name truncate">{album.name}</p>
+                      <p className="text-xs text-dark-400">{t('music.songsCount', { count: album.tracks.length })}</p>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-64 text-dark-500">
+              <Disc className="w-16 h-16 mb-4 opacity-50" />
+              <p className="text-lg font-medium">{t('music.noAlbums')}</p>
+              <p className="text-sm">{t('music.organizeInFolders')}</p>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // 3. Default Tracks/Favorites View
     return (
       <div className="pb-24">
-        {albumGroups.length > 0 ? (
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-            {albumGroups.map((album, index) => {
-              const [fromColor, toColor] = getGradientColors(album.name);
-              const isAlbumSelected = selectedItems.has(album.id);
-
-              const waveInProps = waveIn(index, reducedMotion);
-              const baseAnimate = typeof waveInProps.animate === 'object' ? waveInProps.animate : {};
-
-              return (
-                <motion.div
-                  key={album.id}
-                  initial={waveInProps.initial}
-                  animate={{
-                    ...baseAnimate,
-                    scale: isAlbumSelected ? 0.95 : 1
+        {tracks.length > 0 ? (
+          viewMode === 'list' ? (
+            // List view
+            <div className="flex flex-col gap-1">
+              {tracks.map((track) => (
+                <FileCard
+                  key={track.id}
+                  file={track}
+                  view="list"
+                  onRefresh={() => loadData(undefined)}
+                  onPreview={() => playTrack(track)}
+                  onFavoriteToggle={(fileId, isFavorite) => {
+                    setTracks(prev => prev.map(t => t.id === fileId ? { ...t, isFavorite } : t));
                   }}
-                  transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-                  data-folder-item={album.id}
-                  onClick={() => {
-                    // Update URL to include folder ID, enabling drag-and-drop globally
-                    setSearchParams({ tab: 'albums', folder: album.id });
-                  }}
-                  onContextMenu={(e) => handleContextMenu(e, album, 'album')}
-                  className={cn(
-                    'premium-card group',
-                    isAlbumSelected && 'selected'
-                  )}
-                >
-                  {/* Selection indicator */}
-                  {isAlbumSelected && (
-                    <div className="absolute top-2 left-2 w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center shadow-lg z-20">
-                      <Check className="w-4 h-4 text-white" />
-                    </div>
-                  )}
+                />
+              ))}
+            </div>
+          ) : (
+            // Grid view
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+              {tracks.map((track, index) => {
+                const [fromColor, toColor] = getGradientColors(track.name);
+                const isCurrentTrack = currentTrack?.id === track.id;
+                const isSelected = selectedItems.has(track.id);
 
-                  {/* Album cover */}
-                  <div className={cn(
-                    'premium-card-thumbnail',
-                    !album.cover && `bg-gradient-to-br ${fromColor} ${toColor}`
-                  )}>
-                    {album.cover ? (
-                      <AuthenticatedImage
-                        fileId={album.cover}
-                        endpoint="thumbnail"
-                        alt={album.name}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <Disc className="w-12 h-12 text-white/80" />
-                    )}
-                  </div>
-
-                  {/* Content Area */}
-                  <div className="premium-card-content">
-                    <p className="premium-card-name" title={album.name}>
-                      {album.name}
-                    </p>
-                    <div className="premium-card-meta">
-                      <span>{t('music.songsCount', { count: album.tracks.length })}</span>
-                    </div>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center h-64 text-dark-500">
-            <Disc className="w-16 h-16 mb-4 opacity-50" />
-            <p className="text-lg font-medium">{t('music.noAlbums')}</p>
-            <p className="text-sm">{t('music.organizeInFolders')}</p>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div className="pb-24">
-      {/* Track list/grid */}
-      {tracks.length > 0 ? (
-        viewMode === 'list' ? (
-          // List view
-          <div className="flex flex-col gap-1">
-            {tracks.map((track) => (
-              <FileCard
-                key={track.id}
-                file={track}
-                view="list"
-                onRefresh={() => loadData(undefined)}
-                onPreview={() => playTrack(track)}
-                onFavoriteToggle={(fileId, isFavorite) => {
-                  setTracks(prev => prev.map(t => t.id === fileId ? { ...t, isFavorite } : t));
-                }}
-              />
-            ))}
-          </div>
-        ) : (
-          // Grid view
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-            {tracks.map((track, index) => {
-              const [fromColor, toColor] = getGradientColors(track.name);
-              const isCurrentTrack = currentTrack?.id === track.id;
-              const isSelected = selectedItems.has(track.id);
-
-              const handleTrackClick = (e: React.MouseEvent) => {
-                // Shift+Click: Range selection
-                if (e.shiftKey && lastSelectedId) {
-                  const ids = tracks.map(t => t.id);
-                  selectRange(ids, track.id);
-                }
-                // Ctrl/Meta+Click: Toggle selection
-                else if (e.ctrlKey || e.metaKey) {
-                  if (isSelected) {
-                    removeFromSelection(track.id);
-                  } else {
-                    addToSelection(track.id);
+                const handleTrackClick = (e: React.MouseEvent) => {
+                  if ((window as Window & { __longPressActive?: boolean }).__longPressActive) {
+                    return;
                   }
-                }
-                // Simple click with selection: select single
-                else if (selectedItems.size > 0 && !isSelected) {
-                  selectSingle(track.id);
-                }
-                // Simple click: play track
-                else {
-                  playTrack(track);
+                  if (e.shiftKey && lastSelectedId) {
+                    const ids = tracks.map(t => t.id);
+                    selectRange(ids, track.id);
+                  } else if (e.ctrlKey || e.metaKey) {
+                    if (isSelected) {
+                      removeFromSelection(track.id);
+                    } else {
+                      addToSelection(track.id);
+                    }
+                  } else if (selectedItems.size > 0 && !isSelected) {
+                    selectSingle(track.id);
+                  } else {
+                    playTrack(track);
+                  }
+                };
+
+                const waveInProps = waveIn(index, reducedMotion);
+                const baseAnimate = typeof waveInProps.animate === 'object' ? waveInProps.animate : {};
+
+                return (
+                  <motion.div
+                    key={track.id}
+                    initial={waveInProps.initial}
+                    animate={{
+                      ...baseAnimate,
+                      scale: isSelected ? 0.95 : 1
+                    }}
+                    transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                    data-file-item={track.id}
+                    onClick={handleTrackClick}
+                    onDoubleClick={() => playTrack(track)}
+                    onContextMenu={(e) => handleContextMenu(e, track)}
+                    className={cn(
+                      'premium-card group',
+                      isSelected && 'selected',
+                      isCurrentTrack && 'bg-dark-100 dark:bg-dark-800'
+                    )}
+                  >
+                    {isSelected && (
+                      <div className="absolute top-2 left-2 w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center shadow-lg z-20">
+                        <Check className="w-4 h-4 text-white" />
+                      </div>
+                    )}
+                    {track.isFavorite && !isSelected && (
+                      <div className="absolute top-2 left-2 z-10">
+                        <Star className="w-4 h-4 text-yellow-400 fill-yellow-400 drop-shadow-md" />
+                      </div>
+                    )}
+                    <div className={cn(
+                      'premium-card-thumbnail',
+                      !track.thumbnailPath && `bg-gradient-to-br ${fromColor} ${toColor}`
+                    )}>
+                      {track.thumbnailPath ? (
+                        <AuthenticatedImage
+                          fileId={track.id}
+                          endpoint="thumbnail"
+                          alt={track.name}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <Music className="w-12 h-12 text-white/80" />
+                      )}
+                      {isCurrentTrack && isPlaying && (
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                          <div className="flex items-end gap-1 h-8">
+                            <div className="w-1.5 bg-white rounded-full animate-music-bar-1" />
+                            <div className="w-1.5 bg-white rounded-full animate-music-bar-2" />
+                            <div className="w-1.5 bg-white rounded-full animate-music-bar-3" />
+                            <div className="w-1.5 bg-white rounded-full animate-music-bar-1" />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="premium-card-content">
+                      <p className={cn(
+                        'premium-card-name',
+                        isCurrentTrack && 'text-primary-600'
+                      )} title={track.name}>
+                        {getDisplayName(track.name)}
+                      </p>
+                      <div className="premium-card-meta">
+                        {typeof trackDurations[track.id] === 'number' && Number.isFinite(trackDurations[track.id]) && (
+                          <span>{formatTime(trackDurations[track.id])}</span>
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          )
+        ) : (
+          !loading && (
+            (() => {
+              const getEmptyStateConfig = () => {
+                switch (tab) {
+                  case 'favorites':
+                    return {
+                      icon: Star,
+                      title: t('music.noFavoriteMusic'),
+                      subtitle: t('music.addFavoriteMusic'),
+                      color: 'text-yellow-400'
+                    };
+                  default:
+                    return {
+                      icon: Music,
+                      title: t('music.noMusic'),
+                      subtitle: t('music.uploadAudioFiles'),
+                      color: 'text-primary-400'
+                    };
                 }
               };
 
-              const waveInProps = waveIn(index, reducedMotion);
-              const baseAnimate = typeof waveInProps.animate === 'object' ? waveInProps.animate : {};
-
+              const { icon: EmptyIcon, title, subtitle, color } = getEmptyStateConfig();
               return (
-                <motion.div
-                  key={track.id}
-                  initial={waveInProps.initial}
-                  animate={{
-                    ...baseAnimate,
-                    scale: isSelected ? 0.95 : 1
-                  }}
-                  transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-                  data-file-item={track.id}
-                  onClick={handleTrackClick}
-                  onDoubleClick={() => playTrack(track)}
-                  onContextMenu={(e) => handleContextMenu(e, track)}
-                  className={cn(
-                    'premium-card group',
-                    isSelected && 'selected',
-                    isCurrentTrack && 'bg-dark-100 dark:bg-dark-800'
-                  )}
-                >
-                  {/* Selection indicator */}
-                  {isSelected && (
-                    <div className="absolute top-2 left-2 w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center shadow-lg z-20">
-                      <Check className="w-4 h-4 text-white" />
-                    </div>
-                  )}
-
-                  {/* Favorite badge - top left */}
-                  {track.isFavorite && !isSelected && (
-                    <div className="absolute top-2 left-2 z-10">
-                      <Star className="w-4 h-4 text-yellow-400 fill-yellow-400 drop-shadow-md" />
-                    </div>
-                  )}
-
-                  {/* Album art / Cover */}
-                  <div className={cn(
-                    'premium-card-thumbnail',
-                    !track.thumbnailPath && `bg-gradient-to-br ${fromColor} ${toColor}`
-                  )}>
-                    {track.thumbnailPath ? (
-                      <AuthenticatedImage
-                        fileId={track.id}
-                        endpoint="thumbnail"
-                        alt={track.name}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <Music className="w-12 h-12 text-white/80" />
-                    )}
-
-                    {/* Playing indicator overlay */}
-                    {isCurrentTrack && isPlaying && (
-                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                        <div className="flex items-end gap-1 h-8">
-                          <div className="w-1.5 bg-white rounded-full animate-music-bar-1" />
-                          <div className="w-1.5 bg-white rounded-full animate-music-bar-2" />
-                          <div className="w-1.5 bg-white rounded-full animate-music-bar-3" />
-                          <div className="w-1.5 bg-white rounded-full animate-music-bar-1" />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Content Area */}
-                  <div className="premium-card-content">
-                    <p className={cn(
-                      'premium-card-name',
-                      isCurrentTrack && 'text-primary-600'
-                    )} title={track.name}>
-                      {getDisplayName(track.name)}
-                    </p>
-                    <div className="premium-card-meta">
-                      {typeof trackDurations[track.id] === 'number' && Number.isFinite(trackDurations[track.id]) && (
-                        <span>{formatTime(trackDurations[track.id])}</span>
-                      )}
-                    </div>
-                  </div>
-                </motion.div>
+                <div className="flex flex-col items-center justify-center h-64 text-dark-500">
+                  <EmptyIcon className={cn('w-16 h-16 mb-4 opacity-50', color)} />
+                  <p className="text-lg font-medium">{title}</p>
+                  <p className="text-sm">{subtitle}</p>
+                </div>
               );
-            })}
-          </div>
-        )
-      ) : (
-        (() => {
-          // Get icon and text based on current tab
-          const getEmptyStateConfig = () => {
-            switch (tab) {
-              case 'favorites':
-                return {
-                  icon: Star,
-                  title: t('music.noFavoriteMusic'),
-                  subtitle: t('music.addFavoriteMusic'),
-                  color: 'text-yellow-400'
-                };
-              default:
-                return {
-                  icon: Music,
-                  title: t('music.noMusic'),
-                  subtitle: t('music.uploadAudioFiles'),
-                  color: 'text-primary-400'
-                };
-            }
-          };
-          const { icon: EmptyIcon, title, subtitle, color } = getEmptyStateConfig();
-          return (
-            <div className="flex flex-col items-center justify-center h-64 text-dark-500">
-              <EmptyIcon className={`w-16 h-16 mb-4 opacity-50 ${color}`} />
-              <p className="text-lg font-medium">{title}</p>
-              <p className="text-sm">{subtitle}</p>
-            </div>
-          );
-        })()
-      )}
+            })()
+          )
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="h-full">
+      {renderContent()}
 
       {/* Load More Sentinel */}
       {tracks.length > 0 && (
@@ -930,7 +907,7 @@ export default function MusicPage() {
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.1 }}
               style={{ position: 'fixed', left, top }}
-              className="z-50 min-w-[180px] bg-white dark:bg-dark-800 rounded-xl shadow-lg border border-dark-200 dark:border-dark-700 py-1 overflow-hidden"
+              className="z-50 min-w-[180px] bg-white dark:bg-dark-800 rounded-xl shadow-lg border border-dark-200 dark:border-700 py-1 overflow-hidden"
             >
               {/* Header for multi-select */}
               {isMultiSelect && (
@@ -1048,14 +1025,16 @@ export default function MusicPage() {
                 </>
               )}
 
-              {/* Delete - always visible */}
-              <button
-                onClick={() => handleDelete(contextMenu.item)}
-                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-              >
-                <Trash2 className="w-4 h-4" />
-                <span>{isMultiSelect ? t('music.deleteSongs', { count: selectedCount }) : t('common.delete')}</span>
-              </button>
+              {/* Delete - always visible for songs only (albums have their own delete above) */}
+              {!isAlbum && (
+                <button
+                  onClick={() => handleDelete(contextMenu.item)}
+                  className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>{isMultiSelect ? t('music.deleteSongs', { count: selectedCount }) : t('common.delete')}</span>
+                </button>
+              )}
             </motion.div>
           );
         })()}
@@ -1080,6 +1059,7 @@ export default function MusicPage() {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             className="bg-white dark:bg-dark-800 rounded-xl shadow-2xl max-w-lg w-full p-8"
+            onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-4 mb-6">
               <div className={cn(

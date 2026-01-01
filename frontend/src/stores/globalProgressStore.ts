@@ -20,7 +20,7 @@ interface GlobalProgressState {
   addOperation: (operation: Omit<GlobalOperation, 'status' | 'completedItems' | 'startTime'>) => string;
   updateOperation: (id: string, updates: Partial<GlobalOperation>) => void;
   incrementProgress: (id: string, currentItem?: string) => void;
-  completeOperation: (id: string) => void;
+  completeOperation: (id: string, title?: string) => void;
   failOperation: (id: string, error: string) => void;
   cancelOperation: (id: string) => void;
   removeOperation: (id: string) => void;
@@ -68,25 +68,26 @@ export const useGlobalProgressStore = create<GlobalProgressState>((set, get) => 
       operations: state.operations.map((op) =>
         op.id === id
           ? {
-              ...op,
-              completedItems: op.completedItems + 1,
-              currentItem,
-            }
+            ...op,
+            completedItems: op.completedItems + 1,
+            currentItem,
+          }
           : op
       ),
     }));
   },
 
-  completeOperation: (id) => {
+  completeOperation: (id, title) => {
     set((state) => ({
       operations: state.operations.map((op) =>
         op.id === id
           ? {
-              ...op,
-              status: 'completed',
-              completedItems: op.totalItems,
-              endTime: Date.now(),
-            }
+            ...op,
+            status: 'completed',
+            completedItems: op.totalItems,
+            endTime: Date.now(),
+            title: title || op.title,
+          }
           : op
       ),
     }));
@@ -102,11 +103,11 @@ export const useGlobalProgressStore = create<GlobalProgressState>((set, get) => 
       operations: state.operations.map((op) =>
         op.id === id
           ? {
-              ...op,
-              status: 'error',
-              error,
-              endTime: Date.now(),
-            }
+            ...op,
+            status: 'error',
+            error,
+            endTime: Date.now(),
+          }
           : op
       ),
     }));
@@ -117,10 +118,10 @@ export const useGlobalProgressStore = create<GlobalProgressState>((set, get) => 
       operations: state.operations.map((op) =>
         op.id === id
           ? {
-              ...op,
-              status: 'cancelled',
-              endTime: Date.now(),
-            }
+            ...op,
+            status: 'cancelled',
+            endTime: Date.now(),
+          }
           : op
       ),
     }));

@@ -6,6 +6,9 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch --ignore './data/**' --ignore './prisma/**' src/index.ts",
+    "worker": "tsx src/workers/queueWorker.ts",
+    "worker:dev": "tsx watch --ignore './data/**' --ignore './prisma/**' src/workers/queueWorker.ts",
+    "worker:prod": "node dist/workers/queueWorker.js",
     "preflight": "tsx src/scripts/preflight.ts",
     "build": "tsc",
     "start": "node dist/index.js",
@@ -61,6 +64,7 @@
     "rate-limit-redis": "^4.3.1",
     "sharp": "^0.33.5",
     "socket.io": "^4.8.1",
+    "systeminformation": "^5.28.5",
     "unzipper": "^0.12.3",
     "uuid": "^10.0.0",
     "zod": "^3.23.8"

@@ -24,7 +24,7 @@ import {
   X,
   Trash2,
   Download,
-  Menu,
+  PanelLeft,
 } from "lucide-react";
 import Dropdown, { DropdownItem, DropdownDivider } from "./ui/Dropdown";
 import UploadModal from "./modals/UploadModal";
@@ -199,9 +199,8 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
         incrementProgress(opId, itemName);
       }
 
-      completeOperation(opId);
+      completeOperation(opId, t("header.itemsMovedToTrash", { count: total }));
       clearSelection();
-      toast(t("header.itemsMovedToTrash", { count: total }), "success");
       window.dispatchEvent(new CustomEvent("workzone-refresh"));
     } catch {
       failOperation(opId, t("header.deleteError"));
@@ -247,17 +246,17 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
   };
 
   return (
-    <header className="h-14 bg-dark-100 dark:bg-dark-800 flex items-center px-4 gap-4 text-dark-900 dark:text-white">
+    <header className="h-14 bg-dark-100 dark:bg-dark-800 flex items-center px-2 md:px-4 gap-2 md:gap-4 text-dark-900 dark:text-white">
       {/* Mobile Menu Toggle */}
       <button
         onClick={onMobileMenuToggle}
-        className="md:hidden p-2 -ml-2 text-dark-500 hover:text-dark-900 dark:text-white/70 dark:hover:text-white rounded-lg hover:bg-dark-100 dark:hover:bg-white/10 transition-colors"
+        className="md:hidden flex w-11 h-11 items-center justify-center bg-white dark:bg-dark-800 text-dark-500 dark:text-white/70 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/10 rounded-full border border-dark-200 dark:border-dark-700 shadow-sm transition-colors"
       >
-        <Menu className="w-5 h-5" />
+        <PanelLeft className="w-5 h-5" />
       </button>
 
       {/* Search */}
-      <div className="flex-none w-full max-w-xl flex items-center justify-end min-w-0">
+      <div className="flex-1 md:flex-none md:w-full md:max-w-xl flex items-center justify-end min-w-0">
         <motion.form
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -361,11 +360,11 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
                 trigger={
                   <button
                     type="button"
-                    className="h-9 px-4 flex items-center gap-2 rounded-full bg-primary-600 text-white font-semibold text-sm transition-colors shadow-sm hover:bg-primary-700"
+                    className="h-9 px-3 md:px-4 flex items-center gap-2 rounded-full bg-primary-600 text-white font-semibold text-sm transition-colors shadow-sm hover:bg-primary-700"
                     aria-label={t("header.createNewItem")}
                   >
                     <Plus className="w-4 h-4" />
-                    <span>{t("header.new")}</span>
+                    <span className="hidden sm:inline">{t("header.new")}</span>
                   </button>
                 }
                 align="right"
@@ -393,8 +392,8 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
         </AnimatePresence>
       </div>
 
-      {/* Upload Progress Indicator - Fixed width to prevent layout shift */}
-      <div className="w-64 flex-shrink-0">
+      {/* Upload Progress Indicator - Hidden on mobile, shows in UploadProgress component instead */}
+      <div className="hidden md:block w-64 flex-shrink-0">
         {isUploading && totalBytes > 0 && (
           <div className="flex items-center gap-2">
             <div className="flex-1 h-2 bg-dark-200 dark:bg-dark-700 rounded-full overflow-hidden">
@@ -413,8 +412,8 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
         )}
       </div>
 
-      {/* Spacer */}
-      <div className="flex-1" />
+      {/* Spacer - only on desktop */}
+      <div className="hidden md:block flex-1" />
 
       {/* Right actions */}
       <div className="flex items-center gap-1">

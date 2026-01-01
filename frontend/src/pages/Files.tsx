@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { api, openSignedFileUrl } from '../lib/api';
 import { FileItem, Folder } from '../types';
 import { useFileStore } from '../stores/fileStore';
+import { useMusicStore } from '../stores/musicStore';
 import { useGlobalProgressStore } from '../stores/globalProgressStore';
 import FileCard from '../components/files/FileCard';
 import FolderCard from '../components/files/FolderCard';
@@ -67,6 +68,7 @@ export default function Files() {
   const selectSingle = useFileStore((state) => state.selectSingle);
   const selectedItems = useFileStore((state) => state.selectedItems);
   const { addOperation, incrementProgress, completeOperation, failOperation } = useGlobalProgressStore();
+  const { play } = useMusicStore();
 
   // Get selected file and folder IDs
   const selectedFileIds = useMemo(() => {
@@ -256,9 +258,14 @@ export default function Files() {
     }
   }, [t]);
 
+  const audioQueue = useMemo(() => {
+    return files.filter((f) => isAudio(f.mimeType));
+  }, [files]);
+
   const handleAudioOpen = useCallback((file: FileItem) => {
-    void openSignedFileUrl(file.id, 'stream');
-  }, []);
+    const queue = audioQueue.length > 0 ? audioQueue : [file];
+    play(file, queue);
+  }, [audioQueue, play]);
 
   const handleMoveFromGallery = useCallback((file: FileItem) => {
     selectSingle(file.id);

@@ -6,6 +6,7 @@ import Button from '../../ui/Button';
 import { Activity as ActivityIcon, ChevronLeft, ChevronRight, Search, User as UserIcon, Settings, Trash2, LogIn, LogOut, Upload, Download } from 'lucide-react';
 import { formatDate } from '../../../lib/utils';
 import { toast } from '../../ui/Toast';
+import ServerMetricsPanel from './ServerMetricsPanel';
 
 interface ActivityWithUser extends Activity {
     user?: User;
@@ -75,6 +76,10 @@ export default function ActivitySection() {
 
     return (
         <div className="space-y-6">
+            {/* Server Metrics Panel */}
+            <ServerMetricsPanel />
+
+            {/* Activity Logs Section */}
             <div className="flex items-center gap-2 mb-2">
                 <ActivityIcon className="w-5 h-5 text-primary-600" />
                 <h2 className="text-xl font-bold text-dark-900 dark:text-white">{t('admin.activity.title', 'Registro de Actividad')}</h2>

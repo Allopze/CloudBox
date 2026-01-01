@@ -79,6 +79,32 @@ services:
       timeout: 10s
       retries: 3
 
+  # Queue Worker (transcoding + thumbnails)
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cloudbox-worker
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://cloudbox:cloudbox_dev_password@postgres:5432/cloudbox
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      STORAGE_PATH: /app/data
+      MIDI_SOUNDFONT_PATH: ${MIDI_SOUNDFONT_PATH:-/app/assets/soundfonts/FluidR3_GM.sf2}
+      MIDI_FLUIDSYNTH_PATH: ${MIDI_FLUIDSYNTH_PATH:-/usr/bin/fluidsynth}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
+      WORKER_TYPE: ${WORKER_TYPE:-all}
+    volumes:
+      - cloudbox_data:/app/data
+    command: [ "node", "dist/workers/queueWorker.js" ]
+
   # Frontend (Development - with hot reload)
   frontend:
     build:

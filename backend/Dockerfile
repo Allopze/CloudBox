@@ -59,17 +59,10 @@ COPY --from=builder --chown=cloudbox:cloudbox /app/node_modules ./node_modules
 COPY --from=builder --chown=cloudbox:cloudbox /app/prisma ./prisma
 COPY --from=builder --chown=cloudbox:cloudbox /app/package.json ./
 COPY --from=builder --chown=cloudbox:cloudbox /app/assets ./assets
-COPY --from=builder --chown=cloudbox:cloudbox /app/bin ./bin
 
 # Create data directory for file storage
 RUN mkdir -p /app/data && chown -R cloudbox:cloudbox /app/data
 
-# MIDI rendering defaults for container
-ENV MIDI_FLUIDSYNTH_PATH=/usr/bin/fluidsynth
-ENV MIDI_SOUNDFONT_PATH=/app/assets/soundfonts/FluidR3_GM.sf2
-
-# Ensure optional local binary is executable
-RUN if [ -f /app/bin/fluidsynth/fluidsynth ]; then chmod +x /app/bin/fluidsynth/fluidsynth; fi
 
 # Switch to non-root user
 USER cloudbox

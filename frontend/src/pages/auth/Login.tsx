@@ -152,6 +152,9 @@ export default function Login() {
         case 'ACCOUNT_DISABLED':
           errorMessage = t('auth.errors.ACCOUNT_DISABLED');
           break;
+        case 'MAINTENANCE_MODE':
+          errorMessage = t('maintenance.title') + '. ' + t('maintenance.subtitle');
+          break;
         default:
           errorMessage = errorData?.error || errorData?.message || t('auth.loginFailed');
       }

@@ -16,6 +16,12 @@
     "trackOf": "{{current}} von {{total}}",
     "drag": "Player ziehen"
   },
+  "maintenance": {
+    "title": "Wir sind in Wartung",
+    "subtitle": "Wir sind bald zurück. Danke für Ihre Geduld.",
+    "checking": "Status prüfen...",
+    "adminBadge": "Sie sind Admin - Sie können weiterarbeiten"
+  },
   "header": {
     "search": "Suchen...",
     "searchLabel": "Dateien und Ordner suchen",

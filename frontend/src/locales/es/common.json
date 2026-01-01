@@ -17,6 +17,13 @@
     "trackOf": "{{current}} de {{total}}",
     "drag": "Arrastrar reproductor"
   },
+  "maintenance": {
+    "title": "Estamos en mantenimiento",
+    "subtitle": "Volveremos pronto. Gracias por tu paciencia.",
+    "checking": "Comprobando estado...",
+    "adminBadge": "Eres administrador - puedes continuar trabajando",
+    "adminLogin": "Acceso administrador"
+  },
   "header": {
     "search": "Buscar...",
     "searchLabel": "Buscar archivos y carpetas",
@@ -185,7 +192,8 @@
     "deselectAll": "Deseleccionar todo",
     "noResults": "Sin resultados",
     "required": "Requerido",
-    "optional": "Opcional"
+    "optional": "Opcional",
+    "moreOptions": "Más opciones"
   },
   "files": {
     "loading": "Cargando...",
@@ -1523,6 +1531,21 @@
       "htmlContent": "Contenido HTML",
       "reset": "Restablecer",
       "save": "Guardar"
+    },
+    "metrics": {
+      "title": "Métricas del Servidor",
+      "description": "Estado del sistema en tiempo real",
+      "cpu": "CPU",
+      "memory": "Memoria",
+      "disk": "Disco",
+      "temperature": "Temperatura",
+      "network": "Red",
+      "uptime": "Tiempo activo",
+      "received": "Recibido",
+      "transmitted": "Transmitido",
+      "noData": "N/A",
+      "refreshing": "Cargando...",
+      "lastUpdate": "Última actualización"
     },
     "activity": {
       "title": "Registro de Actividad",
