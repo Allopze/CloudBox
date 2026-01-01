@@ -20,10 +20,10 @@ interface BrandingState {
 
 const defaultBranding: BrandingSettings = {
   primaryColor: '#dc2626',
-  logoUrl: '',
-  logoLightUrl: '',
-  logoDarkUrl: '',
-  faviconUrl: '',
+  logoUrl: '/logo-light.svg',
+  logoLightUrl: '/logo-light.svg',
+  logoDarkUrl: '/logo-dark.svg',
+  faviconUrl: '/favicon.svg',
   siteName: 'CloudBox',
 };
 
@@ -153,10 +153,10 @@ export const useBrandingStore = create<BrandingState>((set) => ({
         const payload = await res.json();
         const branding: BrandingSettings = {
           primaryColor: payload.primaryColor || defaultBranding.primaryColor,
-          logoUrl: getFullUrl(payload.logoUrl),
-          logoLightUrl: getFullUrl(payload.logoLightUrl || payload.logoUrl),
-          logoDarkUrl: getFullUrl(payload.logoDarkUrl || payload.logoUrl),
-          faviconUrl: getFullUrl(payload.faviconUrl),
+          logoUrl: getFullUrl(payload.logoUrl) || defaultBranding.logoUrl,
+          logoLightUrl: getFullUrl(payload.logoLightUrl || payload.logoUrl) || defaultBranding.logoLightUrl,
+          logoDarkUrl: getFullUrl(payload.logoDarkUrl || payload.logoUrl) || defaultBranding.logoDarkUrl,
+          faviconUrl: getFullUrl(payload.faviconUrl) || defaultBranding.faviconUrl,
           siteName: payload.siteName || defaultBranding.siteName,
           customCss: payload.customCss,
         };

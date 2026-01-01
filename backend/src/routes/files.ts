@@ -42,9 +42,45 @@ import logger from '../lib/logger.js';
 import { buildExcelHtmlPreview } from '../lib/excelPreview.js';
 import * as cache from '../lib/cache.js';
 import { getGlobalUploadMaxFileSize } from '../lib/limits.js';
-import { addTranscodingJob, getTranscodingJobStatus } from '../lib/transcodingQueue.js';
+import { addMidiTranscodingJob, addTranscodingJob, getTranscodingJobStatus } from '../lib/transcodingQueue.js';
 
 const router = Router();
+
+const MIDI_MIME_TYPES = new Set([
+  'audio/midi',
+  'audio/mid',
+  'audio/x-midi',
+  'audio/x-mid',
+  'application/midi',
+  'application/x-midi',
+  'audio/sp-midi',
+  'audio/smf',
+]);
+
+const MIDI_EXTENSIONS = new Set(['.mid', '.midi']);
+
+const isMidiFile = (mimeType: string, filename: string): boolean => {
+  const normalizedMime = mimeType.toLowerCase();
+  if (MIDI_MIME_TYPES.has(normalizedMime)) {
+    return true;
+  }
+
+  const ext = path.extname(filename).toLowerCase();
+  return MIDI_EXTENSIONS.has(ext);
+};
+
+const normalizeMimeType = (mimeType: string, filename: string): string => {
+  return isMidiFile(mimeType, filename) ? 'audio/midi' : mimeType;
+};
+
+type MidiTranscodeItem = { fileId: string; filePath: string; userId: string };
+
+const queueMidiTranscodes = async (items: MidiTranscodeItem[]): Promise<void> => {
+  if (items.length === 0) return;
+  await Promise.allSettled(
+    items.map((item) => addMidiTranscodingJob(item.fileId, item.filePath, item.userId))
+  );
+};
 
 async function decrementTempStorageSafely(userId: string, amount: bigint): Promise<void> {
   try {
@@ -255,6 +291,7 @@ router.post('/upload', authenticate, uploadFile.array('files', UPLOAD_LIMITS.MAX
     // Track files that need thumbnails generated after transaction
     // Security: Include userId for per-user rate limiting in thumbnail queue
     const filesToGenerateThumbnails: { fileId: string; filePath: string; mimeType: string; userId: string }[] = [];
+    const midiFilesToTranscode: MidiTranscodeItem[] = [];
 
     const uploadedFiles = await prisma.$transaction(async (tx) => {
       // Check quota inside transaction
@@ -321,20 +358,25 @@ router.post('/upload', authenticate, uploadFile.array('files', UPLOAD_LIMITS.MAX
           throw new Error(`Invalid file type: ${originalName}`);
         }
 
+        const normalizedMimeType = isMidiFile(file.mimetype, originalName) ? 'audio/midi' : file.mimetype;
+
         const fileId = uuidv4();
         const filePath = getUserFilePath(userId, fileId, ext);
 
         await moveFileStorage(file.path, filePath);
 
         // Queue thumbnail generation for after transaction (with userId for rate limiting)
-        filesToGenerateThumbnails.push({ fileId, filePath, mimeType: file.mimetype, userId });
+        filesToGenerateThumbnails.push({ fileId, filePath, mimeType: normalizedMimeType, userId });
+        if (isMidiFile(file.mimetype, originalName)) {
+          midiFilesToTranscode.push({ fileId, filePath, userId });
+        }
 
         const dbFile = await tx.file.create({
           data: {
             id: fileId,
             name: originalName,
             originalName: originalName,
-            mimeType: file.mimetype,
+            mimeType: normalizedMimeType,
             size: BigInt(file.size),
             path: filePath,
             thumbnailPath: null,
@@ -375,6 +417,8 @@ router.post('/upload', authenticate, uploadFile.array('files', UPLOAD_LIMITS.MAX
     if (filesToGenerateThumbnails.length > 0) {
       thumbnailQueue.addBatch(filesToGenerateThumbnails);
     }
+
+    await queueMidiTranscodes(midiFilesToTranscode);
 
     // Audit log successful upload
     await auditLog({
@@ -485,6 +529,7 @@ router.post('/upload-with-folders', authenticate, uploadFile.array('files', UPLO
     // Track files that need thumbnails generated after transaction
     // Security: Include userId for per-user rate limiting in thumbnail queue
     const filesToGenerateThumbnails: { fileId: string; filePath: string; mimeType: string; userId: string }[] = [];
+    const midiFilesToTranscode: MidiTranscodeItem[] = [];
 
     const uploadedFiles = await prisma.$transaction(async (tx) => {
       // Check quota inside transaction
@@ -561,6 +606,8 @@ router.post('/upload-with-folders', authenticate, uploadFile.array('files', UPLO
           continue; // Skip invalid files
         }
 
+        const normalizedMimeType = isMidiFile(file.mimetype, fileName) ? 'audio/midi' : file.mimetype;
+
         // Get or create the target folder
         let targetFolderId: string | null = baseFolderId;
         if (folderPath) {
@@ -574,14 +621,17 @@ router.post('/upload-with-folders', authenticate, uploadFile.array('files', UPLO
         await moveFileStorage(file.path, filePath);
 
         // Queue thumbnail generation for after transaction (with userId for rate limiting)
-        filesToGenerateThumbnails.push({ fileId, filePath, mimeType: file.mimetype, userId });
+        filesToGenerateThumbnails.push({ fileId, filePath, mimeType: normalizedMimeType, userId });
+        if (isMidiFile(file.mimetype, fileName)) {
+          midiFilesToTranscode.push({ fileId, filePath, userId });
+        }
 
         const dbFile = await tx.file.create({
           data: {
             id: fileId,
             name: fileName,
             originalName: fileName,
-            mimeType: file.mimetype,
+            mimeType: normalizedMimeType,
             size: BigInt(file.size),
             path: filePath,
             thumbnailPath: null,
@@ -613,6 +663,8 @@ router.post('/upload-with-folders', authenticate, uploadFile.array('files', UPLO
     if (filesToGenerateThumbnails.length > 0) {
       thumbnailQueue.addBatch(filesToGenerateThumbnails);
     }
+
+    await queueMidiTranscodes(midiFilesToTranscode);
 
     // Audit log
     await auditLog({
@@ -808,6 +860,7 @@ router.post('/upload/init', authenticate, validate(uploadInitSchema), async (req
     }
 
     const effectiveMimeType = mimeType || 'application/octet-stream';
+    const normalizedMimeType = isMidiFile(effectiveMimeType, sanitizedFilename) ? 'audio/midi' : effectiveMimeType;
     if (mimeType && !validateMimeType(effectiveMimeType, sanitizedFilename)) {
       await auditLog({
         action: 'SUSPICIOUS_ACTIVITY',
@@ -878,7 +931,7 @@ router.post('/upload/init', authenticate, validate(uploadInitSchema), async (req
           id: newUploadId,
           userId,
           filename: sanitizedFilename,
-          mimeType: effectiveMimeType,
+          mimeType: normalizedMimeType,
           totalChunks,
           totalSize: totalSizeBigInt,
           folderId: targetFolderId,
@@ -966,7 +1019,11 @@ router.post('/upload/chunk', authenticate, uploadChunk.single('chunk'), validate
       if (existing) {
         res.json({
           completed: true,
-          file: { ...existing, size: existing.size.toString() },
+          file: {
+            ...existing,
+            mimeType: normalizeMimeType(existing.mimeType, existing.name),
+            size: existing.size.toString(),
+          },
         });
         return;
       }
@@ -1021,6 +1078,7 @@ router.post('/upload/chunk', authenticate, uploadChunk.single('chunk'), validate
     }
 
     const effectiveMimeType = session.mimeType || mimeType || 'application/octet-stream';
+    const normalizedMimeType = isMidiFile(effectiveMimeType, session.filename) ? 'audio/midi' : effectiveMimeType;
     if (!validateMimeType(effectiveMimeType, session.filename)) {
       await deleteFile(req.file.path);
       await cleanupChunks(uploadId, userId);
@@ -1103,7 +1161,14 @@ router.post('/upload/chunk', authenticate, uploadChunk.single('chunk'), validate
         if (latest?.status === 'COMPLETED' && latest.fileId) {
           const existing = await prisma.file.findFirst({ where: { id: latest.fileId, userId } });
           if (existing) {
-            res.json({ completed: true, file: { ...existing, size: existing.size.toString() } });
+            res.json({
+              completed: true,
+              file: {
+                ...existing,
+                mimeType: normalizeMimeType(existing.mimeType, existing.name),
+                size: existing.size.toString(),
+              },
+            });
             return;
           }
         }
@@ -1218,7 +1283,7 @@ router.post('/upload/chunk', authenticate, uploadChunk.single('chunk'), validate
               id: fileId,
               name: session.filename,
               originalName: session.filename,
-              mimeType: effectiveMimeType,
+              mimeType: normalizedMimeType,
               size: actualSize,
               path: filePath,
               thumbnailPath: null,
@@ -1261,7 +1326,7 @@ router.post('/upload/chunk', authenticate, uploadChunk.single('chunk'), validate
         await deleteDirectory(getStoragePath('chunks', uploadId)).catch(() => { });
 
         // Generate thumbnail asynchronously (non-blocking)
-        generateThumbnail(filePath, fileId, mimeType)
+        generateThumbnail(filePath, fileId, normalizedMimeType)
           .then(async (thumbnailPath) => {
             if (thumbnailPath) {
               await prisma.file.update({
@@ -1271,6 +1336,11 @@ router.post('/upload/chunk', authenticate, uploadChunk.single('chunk'), validate
             }
           })
           .catch(() => { });
+
+        const shouldTranscodeMidi = isMidiFile(normalizedMimeType, session.filename);
+        if (shouldTranscodeMidi) {
+          await addMidiTranscodingJob(fileId, filePath, userId);
+        }
 
         res.json({
           completed: true,
@@ -1379,6 +1449,7 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
         case 'audio':
           where.OR = [
             { mimeType: { startsWith: 'audio/' } },
+            { mimeType: { in: Array.from(MIDI_MIME_TYPES) } },
             { name: { endsWith: '.mid', mode: 'insensitive' } },
             { name: { endsWith: '.midi', mode: 'insensitive' } },
           ];
@@ -1431,7 +1502,11 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
     ]);
 
     const response = {
-      files: files.map((f: any) => ({ ...f, size: f.size.toString() })),
+      files: files.map((f: any) => ({
+        ...f,
+        mimeType: normalizeMimeType(f.mimeType, f.name),
+        size: f.size.toString(),
+      })),
       pagination: {
         page: pageNum,
         limit: limitNum,
@@ -1477,7 +1552,11 @@ router.get('/:id([0-9a-fA-F-]{36})', authenticate, async (req: Request, res: Res
       return;
     }
 
-    res.json({ ...file, size: file.size.toString() });
+    res.json({
+      ...file,
+      mimeType: normalizeMimeType(file.mimeType, file.name),
+      size: file.size.toString(),
+    });
   } catch (error) {
     logger.error('Get file error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to get file' });
@@ -1523,7 +1602,11 @@ router.patch('/:id/rename', authenticate, validate(renameFileSchema), async (req
     // Invalidate cache after file rename
     await cache.invalidateAfterFileChange(userId, id);
 
-    res.json({ ...updated, size: updated.size.toString() });
+    res.json({
+      ...updated,
+      mimeType: normalizeMimeType(updated.mimeType, updated.name),
+      size: updated.size.toString(),
+    });
   } catch (error) {
     logger.error('Rename file error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to rename file' });
@@ -1553,7 +1636,11 @@ router.patch('/:id/favorite', authenticate, async (req: Request, res: Response) 
     // Invalidate cache after favorite change
     await cache.invalidateAfterFileChange(userId, id);
 
-    res.json({ ...updated, size: updated.size.toString() });
+    res.json({
+      ...updated,
+      mimeType: normalizeMimeType(updated.mimeType, updated.name),
+      size: updated.size.toString(),
+    });
   } catch (error) {
     logger.error('Toggle favorite error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to toggle favorite' });
@@ -1619,7 +1706,11 @@ router.patch('/:id/move', authenticate, validate(moveFileSchema), async (req: Re
     // Invalidate cache after file move
     await cache.invalidateAfterFileChange(userId, id);
 
-    res.json({ ...updated, size: updated.size.toString() });
+    res.json({
+      ...updated,
+      mimeType: normalizeMimeType(updated.mimeType, updated.name),
+      size: updated.size.toString(),
+    });
   } catch (error) {
     logger.error('Move file error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to move file' });
@@ -1838,6 +1929,37 @@ router.get('/:id/stream', authOptional, async (req: Request, res: Response) => {
 
     const stat = await fs.stat(file.path);
 
+    if (isMidiFile(file.mimeType, file.name)) {
+      const transcodedPath = file.transcodedPath || getStoragePath('files', userId, `${id}_transcoded.mp3`);
+      if (await fileExists(transcodedPath)) {
+        const transcodedStat = await fs.stat(transcodedPath);
+        return streamFile(req, res, { path: transcodedPath, mimeType: 'audio/mpeg', name: file.name }, transcodedStat);
+      }
+
+      const existingStatus = await getTranscodingJobStatus(id);
+      if (!existingStatus || existingStatus.status === 'FAILED' || existingStatus.status === 'CANCELLED') {
+        await addMidiTranscodingJob(id, file.path, userId);
+      }
+
+      if (existingStatus) {
+        res.status(202).json({
+          message: 'MIDI rendering in progress',
+          jobId: id,
+          status: existingStatus.status,
+          progress: existingStatus.progress,
+        });
+        return;
+      }
+
+      res.status(202).json({
+        message: 'MIDI rendering started',
+        jobId: id,
+        status: 'queued',
+        progress: 0,
+      });
+      return;
+    }
+
     // H-08: For video transcoding to MP4 - delegate to worker queue (non-blocking)
     if (req.query.transcode === 'true' && file.mimeType.startsWith('video/') && !file.mimeType.includes('mp4')) {
       logger.info('Video transcoding requested, delegating to queue', { fileId: id, mimeType: file.mimeType });
@@ -1952,6 +2074,62 @@ router.get('/:id/excel-html', authOptional, async (req: Request, res: Response) 
   }
 });
 
+// Transcoding status for MIDI playback
+router.get('/:id/transcoding-status', authenticate, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user!.userId;
+
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+
+    if (!isValidUUID(id)) {
+      res.status(400).json({ error: 'Invalid file ID format' });
+      return;
+    }
+
+    const result = await findFile(id, userId);
+
+    if (result.error === 'invalid_id') {
+      res.status(400).json({ error: 'Invalid file ID format' });
+      return;
+    }
+
+    const file = result.file;
+    if (!file) {
+      res.status(404).json({ error: 'File not found' });
+      return;
+    }
+
+    if (!isMidiFile(file.mimeType, file.name)) {
+      res.json({ ready: true, status: 'completed', progress: 100 });
+      return;
+    }
+
+    const transcodedPath = file.transcodedPath || getStoragePath('files', userId, `${id}_transcoded.mp3`);
+    if (await fileExists(transcodedPath)) {
+      res.json({ ready: true, status: 'completed', progress: 100 });
+      return;
+    }
+
+    const existingStatus = await getTranscodingJobStatus(id);
+    if (!existingStatus || existingStatus.status === 'FAILED' || existingStatus.status === 'CANCELLED') {
+      await addMidiTranscodingJob(id, file.path, userId);
+    }
+
+    res.json({
+      ready: false,
+      status: existingStatus?.status ?? 'queued',
+      progress: existingStatus?.progress ?? 0,
+      error: existingStatus?.error,
+    });
+  } catch (error) {
+    logger.error('Transcoding status error', {}, error instanceof Error ? error : undefined);
+    res.status(500).json({ error: 'Failed to get transcoding status' });
+  }
+});
+
 // View file (alias for stream, for compatibility)
 router.get('/:id/view', authOptional, async (req: Request, res: Response) => {
   try {
@@ -1983,6 +2161,27 @@ router.get('/:id/view', authOptional, async (req: Request, res: Response) => {
     }
 
     const stat = await fs.stat(file.path);
+
+    if (isMidiFile(file.mimeType, file.name)) {
+      const transcodedPath = file.transcodedPath || getStoragePath('files', userId, `${id}_transcoded.mp3`);
+      if (await fileExists(transcodedPath)) {
+        const transcodedStat = await fs.stat(transcodedPath);
+        return streamFile(req, res, { path: transcodedPath, mimeType: 'audio/mpeg', name: file.name }, transcodedStat);
+      }
+
+      const existingStatus = await getTranscodingJobStatus(id);
+      if (!existingStatus || existingStatus.status === 'FAILED' || existingStatus.status === 'CANCELLED') {
+        await addMidiTranscodingJob(id, file.path, userId);
+      }
+
+      res.status(202).json({
+        message: 'MIDI rendering in progress',
+        jobId: id,
+        status: existingStatus?.status ?? 'queued',
+        progress: existingStatus?.progress ?? 0,
+      });
+      return;
+    }
 
     return streamFile(req, res, file, stat);
   } catch (error) {
@@ -2442,6 +2641,7 @@ router.get('/search', authenticate, async (req: Request, res: Response) => {
         case 'audio':
           where.OR = [
             { mimeType: { startsWith: 'audio/' } },
+            { mimeType: { in: Array.from(MIDI_MIME_TYPES) } },
             { name: { endsWith: '.mid', mode: 'insensitive' } },
             { name: { endsWith: '.midi', mode: 'insensitive' } },
           ];
@@ -2554,6 +2754,7 @@ router.get('/search', authenticate, async (req: Request, res: Response) => {
     res.json({
       files: files.map((f: any) => ({
         ...f,
+        mimeType: normalizeMimeType(f.mimeType, f.name),
         size: f.size.toString(),
         folderName: f.folder?.name || null,
       })),

@@ -16,6 +16,12 @@
     "trackOf": "{{current}} de {{total}}",
     "drag": "Arrastar reprodutor"
   },
+  "maintenance": {
+    "title": "Estamos em manutenção",
+    "subtitle": "Voltaremos em breve. Obrigado pela paciência.",
+    "checking": "Verificando status...",
+    "adminBadge": "Você é administrador - pode continuar trabalhando"
+  },
   "header": {
     "search": "Pesquisar...",
     "searchLabel": "Pesquisar arquivos e pastas",

@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useLongPress } from '../../hooks/useLongPress';
+import { useTouchDevice } from '../../hooks/useTouchDevice';
 import DOMPurify from 'dompurify';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams, useLocation } from 'react-router-dom';
@@ -19,8 +21,9 @@ import {
   Loader2,
   Palette,
   Lock,
+  MoreHorizontal,
 } from 'lucide-react';
-import { SolidFolderIcon } from '../icons/SolidIcons';
+import { SolidFolderIcon, getDefaultIconSvg } from '../icons/SolidIcons';
 import { formatDate, cn } from '../../lib/utils';
 
 import { api } from '../../lib/api';
@@ -47,6 +50,7 @@ interface FolderCardProps {
 export default function FolderCard({ folder, view = 'grid', onRefresh, disableAnimation }: FolderCardProps) {
   const { t } = useTranslation();
   const reducedMotion = useReducedMotion();
+  const isTouchDevice = useTouchDevice();
   const [, setSearchParams] = useSearchParams();
   const location = useLocation();
   const isSelected = useFileStore(useCallback((state) => state.selectedItems.has(folder.id), [folder.id]));
@@ -73,14 +77,22 @@ export default function FolderCard({ folder, view = 'grid', onRefresh, disableAn
       ? 'folderShared'
       : 'folder';
   const customFolderSvg = useFileIconStore((state) => state.icons[iconCategory] || null);
+  const defaultFolderSvg = useMemo(() => getDefaultIconSvg(iconCategory), [iconCategory]);
   const sanitizedFolderSvg = useMemo(() => {
     if (!customFolderSvg) return null;
     return DOMPurify.sanitize(customFolderSvg, {
       USE_PROFILES: { svg: true, svgFilters: true },
     });
   }, [customFolderSvg]);
+  const sanitizedDefaultFolderSvg = useMemo(() => {
+    if (!defaultFolderSvg) return null;
+    return DOMPurify.sanitize(defaultFolderSvg, {
+      USE_PROFILES: { svg: true, svgFilters: true },
+    });
+  }, [defaultFolderSvg]);
   const hasCustomAppearance = Boolean(folder.color || folder.icon);
   const useCustomSvg = Boolean(sanitizedFolderSvg) && (iconCategory !== 'folder' || !hasCustomAppearance);
+  const useDefaultSvg = !useCustomSvg && !hasCustomAppearance && Boolean(sanitizedDefaultFolderSvg);
 
   const renderFolderIcon = (size: number) => {
     if (useCustomSvg && sanitizedFolderSvg) {
@@ -96,6 +108,22 @@ export default function FolderCard({ folder, view = 'grid', onRefresh, disableAn
             color: folder.color || undefined,
           }}
           dangerouslySetInnerHTML={{ __html: sanitizedFolderSvg }}
+        />
+      );
+    }
+
+    if (useDefaultSvg && sanitizedDefaultFolderSvg) {
+      return (
+        <div
+          className="custom-file-icon"
+          style={{
+            width: size,
+            height: size,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+          dangerouslySetInnerHTML={{ __html: sanitizedDefaultFolderSvg }}
         />
       );
     }
@@ -153,10 +181,8 @@ export default function FolderCard({ folder, view = 'grid', onRefresh, disableAn
     setContextMenu(null);
   }, [location.pathname, location.search]);
 
-  const handleContextMenu = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-
+  // Helper to open context menu at a given position
+  const openContextMenuAt = useCallback((position: { x: number; y: number }) => {
     // Get fresh state from store to ensure we have the latest selection
     const currentSelectedItems = useFileStore.getState().selectedItems;
 
@@ -171,12 +197,31 @@ export default function FolderCard({ folder, view = 'grid', onRefresh, disableAn
       setContextMenuSelection(new Set(currentSelectedItems));
     }
 
-    setContextMenu({ x: e.clientX, y: e.clientY });
+    setContextMenu(position);
+  }, [folder.id, selectSingle]);
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openContextMenuAt({ x: e.clientX, y: e.clientY });
   };
+
+  // Long-press handler for touch devices (opens context menu)
+  const longPressHandlers = useLongPress(
+    (position) => {
+      openContextMenuAt(position);
+    },
+    { delay: 500 }
+  );
 
   const handleClick = (e: React.MouseEvent) => {
     // Don't handle click if we're dragging
     if (isDragging) return;
+
+    // Skip if a long-press context menu was just triggered
+    if ((window as Window & { __longPressActive?: boolean }).__longPressActive) {
+      return;
+    }
 
     const { selectedItems: _selectedItems, lastSelectedId } = useFileStore.getState();
 
@@ -288,8 +333,18 @@ export default function FolderCard({ folder, view = 'grid', onRefresh, disableAn
     }
   }, [folder.id, folder.name, isDownloading, t]);
 
-  // Context menu items configuration
-  const contextMenuItems: ContextMenuItemOrDivider[] = useMemo(() => [
+  // State for showing full menu on mobile after clicking "More options"
+  const [showFullMobileMenu, setShowFullMobileMenu] = useState(false);
+
+  // Reset showFullMobileMenu when context menu closes
+  useEffect(() => {
+    if (!contextMenu) {
+      setShowFullMobileMenu(false);
+    }
+  }, [contextMenu]);
+
+  // All context menu items (full list)
+  const allContextMenuItems: ContextMenuItemOrDivider[] = useMemo(() => [
     { id: 'favorite', label: folder.isFavorite ? t('folderCard.removeFromFavorites') : t('folderCard.addToFavorites'), icon: Star, onClick: handleFavorite },
     { id: 'share', label: t('folderCard.share'), icon: Share2, onClick: () => setShowShareModal(true) },
     ContextMenuDividerItem(),
@@ -313,7 +368,34 @@ export default function FolderCard({ folder, view = 'grid', onRefresh, disableAn
       },
       danger: true,
     },
-  ], [t, folder.isFavorite, handleFavorite, contextMenuSelection, folder.id]);
+  ], [t, folder.isFavorite, folder.isProtected, handleFavorite, contextMenuSelection, folder.id]);
+
+  // Mobile-reduced menu items (main actions only + "More" button)
+  const mobileContextMenuItems: ContextMenuItemOrDivider[] = useMemo(() => [
+    { id: 'share', label: t('folderCard.share'), icon: Share2, onClick: () => setShowShareModal(true) },
+    {
+      id: 'delete',
+      label: t('folderCard.moveToTrash'),
+      icon: Trash2,
+      onClick: () => {
+        const ids = contextMenuSelection.size > 1 && contextMenuSelection.has(folder.id)
+          ? Array.from(contextMenuSelection)
+          : [folder.id];
+        window.dispatchEvent(new CustomEvent('file-delete-request', { detail: { ids } }));
+        setContextMenu(null);
+      },
+      danger: true,
+    },
+    ContextMenuDividerItem(),
+    { id: 'more', label: t('common.moreOptions'), icon: MoreHorizontal, onClick: () => setShowFullMobileMenu(true) },
+  ], [t, contextMenuSelection, folder.id]);
+
+  // Choose which menu to show based on device type and state
+  const contextMenuItems = useMemo(() => {
+    if (!isTouchDevice) return allContextMenuItems;
+    if (showFullMobileMenu) return allContextMenuItems;
+    return mobileContextMenuItems;
+  }, [isTouchDevice, showFullMobileMenu, allContextMenuItems, mobileContextMenuItems]);
 
   const closeContextMenu = () => setContextMenu(null);
 
@@ -345,6 +427,10 @@ export default function FolderCard({ folder, view = 'grid', onRefresh, disableAn
           onClick={handleClick}
           onDoubleClick={handleDoubleClick}
           onContextMenu={handleContextMenu}
+          onTouchStart={longPressHandlers.onTouchStart}
+          onTouchMove={longPressHandlers.onTouchMove}
+          onTouchEnd={longPressHandlers.onTouchEnd}
+          onTouchCancel={longPressHandlers.onTouchCancel}
           tabIndex={0}
           className={cn(
             'premium-card-list group',
@@ -354,8 +440,8 @@ export default function FolderCard({ folder, view = 'grid', onRefresh, disableAn
           )}
         >
           {/* Folder Icon */}
-          <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center">
-            {renderFolderIcon(28)}
+          <div className="w-12 h-12 flex-shrink-0 flex items-center justify-center">
+            {renderFolderIcon(40)}
           </div>
 
           {/* Content */}
@@ -522,6 +608,10 @@ export default function FolderCard({ folder, view = 'grid', onRefresh, disableAn
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
         onContextMenu={handleContextMenu}
+        onTouchStart={longPressHandlers.onTouchStart}
+        onTouchMove={longPressHandlers.onTouchMove}
+        onTouchEnd={longPressHandlers.onTouchEnd}
+        onTouchCancel={longPressHandlers.onTouchCancel}
         tabIndex={0}
         className={cn(
           'premium-card group',
@@ -564,7 +654,7 @@ export default function FolderCard({ folder, view = 'grid', onRefresh, disableAn
 
         {/* Folder Icon Area */}
         <div className="premium-card-thumbnail">
-          {renderFolderIcon(60)}
+          {renderFolderIcon(80)}
         </div>
 
         {/* Content Area - Overlay at bottom */}

@@ -240,13 +240,13 @@ export default function SettingsSection() {
                         <button
                             onClick={() => setSystemSettings({ ...systemSettings, allowRegistration: !systemSettings.allowRegistration })}
                             className={cn(
-                                "relative w-12 h-7 rounded-full transition-all duration-300",
-                                systemSettings.allowRegistration ? 'bg-primary-600' : 'bg-dark-200 dark:bg-dark-600'
+                                "relative w-11 h-6 rounded-full transition-colors duration-300",
+                                systemSettings.allowRegistration ? 'bg-primary-600' : 'bg-dark-300 dark:bg-dark-600'
                             )}
                         >
                             <span className={cn(
-                                "absolute top-1 w-5 h-5 rounded-full bg-white shadow-md transition-all duration-300",
-                                systemSettings.allowRegistration ? 'left-6' : 'left-1'
+                                "absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-all duration-300",
+                                systemSettings.allowRegistration ? 'left-[calc(100%-1.375rem)]' : 'left-0.5'
                             )} />
                         </button>
                     </div>

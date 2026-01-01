@@ -145,16 +145,11 @@ async function main() {
     // Copy compiled JS
     copyDirSync(path.join(rootDir, 'backend', 'dist'), path.join(backendDest, 'dist'));
 
-    // Copy MIDI assets (soundfont + optional binaries)
-    const backendAssetsSrc = path.join(rootDir, 'backend', 'assets');
-    if (fs.existsSync(backendAssetsSrc)) {
-        copyDirSync(backendAssetsSrc, path.join(backendDest, 'assets'));
-        console.log('   V MIDI assets copied (soundfonts)');
-    }
-    const backendBinSrc = path.join(rootDir, 'backend', 'bin');
-    if (fs.existsSync(backendBinSrc)) {
-        copyDirSync(backendBinSrc, path.join(backendDest, 'bin'));
-        console.log('   V MIDI binaries copied (fluidsynth)');
+    // Copy backend assets (soundfonts for MIDI)
+    const assetsSource = path.join(rootDir, 'backend', 'assets');
+    if (fs.existsSync(assetsSource)) {
+        copyDirSync(assetsSource, path.join(backendDest, 'assets'));
+        console.log('   ✓ Backend assets copied (soundfonts)');
     }
 
     // Copy Prisma schema and migrations
@@ -256,7 +251,6 @@ WORKDIR /app
 # Install OS dependencies for native modules
 RUN apt-get update && apt-get install -y --no-install-recommends \\
     ffmpeg \\
-    fluidsynth \\
     p7zip-full \\
     graphicsmagick \\
     poppler-utils \\
@@ -284,11 +278,6 @@ RUN npx prisma generate
 # Copy pre-built application
 COPY dist ./dist
 COPY assets ./assets
-COPY bin ./bin
-
-# MIDI rendering defaults
-ENV MIDI_FLUIDSYNTH_PATH=/usr/bin/fluidsynth
-ENV MIDI_SOUNDFONT_PATH=/app/assets/soundfonts/FluidR3_GM.sf2
 
 # Create non-root user and set permissions
 RUN groupadd -g 1001 cloudbox && \\
@@ -393,17 +382,10 @@ Or serve the \`frontend/dist\` folder with any static file server (Caddy, nginx,
 - Node.js >= 18
 - PostgreSQL
 - Redis (optional, for caching and job queues)
-- FluidSynth binary and a GM soundfont (for MIDI -> MP3 rendering)
 
 ## Environment Variables
 See \`backend/.env.example\` for all available configuration options.
 For Docker deployments, see \`.env.production.example\`.
-
-## MIDI Rendering (Manual Install)
-- Place a GM soundfont at \`backend/assets/soundfonts/FluidR3_GM.sf2\`
-- Place FluidSynth at \`backend/bin/fluidsynth/fluidsynth\` (Linux/macOS) or
-  \`backend/bin/fluidsynth/fluidsynth.exe\` (Windows)
-- On Linux/macOS, run: \`chmod +x backend/bin/fluidsynth/fluidsynth\`
 `;
     fs.writeFileSync(path.join(tempDir, 'README.md'), readme);
 

@@ -16,6 +16,12 @@
     "trackOf": "{{current}} di {{total}}",
     "drag": "Trascina lettore"
   },
+  "maintenance": {
+    "title": "Siamo in manutenzione",
+    "subtitle": "Torneremo presto. Grazie per la pazienza.",
+    "checking": "Controllo stato...",
+    "adminBadge": "Sei un amministratore - puoi continuare a lavorare"
+  },
   "header": {
     "search": "Cerca...",
     "searchLabel": "Cerca file e cartelle",

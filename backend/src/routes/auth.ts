@@ -15,6 +15,7 @@ import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { config } from '../config/index.js';
 import { auditLog, getClientIP } from '../lib/audit.js';
+import { getMaintenanceStatus } from '../middleware/maintenance.js';
 import {
   createSession,
   invalidateSession,
@@ -299,6 +300,22 @@ router.post('/login', validate(loginSchema), async (req: Request, res: Response)
     }
 
     const user = await prisma.user.findUnique({ where: { email } });
+
+    // Maintenance mode: only allow admins to log in so they can manage the system.
+    // Note: This runs on the auth route itself because the global maintenance middleware
+    // intentionally exempts /api/auth to allow an admin to obtain a token.
+    const isMaintenance = await getMaintenanceStatus();
+    if (isMaintenance && user?.role !== 'ADMIN') {
+      res.status(503).json({
+        error: 'El sistema está en mantenimiento. Por favor, intenta de nuevo más tarde.',
+        code: 'MAINTENANCE_MODE',
+        maintenance: true,
+        message: 'El sistema está en mantenimiento. Vuelve más tarde.',
+        retryAfter: 3600,
+      });
+      return;
+    }
+
     if (!user) {
       await recordLoginAttempt(email, ipAddress, false, userAgent);
 

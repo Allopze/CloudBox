@@ -1,6 +1,6 @@
-import { useEffect, useRef, useCallback, ReactNode } from 'react';
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { X } from 'lucide-react';
+import { useEffect, useRef, useCallback, ReactNode, useState } from 'react';
+import { motion, AnimatePresence, useReducedMotion, useDragControls, PanInfo } from 'framer-motion';
+import { ChevronLeft } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 interface MobileDrawerProps {
@@ -19,6 +19,7 @@ interface MobileDrawerProps {
  * - Backdrop overlay with blur effect
  * - Focus trap when open
  * - Closes on Escape or backdrop click
+ * - Drag handle for swipe-to-close gesture
  * - Respects prefers-reduced-motion
  */
 export default function MobileDrawer({
@@ -33,6 +34,8 @@ export default function MobileDrawer({
     const previousActiveElement = useRef<HTMLElement | null>(null);
     const onCloseRef = useRef(onClose);
     const reducedMotion = useReducedMotion();
+    const dragControls = useDragControls();
+    const [dragX, setDragX] = useState(0);
 
     useEffect(() => {
         onCloseRef.current = onClose;
@@ -115,18 +118,32 @@ export default function MobileDrawer({
         };
     }, [isOpen, handleKeyDown, getFocusableElements]);
 
+    // Handle drag end
+    const handleDragEnd = (_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+        // Close if dragged more than 80px to the left or with enough velocity
+        if (info.offset.x < -80 || info.velocity.x < -500) {
+            onClose();
+        }
+        setDragX(0);
+    };
+
+    const handleDrag = (_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+        // Only track leftward drags (negative x)
+        setDragX(Math.min(0, info.offset.x));
+    };
+
     // Animation variants
     const slideFrom = side === 'left' ? '-100%' : '100%';
 
     const drawerVariants = reducedMotion
         ? {
             initial: { opacity: 0 },
-            animate: { opacity: 1 },
+            animate: { opacity: 1, x: dragX },
             exit: { opacity: 0 },
         }
         : {
             initial: { x: slideFrom, opacity: 0 },
-            animate: { x: 0, opacity: 1 },
+            animate: { x: dragX, opacity: 1 },
             exit: { x: slideFrom, opacity: 0 },
         };
 
@@ -152,7 +169,7 @@ export default function MobileDrawer({
                         aria-hidden="true"
                     />
 
-                    {/* Drawer */}
+                    {/* Drawer with drag handle */}
                     <motion.div
                         ref={drawerRef}
                         role="dialog"
@@ -172,26 +189,34 @@ export default function MobileDrawer({
                         animate="animate"
                         exit="exit"
                         variants={drawerVariants}
+                        drag="x"
+                        dragControls={dragControls}
+                        dragConstraints={{ left: -300, right: 0 }}
+                        dragElastic={0.1}
+                        onDrag={handleDrag}
+                        onDragEnd={handleDragEnd}
                         transition={{
-                            type: reducedMotion ? 'tween' : 'spring',
-                            damping: 25,
-                            stiffness: 300,
-                            duration: reducedMotion ? 0.1 : undefined,
+                            type: 'tween',
+                            ease: 'easeOut',
+                            duration: reducedMotion ? 0.1 : 0.25,
                         }}
                     >
+                        {/* Drag handle - pill on right edge */}
+                        <button
+                            onClick={onClose}
+                            onPointerDown={(e) => dragControls.start(e)}
+                            className="absolute top-1/2 -right-6 -translate-y-1/2 flex items-center justify-center w-6 h-24 bg-dark-100 dark:bg-dark-800 rounded-r-2xl cursor-grab active:cursor-grabbing touch-none z-10 border-y border-r border-dark-200 dark:border-dark-700"
+                            aria-label="Close drawer"
+                        >
+                            <ChevronLeft className="w-5 h-5 text-dark-400 dark:text-dark-500" />
+                        </button>
+
                         {/* Header */}
                         {title && (
                             <div className="flex items-center justify-between px-4 py-3 border-b border-dark-200 dark:border-dark-700">
                                 <h2 className="text-lg font-semibold text-dark-900 dark:text-white">
                                     {title}
                                 </h2>
-                                <button
-                                    onClick={onClose}
-                                    className="p-2 rounded-lg hover:bg-dark-100 dark:hover:bg-dark-800 transition-colors"
-                                    aria-label="Close drawer"
-                                >
-                                    <X className="w-5 h-5 text-dark-500 dark:text-dark-400" />
-                                </button>
                             </div>
                         )}
 

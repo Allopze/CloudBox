@@ -74,6 +74,15 @@ export const config = {
     defaultQuota: BigInt(process.env.DEFAULT_QUOTA || '5368709120'),
   },
 
+  midi: {
+    soundfontPath: process.env.MIDI_SOUNDFONT_PATH || '',
+    fluidsynthPath: process.env.MIDI_FLUIDSYNTH_PATH || 'fluidsynth',
+    sampleRate: parseInt(process.env.MIDI_SAMPLE_RATE || '44100'),
+    gain: parseFloat(process.env.MIDI_GAIN || '1.0'),
+    mp3Quality: parseInt(process.env.MIDI_MP3_QUALITY || '2'),
+    renderTimeoutMs: parseInt(process.env.MIDI_RENDER_TIMEOUT_MS || '300000'),
+  },
+
   trash: {
     retentionDays: parseInt(process.env.TRASH_RETENTION_DAYS || '30'),
   },

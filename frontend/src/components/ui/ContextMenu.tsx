@@ -80,7 +80,8 @@ export default function ContextMenu({ items, position, onClose }: ContextMenuPro
     useEffect(() => {
         if (!position) return;
 
-        const handleClickOutside = (e: MouseEvent) => {
+        const handleClickOutside = (e: MouseEvent | TouchEvent) => {
+            // Ignore if the event originates from within the menu
             if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
                 onClose();
             }
@@ -93,16 +94,19 @@ export default function ContextMenu({ items, position, onClose }: ContextMenuPro
             }
         };
 
-        // Delay adding listeners to avoid immediate close
+        // Delay adding listeners to avoid immediate close from long-press release
+        // 300ms is needed to let all touch-end related events complete
         const timeoutId = setTimeout(() => {
             document.addEventListener('mousedown', handleClickOutside, true);
+            document.addEventListener('touchstart', handleClickOutside, true);
             document.addEventListener('scroll', handleScroll, true);
             document.addEventListener('contextmenu', handleContextMenu, true);
-        }, 0);
+        }, 300);
 
         return () => {
             clearTimeout(timeoutId);
             document.removeEventListener('mousedown', handleClickOutside, true);
+            document.removeEventListener('touchstart', handleClickOutside, true);
             document.removeEventListener('scroll', handleScroll, true);
             document.removeEventListener('contextmenu', handleContextMenu, true);
         };

@@ -25,8 +25,9 @@ import { emitTranscodingProgress, emitTranscodingComplete } from './socket.js';
 import logger from './logger.js';
 import { getStoragePath } from './storage.js';
 
-// Job data interface
-interface TranscodingJobData {
+// Job data interfaces
+interface VideoTranscodingJobData {
+  type: 'video';
   fileId: string;
   inputPath: string;
   outputPath: string;
@@ -34,6 +35,16 @@ interface TranscodingJobData {
   format: 'mp4' | 'webm';
   quality: 'low' | 'medium' | 'high';
 }
+
+interface MidiTranscodingJobData {
+  type: 'midi';
+  fileId: string;
+  inputPath: string;
+  outputPath: string;
+  userId: string;
+}
+
+type TranscodingJobData = VideoTranscodingJobData | MidiTranscodingJobData;
 
 // Job result interface
 interface TranscodingJobResult {
@@ -211,7 +222,7 @@ export async function initTranscodingQueue(): Promise<void> {
  * Process a transcoding job
  */
 async function processTranscodingJob(job: Job<TranscodingJobData>): Promise<TranscodingJobResult> {
-  const { fileId, inputPath, outputPath, userId, format, quality } = job.data;
+  const { fileId, inputPath, outputPath } = job.data;
   const startTime = Date.now();
 
   // Update job status in database
@@ -236,23 +247,38 @@ async function processTranscodingJob(job: Job<TranscodingJobData>): Promise<Tran
     // Check if input file exists
     await fs.access(inputPath);
 
-    // Get video duration for progress calculation
-    const duration = await getVideoDuration(inputPath);
-    const preset = QUALITY_PRESETS[quality as keyof typeof QUALITY_PRESETS];
+    if (job.data.type === 'video') {
+      // Get video duration for progress calculation
+      const duration = await getVideoDuration(inputPath);
+      const preset = QUALITY_PRESETS[job.data.quality as keyof typeof QUALITY_PRESETS];
 
-    // Transcode with progress tracking
-    await transcodeVideo(inputPath, outputPath, format, preset, (progress) => {
-      job.progress(progress);
-      emitTranscodingProgress(fileId, progress, 'PROCESSING');
+      // Transcode with progress tracking
+      await transcodeVideo(inputPath, outputPath, job.data.format, preset, (progress) => {
+        job.progress(progress);
+        emitTranscodingProgress(fileId, progress, 'PROCESSING');
 
-      // Update database periodically
-      if (progress % 10 === 0) {
+        // Update database periodically
+        if (progress % 10 === 0) {
+          prisma.transcodingJob.update({
+            where: { fileId },
+            data: { progress },
+          }).catch(() => { });
+        }
+      }, duration);
+    } else {
+      const updateProgress = (progress: number) => {
+        job.progress(progress);
+        emitTranscodingProgress(fileId, progress, 'PROCESSING');
         prisma.transcodingJob.update({
           where: { fileId },
           data: { progress },
         }).catch(() => { });
-      }
-    }, duration);
+      };
+
+      updateProgress(10);
+      await renderMidiToMp3(inputPath, outputPath, updateProgress);
+      updateProgress(100);
+    }
 
     // Update file record with transcoded path
     await prisma.file.update({
@@ -397,6 +423,94 @@ async function transcodeVideo(
   });
 }
 
+async function renderMidiToMp3(
+  inputPath: string,
+  outputPath: string,
+  onProgress: (progress: number) => void
+): Promise<void> {
+  const { soundfontPath, fluidsynthPath, sampleRate, gain, mp3Quality, renderTimeoutMs } = config.midi;
+
+  if (!soundfontPath) {
+    throw new Error('MIDI soundfont path is not configured');
+  }
+
+  await fs.access(soundfontPath);
+
+  const outputDir = path.dirname(outputPath);
+  await fs.mkdir(outputDir, { recursive: true });
+
+  const tempWavPath = getStoragePath('temp', `${path.basename(outputPath, '.mp3')}_${Date.now()}.wav`);
+
+    try {
+      await runProcessWithTimeout(
+        fluidsynthPath,
+        [
+          '-ni',
+          '-g', String(gain),
+          '-r', String(sampleRate),
+          '-F', tempWavPath,
+          '-T', 'wav',
+          soundfontPath,
+          inputPath,
+        ],
+        renderTimeoutMs,
+        'fluidsynth'
+      );
+
+    onProgress(50);
+
+    await runProcessWithTimeout(
+      'ffmpeg',
+      [
+        '-y',
+        '-i', tempWavPath,
+        '-codec:a', 'libmp3lame',
+        '-q:a', String(mp3Quality),
+        outputPath,
+      ],
+      renderTimeoutMs,
+      'ffmpeg'
+    );
+  } finally {
+    await fs.unlink(tempWavPath).catch(() => { });
+  }
+}
+
+async function runProcessWithTimeout(
+  command: string,
+  args: string[],
+  timeoutMs: number,
+  label: string
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { stdio: ['ignore', 'ignore', 'pipe'] });
+    let stderr = '';
+
+    const timeout = setTimeout(() => {
+      child.kill('SIGKILL');
+      reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    child.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    child.on('close', (code) => {
+      clearTimeout(timeout);
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`${label} exited with code ${code}: ${stderr.substring(0, 500)}`));
+      }
+    });
+
+    child.on('error', (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+  });
+}
+
 /**
  * Add a transcoding job to the queue
  */
@@ -412,6 +526,7 @@ export async function addTranscodingJob(
   const outputPath = getStoragePath('files', userId, `${fileId}_transcoded${ext}`);
 
   const jobData: TranscodingJobData = {
+    type: 'video',
     fileId,
     inputPath,
     outputPath,
@@ -419,6 +534,30 @@ export async function addTranscodingJob(
     format,
     quality,
   };
+
+  return enqueueTranscodingJob(jobData);
+}
+
+export async function addMidiTranscodingJob(
+  fileId: string,
+  inputPath: string,
+  userId: string
+): Promise<string | null> {
+  const outputPath = getStoragePath('files', userId, `${fileId}_transcoded.mp3`);
+
+  const jobData: TranscodingJobData = {
+    type: 'midi',
+    fileId,
+    inputPath,
+    outputPath,
+    userId,
+  };
+
+  return enqueueTranscodingJob(jobData);
+}
+
+async function enqueueTranscodingJob(jobData: TranscodingJobData): Promise<string | null> {
+  const { fileId, userId } = jobData;
 
   // If Redis is available, use Bull queue
   if (transcodingQueue && isRedisAvailable) {

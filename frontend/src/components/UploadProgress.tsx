@@ -21,7 +21,7 @@ export default function UploadProgress() {
   if (uploadsArray.length === 0) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 w-80 bg-white dark:bg-dark-800 rounded-xl shadow-2xl border z-50 overflow-hidden">
+    <div className="fixed bottom-4 right-4 w-80 bg-white dark:bg-dark-800 rounded-xl shadow-2xl border z-50 overflow-hidden safe-area-bottom">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-dark-50 dark:bg-dark-700">
         <div className="flex items-center gap-2">

@@ -1,9 +1,10 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useEffect, lazy, Suspense } from 'react';
 import { useAuthStore } from './stores/authStore';
 import { useThemeStore } from './stores/themeStore';
 import { useBrandingStore } from './stores/brandingStore';
 import { useFileIconStore } from './stores/fileIconStore';
+import { useMaintenanceStore } from './stores/maintenanceStore';
 import { preloadUploadConfig } from './lib/chunkedUpload';
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -45,6 +46,9 @@ const AdminFileIcons = lazy(() => import('./pages/admin/AdminFileIcons'));
 const PublicShare = lazy(() => import('./pages/public/PublicShare'));
 const LegalPage = lazy(() => import('./pages/public/LegalPage'));
 
+import MaintenancePage from './pages/MaintenancePage';
+import { toast } from 'react-hot-toast';
+
 // Components
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
@@ -63,16 +67,19 @@ const PageLoader = () => (
 );
 
 function App() {
-  const { checkAuth, isAuthenticated, isLoading } = useAuthStore();
+  const { checkAuth, isAuthenticated, isLoading, user } = useAuthStore();
   const { isDark } = useThemeStore();
   const { loadBranding } = useBrandingStore();
   const { loadIcons } = useFileIconStore();
+  const { isMaintenance, checkStatus } = useMaintenanceStore();
+
 
   useEffect(() => {
     const abortController = new AbortController();
     checkAuth(abortController.signal);
     loadBranding(abortController.signal);
     loadIcons(); // Load custom file icons
+    checkStatus();
 
     // Performance: Preload upload config to avoid latency on first upload
     preloadUploadConfig();
@@ -80,7 +87,7 @@ function App() {
     return () => {
       abortController.abort();
     };
-  }, [checkAuth, loadBranding, loadIcons]);
+  }, [checkAuth, loadBranding, loadIcons, checkStatus]);
 
   useEffect(() => {
     if (isDark) {
@@ -92,6 +99,31 @@ function App() {
 
   // Don't redirect while checking auth - wait for it to complete
   const shouldRedirectFromAuth = !isLoading && isAuthenticated;
+
+  // Show maintenance page if active and user is NOT admin
+  // We allow admins to pass through
+  useEffect(() => {
+    if (isMaintenance && user?.role === 'ADMIN') {
+      // Notify admin they are in maintenance mode
+      toast('Modo mantenimiento activo (Acceso Admin)', {
+        icon: '⚠️',
+        duration: 5000,
+        id: 'maintenance-toast' // prevent duplicates
+      });
+    }
+  }, [isMaintenance, user]);
+
+  // Check if current path is exempt from maintenance mode
+  const location = useLocation();
+  const isExemptPath =
+    location.pathname === '/login' ||
+    location.pathname.startsWith('/share/') ||
+    location.pathname === '/privacy' ||
+    location.pathname === '/terms';
+
+  if (isMaintenance && (!user || user.role !== 'ADMIN') && !isLoading && !isExemptPath) {
+    return <MaintenancePage />;
+  }
 
   return (
     <ErrorBoundary>

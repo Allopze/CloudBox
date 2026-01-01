@@ -11,6 +11,21 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 
+const MIDI_MIME_TYPES = new Set([
+  'audio/midi',
+  'audio/mid',
+  'audio/x-midi',
+  'audio/x-mid',
+  'application/midi',
+  'application/x-midi',
+  'audio/sp-midi',
+  'audio/smf',
+]);
+
+const isMidiMime = (mimeType: string): boolean => {
+  return MIDI_MIME_TYPES.has(mimeType.toLowerCase());
+};
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
@@ -60,7 +75,7 @@ export function formatDateTime(date: string | Date, locale?: string): string {
 export function getFileIcon(mimeType: string): LucideIcon {
   if (mimeType.startsWith('image/')) return Image;
   if (mimeType.startsWith('video/')) return Video;
-  if (mimeType.startsWith('audio/')) return Music;
+  if (mimeType.startsWith('audio/') || isMidiMime(mimeType)) return Music;
   if (mimeType.includes('pdf')) return FileText;
   if (mimeType.includes('word') || mimeType.includes('document')) return FileText;
   if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) return FileSpreadsheet;
@@ -72,7 +87,7 @@ export function getFileIcon(mimeType: string): LucideIcon {
 export function getFileColor(mimeType: string): string {
   if (mimeType.startsWith('image/')) return 'text-green-500';
   if (mimeType.startsWith('video/')) return 'text-purple-500';
-  if (mimeType.startsWith('audio/')) return 'text-pink-500';
+  if (mimeType.startsWith('audio/') || isMidiMime(mimeType)) return 'text-pink-500';
   if (mimeType.includes('pdf')) return 'text-red-500';
   if (mimeType.includes('word') || mimeType.includes('document')) return 'text-blue-500';
   if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) return 'text-emerald-500';
@@ -85,6 +100,7 @@ export function isPreviewable(mimeType: string): boolean {
     mimeType.startsWith('image/') ||
     mimeType.startsWith('video/') ||
     mimeType.startsWith('audio/') ||
+    isMidiMime(mimeType) ||
     mimeType === 'application/pdf' ||
     isDocument(mimeType)
   );
@@ -99,7 +115,7 @@ export function isVideo(mimeType: string): boolean {
 }
 
 export function isAudio(mimeType: string): boolean {
-  return mimeType.startsWith('audio/');
+  return mimeType.startsWith('audio/') || isMidiMime(mimeType);
 }
 
 export function isDocument(mimeType: string): boolean {

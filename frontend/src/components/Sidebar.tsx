@@ -606,16 +606,16 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps) {
   const SidebarContent = () => (
     <>
       {/* Logo */}
-      <Link to="/files" className="h-14 px-3 flex items-center justify-center flex-shrink-0 cursor-pointer">
+      <Link to="/files" className="h-20 px-3 flex items-center justify-center flex-shrink-0 cursor-pointer">
         {((isDark ? branding.logoDarkUrl : branding.logoLightUrl) || branding.logoUrl) ? (
           <img
             src={(isDark ? branding.logoDarkUrl : branding.logoLightUrl) || branding.logoUrl}
             alt="Logo"
-            className="h-10 object-contain"
+            className="h-12 object-contain"
           />
         ) : (
-          <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center">
-            <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
+          <div className="w-12 h-12 bg-primary-600 rounded-xl flex items-center justify-center">
+            <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
               <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" />
             </svg>
           </div>

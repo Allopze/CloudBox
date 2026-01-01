@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useLongPress } from '../../hooks/useLongPress';
+import { useTouchDevice } from '../../hooks/useTouchDevice';
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router-dom';
 import { useDraggable } from '@dnd-kit/core';
@@ -17,6 +19,7 @@ import {
   Eye,
   Tag,
   History,
+  MoreHorizontal,
 } from 'lucide-react';
 import { formatBytes, formatDate, cn } from '../../lib/utils';
 import { api, openSignedFileUrl } from '../../lib/api';
@@ -99,6 +102,7 @@ function getFileExtension(fileName: string): string {
 export default function FileCard({ file, view = 'grid', onRefresh, onPreview, onFavoriteToggle, disableAnimation }: FileCardProps) {
   const { t } = useTranslation();
   const reducedMotion = useReducedMotion();
+  const isTouchDevice = useTouchDevice();
   const location = useLocation();
   const isSelected = useFileStore(useCallback((state) => state.selectedItems.has(file.id), [file.id]));
   // Use getState() for action functions to avoid unnecessary subscriptions
@@ -136,10 +140,8 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview, on
     setContextMenu(null);
   }, [location.pathname, location.search]);
 
-  const handleContextMenu = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-
+  // Helper to open context menu at a given position
+  const openContextMenuAt = useCallback((position: { x: number; y: number }) => {
     // Get fresh state from store to ensure we have the latest selection
     const currentSelectedItems = useFileStore.getState().selectedItems;
 
@@ -154,8 +156,22 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview, on
       setContextMenuSelection(new Set(currentSelectedItems));
     }
 
-    setContextMenu({ x: e.clientX, y: e.clientY });
+    setContextMenu(position);
+  }, [file.id, selectSingle]);
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openContextMenuAt({ x: e.clientX, y: e.clientY });
   };
+
+  // Long-press handler for touch devices (opens context menu)
+  const longPressHandlers = useLongPress(
+    (position) => {
+      openContextMenuAt(position);
+    },
+    { delay: 500 }
+  );
 
   // Get file extension and color for the icon
   const fileExtension = getFileExtension(file.name);
@@ -165,6 +181,11 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview, on
   const handleClick = (e: React.MouseEvent) => {
     // Don't handle click if we're dragging
     if (isDragging) return;
+
+    // Skip if a long-press context menu was just triggered
+    if ((window as Window & { __longPressActive?: boolean }).__longPressActive) {
+      return;
+    }
 
     const { selectedItems, lastSelectedId } = useFileStore.getState();
 
@@ -243,8 +264,18 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview, on
     }
   }, [file.id, file.isFavorite, t, onRefresh, onFavoriteToggle]);
 
-  // Context menu items configuration
-  const contextMenuItems: ContextMenuItemOrDivider[] = useMemo(() => [
+  // State for showing full menu on mobile after clicking "More options"
+  const [showFullMobileMenu, setShowFullMobileMenu] = useState(false);
+
+  // Reset showFullMobileMenu when context menu closes
+  useEffect(() => {
+    if (!contextMenu) {
+      setShowFullMobileMenu(false);
+    }
+  }, [contextMenu]);
+
+  // All context menu items (full list)
+  const allContextMenuItems: ContextMenuItemOrDivider[] = useMemo(() => [
     { id: 'open', label: t('fileCard.open'), icon: Eye, onClick: () => { setContextMenu(null); handleDoubleClick(); } },
     ContextMenuDividerItem(),
     { id: 'download', label: t('fileCard.download'), icon: Download, onClick: handleDownload },
@@ -263,7 +294,6 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview, on
       label: t('fileCard.moveToTrash'),
       icon: Trash2,
       onClick: () => {
-        // Determine which ids to delete (respect multi-selection captured on context menu open)
         const ids = contextMenuSelection.size > 1 && contextMenuSelection.has(file.id)
           ? Array.from(contextMenuSelection)
           : [file.id];
@@ -273,6 +303,35 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview, on
       danger: true,
     },
   ], [t, file.isFavorite, handleDownload, handleFavorite, handleDoubleClick, contextMenuSelection, file.id]);
+
+  // Mobile-reduced menu items (main actions only + "More" button)
+  const mobileContextMenuItems: ContextMenuItemOrDivider[] = useMemo(() => [
+    { id: 'open', label: t('fileCard.open'), icon: Eye, onClick: () => { setContextMenu(null); handleDoubleClick(); } },
+    { id: 'download', label: t('fileCard.download'), icon: Download, onClick: handleDownload },
+    { id: 'share', label: t('fileCard.share'), icon: Share2, onClick: () => setShowShareModal(true) },
+    {
+      id: 'delete',
+      label: t('fileCard.moveToTrash'),
+      icon: Trash2,
+      onClick: () => {
+        const ids = contextMenuSelection.size > 1 && contextMenuSelection.has(file.id)
+          ? Array.from(contextMenuSelection)
+          : [file.id];
+        window.dispatchEvent(new CustomEvent('file-delete-request', { detail: { ids } }));
+        setContextMenu(null);
+      },
+      danger: true,
+    },
+    ContextMenuDividerItem(),
+    { id: 'more', label: t('common.moreOptions'), icon: MoreHorizontal, onClick: () => setShowFullMobileMenu(true) },
+  ], [t, handleDownload, handleDoubleClick, contextMenuSelection, file.id]);
+
+  // Choose which menu to show based on device type and state
+  const contextMenuItems = useMemo(() => {
+    if (!isTouchDevice) return allContextMenuItems;
+    if (showFullMobileMenu) return allContextMenuItems;
+    return mobileContextMenuItems;
+  }, [isTouchDevice, showFullMobileMenu, allContextMenuItems, mobileContextMenuItems]);
 
   const closeContextMenu = () => setContextMenu(null);
 
@@ -300,6 +359,10 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview, on
           onDoubleClick={handleDoubleClick}
           onKeyDown={handleKeyDown}
           onContextMenu={handleContextMenu}
+          onTouchStart={longPressHandlers.onTouchStart}
+          onTouchMove={longPressHandlers.onTouchMove}
+          onTouchEnd={longPressHandlers.onTouchEnd}
+          onTouchCancel={longPressHandlers.onTouchCancel}
           tabIndex={0}
           className={cn(
             'premium-card-list group',
@@ -308,7 +371,7 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview, on
           )}
         >
           {/* Type-specific Icon with extension or Thumbnail */}
-          <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center overflow-hidden rounded">
+          <div className="w-12 h-12 flex-shrink-0 flex items-center justify-center overflow-hidden rounded">
             {file.thumbnailPath ? (
               <AuthenticatedImage
                 fileId={file.id}
@@ -415,6 +478,10 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview, on
         onDoubleClick={handleDoubleClick}
         onKeyDown={handleKeyDown}
         onContextMenu={handleContextMenu}
+        onTouchStart={longPressHandlers.onTouchStart}
+        onTouchMove={longPressHandlers.onTouchMove}
+        onTouchEnd={longPressHandlers.onTouchEnd}
+        onTouchCancel={longPressHandlers.onTouchCancel}
         tabIndex={0}
         className={cn(
           'premium-card group',

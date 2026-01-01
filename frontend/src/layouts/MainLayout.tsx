@@ -603,7 +603,7 @@ export default function MainLayout() {
             incrementProgress(opId, itemName);
           }
 
-          completeOperation(opId);
+          completeOperation(opId, t('files.deleted', { count: total }));
           clearSelection();
           // Note: No toast here - GlobalProgressIndicator already shows completion
           // Trigger a refresh by dispatching a custom event
@@ -918,6 +918,11 @@ export default function MainLayout() {
   const handleContextMenu = (e: React.MouseEvent) => {
     if (!showContextMenu) return;
 
+    // Check if a long-press on a file/folder is in progress
+    if ((window as Window & { __longPressActive?: boolean }).__longPressActive) {
+      return;
+    }
+
     const target = e.target as HTMLElement | null;
     const isOnItem = !!target?.closest?.('[data-file-item], [data-folder-item]');
     if (isOnItem) return;
@@ -1056,10 +1061,10 @@ export default function MainLayout() {
           <div className="flex-1 flex flex-col overflow-hidden p-3 pt-0 gap-3">
             {/* Top bar: Toggle + Breadcrumb */}
             <div className="flex items-center gap-3">
-              {/* Sidebar toggle - separate circle */}
+              {/* Sidebar toggle - separate circle (hidden on mobile, use header hamburger instead) */}
               <button
                 onClick={toggleSidebar}
-                className="w-11 h-11 flex items-center justify-center bg-white dark:bg-dark-800 text-dark-500 dark:text-white/70 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/10 rounded-full border border-dark-200 dark:border-dark-700 shadow-sm transition-colors"
+                className="hidden md:flex w-11 h-11 items-center justify-center bg-white dark:bg-dark-800 text-dark-500 dark:text-white/70 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/10 rounded-full border border-dark-200 dark:border-dark-700 shadow-sm transition-colors"
                 title={sidebarOpen ? t('layout.hideSidebar') : t('layout.showSidebar')}
                 aria-label={sidebarOpen ? t('layout.hideSidebar') : t('layout.showSidebar')}
               >
@@ -1071,320 +1076,320 @@ export default function MainLayout() {
               </button>
 
               {/* Breadcrumb bar */}
-              <div className="flex-1 h-11 flex items-center justify-between pl-2 pr-1 bg-white dark:bg-dark-900 rounded-full shadow-sm border border-dark-200 dark:border-dark-700">
-                {/* Settings title */}
-                {isSettingsPage ? (
-                  <div className="flex items-center gap-2 ml-2">
-                    <Settings className="w-5 h-5 text-primary-600 dark:text-primary-400" />
-                    <span className="text-base font-semibold text-dark-900 dark:text-white">{t('layout.settings')}</span>
-                  </div>
-                ) : isAdminPage ? (
-                  <div className="flex items-center gap-2 ml-2">
-                    <ShieldCheck className="w-5 h-5 text-primary-600 dark:text-primary-400" />
-                    <span className="text-base font-semibold text-dark-900 dark:text-white">{t('layout.administration')}</span>
-                  </div>
-                ) : isSharedPage ? (
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => setSearchParams({ tab: 'my-shares' })}
-                      className={cn(
-                        'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                        sharedTab === 'my-shares'
-                          ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
-                          : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
-                      )}
-                    >
-                      <LinkIcon className="w-5 h-5" />
-                      {t('layout.myShares')}
-                    </button>
-                    <button
-                      onClick={() => setSearchParams({ tab: 'shared-with-me' })}
-                      className={cn(
-                        'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                        sharedTab === 'shared-with-me'
-                          ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
-                          : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
-                      )}
-                    >
-                      <Users className="w-5 h-5" />
-                      {t('layout.sharedWithMe')}
-                    </button>
-                  </div>
-                ) : isTrashPage ? (
-                  <>
+              <div className="flex-1 h-11 flex items-center justify-between pl-2 pr-1 bg-white dark:bg-dark-900 rounded-full shadow-sm border border-dark-200 dark:border-dark-700 min-w-0">
+                <div className="flex-1 flex items-center gap-1 overflow-x-auto no-scrollbar scroll-smooth px-1">
+                  {/* Settings title */}
+                  {isSettingsPage ? (
                     <div className="flex items-center gap-2 ml-2">
-                      <Trash2 className="w-5 h-5 text-red-500" />
-                      <span className="text-base font-semibold text-dark-900 dark:text-white">{t('layout.trash')}</span>
+                      <Settings className="w-5 h-5 text-primary-600 dark:text-primary-400" />
+                      <span className="text-base font-semibold text-dark-900 dark:text-white">{t('layout.settings')}</span>
                     </div>
-                    <button
-                      onClick={() => window.dispatchEvent(new CustomEvent('empty-trash'))}
-                      className="h-7 px-3 mr-1 flex items-center gap-2 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      {t('layout.emptyTrash')}
-                    </button>
-                  </>
-                ) : isFavoritesPage ? (
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => navigate('/files')}
-                      className="p-1.5 rounded-full hover:bg-dark-100 dark:hover:bg-white/10 transition-colors"
-                      aria-label={t('layout.backToFiles')}
-                    >
-                      <ArrowLeft className="w-5 h-5 text-dark-500" />
-                    </button>
-                    <Star className="w-5 h-5 text-yellow-500" />
-                    <span className="text-base font-semibold text-dark-900 dark:text-white">{t('layout.favorites')}</span>
-                  </div>
-                ) : isAlbumDetailPage && currentAlbum ? (
-                  <>
+                  ) : isAdminPage ? (
+                    <div className="flex items-center gap-2 ml-2">
+                      <ShieldCheck className="w-5 h-5 text-primary-600 dark:text-primary-400" />
+                      <span className="text-base font-semibold text-dark-900 dark:text-white">{t('layout.administration')}</span>
+                    </div>
+                  ) : isSharedPage ? (
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <button
+                        onClick={() => setSearchParams({ tab: 'my-shares' })}
+                        className={cn(
+                          'h-8 px-3 md:px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-2 md:gap-3 leading-none border border-transparent flex-shrink-0',
+                          sharedTab === 'my-shares'
+                            ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                            : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                        )}
+                      >
+                        <LinkIcon className="w-5 h-5" />
+                        <span className="hidden md:inline">{t('layout.myShares')}</span>
+                      </button>
+                      <button
+                        onClick={() => setSearchParams({ tab: 'shared-with-me' })}
+                        className={cn(
+                          'h-8 px-3 md:px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-2 md:gap-3 leading-none border border-transparent flex-shrink-0',
+                          sharedTab === 'shared-with-me'
+                            ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                            : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                        )}
+                      >
+                        <Users className="w-5 h-5" />
+                        <span className="hidden md:inline">{t('layout.sharedWithMe')}</span>
+                      </button>
+                    </div>
+                  ) : isTrashPage ? (
+                    <>
+                      <div className="flex items-center gap-2 ml-2">
+                        <Trash2 className="w-5 h-5 text-red-500" />
+                        <span className="text-base font-semibold text-dark-900 dark:text-white">{t('layout.trash')}</span>
+                      </div>
+                      <button
+                        onClick={() => window.dispatchEvent(new CustomEvent('empty-trash'))}
+                        className="h-7 px-3 mr-1 flex items-center gap-2 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        {t('layout.emptyTrash')}
+                      </button>
+                    </>
+                  ) : isFavoritesPage ? (
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => navigate('/albums')}
+                        onClick={() => navigate('/files')}
                         className="p-1.5 rounded-full hover:bg-dark-100 dark:hover:bg-white/10 transition-colors"
-                        aria-label={t('layout.backToAlbums')}
+                        aria-label={t('layout.backToFiles')}
                       >
                         <ArrowLeft className="w-5 h-5 text-dark-500" />
                       </button>
+                      <Star className="w-5 h-5 text-yellow-500" />
+                      <span className="text-base font-semibold text-dark-900 dark:text-white">{t('layout.favorites')}</span>
+                    </div>
+                  ) : isAlbumDetailPage && currentAlbum ? (
+                    <>
                       <div className="flex items-center gap-2">
-                        <FolderOpen className="w-5 h-5 text-primary-500" />
-                        <span className="text-base font-semibold text-dark-900 dark:text-white">{currentAlbum.name}</span>
-                        <span className="text-sm text-dark-500">• {albumPhotoCount} {t('layout.photos')}</span>
+                        <button
+                          onClick={() => navigate('/albums')}
+                          className="p-1.5 rounded-full hover:bg-dark-100 dark:hover:bg-white/10 transition-colors"
+                          aria-label={t('layout.backToAlbums')}
+                        >
+                          <ArrowLeft className="w-5 h-5 text-dark-500" />
+                        </button>
+                        <div className="flex items-center gap-2">
+                          <FolderOpen className="w-5 h-5 text-primary-500" />
+                          <span className="text-base font-semibold text-dark-900 dark:text-white">{currentAlbum.name}</span>
+                          <span className="text-sm text-dark-500">• {albumPhotoCount} {t('layout.photos')}</span>
+                        </div>
                       </div>
-                    </div>
-                    <button
-                      onClick={() => window.dispatchEvent(new CustomEvent('add-photos-to-album'))}
-                      className="h-7 px-3 mr-1 flex items-center gap-2 text-sm font-medium text-primary-600 hover:text-primary-700 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-full transition-colors"
-                    >
-                      <Plus className="w-4 h-4" />
-                      {t('layout.addPhotos')}
-                    </button>
-                  </>
-                ) : isMusicPage ? (
-                  <>
-                    <div className="flex items-center gap-1">
                       <button
-                        onClick={() => navigate('/music?tab=all')}
-                        className={cn(
-                          'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                          musicTab === 'all'
-                            ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
-                            : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
-                        )}
-                        aria-label={t('layout.viewAllMusic')}
-                      >
-                        <Music className="w-5 h-5" />
-                        {t('layout.all')}
-                      </button>
-                      <button
-                        onClick={() => navigate('/music?tab=favorites')}
-                        className={cn(
-                          'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                          musicTab === 'favorites'
-                            ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
-                            : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
-                        )}
-                        aria-label={t('layout.viewFavoriteMusic')}
-                      >
-                        <Star className="w-5 h-5" />
-                        {t('layout.favorites')}
-                      </button>
-                      <button
-                        onClick={() => navigate('/music?tab=albums')}
-                        className={cn(
-                          'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                          musicTab === 'albums'
-                            ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
-                            : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
-                        )}
-                        aria-label={t('layout.viewMusicAlbums')}
-                      >
-                        <Disc className="w-5 h-5" />
-                        {t('layout.albums')}
-                      </button>
-                    </div>
-                    {(musicTab === 'all' || musicTab === 'albums') && (
-                      <button
-                        onClick={() => window.dispatchEvent(new CustomEvent('create-music-album'))}
+                        onClick={() => window.dispatchEvent(new CustomEvent('add-photos-to-album'))}
                         className="h-7 px-3 mr-1 flex items-center gap-2 text-sm font-medium text-primary-600 hover:text-primary-700 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-full transition-colors"
                       >
                         <Plus className="w-4 h-4" />
-                        {t('layout.newAlbum')}
+                        {t('layout.addPhotos')}
                       </button>
-                    )}
-                  </>
-                ) : isDocumentsPage ? (
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => navigate('/documents?tab=all')}
-                      className={cn(
-                        'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                        documentsTab === 'all'
-                          ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
-                          : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                    </>
+                  ) : isMusicPage ? (
+                    <>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button
+                          onClick={() => navigate('/music?tab=all')}
+                          className={cn(
+                            'h-8 px-3 md:px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-2 md:gap-3 leading-none border border-transparent flex-shrink-0',
+                            musicTab === 'all'
+                              ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                              : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                          )}
+                          aria-label={t('layout.viewAllMusic')}
+                        >
+                          <Music className="w-5 h-5" />
+                          <span className="hidden md:inline">{t('layout.all')}</span>
+                        </button>
+                        <button
+                          onClick={() => navigate('/music?tab=favorites')}
+                          className={cn(
+                            'h-8 px-3 md:px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-2 md:gap-3 leading-none border border-transparent flex-shrink-0',
+                            musicTab === 'favorites'
+                              ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                              : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                          )}
+                          aria-label={t('layout.viewFavoriteMusic')}
+                        >
+                          <Star className="w-5 h-5" />
+                          <span className="hidden md:inline">{t('layout.favorites')}</span>
+                        </button>
+                        <button
+                          onClick={() => navigate('/music?tab=albums')}
+                          className={cn(
+                            'h-8 px-3 md:px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-2 md:gap-3 leading-none border border-transparent flex-shrink-0',
+                            musicTab === 'albums'
+                              ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                              : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                          )}
+                          aria-label={t('layout.viewMusicAlbums')}
+                        >
+                          <Disc className="w-5 h-5" />
+                          <span className="hidden md:inline">{t('layout.albums')}</span>
+                        </button>
+                      </div>
+                      {(musicTab === 'all' || musicTab === 'albums') && (
+                        <button
+                          onClick={() => window.dispatchEvent(new CustomEvent('create-music-album'))}
+                          className="h-7 px-3 mr-1 flex items-center gap-2 text-sm font-medium text-primary-600 hover:text-primary-700 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-full transition-colors"
+                        >
+                          <Plus className="w-4 h-4" />
+                          {t('layout.newAlbum')}
+                        </button>
                       )}
-                      aria-label={t('layout.viewAllDocuments')}
-                    >
-                      <Files className="w-5 h-5" />
-                      {t('layout.all')}
-                    </button>
-                    <button
-                      onClick={() => navigate('/documents?tab=pdf')}
-                      className={cn(
-                        'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                        documentsTab === 'pdf'
-                          ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
-                          : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
-                      )}
-                      aria-label={t('layout.viewPDFs')}
-                    >
-                      <File className="w-5 h-5" />
-                      {t('layout.pdfs')}
-                    </button>
-                    <button
-                      onClick={() => navigate('/documents?tab=text')}
-                      className={cn(
-                        'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                        documentsTab === 'text'
-                          ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
-                          : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
-                      )}
-                      aria-label={t('layout.viewTextDocs')}
-                    >
-                      <AlignLeft className="w-5 h-5" />
-                      {t('layout.text')}
-                    </button>
-                    <button
-                      onClick={() => navigate('/documents?tab=spreadsheet')}
-                      className={cn(
-                        'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                        documentsTab === 'spreadsheet'
-                          ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
-                          : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
-                      )}
-                      aria-label={t('layout.viewSpreadsheets')}
-                    >
-                      <FileSpreadsheet className="w-5 h-5" />
-                      {t('layout.spreadsheet')}
-                    </button>
-                    <button
-                      onClick={() => navigate('/documents?tab=presentation')}
-                      className={cn(
-                        'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                        documentsTab === 'presentation'
-                          ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
-                          : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
-                      )}
-                      aria-label={t('layout.viewPresentations')}
-                    >
-                      <Presentation className="w-5 h-5" />
-                      {t('layout.presentations')}
-                    </button>
-                    <button
-                      onClick={() => navigate('/documents?tab=code')}
-                      className={cn(
-                        'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                        documentsTab === 'code'
-                          ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
-                          : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
-                      )}
-                      aria-label={t('layout.viewCode')}
-                    >
-                      <FileCode className="w-5 h-5" />
-                      {t('layout.code')}
-                    </button>
-                  </div>
-                ) : isGalleryPage ? (
-                  <>
-                    <div className="flex items-center gap-1">
+                    </>
+                  ) : isDocumentsPage ? (
+                    <div className="hidden md:flex items-center gap-1">
                       <button
-                        onClick={() => navigate('/photos?tab=all')}
+                        onClick={() => navigate('/documents?tab=all')}
                         className={cn(
                           'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                          isPhotosPage && photosTab === 'all'
+                          documentsTab === 'all'
                             ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
                             : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
                         )}
-                        aria-label={t('layout.viewAllPhotos')}
+                        aria-label={t('layout.viewAllDocuments')}
                       >
-                        <Image className="w-5 h-5" />
+                        <Files className="w-5 h-5" />
                         {t('layout.all')}
                       </button>
                       <button
-                        onClick={() => navigate('/photos?tab=favorites')}
+                        onClick={() => navigate('/documents?tab=pdf')}
                         className={cn(
                           'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                          isPhotosPage && photosTab === 'favorites'
+                          documentsTab === 'pdf'
                             ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
                             : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
                         )}
-                        aria-label={t('layout.viewFavoritePhotos')}
+                        aria-label={t('layout.viewPDFs')}
                       >
-                        <Star className="w-5 h-5" />
-                        {t('layout.favorites')}
+                        <File className="w-5 h-5" />
+                        {t('layout.pdfs')}
                       </button>
                       <button
-                        onClick={() => navigate('/photos?tab=videos')}
+                        onClick={() => navigate('/documents?tab=text')}
                         className={cn(
                           'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                          isPhotosPage && photosTab === 'videos'
+                          documentsTab === 'text'
                             ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
                             : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
                         )}
-                        aria-label={t('layout.viewVideos')}
+                        aria-label={t('layout.viewTextDocs')}
                       >
-                        <Video className="w-5 h-5" />
-                        {t('layout.videos')}
+                        <AlignLeft className="w-5 h-5" />
+                        {t('layout.text')}
                       </button>
                       <button
-                        onClick={() => navigate('/photos?tab=screenshots')}
+                        onClick={() => navigate('/documents?tab=spreadsheet')}
                         className={cn(
                           'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                          isPhotosPage && photosTab === 'screenshots'
+                          documentsTab === 'spreadsheet'
                             ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
                             : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
                         )}
-                        aria-label={t('layout.viewScreenshots')}
+                        aria-label={t('layout.viewSpreadsheets')}
                       >
-                        <Camera className="w-5 h-5" />
-                        {t('layout.screenshots')}
+                        <FileSpreadsheet className="w-5 h-5" />
+                        {t('layout.spreadsheet')}
                       </button>
                       <button
-                        onClick={() => navigate('/albums')}
+                        onClick={() => navigate('/documents?tab=presentation')}
                         className={cn(
                           'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
-                          isAlbumsPage
+                          documentsTab === 'presentation'
                             ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
                             : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
                         )}
-                        aria-label={t('layout.viewAlbums')}
+                        aria-label={t('layout.viewPresentations')}
                       >
-                        <FolderOpen className="w-5 h-5" />
-                        {t('layout.albums')}
+                        <Presentation className="w-5 h-5" />
+                        {t('layout.presentations')}
+                      </button>
+                      <button
+                        onClick={() => navigate('/documents?tab=code')}
+                        className={cn(
+                          'h-8 px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-3 leading-none border border-transparent',
+                          documentsTab === 'code'
+                            ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                            : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                        )}
+                        aria-label={t('layout.viewCode')}
+                      >
+                        <FileCode className="w-5 h-5" />
+                        {t('layout.code')}
                       </button>
                     </div>
-                    {isAlbumsPage && (
-                      <button
-                        onClick={() => window.dispatchEvent(new CustomEvent('create-album'))}
-                        className="h-7 px-3 mr-1 flex items-center gap-2 text-sm font-medium text-primary-600 hover:text-primary-700 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-full transition-colors"
-                      >
-                        <Plus className="w-4 h-4" />
-                        {t('layout.newAlbum')}
-                      </button>
-                    )}
-                  </>
-                ) : showBreadcrumbs ? (
-                  <Breadcrumbs
-                    items={breadcrumbs}
-                    basePath="/files"
-                    onRefresh={triggerRefresh}
-                  />
-                ) : null}
-
-                <div className="flex-1" />
+                  ) : isGalleryPage ? (
+                    <>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => navigate('/photos?tab=all')}
+                          className={cn(
+                            'h-8 px-3 md:px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-2 md:gap-3 leading-none border border-transparent',
+                            isPhotosPage && photosTab === 'all'
+                              ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                              : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                          )}
+                          aria-label={t('layout.viewAllPhotos')}
+                        >
+                          <Image className="w-5 h-5" />
+                          <span className="hidden md:inline">{t('layout.all')}</span>
+                        </button>
+                        <button
+                          onClick={() => navigate('/photos?tab=favorites')}
+                          className={cn(
+                            'h-8 px-3 md:px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-2 md:gap-3 leading-none border border-transparent',
+                            isPhotosPage && photosTab === 'favorites'
+                              ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                              : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                          )}
+                          aria-label={t('layout.viewFavoritePhotos')}
+                        >
+                          <Star className="w-5 h-5" />
+                          <span className="hidden md:inline">{t('layout.favorites')}</span>
+                        </button>
+                        <button
+                          onClick={() => navigate('/photos?tab=videos')}
+                          className={cn(
+                            'h-8 px-3 md:px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-2 md:gap-3 leading-none border border-transparent',
+                            isPhotosPage && photosTab === 'videos'
+                              ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                              : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                          )}
+                          aria-label={t('layout.viewVideos')}
+                        >
+                          <Video className="w-5 h-5" />
+                          <span className="hidden md:inline">{t('layout.videos')}</span>
+                        </button>
+                        <button
+                          onClick={() => navigate('/photos?tab=screenshots')}
+                          className={cn(
+                            'h-8 px-3 md:px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-2 md:gap-3 leading-none border border-transparent',
+                            isPhotosPage && photosTab === 'screenshots'
+                              ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                              : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                          )}
+                          aria-label={t('layout.viewScreenshots')}
+                        >
+                          <Camera className="w-5 h-5" />
+                          <span className="hidden md:inline">{t('layout.screenshots')}</span>
+                        </button>
+                        <button
+                          onClick={() => navigate('/albums')}
+                          className={cn(
+                            'h-8 px-3 md:px-4 rounded-full text-base font-semibold transition-all duration-200 flex items-center justify-center gap-2 md:gap-3 leading-none border border-transparent',
+                            isAlbumsPage
+                              ? 'bg-primary-500/15 text-dark-900 dark:text-white border-primary-500/40 shadow-sm'
+                              : 'text-dark-600 dark:text-white/80 hover:text-dark-900 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-white/5'
+                          )}
+                          aria-label={t('layout.viewAlbums')}
+                        >
+                          <FolderOpen className="w-5 h-5" />
+                          <span className="hidden md:inline">{t('layout.albums')}</span>
+                        </button>
+                      </div>
+                      {isAlbumsPage && (
+                        <button
+                          onClick={() => window.dispatchEvent(new CustomEvent('create-album'))}
+                          className="h-7 px-2 md:px-3 mr-1 flex items-center gap-1 md:gap-2 text-sm font-medium text-primary-600 hover:text-primary-700 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-full transition-colors"
+                        >
+                          <Plus className="w-4 h-4" />
+                          <span className="hidden md:inline">{t('layout.newAlbum')}</span>
+                        </button>
+                      )}
+                    </>
+                  ) : showBreadcrumbs ? (
+                    <Breadcrumbs
+                      items={breadcrumbs}
+                      basePath="/files"
+                      onRefresh={triggerRefresh}
+                    />
+                  ) : null}
+                </div>
 
                 {(showViewControls || isMusicPage || isDocumentsPage || isGalleryPage || isSharedPage || isAlbumDetailPage) && (
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 flex-shrink-0 pr-1">
                     {/* Sort dropdown */}
                     <Dropdown
                       trigger={
@@ -1550,7 +1555,6 @@ export default function MainLayout() {
           onSuccess={triggerRefresh}
         />
         <VerificationLockModal />
-
       </div>
     </DndContextProvider >
   );

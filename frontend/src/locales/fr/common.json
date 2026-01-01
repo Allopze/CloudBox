@@ -16,6 +16,12 @@
     "trackOf": "{{current}} sur {{total}}",
     "drag": "Glisser le lecteur"
   },
+  "maintenance": {
+    "title": "Nous sommes en maintenance",
+    "subtitle": "Nous reviendrons bientôt. Merci de votre patience.",
+    "checking": "Vérification du statut...",
+    "adminBadge": "Vous êtes administrateur - vous pouvez continuer à travailler"
+  },
   "header": {
     "search": "Rechercher...",
     "searchLabel": "Rechercher des fichiers et dossiers",

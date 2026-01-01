@@ -1,9 +1,10 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { api, openSignedFileUrl } from '../lib/api';
 import { FileItem, Folder } from '../types';
 import { useFileStore } from '../stores/fileStore';
+import { useMusicStore } from '../stores/musicStore';
 import FileCard from '../components/files/FileCard';
 import FolderCard from '../components/files/FolderCard';
 import { Search, Filter, X, Loader2, FolderOpen } from 'lucide-react';
@@ -52,6 +53,7 @@ export default function SearchResults() {
 
     const viewMode = useFileStore((state) => state.viewMode);
     const clearSelection = useFileStore((state) => state.clearSelection);
+    const { play } = useMusicStore();
 
     // Get image files for gallery
     const imageFiles = files.filter(f => isImage(f.mimeType));
@@ -135,9 +137,14 @@ export default function SearchResults() {
         { label: '1 GB', value: '1073741824' },
     ];
 
+    const audioQueue = useMemo(() => {
+        return files.filter((file) => isAudio(file.mimeType));
+    }, [files]);
+
     const handleAudioOpen = useCallback((file: FileItem) => {
-        void openSignedFileUrl(file.id, 'stream');
-    }, []);
+        const queue = audioQueue.length > 0 ? audioQueue : [file];
+        play(file, queue);
+    }, [audioQueue, play]);
 
     const handleFileClick = useCallback((file: FileItem) => {
         if (isImage(file.mimeType)) {

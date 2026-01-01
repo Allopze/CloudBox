@@ -17,6 +17,13 @@
     "trackOf": "{{current}} of {{total}}",
     "drag": "Drag player"
   },
+  "maintenance": {
+    "title": "We're under maintenance",
+    "subtitle": "We'll be back soon. Thank you for your patience.",
+    "checking": "Checking status...",
+    "adminBadge": "You're an admin - you can continue working",
+    "adminLogin": "Admin access"
+  },
   "header": {
     "search": "Search...",
     "searchLabel": "Search files and folders",
@@ -185,7 +192,8 @@
     "deselectAll": "Deselect all",
     "noResults": "No results",
     "required": "Required",
-    "optional": "Optional"
+    "optional": "Optional",
+    "moreOptions": "More options"
   },
   "files": {
     "loading": "Loading...",
@@ -1417,6 +1425,31 @@
         "code": "Code",
         "default": "Other files"
       }
+    },
+    "metrics": {
+      "title": "Server Metrics",
+      "description": "Real-time system status",
+      "cpu": "CPU",
+      "memory": "Memory",
+      "disk": "Disk",
+      "temperature": "Temperature",
+      "network": "Network",
+      "uptime": "Uptime",
+      "received": "Received",
+      "transmitted": "Transmitted",
+      "noData": "N/A",
+      "refreshing": "Loading...",
+      "lastUpdate": "Last update"
+    },
+    "activity": {
+      "title": "Activity Log",
+      "description": "Monitor actions performed in the system.",
+      "searchPlaceholder": "Search by user, IP or description...",
+      "allTypes": "All types",
+      "user": "User",
+      "action": "Action",
+      "date": "Date",
+      "noLogs": "No activity logs"
     }
   },
   "versions": {

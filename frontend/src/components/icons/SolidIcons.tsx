@@ -12,162 +12,89 @@ interface FileExtensionIconProps extends IconProps {
     extension: string;
 }
 
-// Helper for document shape
-const DocumentIcon = (className: string, size: number, glyph?: React.ReactNode) => (
-    <svg viewBox="0 0 48 64" width={size * 0.75} height={size} className={className} fill="currentColor">
-        <path d="M4 8C4 5.79086 5.79086 4 8 4H28V20C28 22.2091 29.7909 24 32 24H44V56C44 58.2091 42.2091 60 40 60H8C5.79086 60 4 58.2091 4 56V8Z" />
-        <path d="M30 4L44 18V20H32C29.7909 20 28 18.2091 28 16V4H30Z" opacity="0.7" />
-        {glyph}
-    </svg>
+const iconModules = import.meta.glob('../../assets/icons/*.svg', { as: 'raw', eager: true });
+
+const assetIcons = Object.fromEntries(
+    Object.entries(iconModules)
+        .map(([path, svg]) => {
+            const filename = path.split('/').pop();
+            return filename ? [filename, svg as string] : null;
+        })
+        .filter((entry): entry is [string, string] => Boolean(entry))
 );
 
-// Default SVG icons for each category
-const defaultIcons: Record<FileIconCategory, (className: string, size: number) => JSX.Element> = {
-    folder: (className, size) => <SolidFolderIcon className={className} size={size} />,
-    folderShared: (className, size) => <SolidFolderIcon className={className} size={size} />,
-    folderProtected: (className, size) => <SolidFolderIcon className={className} size={size} />,
-    audio: (className, size) => DocumentIcon(className, size, (
-        <path d="M18 14V32C18 34.2091 16.2091 36 14 36C11.7909 36 10 34.2091 10 32C10 29.7909 11.7909 28 14 28C15.1046 28 16 28.4477 16 29V18L30 14V30C30 32.2091 28.2091 34 26 34C23.7909 34 22 32.2091 22 30C22 27.7909 23.7909 26 26 26C27.1046 26 28 26.4477 28 27" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-    )),
-    image: (className, size) => DocumentIcon(className, size, (
-        <g transform="translate(6, 28) scale(0.8)">
-            <circle cx="10" cy="10" r="4" fill="white" />
-            <path d="M4 30L14 18L22 26L32 14L44 30H4Z" fill="white" />
-        </g>
-    )),
-    video: (className, size) => DocumentIcon(className, size, (
-        <path d="M20 32L36 42L20 52V32Z" fill="white" />
-    )),
-    pdf: (className, size) => DocumentIcon(className, size, (
-        <text x="24" y="46" textAnchor="middle" fontSize="12" fontWeight="bold" fill="white" fontFamily="system-ui">PDF</text>
-    )),
-    word: (className, size) => DocumentIcon(className, size, (
-        <path d="M14 32L18 48L24 38L30 48L34 32" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-    )),
-    spreadsheet: (className, size) => DocumentIcon(className, size, (
-        <g transform="translate(12, 34)" fill="white">
-            <rect x="0" y="0" width="10" height="6" rx="1" />
-            <rect x="14" y="0" width="10" height="6" rx="1" />
-            <rect x="0" y="10" width="10" height="6" rx="1" />
-            <rect x="14" y="10" width="10" height="6" rx="1" />
-        </g>
-    )),
-    presentation: (className, size) => DocumentIcon(className, size, (
-        <g transform="translate(14, 34)" fill="white">
-            <rect x="0" y="6" width="6" height="10" rx="1" />
-            <rect x="8" y="0" width="6" height="16" rx="1" />
-            <rect x="16" y="4" width="6" height="12" rx="1" />
-        </g>
-    )),
-    csv: (className, size) => DocumentIcon(className, size, (
-        <text x="24" y="46" textAnchor="middle" fontSize="11" fontWeight="bold" fill="white" fontFamily="system-ui">CSV</text>
-    )),
-    text: (className, size) => DocumentIcon(className, size, (
-        <g transform="translate(12, 36)" fill="white">
-            <rect x="0" y="0" width="24" height="2" rx="1" />
-            <rect x="0" y="6" width="20" height="2" rx="1" />
-            <rect x="0" y="12" width="16" height="2" rx="1" />
-        </g>
-    )),
-    markdown: (className, size) => DocumentIcon(className, size, (
-        <path d="M12 30H36V46H12V30ZM16 42V34L20 38L24 34V42M28 42L32 38H28V34H32" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    )),
-    ebook: (className, size) => DocumentIcon(className, size, (
-        <path d="M14 30V48C14 48 20 44 24 44C28 44 34 48 34 48V30C34 30 28 26 24 26C20 26 14 30 14 30Z" fill="white" />
-    )),
-    onenote: (className, size) => DocumentIcon(className, size, (
-        <text x="24" y="46" textAnchor="middle" fontSize="16" fontWeight="bold" fill="white" fontFamily="system-ui">N</text>
-    )),
-    access: (className, size) => DocumentIcon(className, size, (
-        <text x="24" y="46" textAnchor="middle" fontSize="16" fontWeight="bold" fill="white" fontFamily="system-ui">A</text>
-    )),
-    publisher: (className, size) => DocumentIcon(className, size, (
-        <text x="24" y="46" textAnchor="middle" fontSize="16" fontWeight="bold" fill="white" fontFamily="system-ui">P</text>
-    )),
+const DEFAULT_ICON_FILES: Record<FileIconCategory, string> = {
+    folder: 'folder-icon.svg',
+    folderShared: 'folder-shared.svg',
+    folderProtected: 'folder-secure.svg',
+    default: 'generic-file-icon.svg',
+    image: 'img-icon.svg',
+    video: 'video-icon.svg',
+    audio: 'audio-icon.svg',
+    pdf: 'pdf-icon.svg',
+    word: 'docx-icon.svg',
+    spreadsheet: 'xlsx-icon.svg',
+    presentation: 'pptx-icon.svg',
+    csv: 'xlsx-icon.svg',
+    text: 'txt-icon.svg',
+    markdown: 'md-icon.svg',
+    ebook: 'epub-icon.svg',
+    onenote: 'one-icon.svg',
+    access: 'accdb-icon.svg',
+    publisher: 'pub-icon.svg',
+    js: 'js-icon.svg',
+    html: 'html-icon.svg',
+    css: 'css-icon.svg',
+    py: 'py-icon.svg',
+    json: 'json-icon.svg',
+    sql: 'sql-icon.svg',
+    illustrator: 'ai-icon.svg',
+    photoshop: 'psd-icon.svg',
+    indesign: 'indesign-icon.svg',
+    figma: 'fig-icon.svg',
+    vector: 'svg-icon.svg',
+    zip: 'zip-icon.svg',
+    rar: 'rar-icon.svg',
+    '7z': '7z-icon.svg',
+    exe: 'exe-icon.svg',
+    dmg: 'dmg-icon.svg',
+    apk: 'apk-icon.svg',
+    ipa: 'ipa-icon.svg',
+    deb: 'deb-icon.svg',
+    rpm: 'rpm-icon.svg',
+};
 
-    // Programming
-    js: (className, size) => DocumentIcon(className, size, (
-        <text x="24" y="46" textAnchor="middle" fontSize="12" fontWeight="bold" fill="white" fontFamily="system-ui">JS</text>
-    )),
-    html: (className, size) => DocumentIcon(className, size, (
-        <text x="24" y="46" textAnchor="middle" fontSize="12" fontWeight="bold" fill="white" fontFamily="system-ui">HTML</text>
-    )),
-    css: (className, size) => DocumentIcon(className, size, (
-        <text x="24" y="46" textAnchor="middle" fontSize="12" fontWeight="bold" fill="white" fontFamily="system-ui">CSS</text>
-    )),
-    py: (className, size) => DocumentIcon(className, size, (
-        <text x="24" y="46" textAnchor="middle" fontSize="12" fontWeight="bold" fill="white" fontFamily="system-ui">PY</text>
-    )),
-    json: (className, size) => DocumentIcon(className, size, (
-        <text x="24" y="46" textAnchor="middle" fontSize="12" fontWeight="bold" fill="white" fontFamily="system-ui">JSON</text>
-    )),
-    sql: (className, size) => DocumentIcon(className, size, (
-        <g transform="translate(14, 30)" fill="white">
-            <ellipse cx="10" cy="4" rx="10" ry="4" />
-            <path d="M0 4V16C0 18.2 4.5 20 10 20C15.5 20 20 18.2 20 16V4" />
-            <path d="M0 10C0 12.2 4.5 14 10 14C15.5 14 20 12.2 20 10" />
-        </g>
-    )),
+export const getDefaultIconSvg = (category: FileIconCategory): string | null => {
+    const filename = DEFAULT_ICON_FILES[category];
+    if (filename && assetIcons[filename]) {
+        return assetIcons[filename];
+    }
 
-    // Design
-    illustrator: (className, size) => DocumentIcon(className, size, (
-        <text x="24" y="46" textAnchor="middle" fontSize="14" fontWeight="bold" fill="white" fontFamily="system-ui">Ai</text>
-    )),
-    photoshop: (className, size) => DocumentIcon(className, size, (
-        <text x="24" y="46" textAnchor="middle" fontSize="14" fontWeight="bold" fill="white" fontFamily="system-ui">Ps</text>
-    )),
-    indesign: (className, size) => DocumentIcon(className, size, (
-        <text x="24" y="46" textAnchor="middle" fontSize="14" fontWeight="bold" fill="white" fontFamily="system-ui">Id</text>
-    )),
-    figma: (className, size) => DocumentIcon(className, size, (
-        <g transform="translate(18, 28)" fill="white">
-            <path d="M0 4C0 1.8 1.8 0 4 0H8V8H4C1.8 8 0 6.2 0 4Z" />
-            <path d="M0 12C0 9.8 1.8 8 4 8H8V16H4C1.8 16 0 14.2 0 12Z" />
-            <path d="M0 20C0 17.8 1.8 16 4 16H8V20C8 22.2 6.2 24 4 24C1.8 24 0 22.2 0 20Z" />
-            <circle cx="12" cy="12" r="4" />
-            <path d="M8 0H12C14.2 0 16 1.8 16 4C16 6.2 14.2 8 12 8H8V0Z" />
-        </g>
-    )),
-    vector: (className, size) => DocumentIcon(className, size, (
-        <text x="24" y="46" textAnchor="middle" fontSize="12" fontWeight="bold" fill="white" fontFamily="system-ui">SVG</text>
-    )),
+    return assetIcons['generic-file-icon.svg'] || null;
+};
 
-    // Archives
-    zip: (className, size) => DocumentIcon(className, size, (
-        <g transform="translate(20, 30)" fill="white">
-            <rect x="0" y="0" width="8" height="4" />
-            <rect x="0" y="8" width="8" height="4" />
-            <rect x="0" y="16" width="8" height="6" rx="2" />
-        </g>
-    )),
-    rar: (className, size) => DocumentIcon(className, size, (
-        <text x="24" y="46" textAnchor="middle" fontSize="12" fontWeight="bold" fill="white" fontFamily="system-ui">RAR</text>
-    )),
-    '7z': (className, size) => DocumentIcon(className, size, (
-        <text x="24" y="46" textAnchor="middle" fontSize="12" fontWeight="bold" fill="white" fontFamily="system-ui">7Z</text>
-    )),
+const sanitizeSvg = (svg: string): string => {
+    return DOMPurify.sanitize(svg, {
+        USE_PROFILES: { svg: true, svgFilters: true },
+    });
+};
 
-    // Systems
-    exe: (className, size) => DocumentIcon(className, size, (
-        <path d="M24 28V46M24 46L16 38M24 46L32 38M12 50H36" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-    )),
-    dmg: (className, size) => DocumentIcon(className, size, (
-        <text x="24" y="46" textAnchor="middle" fontSize="12" fontWeight="bold" fill="white" fontFamily="system-ui">DMG</text>
-    )),
-    apk: (className, size) => DocumentIcon(className, size, (
-        <text x="24" y="46" textAnchor="middle" fontSize="12" fontWeight="bold" fill="white" fontFamily="system-ui">APK</text>
-    )),
-    ipa: (className, size) => DocumentIcon(className, size, (
-        <text x="24" y="46" textAnchor="middle" fontSize="12" fontWeight="bold" fill="white" fontFamily="system-ui">IPA</text>
-    )),
-    deb: (className, size) => DocumentIcon(className, size, (
-        <path d="M12 34L24 26L36 34L24 42L12 34Z" fill="white" />
-    )),
-    rpm: (className, size) => DocumentIcon(className, size, (
-        <path d="M12 34L24 26L36 34L24 42L12 34Z" fill="white" />
-    )),
-
-    default: (className, size) => DocumentIcon(className, size),
+const renderSvgIcon = (svg: string, className: string, size: number, style?: React.CSSProperties) => {
+    const sanitized = sanitizeSvg(svg);
+    return (
+        <div
+            className={`custom-file-icon ${className}`}
+            style={{
+                width: size,
+                height: size,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                ...style,
+            }}
+            dangerouslySetInnerHTML={{ __html: sanitized }}
+        />
+    );
 };
 
 // Render extension text on default icon
@@ -194,23 +121,11 @@ export function FileExtensionIcon({ className = '', size = 64, extension }: File
     // Use optimized selector to prevent unnecessary re-renders
     const customSvg = useFileIconStore(state => state.icons[category]);
 
-    if (customSvg) {
-        // Sanitize on frontend as defense in depth
-        const sanitized = DOMPurify.sanitize(customSvg, {
-            USE_PROFILES: { svg: true, svgFilters: true },
-        });
-        return (
-            <div
-                className={`custom-file-icon ${className}`}
-                style={{ width: size * 0.75, height: size, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-                dangerouslySetInnerHTML={{ __html: sanitized }}
-            />
-        );
-    }
+    const defaultSvg = getDefaultIconSvg(category);
+    const svgToRender = customSvg || defaultSvg;
 
-    // For known categories, use category-specific icon
-    if (category !== 'default') {
-        return defaultIcons[category](className, size);
+    if (svgToRender) {
+        return renderSvgIcon(svgToRender, className, size);
     }
 
     // For unknown extensions, show extension text
@@ -220,6 +135,13 @@ export function FileExtensionIcon({ className = '', size = 64, extension }: File
 
 // Solid folder icon matching the reference design with optional inner icon
 export function SolidFolderIcon({ className = '', size = 64, style, IconComponent }: IconProps) {
+    const defaultFolderSvg = getDefaultIconSvg('folder');
+    const shouldUseDefaultSvg = !IconComponent && !style?.color && defaultFolderSvg;
+
+    if (shouldUseDefaultSvg) {
+        return renderSvgIcon(defaultFolderSvg, className, size, style);
+    }
+
     // Extract the fill color from style.color or use default red
     const fillColor = style?.color || '#dc2626';
     // Keep the inner icon smaller and centered within the lighter folder area

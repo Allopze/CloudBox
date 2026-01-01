@@ -14,6 +14,8 @@ import {
   Trash2,
   FileArchive,
   AlertCircle,
+  Minus,
+  Maximize2,
 } from 'lucide-react';
 import { useGlobalProgressStore, GlobalOperation } from '../../stores/globalProgressStore';
 import { cn, formatDuration } from '../../lib/utils';
@@ -49,8 +51,8 @@ function OperationItem({ operation }: { operation: GlobalOperation }) {
             operation.status === 'completed'
               ? 'bg-green-100 dark:bg-green-900/30 text-green-600'
               : operation.status === 'error'
-              ? 'bg-red-100 dark:bg-red-900/30 text-red-600'
-              : 'bg-primary-100 dark:bg-primary-900/30 text-primary-600'
+                ? 'bg-red-100 dark:bg-red-900/30 text-red-600'
+                : 'bg-primary-100 dark:bg-primary-900/30 text-primary-600'
           )}
         >
           {operation.status === 'in-progress' || operation.status === 'pending' ? (
@@ -160,7 +162,7 @@ export default function GlobalProgressIndicator() {
             </span>
           </>
         )}
-        <ChevronUp className="w-4 h-4 text-dark-500" />
+        <Maximize2 className="w-4 h-4 text-dark-500" />
       </button>
     );
   }
@@ -185,6 +187,7 @@ export default function GlobalProgressIndicator() {
           <button
             onClick={() => setIsExpanded(!isExpanded)}
             className="p-1 text-dark-500 hover:text-dark-700 dark:hover:text-dark-300 rounded"
+            title={isExpanded ? t('common.collapse') : t('common.expand')}
           >
             {isExpanded ? (
               <ChevronDown className="w-4 h-4" />
@@ -195,8 +198,9 @@ export default function GlobalProgressIndicator() {
           <button
             onClick={toggleMinimize}
             className="p-1 text-dark-500 hover:text-dark-700 dark:hover:text-dark-300 rounded"
+            title={t('common.minimize')}
           >
-            <ChevronDown className="w-4 h-4" />
+            <Minus className="w-4 h-4" />
           </button>
         </div>
       </div>

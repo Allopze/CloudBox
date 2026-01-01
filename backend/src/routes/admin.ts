@@ -10,6 +10,7 @@ import { resetTransporter, testSmtpConnection, sendEmail, EmailError } from '../
 import { getBrandingPath, deleteFile, fileExists, copyFile, getStoragePath } from '../lib/storage.js';
 import { encryptSecret } from '../lib/encryption.js';
 import { thumbnailQueue } from '../lib/thumbnailQueue.js';
+import { invalidateMaintenanceCache } from '../middleware/maintenance.js';
 import sharp from 'sharp';
 import os from 'os';
 import fs from 'fs/promises';
@@ -1835,6 +1836,7 @@ router.post('/summary/actions/toggle-maintenance', authenticate, requireAdmin, a
     });
 
     adminLogger.info({ requestId, maintenance: newValue }, 'Maintenance mode toggled');
+    invalidateMaintenanceCache();
     res.json({ success: true, maintenance: newValue, message: newValue ? 'Modo mantenimiento activado' : 'Modo mantenimiento desactivado' });
   } catch (error) {
     adminLogger.error({ requestId, error }, 'Toggle maintenance failed');

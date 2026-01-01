@@ -132,8 +132,7 @@ export default function Trash() {
 
     try {
       await api.delete('/trash/empty');
-      completeOperation(opId);
-      toast(t('sidebar.trashEmptied'), 'success');
+      completeOperation(opId, t('sidebar.trashEmptied'));
       setShowEmptyModal(false);
       loadData();
       refreshUser(); // Update storage info in sidebar
@@ -206,8 +205,10 @@ export default function Trash() {
         for (const folder of selectedFoldersList) {
           await api.post(`/trash/restore/folder/${folder.id}`);
         }
-        completeOperation(opId);
-        toast(t('trash.itemsRestored', { count: total }), 'success');
+        for (const folder of selectedFoldersList) {
+          await api.post(`/trash/restore/folder/${folder.id}`);
+        }
+        completeOperation(opId, t('trash.itemsRestored', { count: total }));
         clearSelection();
         window.dispatchEvent(new CustomEvent('workzone-refresh'));
         loadData();
@@ -274,8 +275,7 @@ export default function Trash() {
       for (const folder of folders) {
         await api.delete(`/folders/${folder.id}?permanent=true`);
       }
-      completeOperation(opId);
-      toast(t('trash.itemsDeleted', { count: total }), 'success');
+      completeOperation(opId, t('trash.itemsDeleted', { count: total }));
       clearSelection();
       loadData();
       refreshUser(); // Update storage info in sidebar

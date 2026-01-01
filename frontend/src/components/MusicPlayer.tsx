@@ -1,14 +1,18 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMusicStore } from '../stores/musicStore';
-import { getSignedFileUrl } from '../lib/api';
+import { api, getSignedFileUrl } from '../lib/api';
 import { formatDuration, cn } from '../lib/utils';
 import { X, Music } from 'lucide-react';
 import AuthenticatedImage, { useAuthenticatedUrl } from './AuthenticatedImage';
+import { IAudioEngine } from '../player/AudioEngine';
+import { pickEngine } from '../player/AudioEngineFactory';
 
 // Constants for edge magnetism
 const MAGNETISM_THRESHOLD = 50; // pixels - distance to start snapping
 const EDGE_PADDING = 24; // pixels - padding from edge when snapped
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Vinyl disc component with album cover
 const VinylDisc = ({
@@ -148,7 +152,7 @@ const VinylDisc = ({
 
 export default function MusicPlayer() {
   const { t } = useTranslation();
-  const audioRef = useRef<HTMLAudioElement>(null);
+  const engineRef = useRef<IAudioEngine | null>(null);
   const playerRef = useRef<HTMLDivElement>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [showQueue, setShowQueue] = useState(false);
@@ -190,6 +194,21 @@ export default function MusicPlayer() {
     play,
   } = useMusicStore();
 
+  useEffect(() => {
+    const handleDeleted = (event: Event) => {
+      const detail = (event as CustomEvent<{ ids?: string[] }>).detail;
+      if (!detail?.ids || detail.ids.length === 0) return;
+
+      const current = useMusicStore.getState().currentTrack;
+      if (current && detail.ids.includes(current.id)) {
+        useMusicStore.getState().clearQueue();
+      }
+    };
+
+    window.addEventListener('files-deleted', handleDeleted as EventListener);
+    return () => window.removeEventListener('files-deleted', handleDeleted as EventListener);
+  }, []);
+
   const { url: thumbnailUrl } = useAuthenticatedUrl(
     currentTrack?.thumbnailPath ? currentTrack.id : null,
     'thumbnail'
@@ -227,25 +246,32 @@ export default function MusicPlayer() {
     return { x: newX, y: newY };
   }, []);
 
-  // Handle drag start
-  const handleDragStart = useCallback((e: React.MouseEvent) => {
+  // Handle drag start (mouse or touch)
+  const handleDragStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
     e.stopPropagation();
+
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+
     setIsDragging(true);
     dragStartRef.current = {
-      x: e.clientX,
-      y: e.clientY,
+      x: clientX,
+      y: clientY,
       posX: position.x,
       posY: position.y,
     };
   }, [position]);
 
-  // Handle drag move
-  const handleDragMove = useCallback((e: MouseEvent) => {
+  // Handle drag move (mouse or touch)
+  const handleDragMove = useCallback((e: MouseEvent | TouchEvent) => {
     if (!isDragging || !dragStartRef.current) return;
 
-    const deltaX = e.clientX - dragStartRef.current.x;
-    const deltaY = e.clientY - dragStartRef.current.y;
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+
+    const deltaX = clientX - dragStartRef.current.x;
+    const deltaY = clientY - dragStartRef.current.y;
 
     let newX = dragStartRef.current.posX + deltaX;
     let newY = dragStartRef.current.posY + deltaY;
@@ -273,11 +299,14 @@ export default function MusicPlayer() {
     dragStartRef.current = null;
   }, [isDragging, position, applyMagnetism]);
 
-  // Add/remove mouse event listeners for dragging
+  // Add/remove mouse and touch event listeners for dragging
   useEffect(() => {
     if (isDragging) {
       window.addEventListener('mousemove', handleDragMove);
       window.addEventListener('mouseup', handleDragEnd);
+      window.addEventListener('touchmove', handleDragMove, { passive: false });
+      window.addEventListener('touchend', handleDragEnd);
+      window.addEventListener('touchcancel', handleDragEnd);
       document.body.style.userSelect = 'none';
       document.body.style.cursor = 'grabbing';
     }
@@ -285,6 +314,9 @@ export default function MusicPlayer() {
     return () => {
       window.removeEventListener('mousemove', handleDragMove);
       window.removeEventListener('mouseup', handleDragEnd);
+      window.removeEventListener('touchmove', handleDragMove);
+      window.removeEventListener('touchend', handleDragEnd);
+      window.removeEventListener('touchcancel', handleDragEnd);
       document.body.style.userSelect = '';
       document.body.style.cursor = '';
     };
@@ -311,59 +343,132 @@ export default function MusicPlayer() {
   }, [applyMagnetism]);
 
   useEffect(() => {
-    if (!audioRef.current || !currentTrack) return;
+    if (!currentTrack) {
+      if (engineRef.current) {
+        engineRef.current.destroy();
+        engineRef.current = null;
+      }
+      return;
+    }
 
     let isCancelled = false;
+    let engine = engineRef.current;
 
-    getSignedFileUrl(currentTrack.id, 'stream')
-      .then((url) => {
-        if (isCancelled || !audioRef.current) return;
-        audioRef.current.src = url;
+    const setupEngine = async () => {
+      if (engine) {
+        engine.destroy();
+      }
 
-        // If we were already playing, start playback on track change.
-        if (useMusicStore.getState().isPlaying) {
-          audioRef.current.play().catch(console.error);
+      engine = pickEngine(currentTrack.name);
+      engineRef.current = engine;
+
+      // Attach listeners
+      engine.on('timeupdate', () => {
+        if (!isCancelled && engineRef.current) {
+          setProgress(engineRef.current.currentTime);
         }
-      })
-      .catch(console.error);
+      });
+
+      engine.on('loadedmetadata', () => {
+        if (!isCancelled && engineRef.current) {
+          setDuration(engineRef.current.duration);
+        }
+      });
+
+      engine.on('ended', () => {
+        if (!isCancelled) {
+          next();
+        }
+      });
+
+      engine.on('error', (e) => {
+        console.error("Engine error:", e);
+      });
+
+      try {
+        const isMidiTrack =
+          currentTrack.mimeType.toLowerCase().includes('midi') ||
+          currentTrack.name.toLowerCase().endsWith('.mid') ||
+          currentTrack.name.toLowerCase().endsWith('.midi');
+
+        if (isMidiTrack) {
+          const maxAttempts = 60;
+          let attempts = 0;
+
+          while (!isCancelled && attempts < maxAttempts) {
+            const statusRes = await api.get(`/files/${currentTrack.id}/transcoding-status`, {
+              params: { t: Date.now() },
+              headers: { 'Cache-Control': 'no-cache' },
+              validateStatus: () => true,
+            });
+
+            if (isCancelled) return;
+
+            if (statusRes.status === 200 && statusRes.data?.ready) {
+              break;
+            }
+
+            if (statusRes.status === 200 && statusRes.data?.status === 'FAILED') {
+              throw new Error(statusRes.data?.error || 'MIDI rendering failed');
+            }
+
+            attempts += 1;
+            await sleep(1000);
+          }
+
+          if (attempts >= maxAttempts) {
+            throw new Error('Timed out waiting for MIDI render');
+          }
+        }
+
+        const url = await getSignedFileUrl(currentTrack.id, 'stream');
+        if (isCancelled) return;
+
+        await engine.load(url, currentTrack.id);
+
+        if (useMusicStore.getState().isPlaying && !isCancelled) {
+          await engine.play();
+        }
+      } catch (err) {
+        console.error("Failed to load track:", err);
+      }
+    };
+
+    setupEngine();
 
     return () => {
       isCancelled = true;
+      if (engineRef.current) {
+        engineRef.current.destroy();
+        engineRef.current = null;
+      }
     };
   }, [currentTrack]);
 
+  // Handle Play/Pause
   useEffect(() => {
-    if (!audioRef.current) return;
+    const engine = engineRef.current;
+    if (!engine) return;
+
     if (isPlaying) {
-      audioRef.current.play().catch(console.error);
+      engine.play().catch(console.error);
     } else {
-      audioRef.current.pause();
+      engine.pause();
     }
   }, [isPlaying]);
 
+  // Handle Volume
   useEffect(() => {
-    if (!audioRef.current) return;
-    audioRef.current.volume = isMuted ? 0 : volume;
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setVolume(isMuted ? 0 : volume);
   }, [volume, isMuted]);
-
-  const handleTimeUpdate = () => {
-    if (!audioRef.current) return;
-    setProgress(audioRef.current.currentTime);
-  };
-
-  const handleLoadedMetadata = () => {
-    if (!audioRef.current) return;
-    setDuration(audioRef.current.duration);
-  };
-
-  const handleEnded = () => {
-    next();
-  };
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const time = parseFloat(e.target.value);
-    if (audioRef.current) {
-      audioRef.current.currentTime = time;
+    const engine = engineRef.current;
+    if (engine) {
+      engine.seek(time);
     }
     setProgress(time);
   };
@@ -389,14 +494,6 @@ export default function MusicPlayer() {
 
   return (
     <>
-      <audio
-        ref={audioRef}
-        onTimeUpdate={handleTimeUpdate}
-        onLoadedMetadata={handleLoadedMetadata}
-        onEnded={handleEnded}
-      />
-
-      {/* Floating player */}
       <div
         ref={playerRef}
         className="fixed z-50 select-none no-marquee"
@@ -410,7 +507,6 @@ export default function MusicPlayer() {
           className="flex flex-col items-center group/player"
           onMouseEnter={() => setIsExpanded(true)}
           onMouseLeave={() => {
-            // Don't collapse while dragging
             if (!isDragging) {
               setIsExpanded(false);
               setShowQueue(false);
@@ -462,7 +558,6 @@ export default function MusicPlayer() {
                           {track.name.replace(/\.[^/.]+$/, '')}
                         </p>
                       </div>
-                      {/* Playing indicator for tracks with thumbnail */}
                       {hasThumbnail && index === currentIndex && isPlaying && (
                         <div className="flex items-center gap-0.5 mr-1">
                           <span className="w-0.5 h-3 bg-primary-500 animate-pulse rounded-full" />
@@ -485,10 +580,11 @@ export default function MusicPlayer() {
           {/* Main player card */}
           <div className={`relative z-30 flex flex-col bg-white dark:bg-dark-800 shadow-xl rounded-2xl transition-all duration-300 ${isExpanded ? 'w-72 h-40' : 'w-44 h-20'
             }`}>
-            {/* Drag handle - entire card when collapsed, iOS-style drag bar when expanded */}
+            {/* Drag handle */}
             {!isExpanded ? (
               <div
                 onMouseDown={handleDragStart}
+                onTouchStart={handleDragStart}
                 className={cn(
                   "absolute inset-0 cursor-grab active:cursor-grabbing z-40 rounded-2xl",
                   isDragging && "cursor-grabbing"
@@ -498,9 +594,9 @@ export default function MusicPlayer() {
               />
             ) : (
               <>
-                {/* iOS-style drag bar at top */}
                 <div
                   onMouseDown={handleDragStart}
+                  onTouchStart={handleDragStart}
                   className={cn(
                     "absolute -top-3 left-1/2 -translate-x-1/2 w-14 h-1.5 bg-dark-300 dark:bg-dark-500 rounded-full cursor-grab active:cursor-grabbing z-50 hover:bg-dark-400 dark:hover:bg-dark-400 transition-colors shadow-sm",
                     isDragging && "cursor-grabbing bg-dark-400 dark:bg-dark-400"
@@ -508,9 +604,9 @@ export default function MusicPlayer() {
                   title={t('player.drag')}
                   aria-label={t('player.drag')}
                 />
-                {/* Extended drag area behind the bar for easier grabbing */}
                 <div
                   onMouseDown={handleDragStart}
+                  onTouchStart={handleDragStart}
                   className={cn(
                     "absolute -top-4 left-1/4 right-1/4 h-6 cursor-grab active:cursor-grabbing z-40",
                     isDragging && "cursor-grabbing"
@@ -520,20 +616,23 @@ export default function MusicPlayer() {
                 />
               </>
             )}
+
             {/* Expanded header with vinyl */}
             <div className={`flex flex-row w-full transition-all duration-300 ${isExpanded ? 'h-20' : 'h-0 overflow-hidden'}`}>
+
               <div className={`absolute flex items-center justify-center transition-all duration-300 ${isExpanded ? '-top-6 -left-4 opacity-100' : '-top-6 -left-4 opacity-0 pointer-events-none'
                 }`}>
                 <VinylDisc size={96} spinning={isPlaying} thumbnailUrl={thumbnailUrl} />
               </div>
-              <div className={`flex flex-col justify-center flex-1 pr-4 pl-24 overflow-hidden transition-all duration-300 ${isExpanded ? 'opacity-100' : 'opacity-0'
+
+              <div className={`flex flex-col justify-center flex-1 pr-4 pl-24 overflow-hidden transition-all duration-300 relative z-10 ${isExpanded ? 'opacity-100' : 'opacity-0'
                 }`}>
                 <p className="text-xl font-bold text-dark-900 dark:text-white truncate">{trackName}</p>
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">
                   {t('player.trackOf', { current: currentIndex + 1, total: queue.length })}
                 </p>
               </div>
-              {/* Close button */}
+
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -585,7 +684,6 @@ export default function MusicPlayer() {
 
             {/* Controls */}
             <div className="flex flex-row items-center justify-center flex-grow mx-3 space-x-5 relative z-50">
-              {/* Repeat/Shuffle button */}
               <button
                 onClick={toggleShuffle}
                 className={`flex items-center justify-center h-full cursor-pointer transition-all active:scale-90 ${isExpanded ? 'w-10 opacity-100' : 'w-0 opacity-0 overflow-hidden'
@@ -611,7 +709,6 @@ export default function MusicPlayer() {
                 </svg>
               </button>
 
-              {/* Previous */}
               <button
                 onClick={previous}
                 className="flex items-center justify-center w-10 h-full cursor-pointer text-dark-700 dark:text-dark-300 hover:text-primary-600 dark:hover:text-primary-400 transition-all active:scale-90"
@@ -624,7 +721,6 @@ export default function MusicPlayer() {
                 </svg>
               </button>
 
-              {/* Play/Pause */}
               <button
                 onClick={togglePlayPause}
                 className="flex items-center justify-center w-12 h-full cursor-pointer text-dark-900 dark:text-white hover:text-primary-600 dark:hover:text-primary-400 transition-all active:scale-90"
@@ -643,7 +739,6 @@ export default function MusicPlayer() {
                 )}
               </button>
 
-              {/* Next */}
               <button
                 onClick={next}
                 className="flex items-center justify-center w-10 h-full cursor-pointer text-dark-700 dark:text-dark-300 hover:text-primary-600 dark:hover:text-primary-400 transition-all active:scale-90"
@@ -656,7 +751,6 @@ export default function MusicPlayer() {
                 </svg>
               </button>
 
-              {/* List button */}
               <button
                 onClick={() => setShowQueue(!showQueue)}
                 className={`flex items-center justify-center h-full cursor-pointer transition-all active:scale-90 ${isExpanded ? 'w-10 opacity-100' : 'w-0 opacity-0 overflow-hidden'
