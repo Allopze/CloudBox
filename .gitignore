@@ -24,3 +24,4 @@ build
 coverage
 *.tsbuildinfo
 releases
+releases/CloudBox-1.0.0.zip
