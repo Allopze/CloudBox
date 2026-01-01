@@ -15,7 +15,9 @@
     "close": "Cerrar reproductor",
     "seek": "Búsqueda",
     "trackOf": "{{current}} de {{total}}",
-    "drag": "Arrastrar reproductor"
+    "drag": "Arrastrar reproductor",
+    "expand": "Expandir reproductor",
+    "minimize": "Minimizar reproductor"
   },
   "maintenance": {
     "title": "Estamos en mantenimiento",

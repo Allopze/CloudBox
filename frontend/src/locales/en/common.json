@@ -15,7 +15,9 @@
     "close": "Close player",
     "seek": "Seek",
     "trackOf": "{{current}} of {{total}}",
-    "drag": "Drag player"
+    "drag": "Drag player",
+    "expand": "Expand player",
+    "minimize": "Minimize player"
   },
   "maintenance": {
     "title": "We're under maintenance",
