@@ -20,6 +20,7 @@ const DEFAULT_CONFIG = {
   RETRY_BASE_DELAY: 1000, // 1 second
   CHUNKED_UPLOAD_THRESHOLD: 10 * 1024 * 1024, // 10MB
   MAX_FILE_SIZE: 1024 * 1024 * 1024, // 1GB default
+  BLOCKED_EXTENSIONS: [] as string[],
 };
 
 // Dynamic configuration (loaded from server)
@@ -42,6 +43,7 @@ async function loadUploadConfig(): Promise<void> {
       DEFAULT_CHUNK_SIZE: parseInt(data.chunkSize) || DEFAULT_CONFIG.DEFAULT_CHUNK_SIZE,
       MAX_CONCURRENT_CHUNKS: parseInt(data.concurrentChunks) || DEFAULT_CONFIG.MAX_CONCURRENT_CHUNKS,
       MAX_FILE_SIZE: parseInt(data.maxFileSize) || DEFAULT_CONFIG.MAX_FILE_SIZE,
+      BLOCKED_EXTENSIONS: normalizeExtensionsList(data.blockedExtensions),
     };
     configLoaded = true;
   } catch (error) {
@@ -85,20 +87,44 @@ export const UPLOAD_ERROR_CODES = {
   NETWORK_ERROR: 'NETWORK_ERROR',
 } as const;
 
-// Dangerous extensions (must match backend)
-const DANGEROUS_EXTENSIONS = [
+// Default blocked extensions (must match backend defaults)
+const DEFAULT_BLOCKED_EXTENSIONS = [
   '.dll', '.bat', '.cmd', '.com', '.msi', '.scr', '.pif',
   '.vbs', '.vbe', '.jse', '.ws', '.wsf', '.wsc', '.wsh',
   '.ps1', '.psm1', '.psd1', '.ps1xml', '.pssc', '.psrc',
   '.msh', '.msh1', '.msh2', '.mshxml', '.msh1xml', '.msh2xml',
   '.scf', '.lnk', '.inf', '.reg', '.hta', '.cpl', '.msc', '.jar',
   '.phtml', '.php3', '.php4', '.php5', '.phps',
-  '.asp', '.aspx', '.cer', '.csr', '.jsp', '.jspx',
+  '.asp', '.aspx', '.jsp', '.jspx',
   '.htaccess', '.htpasswd', '.cgi',
   '.bash', '.zsh', '.csh', '.ksh',
   '.pyc', '.pyo', '.pyw', '.pyz', '.pyzw',
   '.pl', '.pm', '.pod', '.t', '.rb', '.rbw',
 ];
+
+DEFAULT_CONFIG.BLOCKED_EXTENSIONS = DEFAULT_BLOCKED_EXTENSIONS;
+UPLOAD_CONFIG.BLOCKED_EXTENSIONS = DEFAULT_BLOCKED_EXTENSIONS;
+
+const normalizeExtension = (value: string): string | null => {
+  const trimmed = value.trim().toLowerCase();
+  if (!trimmed) return null;
+  return trimmed.startsWith('.') ? trimmed : `.${trimmed}`;
+};
+
+const normalizeExtensionsList = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return DEFAULT_BLOCKED_EXTENSIONS;
+  const normalized: string[] = [];
+  const seen = new Set<string>();
+
+  for (const item of value) {
+    const normalizedValue = normalizeExtension(String(item));
+    if (!normalizedValue || seen.has(normalizedValue)) continue;
+    seen.add(normalizedValue);
+    normalized.push(normalizedValue);
+  }
+
+  return normalized.length > 0 || value.length === 0 ? normalized : DEFAULT_BLOCKED_EXTENSIONS;
+};
 
 export interface UploadProgress {
   fileId: string;
@@ -164,8 +190,10 @@ export function validateFile(
   const fileName = file.name.toLowerCase();
   const extension = fileName.substring(fileName.lastIndexOf('.'));
 
-  // Check dangerous extensions
-  if (DANGEROUS_EXTENSIONS.includes(extension)) {
+  const blockedExtensions = UPLOAD_CONFIG.BLOCKED_EXTENSIONS || DEFAULT_CONFIG.BLOCKED_EXTENSIONS;
+
+  // Check blocked extensions
+  if (blockedExtensions.includes(extension)) {
     return {
       valid: false,
       error: `File type not allowed: ${extension}`,

@@ -77,5 +77,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 # Use tini as init system for proper signal handling
 ENTRYPOINT ["/sbin/tini", "--"]
 
-# Run database migrations and start server
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]
+# Run database migrations only if explicitly enabled, then start server
+CMD sh -c 'if [ "${RUN_MIGRATIONS_ON_START:-}" = "true" ]; then npx prisma migrate deploy; fi; node dist/index.js'

@@ -612,7 +612,9 @@ export default function Settings() {
         ) : (
           <div className="space-y-3">
             {sessions.map((session) => (
-              <div key={session.id} className={`flex items-center justify-between p-4 rounded-xl border ${session.isCurrent
+              <div
+                key={session.id || `${session.ipAddress}-${session.createdAt || session.lastActive}`}
+                className={`flex items-center justify-between p-4 rounded-xl border ${session.isCurrent
                 ? 'border-primary-200 bg-primary-50 dark:border-primary-800 dark:bg-primary-900/20'
                 : 'border-dark-100 dark:border-dark-700 bg-dark-50 dark:bg-dark-900'
                 }`}

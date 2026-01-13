@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import DOMPurify from 'dompurify';
 import { useTranslation } from 'react-i18next';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
@@ -110,6 +111,15 @@ export default function DocumentViewer({
     const shareId = (file as any)?.shareId as string | undefined;
     const blobUrlRef = useRef<string | null>(null);
 
+    const sanitizedSpreadsheetHtml = useMemo(() => {
+        if (!spreadsheetHtml) return null;
+        return DOMPurify.sanitize(spreadsheetHtml, {
+            USE_PROFILES: { html: true },
+            ADD_TAGS: ['table', 'thead', 'tbody', 'tr', 'th', 'td', 'br'],
+            ADD_ATTR: ['style', 'rowspan', 'colspan'],
+        });
+    }, [spreadsheetHtml]);
+
     const revokeBlobUrl = useCallback(() => {
         if (blobUrlRef.current) {
             URL.revokeObjectURL(blobUrlRef.current);
@@ -129,11 +139,23 @@ export default function DocumentViewer({
                 : `/files/${file.id}/excel-html`;
             const response = await api.get(endpoint, {
                 params: { sheet: sheetIndex },
-                validateStatus: (status) => status < 500,
+                validateStatus: () => true,
             });
 
             if (response.status !== 200 || !response.data?.html) {
-                setLoadError(t('errorLoadingSpreadsheet', 'Error loading spreadsheet.'));
+                const serverMessage =
+                    typeof response.data?.error === 'string'
+                        ? response.data.error
+                        : null;
+                const debugMessage =
+                    typeof response.data?.details?.message === 'string'
+                        ? response.data.details.message
+                        : null;
+
+                const fallback = t('errorLoadingSpreadsheet', 'Error loading spreadsheet.');
+                const combined = [serverMessage || fallback, debugMessage].filter(Boolean).join(' ');
+
+                setLoadError(combined);
                 setIsLoading(false);
                 return;
             }
@@ -147,7 +169,6 @@ export default function DocumentViewer({
             }
             setIsLoading(false);
         } catch (error) {
-            console.error('Error loading spreadsheet:', error);
             setLoadError(t('errorLoadingSpreadsheet', 'Error loading spreadsheet.'));
             setIsLoading(false);
         }
@@ -213,51 +234,51 @@ export default function DocumentViewer({
             conversionPollingRef.current = null;
         }
 
-            const loadDocument = async () => {
-                try {
-                    if (documentType === 'pdf') {
-                        if (shareId) {
-                            const response = await api.get(`/shares/${shareId}/files/${file.id}/view`, {
-                                responseType: 'arraybuffer',
-                            });
-                            const blob = new Blob([response.data], { type: 'application/pdf' });
-                            const url = URL.createObjectURL(blob);
-                            blobUrlRef.current = url;
-                            setSignedUrl(url);
-                        } else {
-                            const url = await getSignedFileUrl(file.id, 'view');
-                            setSignedUrl(url);
-                        }
-                    } else if (documentType === 'text') {
-                        // For text files, fetch content directly
-                        const viewUrl = shareId
-                            ? `/shares/${shareId}/files/${file.id}/view`
-                            : `/files/${file.id}/view`;
-                        const response = await api.get(viewUrl, {
-                            responseType: 'text',
+        const loadDocument = async () => {
+            try {
+                if (documentType === 'pdf') {
+                    if (shareId) {
+                        const response = await api.get(`/shares/${shareId}/files/${file.id}/view`, {
+                            responseType: 'arraybuffer',
                         });
-                        setTextContent(response.data);
-                        setIsLoading(false);
-                    } else if (documentType === 'spreadsheet') {
-                        await loadSpreadsheetPreview(0);
-                    } else if (documentType === 'office') {
-                        if (shareId) {
-                            setConversionFailed(true);
-                            setConversionMessage(t('documentViewer.officePreviewNotSupported', 'Preview is not available for this file type. Please download the file to view it.'));
-                            setIsLoading(false);
-                        } else {
-                            // For office documents, try to get PDF preview
-                            await loadOfficePdfPreview();
-                        }
+                        const blob = new Blob([response.data], { type: 'application/pdf' });
+                        const url = URL.createObjectURL(blob);
+                        blobUrlRef.current = url;
+                        setSignedUrl(url);
                     } else {
-                        setIsLoading(false);
+                        const url = await getSignedFileUrl(file.id, 'view');
+                        setSignedUrl(url);
                     }
-                } catch (error) {
-                    console.error('Error loading document:', error);
-                    setLoadError(t('documentViewer.loadError', 'Failed to load document'));
+                } else if (documentType === 'text') {
+                    // For text files, fetch content directly
+                    const viewUrl = shareId
+                        ? `/shares/${shareId}/files/${file.id}/view`
+                        : `/files/${file.id}/view`;
+                    const response = await api.get(viewUrl, {
+                        responseType: 'text',
+                    });
+                    setTextContent(response.data);
+                    setIsLoading(false);
+                } else if (documentType === 'spreadsheet') {
+                    await loadSpreadsheetPreview(0);
+                } else if (documentType === 'office') {
+                    if (shareId) {
+                        setConversionFailed(true);
+                        setConversionMessage(t('documentViewer.officePreviewNotSupported', 'Preview is not available for this file type. Please download the file to view it.'));
+                        setIsLoading(false);
+                    } else {
+                        // For office documents, try to get PDF preview
+                        await loadOfficePdfPreview();
+                    }
+                } else {
                     setIsLoading(false);
                 }
-            };
+            } catch (error) {
+                console.error('Error loading document:', error);
+                setLoadError(t('documentViewer.loadError', 'Failed to load document'));
+                setIsLoading(false);
+            }
+        };
 
         // Function to load Office PDF preview with polling
         const loadOfficePdfPreview = async () => {
@@ -795,7 +816,7 @@ export default function DocumentViewer({
                                 className="bg-white dark:bg-dark-800 shadow-lg rounded-lg p-4 mx-4 overflow-auto w-full"
                                 style={{ width: 'min(1600px, 95vw)', minHeight: '70vh', maxHeight: '85vh' }}
                             >
-                                <div dangerouslySetInnerHTML={{ __html: spreadsheetHtml }} />
+                                <div dangerouslySetInnerHTML={{ __html: sanitizedSpreadsheetHtml || '' }} />
                             </div>
                         </div>
                     )}

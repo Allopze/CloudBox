@@ -4,7 +4,7 @@ import { api } from '../../../lib/api';
 import Button from '../../ui/Button';
 import Input from '../../ui/Input';
 import { toast } from '../../ui/Toast';
-import { Palette, Upload, Trash2, Save } from 'lucide-react';
+import { Upload, Trash2, Save } from 'lucide-react';
 import { useBrandingStore, BrandingSettings } from '../../../stores/brandingStore';
 
 // Helper interface removed, using store type
@@ -18,6 +18,7 @@ export default function BrandingSection() {
         logoLightUrl: undefined,
         logoDarkUrl: undefined,
         faviconUrl: undefined,
+        siteName: 'CloudBox',
         customCss: '',
     });
 
@@ -32,6 +33,7 @@ export default function BrandingSection() {
                 logoLightUrl: branding.logoLightUrl || undefined,
                 logoDarkUrl: branding.logoDarkUrl || undefined,
                 faviconUrl: branding.faviconUrl || undefined,
+                siteName: branding.siteName || 'CloudBox',
                 customCss: branding.customCss || '',
             });
         }
@@ -77,6 +79,7 @@ export default function BrandingSection() {
             await api.put('/admin/settings/branding', {
                 primaryColor: brandingSettings.primaryColor,
                 customCss: brandingSettings.customCss,
+                siteName: brandingSettings.siteName,
             });
             toast(t('admin.branding.saveSuccess'), 'success');
             loadBranding();
@@ -89,11 +92,10 @@ export default function BrandingSection() {
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center gap-2 mb-2">
-                <Palette className="w-5 h-5 text-primary-600" />
-                <h2 className="text-xl font-bold text-dark-900 dark:text-white">{t('admin.branding.title', 'Personalización')}</h2>
+            <div>
+                <h2 className="text-2xl font-bold text-dark-900 dark:text-white">{t('admin.branding.title', 'Personalización')}</h2>
+                <p className="text-dark-500 dark:text-dark-400 mt-1">{t('admin.branding.description', 'Personaliza la apariencia de tu instancia de CloudBox.')}</p>
             </div>
-            <p className="text-dark-500 dark:text-dark-400 -mt-4 mb-6">{t('admin.branding.description', 'Personaliza la apariencia de tu instancia de CloudBox.')}</p>
 
             <div className="">
                 {/* Color */}
@@ -104,7 +106,7 @@ export default function BrandingSection() {
                             type="color"
                             value={brandingSettings.primaryColor}
                             onChange={(e) => setBrandingSettings({ ...brandingSettings, primaryColor: e.target.value })}
-                            className="color-input w-10 h-10 rounded-lg cursor-pointer border border-dark-200 dark:border-dark-600 bg-white dark:bg-dark-800 overflow-hidden"
+                            className="color-input w-10 h-10 rounded-full cursor-pointer border border-dark-200 dark:border-dark-600 bg-white dark:bg-dark-800 overflow-hidden"
                             aria-label={t('admin.branding.primaryColor')}
                         />
                         <Input
@@ -113,6 +115,19 @@ export default function BrandingSection() {
                             className="w-32 font-mono uppercase"
                         />
                     </div>
+                </div>
+
+                {/* Browser Tab Title */}
+                <div className="mb-6">
+                    <Input
+                        label={t('admin.branding.siteName', 'Titulo de la pestana')}
+                        value={brandingSettings.siteName || ''}
+                        onChange={(e) => setBrandingSettings({ ...brandingSettings, siteName: e.target.value })}
+                        placeholder="CloudBox"
+                    />
+                    <p className="text-xs text-dark-500 mt-1">
+                        {t('admin.branding.siteNameHint', 'Este texto aparece en la pestaña del navegador.')}
+                    </p>
                 </div>
 
                 {/* Logo Uploads */}

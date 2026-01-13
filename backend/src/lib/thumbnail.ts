@@ -64,6 +64,11 @@ const FFMPEG_OPTIONS = {
   maxBuffer: 50 * 1024 * 1024, // 50MB max buffer
 };
 
+const PDF_CONVERT_OPTIONS = {
+  timeout: 30000, // 30 seconds max
+  maxBuffer: 50 * 1024 * 1024, // 50MB max buffer
+};
+
 export const generateVideoThumbnail = async (inputPath: string, fileId: string): Promise<string | null> => {
   const outputPath = getThumbnailPath(fileId);
   const tempPath = outputPath.replace('.webp', '_temp.jpg');
@@ -170,7 +175,8 @@ export const generatePdfThumbnail = async (inputPath: string, fileId: string): P
     // Try pdftoppm first (better quality)
     try {
       await execAsync(
-        `pdftoppm -png -f 1 -l 1 -scale-to ${THUMBNAIL_SIZE * 2} "${inputPath}" "${tempPath.replace('.png', '')}"`
+        `pdftoppm -png -f 1 -l 1 -scale-to ${THUMBNAIL_SIZE * 2} "${inputPath}" "${tempPath.replace('.png', '')}"`,
+        PDF_CONVERT_OPTIONS
       );
 
       // pdftoppm adds -1 suffix
@@ -194,7 +200,8 @@ export const generatePdfThumbnail = async (inputPath: string, fileId: string): P
     // Fallback to ImageMagick/GraphicsMagick
     try {
       await execAsync(
-        `magick convert -density 150 "${inputPath}[0]" -resize ${THUMBNAIL_SIZE * 2}x${THUMBNAIL_SIZE * 2} "${tempPath}"`
+        `magick convert -density 150 "${inputPath}[0]" -resize ${THUMBNAIL_SIZE * 2}x${THUMBNAIL_SIZE * 2} "${tempPath}"`,
+        PDF_CONVERT_OPTIONS
       );
 
       if (await fileExists(tempPath)) {
@@ -216,7 +223,8 @@ export const generatePdfThumbnail = async (inputPath: string, fileId: string): P
     // Try with convert command (older ImageMagick)
     try {
       await execAsync(
-        `convert -density 150 "${inputPath}[0]" -resize ${THUMBNAIL_SIZE * 2}x${THUMBNAIL_SIZE * 2} "${tempPath}"`
+        `convert -density 150 "${inputPath}[0]" -resize ${THUMBNAIL_SIZE * 2}x${THUMBNAIL_SIZE * 2} "${tempPath}"`,
+        PDF_CONVERT_OPTIONS
       );
 
       if (await fileExists(tempPath)) {
@@ -238,7 +246,8 @@ export const generatePdfThumbnail = async (inputPath: string, fileId: string): P
     // Fallback to GraphicsMagick (gm) - installed in Docker Alpine
     try {
       await execAsync(
-        `gm convert -density 150 "${inputPath}[0]" -resize ${THUMBNAIL_SIZE * 2}x${THUMBNAIL_SIZE * 2} "${tempPath}"`
+        `gm convert -density 150 "${inputPath}[0]" -resize ${THUMBNAIL_SIZE * 2}x${THUMBNAIL_SIZE * 2} "${tempPath}"`,
+        PDF_CONVERT_OPTIONS
       );
 
       if (await fileExists(tempPath)) {

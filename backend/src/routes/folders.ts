@@ -15,6 +15,8 @@ import bcrypt from 'bcrypt';
 
 const router = Router();
 
+type BreadcrumbItem = { id: string; name: string };
+
 // Helper function to serialize folder BigInt fields and exclude sensitive data
 const serializeFolder = (folder: any) => ({
   ...folder,
@@ -187,7 +189,7 @@ router.get('/:id', authenticate, async (req: Request, res: Response) => {
     }
 
     // Build breadcrumb with depth limit (using centralized config)
-    const breadcrumb = [];
+    const breadcrumb: BreadcrumbItem[] = [];
     let currentFolder = folder;
     let depth = 0;
 

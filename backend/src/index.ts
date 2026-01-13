@@ -22,7 +22,7 @@ import { initCache, getCacheStats } from './lib/cache.js';
 import { initSessionStore, getSessionStats } from './lib/sessionStore.js';
 import { initBullBoard, closeBullBoard } from './lib/bullBoard.js';
 import { authenticate, requireAdmin } from './middleware/auth.js';
-import { initRateLimitRedis, getRateLimitStats } from './lib/security.js';
+import { initRateLimitRedis, getRateLimitStats, getBlockedExtensions } from './lib/security.js';
 import { metricsMiddleware, metricsHandler } from './lib/metrics.js';
 import { getGlobalUploadMaxFileSize } from './lib/limits.js';
 import { httpLogger } from './middleware/requestLogger.js';
@@ -50,7 +50,12 @@ import twoFactorRoutes from './routes/2fa.js';
 import versionRoutes from './routes/versions.js';
 import metricsRoutes from './routes/metrics.js';
 
+// WOPI routes (conditionally loaded)
+let wopiRoutes: import('express').Router | null = null;
+let officeRoutes: import('express').Router | null = null;
+
 const app = express();
+app.set('trust proxy', config.trustProxy);
 
 // Security headers with Helmet
 // Production-hardened CSP and security headers
@@ -187,7 +192,8 @@ const createGlobalLimiter = () => rateLimit({
   store: createRateLimitStore('global'),
   skip: (req) => {
     // Skip rate limiting for health checks
-    return req.originalUrl === '/api/health' || req.path === '/health';
+    const url = req.originalUrl || '';
+    return url.startsWith('/api/health') || url.startsWith('/api/status') || req.path === '/health';
   },
 });
 
@@ -247,6 +253,29 @@ const registerRoutes = () => {
   app.use('/api/files', versionRoutes); // Version history routes
   app.use('/api/admin/metrics', metricsRoutes); // Server metrics
 
+  // WOPI Host routes (conditionally enabled)
+  if (config.wopi.enabled && wopiRoutes && officeRoutes) {
+    // WOPI rate limiter
+    const wopiLimiter = rateLimit({
+      windowMs: 15 * 60 * 1000, // 15 minutes
+      max: 5000, // WOPI clients make many requests
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: { error: 'Too many WOPI requests' },
+      store: createRateLimitStore('wopi'),
+    });
+
+    // WOPI endpoints (at root level, not under /api for protocol compliance)
+    app.use(config.wopi.basePath, wopiLimiter, wopiRoutes);
+    // Office host page
+    app.use('/office', officeRoutes);
+
+    logger.info('WOPI Host enabled', {
+      basePath: config.wopi.basePath,
+      editEnabled: config.wopi.editEnabled,
+    });
+  }
+
   // Public config endpoint for upload limits (no auth required for frontend to fetch)
   app.get('/api/config/upload-limits', async (req, res) => {
     try {
@@ -269,18 +298,22 @@ const registerRoutes = () => {
         hardMaxChunkSize
       );
       const effectiveMaxFileSize = await getGlobalUploadMaxFileSize();
+      const blockedExtensions = Array.from(await getBlockedExtensions());
 
       res.json({
         maxFileSize: String(effectiveMaxFileSize),
         chunkSize: String(effectiveChunkSize),
         concurrentChunks: limits['concurrent_chunks'] || '4',
+        blockedExtensions,
       });
     } catch (error) {
       // Return defaults on error
+      const blockedExtensions = Array.from(await getBlockedExtensions());
       res.json({
         maxFileSize: String(config.storage.maxFileSize),
         chunkSize: String(Math.min(20 * 1024 * 1024, config.limits.maxChunkSize)),
         concurrentChunks: '4',
+        blockedExtensions,
       });
     }
   });
@@ -647,30 +680,68 @@ const cleanupExpiredTokens = async () => {
 const cleanupOrphanChunks = async () => {
   const fs = await import('fs/promises');
   const path = await import('path');
-
+  const now = Date.now();
+  const lockTimeout = 30 * 60 * 1000; // 30 minutes lock timeout
+  const redisLockKey = 'locks:chunk_cleanup';
   // Simple file-based lock for single-server or when Redis is not available
   const lockPath = path.join(config.storage.path, '.chunk_cleanup_lock');
 
-  try {
-    // Try to acquire lock (create lock file with current timestamp)
-    const now = Date.now();
-    const lockTimeout = 30 * 60 * 1000; // 30 minutes lock timeout
-
+  const acquireRedisLock = async (): Promise<string | null> => {
+    if (!rateLimitRedisClient) return null;
+    const lockValue = `${process.pid}-${now}`;
     try {
-      const lockData = await fs.readFile(lockPath, 'utf-8');
-      const lockTime = parseInt(lockData, 10);
+      const result = await rateLimitRedisClient.set(redisLockKey, lockValue, 'PX', lockTimeout, 'NX');
+      return result === 'OK' ? lockValue : null;
+    } catch (error) {
+      logger.warn('Failed to acquire Redis lock for chunk cleanup', {
+        error: error instanceof Error ? error.message : 'Unknown',
+      });
+      return null;
+    }
+  };
 
-      // If lock exists and is not stale, skip this run
-      if (!isNaN(lockTime) && (now - lockTime) < lockTimeout) {
-        logger.debug('Chunk cleanup skipped - another instance is running', { lockAge: now - lockTime });
+  const releaseRedisLock = async (lockValue: string): Promise<void> => {
+    if (!rateLimitRedisClient) return;
+    const unlockScript = `
+      if redis.call("get", KEYS[1]) == ARGV[1]
+      then
+        return redis.call("del", KEYS[1])
+      else
+        return 0
+      end
+    `;
+    await rateLimitRedisClient.eval(unlockScript, 1, redisLockKey, lockValue).catch(() => { });
+  };
+
+  let redisLockValue: string | null = null;
+  let fileLockAcquired = false;
+
+  try {
+    if (rateLimitRedisClient) {
+      redisLockValue = await acquireRedisLock();
+      if (!redisLockValue) {
+        logger.debug('Chunk cleanup skipped - Redis lock held by another instance');
         return;
       }
-    } catch {
-      // Lock file doesn't exist, proceed
-    }
+    } else {
+      // Try to acquire file lock (create lock file with current timestamp)
+      try {
+        const lockData = await fs.readFile(lockPath, 'utf-8');
+        const lockTime = parseInt(lockData, 10);
 
-    // Write our lock
-    await fs.writeFile(lockPath, now.toString());
+        // If lock exists and is not stale, skip this run
+        if (!isNaN(lockTime) && (now - lockTime) < lockTimeout) {
+          logger.debug('Chunk cleanup skipped - another instance is running', { lockAge: now - lockTime });
+          return;
+        }
+      } catch {
+        // Lock file doesn't exist, proceed
+      }
+
+      // Write our lock
+      await fs.writeFile(lockPath, now.toString());
+      fileLockAcquired = true;
+    }
 
     const chunksDir = path.join(config.storage.path, 'chunks');
 
@@ -678,7 +749,12 @@ const cleanupOrphanChunks = async () => {
     try {
       await fs.access(chunksDir);
     } catch {
-      await fs.unlink(lockPath).catch(() => { });
+      if (fileLockAcquired) {
+        await fs.unlink(lockPath).catch(() => { });
+      }
+      if (redisLockValue) {
+        await releaseRedisLock(redisLockValue);
+      }
       return; // Directory doesn't exist, nothing to clean
     }
 
@@ -727,14 +803,15 @@ const cleanupOrphanChunks = async () => {
     if (cleanedCount > 0) {
       logger.info('Cleaned up orphan chunk directories', { count: cleanedCount });
     }
-
-    // Release lock
-    await fs.unlink(lockPath).catch(() => { });
   } catch (error) {
     logger.error('Orphan chunk cleanup error', {}, error instanceof Error ? error : new Error(String(error)));
-    // Try to release lock on error
-    const fs = await import('fs/promises');
-    await fs.unlink(lockPath).catch(() => { });
+  } finally {
+    if (redisLockValue) {
+      await releaseRedisLock(redisLockValue);
+    }
+    if (fileLockAcquired) {
+      await fs.unlink(lockPath).catch(() => { });
+    }
   }
 };
 
@@ -798,6 +875,22 @@ const start = async () => {
         });
       }
       logger.info('Distributed rate limiting initialized with Redis');
+    }
+
+    // Initialize WOPI routes if enabled
+    if (config.wopi.enabled) {
+      try {
+        const wopiModule = await import('./routes/wopi.js');
+        const officeModule = await import('./routes/office.js');
+        wopiRoutes = wopiModule.default;
+        officeRoutes = officeModule.default;
+        logger.info('WOPI routes loaded', {
+          discoveryUrl: config.wopi.discoveryUrl ? 'configured' : 'not configured',
+          editEnabled: config.wopi.editEnabled,
+        });
+      } catch (err) {
+        logger.error('Failed to load WOPI routes', {}, err instanceof Error ? err : undefined);
+      }
     }
 
     // Register routes after rate limit store is initialized

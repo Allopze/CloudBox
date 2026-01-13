@@ -81,6 +81,7 @@
       "overview": "Overview",
       "users": "Users",
       "settings": "Settings",
+      "wopi": "Office (WOPI)",
       "queues": "Queues",
       "email": "SMTP",
       "branding": "Branding",
@@ -975,6 +976,7 @@
     "conversionTimeout": "Document conversion took too long. Try downloading the file.",
     "closeEsc": "Close (Esc)"
   },
+  "errorLoadingSpreadsheet": "Error loading spreadsheet.",
   "mediaViewer": {
     "back": "Back",
     "more": "More options",
@@ -1391,6 +1393,10 @@
     "loadError": "Failed to load data",
     "saveError": "Failed to save data",
     "deleteError": "Failed to delete",
+    "branding": {
+      "siteName": "Browser tab title",
+      "siteNameHint": "This text appears next to the favicon in the browser tab."
+    },
     "storageRequests": {
       "title": "Storage Requests",
       "noRequests": "No requests",
@@ -1398,6 +1404,15 @@
       "rejected": "Request rejected",
       "approveError": "Failed to approve",
       "rejectError": "Failed to reject"
+    },
+    "blockedExtensions": {
+      "title": "Blocked Extensions",
+      "description": "Block file extensions for uploads and archive extraction. One per line or comma-separated.",
+      "save": "Save Extensions",
+      "saved": "Blocked extensions saved",
+      "saveError": "Failed to save blocked extensions",
+      "defaultList": "Using default list",
+      "customList": "Custom list active"
     },
     "fileIcons": {
       "title": "File Type Icons",

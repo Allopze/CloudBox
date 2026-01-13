@@ -9,19 +9,19 @@
     "orientation": "any",
     "icons": [
         {
-            "src": "/logos/logo-192.png",
-            "sizes": "192x192",
-            "type": "image/png"
+            "src": "/favicon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml"
         },
         {
-            "src": "/logos/logo-512.png",
-            "sizes": "512x512",
-            "type": "image/png"
+            "src": "/logo-light.svg",
+            "sizes": "any",
+            "type": "image/svg+xml"
         },
         {
-            "src": "/logos/logo-512.png",
-            "sizes": "512x512",
-            "type": "image/png",
+            "src": "/logo-dark.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
             "purpose": "maskable"
         }
     ]

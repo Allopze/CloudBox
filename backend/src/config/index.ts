@@ -1,27 +1,70 @@
-import dotenv from 'dotenv';
-import path from 'path';
-dotenv.config();
+import { loadEnv, resolveDatabaseUrl } from '../lib/env.js';
+
+loadEnv();
+const databaseUrl = resolveDatabaseUrl();
+
+const normalizeSecret = (value?: string): string => (value ?? '').trim();
+
+const isWeakSecret = (value: string, minLength: number, disallowed: Set<string>): boolean => {
+  if (!value) return true;
+  if (value.length < minLength) return true;
+  if (disallowed.has(value)) return true;
+  return false;
+};
+
+const insecureJwtSecrets = new Set([
+  'default-secret',
+  'dev-secret-change-in-production',
+  'dev-jwt-secret-change-in-production',
+  'your-super-secret-jwt-key-minimum-32-characters',
+]);
+
+const insecureRefreshSecrets = new Set([
+  'default-refresh-secret',
+  'dev-refresh-secret-change-in-production',
+  'your-super-secret-refresh-key-minimum-32-characters',
+]);
+
+const insecureEncryptionKeys = new Set([
+  'your-unique-encryption-key-minimum-32-characters',
+  'change-me-in-production',
+]);
 
 // Validate required secrets in production
 if (process.env.NODE_ENV === 'production') {
-  if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'default-secret') {
-    throw new Error('JWT_SECRET must be set in production');
+  const jwtSecret = normalizeSecret(process.env.JWT_SECRET);
+  if (isWeakSecret(jwtSecret, 32, insecureJwtSecrets)) {
+    throw new Error('JWT_SECRET must be set to a strong value (>= 32 chars) in production');
   }
-  if (!process.env.JWT_REFRESH_SECRET || process.env.JWT_REFRESH_SECRET === 'default-refresh-secret') {
-    throw new Error('JWT_REFRESH_SECRET must be set in production');
+  const jwtRefreshSecret = normalizeSecret(process.env.JWT_REFRESH_SECRET);
+  if (isWeakSecret(jwtRefreshSecret, 32, insecureRefreshSecrets)) {
+    throw new Error('JWT_REFRESH_SECRET must be set to a strong value (>= 32 chars) in production');
+  }
+  const encryptionKey = normalizeSecret(process.env.ENCRYPTION_KEY);
+  if (isWeakSecret(encryptionKey, 32, insecureEncryptionKeys)) {
+    throw new Error('ENCRYPTION_KEY must be set to a strong value (>= 32 chars) in production');
   }
   // Validate database URL in production
-  if (!process.env.DATABASE_URL || process.env.DATABASE_URL.startsWith('file:')) {
+  if (!databaseUrl || databaseUrl.startsWith('file:')) {
     console.warn('WARNING: Using SQLite in production is not recommended. Consider using PostgreSQL.');
   }
 }
 
 const isProduction = process.env.NODE_ENV === 'production';
 
+const parseTrustProxy = (value?: string): string | boolean => {
+  if (!value) return 'loopback, linklocal, uniquelocal';
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'true') return true;
+  if (normalized === 'false') return false;
+  return value;
+};
+
 export const config = {
   port: parseInt(process.env.PORT || '3001'),
   nodeEnv: process.env.NODE_ENV || 'development',
   frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5000',
+  trustProxy: parseTrustProxy(process.env.TRUST_PROXY),
 
   // Database configuration
   database: {
@@ -34,7 +77,7 @@ export const config = {
   },
 
   jwt: {
-    secret: process.env.JWT_SECRET || 'dev-secret-change-in-production',
+    secret: process.env.JWT_SECRET || 'dev-jwt-secret-change-in-production',
     refreshSecret: process.env.JWT_REFRESH_SECRET || 'dev-refresh-secret-change-in-production',
     expiresIn: process.env.JWT_EXPIRES_IN || '15m',
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
@@ -106,5 +149,42 @@ export const config = {
     maxFilesFolderUpload: parseInt(process.env.MAX_FILES_FOLDER_UPLOAD || '100'),
     maxTotalChunks: parseInt(process.env.MAX_TOTAL_CHUNKS || '10000'),
     maxChunkSize: parseInt(process.env.MAX_CHUNK_SIZE || String(100 * 1024 * 1024)), // 100MB max chunk size
+  },
+
+  // WOPI Host configuration (for Office file editing via external WOPI clients)
+  wopi: {
+    // Feature flags
+    enabled: process.env.WOPI_ENABLED === 'true',
+    editEnabled: process.env.WOPI_EDIT_ENABLED === 'true',
+
+    // CloudBox public URL (used for WOPISrc in callbacks)
+    publicUrl: process.env.CLOUDBOX_PUBLIC_URL || process.env.FRONTEND_URL || 'http://localhost:5000',
+
+    // WOPI endpoints base path (default: /wopi)
+    basePath: process.env.WOPI_BASE_PATH || '/wopi',
+
+    // Office open path (host page for iframe)
+    officeOpenPath: process.env.OFFICE_OPEN_PATH || '/office/open',
+
+    // Token configuration
+    tokenSecret: process.env.WOPI_TOKEN_SECRET || process.env.JWT_SECRET || 'dev-wopi-secret-change-in-production',
+    tokenTtlSeconds: parseInt(process.env.WOPI_TOKEN_TTL_SECONDS || '900'), // 15 minutes default
+
+    // WOPI client discovery
+    discoveryUrl: process.env.WOPI_DISCOVERY_URL || '',
+    discoveryTtlSeconds: parseInt(process.env.WOPI_DISCOVERY_TTL_SECONDS || '3600'), // 1 hour cache
+
+    // Allowed iframe origins for CSP (comma-separated)
+    allowedIframeOrigins: (process.env.OFFICE_ALLOWED_IFRAME_ORIGINS || '').split(',').filter(Boolean),
+
+    // Lock configuration
+    lockProvider: (process.env.WOPI_LOCK_PROVIDER || 'db') as 'redis' | 'db',
+    lockTtlSeconds: parseInt(process.env.WOPI_LOCK_TTL_SECONDS || '1800'), // 30 minutes default
+
+    // Proof key verification (optional security feature)
+    proofKeysVerify: process.env.WOPI_PROOF_KEYS_VERIFY === 'true',
+
+    // Max file size for WOPI operations (default: 100MB)
+    maxFileSize: parseInt(process.env.MAX_WOPI_FILE_SIZE_BYTES || String(100 * 1024 * 1024)),
   },
 };

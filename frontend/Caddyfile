@@ -15,7 +15,7 @@
         X-XSS-Protection "1; mode=block"
         Referrer-Policy "strict-origin-when-cross-origin"
         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
-        Content-Security-Policy "default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: http: https:; media-src 'self' blob: data: http: https:; connect-src 'self' https://accounts.google.com https://cloudflareinsights.com http: https: ws: wss:; frame-ancestors 'self'; base-uri 'self'; form-action 'self';"
+        Content-Security-Policy "default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; media-src 'self' blob: data: https:; connect-src 'self' https://accounts.google.com https://cloudflareinsights.com https: wss:; frame-ancestors 'self'; base-uri 'self'; form-action 'self';"
     }
     
     # API proxy to backend - MUST be before file_server

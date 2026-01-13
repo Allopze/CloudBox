@@ -80,11 +80,10 @@ export default function ActivitySection() {
             <ServerMetricsPanel />
 
             {/* Activity Logs Section */}
-            <div className="flex items-center gap-2 mb-2">
-                <ActivityIcon className="w-5 h-5 text-primary-600" />
-                <h2 className="text-xl font-bold text-dark-900 dark:text-white">{t('admin.activity.title', 'Registro de Actividad')}</h2>
+            <div>
+                <h2 className="text-2xl font-bold text-dark-900 dark:text-white">{t('admin.activity.title', 'Registro de Actividad')}</h2>
+                <p className="text-dark-500 dark:text-dark-400 mt-1">{t('admin.activity.description', 'Monitorea las acciones realizadas en el sistema.')}</p>
             </div>
-            <p className="text-dark-500 dark:text-dark-400 -mt-4 mb-6">{t('admin.activity.description', 'Monitorea las acciones realizadas en el sistema.')}</p>
 
             <div className="border border-dark-100 dark:border-dark-700 rounded-2xl overflow-hidden shadow-sm">
                 {/* Filters */}

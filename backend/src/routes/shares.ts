@@ -704,6 +704,16 @@ router.get('/public/:token/files/:fileId/excel-html', shareRateLimiter(), async 
       return;
     }
 
+    // ExcelJS preview only supports .xlsx (OOXML). Treat legacy .xls as unsupported.
+    if (file.name.toLowerCase().endsWith('.xls') && !file.name.toLowerCase().endsWith('.xlsx')) {
+      res.status(400).json({
+        error: 'Unsupported spreadsheet format',
+        code: 'UNSUPPORTED_SPREADSHEET_FORMAT',
+        details: { extension: '.xls' },
+      });
+      return;
+    }
+
     let preview;
     try {
       preview = await buildExcelHtmlPreview(file.path, sheetIndex);
@@ -722,8 +732,25 @@ router.get('/public/:token/files/:fileId/excel-html', shareRateLimiter(), async 
       fileName: file.name
     });
   } catch (error) {
-    logger.error('Excel preview shared file error', {}, error instanceof Error ? error : undefined);
-    res.status(500).json({ error: 'Failed to convert Excel file' });
+    logger.error(
+      'Excel preview shared file error',
+      {
+        fileId: req.params.fileId,
+        sheet: req.query.sheet,
+      },
+      error instanceof Error ? error : undefined
+    );
+
+    const isProd = process.env.NODE_ENV === 'production';
+    res.status(500).json({
+      error: 'Failed to convert Excel file',
+      code: 'EXCEL_PREVIEW_FAILED',
+      details: isProd
+        ? undefined
+        : {
+          message: error instanceof Error ? error.message : String(error),
+        },
+    });
   }
 });
 
@@ -915,7 +942,9 @@ router.get('/public/:token/download', shareRateLimiter(), async (req: Request, r
         return total;
       };
 
-      const totalSize = await calculateFolderSize(share.folder.id);
+      const totalSize = share.folder?.size !== undefined && share.folder?.size !== null
+        ? share.folder.size
+        : await calculateFolderSize(share.folder.id);
       const maxZipSize = BigInt(config.limits.maxZipSize);
 
       if (totalSize > maxZipSize) {

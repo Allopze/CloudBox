@@ -25,44 +25,52 @@ type ProgressCallback = (progress: CompressionProgress) => void;
 
 const activeJobs = new Map<string, ChildProcess>();
 
+const calculateDirectorySize = async (dir: string): Promise<number> => {
+  const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+  let size = 0;
+
+  for (const entry of entries) {
+    const entryPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      size += await calculateDirectorySize(entryPath);
+    } else {
+      const stat = await fs.promises.stat(entryPath);
+      size += stat.size;
+    }
+  }
+
+  return size;
+};
+
+const calculateInputSize = async (inputPaths: string[]): Promise<number> => {
+  let totalSize = 0;
+
+  for (const inputPath of inputPaths) {
+    const stat = await fs.promises.stat(inputPath);
+    if (stat.isDirectory()) {
+      totalSize += await calculateDirectorySize(inputPath);
+    } else {
+      totalSize += stat.size;
+    }
+  }
+
+  return totalSize;
+};
+
 export const compressToZip = async (
   jobId: string,
   inputPaths: string[],
   outputPath: string,
   onProgress?: ProgressCallback
 ): Promise<string> => {
+  const totalSize = await calculateInputSize(inputPaths);
+
   return new Promise((resolve, reject) => {
     const output = fs.createWriteStream(outputPath);
     const archive = archiver('zip', { zlib: { level: 9 } });
 
-    let totalSize = 0;
     let processedSize = 0;
     let currentFile = '';
-
-    // Calculate total size
-    inputPaths.forEach((p) => {
-      const stat = fs.statSync(p);
-      if (stat.isDirectory()) {
-        // Recursively calculate directory size
-        const getSize = (dir: string): number => {
-          let size = 0;
-          const files = fs.readdirSync(dir);
-          files.forEach((file) => {
-            const filePath = path.join(dir, file);
-            const stat = fs.statSync(filePath);
-            if (stat.isDirectory()) {
-              size += getSize(filePath);
-            } else {
-              size += stat.size;
-            }
-          });
-          return size;
-        };
-        totalSize += getSize(p);
-      } else {
-        totalSize += stat.size;
-      }
-    });
 
     output.on('close', () => {
       resolve(outputPath);
@@ -97,18 +105,25 @@ export const compressToZip = async (
 
     archive.pipe(output);
 
-    inputPaths.forEach((inputPath) => {
-      const stat = fs.statSync(inputPath);
-      const name = path.basename(inputPath);
-      
-      if (stat.isDirectory()) {
-        archive.directory(inputPath, name);
-      } else {
-        archive.file(inputPath, { name });
-      }
-    });
+    const addEntries = async (): Promise<void> => {
+      for (const inputPath of inputPaths) {
+        const stat = await fs.promises.stat(inputPath);
+        const name = path.basename(inputPath);
 
-    archive.finalize();
+        if (stat.isDirectory()) {
+          archive.directory(inputPath, name);
+        } else {
+          archive.file(inputPath, { name });
+        }
+      }
+
+      archive.finalize();
+    };
+
+    addEntries().catch((err) => {
+      archive.abort();
+      reject(err);
+    });
   });
 };
 

@@ -81,6 +81,7 @@
       "overview": "Resumen",
       "users": "Usuarios",
       "settings": "Configuración",
+      "wopi": "Office (WOPI)",
       "storageRequests": "Solicitudes",
       "queues": "Colas",
       "email": "SMTP",
@@ -750,6 +751,7 @@
     "convertingDocument": "Convirtiendo documento a PDF...",
     "conversionTimeout": "La conversión del documento tardó demasiado. Intenta descargar el archivo."
   },
+  "errorLoadingSpreadsheet": "Error al cargar la hoja de cálculo",
   "mediaViewer": {
     "back": "Volver",
     "more": "Más opciones",
@@ -1459,6 +1461,8 @@
       "logoLight": "Logo (Claro)",
       "logoDark": "Logo (Oscuro)",
       "favicon": "Favicon",
+      "siteName": "Titulo de la pestana",
+      "siteNameHint": "Este texto aparece en la pestana del navegador.",
       "customCss": "CSS Personalizado",
       "customCssHint": "Añade estilos CSS globales que se inyectarán en la aplicación.",
       "save": "Guardar Marca",
@@ -1559,6 +1563,15 @@
       "descriptionColumn": "Descripción",
       "date": "Fecha",
       "noLogs": "No se encontraron registros de actividad."
+    },
+    "blockedExtensions": {
+      "title": "Extensiones Bloqueadas",
+      "description": "Bloquea extensiones de archivo para subidas y extracciИn de archivos comprimidos. Una por lИnea o separadas por comas.",
+      "save": "Guardar Extensiones",
+      "saved": "Extensiones bloqueadas guardadas",
+      "saveError": "Error al guardar extensiones bloqueadas",
+      "defaultList": "Usando lista por defecto",
+      "customList": "Lista personalizada activa"
     },
     "enterEmail": "Introduce un email",
     "emailSent": "Correo enviado",

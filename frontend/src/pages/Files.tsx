@@ -486,7 +486,7 @@ export default function Files() {
             items={[...folders, ...files]}
             viewMode={viewMode}
             scrollElementId="main-content"
-            estimateListItemHeight={60}
+            estimateListItemHeight={85}
             renderItem={(item, _index, _style) => (
               'parentId' in item ? (
                 <FolderCard
@@ -547,17 +547,17 @@ export default function Files() {
       />
 
       {/* Share Modal */}
-        {selectedFileForAction && (
-          <ShareModal
-            isOpen={isShareModalOpen}
-            onClose={() => {
-              setShareModalOpen(false);
-              setSelectedFileForAction(null);
-            }}
-            file={selectedFileForAction}
-            onSuccess={refreshData}
-          />
-        )}
+      {selectedFileForAction && (
+        <ShareModal
+          isOpen={isShareModalOpen}
+          onClose={() => {
+            setShareModalOpen(false);
+            setSelectedFileForAction(null);
+          }}
+          file={selectedFileForAction}
+          onSuccess={refreshData}
+        />
+      )}
 
       {/* Rename Modal */}
       {selectedFileForAction && (

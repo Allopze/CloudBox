@@ -31,6 +31,7 @@ import {
   ArrowLeft,
   HardDrive,
   Layers,
+  FilePen,
 } from 'lucide-react';
 import MobileDrawer from './ui/MobileDrawer';
 
@@ -51,10 +52,11 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   ArrowLeft,
   HardDrive,
   Layers,
+  FilePen,
 };
 
 // Admin section type
-export type AdminSection = 'overview' | 'users' | 'settings' | 'queues' | 'email' | 'branding' | 'file-icons' | 'legal' | 'activity' | 'storage-requests';
+export type AdminSection = 'overview' | 'users' | 'settings' | 'wopi' | 'queues' | 'email' | 'branding' | 'file-icons' | 'legal' | 'activity' | 'storage-requests';
 
 interface SidebarProps {
   mobileOpen: boolean;

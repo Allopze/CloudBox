@@ -2,6 +2,7 @@ node_modules
 .env
 .env.local
 .env.*.local
+backend/.env
 
 # Data directory (user uploads, thumbnails, etc.)
 /data

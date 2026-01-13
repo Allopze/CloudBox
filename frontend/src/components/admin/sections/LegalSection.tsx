@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { api } from '../../../lib/api';
 import Button from '../../ui/Button';
 import { toast } from '../../ui/Toast';
-import { FileText, Save } from 'lucide-react';
+import { Save } from 'lucide-react';
 
 interface LegalSettings {
     privacyPolicy: string;
@@ -104,12 +104,12 @@ export default function LegalSection() {
 
     return (
         <div className="space-y-6">
-            <div className="flex flex-wrap items-center gap-3 mb-2">
-                <div className="flex items-center gap-2">
-                    <FileText className="w-5 h-5 text-primary-600" />
-                    <h2 className="text-xl font-bold text-dark-900 dark:text-white">{t('admin.legal.title', 'Paginas Legales')}</h2>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <h2 className="text-2xl font-bold text-dark-900 dark:text-white">{t('admin.legal.title', 'Paginas Legales')}</h2>
+                    <p className="text-dark-500 dark:text-dark-400 mt-1">{t('admin.legal.description', 'Edita el contenido de las paginas de Privacidad y Terminos.')}</p>
                 </div>
-                <div className="ml-auto flex items-center gap-2">
+                <div className="flex items-center gap-2">
                     <span className="text-sm text-dark-500 dark:text-dark-400">{t('language.label', 'Language')}</span>
                     <select
                         value={activeLocale}
@@ -121,7 +121,6 @@ export default function LegalSection() {
                     </select>
                 </div>
             </div>
-            <p className="text-dark-500 dark:text-dark-400 -mt-4 mb-6">{t('admin.legal.description', 'Edita el contenido de las paginas de Privacidad y Terminos.')}</p>
 
             <div className="border border-dark-100 dark:border-dark-700 rounded-2xl overflow-hidden">
                 {/* Tabs */}

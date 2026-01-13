@@ -5,7 +5,7 @@ import { cn } from '../../../lib/utils';
 import Button from '../../ui/Button';
 import Input from '../../ui/Input';
 import { toast } from '../../ui/Toast';
-import { Globe, HardDrive, FileType, Check, Upload, Save, TrendingUp, Shield } from 'lucide-react';
+import { HardDrive, FileType, Check, Upload, Save, TrendingUp, Shield } from 'lucide-react';
 
 // Helper functions (copied from AdminDashboard)
 const bytesToUnit = (bytes: string): { value: string; unit: string } => {
@@ -22,6 +22,13 @@ const unitToBytes = (value: string, unit: string): string => {
         case 'GB': return Math.round(v * 1073741824).toString();
         case 'MB': default: return Math.round(v * 1048576).toString();
     }
+};
+
+const parseExtensionsInput = (value: string): string[] => {
+    return value
+        .split(/[\n,]+/)
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0);
 };
 
 interface SystemSettings {
@@ -61,10 +68,13 @@ export default function SettingsSection() {
     const [savingSystem, setSavingSystem] = useState(false);
     const [savingUploadLimits, setSavingUploadLimits] = useState(false);
     const [savingCors, setSavingCors] = useState(false);
+    const [savingBlockedExtensions, setSavingBlockedExtensions] = useState(false);
     const [loading, setLoading] = useState(true);
 
     // CORS State
     const [allowedOrigins, setAllowedOrigins] = useState('');
+    const [blockedExtensions, setBlockedExtensions] = useState('');
+    const [blockedExtensionsDefault, setBlockedExtensionsDefault] = useState(true);
 
     // Helper State
     const [quotaValue, setQuotaValue] = useState('');
@@ -83,10 +93,11 @@ export default function SettingsSection() {
 
     const loadSettings = async () => {
         try {
-            const [systemRes, limitsRes, corsRes] = await Promise.all([
+            const [systemRes, limitsRes, corsRes, blockedRes] = await Promise.all([
                 api.get('/admin/settings/system').catch(() => ({ data: {} })),
                 api.get('/admin/settings/limits').catch(() => ({ data: {} })),
-                api.get('/admin/settings/cors').catch(() => ({ data: {} }))
+                api.get('/admin/settings/cors').catch(() => ({ data: {} })),
+                api.get('/admin/settings/blocked-extensions').catch(() => ({ data: null }))
             ]);
 
             if (systemRes.data) {
@@ -117,6 +128,12 @@ export default function SettingsSection() {
             if (corsRes.data) {
                 // Convert comma-separated to newline-separated for textarea
                 setAllowedOrigins((corsRes.data.allowedOrigins || '').split(',').filter((s: string) => s).join('\n'));
+            }
+
+            if (blockedRes.data) {
+                const list = Array.isArray(blockedRes.data.extensions) ? blockedRes.data.extensions : [];
+                setBlockedExtensions(list.join('\n'));
+                setBlockedExtensionsDefault(Boolean(blockedRes.data.isDefault));
             }
         } catch (error) {
             toast(t('admin.loadError'), 'error');
@@ -199,6 +216,22 @@ export default function SettingsSection() {
         }
     };
 
+    const saveBlockedExtensions = async () => {
+        setSavingBlockedExtensions(true);
+        try {
+            const extensions = parseExtensionsInput(blockedExtensions);
+            const response = await api.put('/admin/settings/blocked-extensions', { extensions });
+            const saved = Array.isArray(response.data?.extensions) ? response.data.extensions : extensions;
+            setBlockedExtensions(saved.join('\n'));
+            setBlockedExtensionsDefault(false);
+            toast(t('admin.blockedExtensions.saved', 'Blocked extensions saved'), 'success');
+        } catch (error: any) {
+            toast(error.response?.data?.error || t('admin.blockedExtensions.saveError', 'Failed to save blocked extensions'), 'error');
+        } finally {
+            setSavingBlockedExtensions(false);
+        }
+    };
+
     if (loading) {
         return <div className="flex justify-center p-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" /></div>;
     }
@@ -207,11 +240,13 @@ export default function SettingsSection() {
         <div className="space-y-8">
             {/* General Settings */}
             <section>
-                <div className="flex items-center gap-2 mb-2">
-                    <Globe className="w-5 h-5 text-primary-600" />
-                    <h2 className="text-xl font-bold text-dark-900 dark:text-white">
+                <div className="mb-4">
+                    <h2 className="text-2xl font-bold text-dark-900 dark:text-white">
                         {t('admin.general.title', 'Configuración General')}
                     </h2>
+                    <p className="text-dark-500 dark:text-dark-400 mt-1">
+                        {t('admin.general.description', 'Ajustes generales de la plataforma.')}
+                    </p>
                 </div>
                 <div className="py-2">
                     <div className="grid grid-cols-2 gap-4 mb-4">
@@ -403,6 +438,36 @@ export default function SettingsSection() {
                             {t('admin.limits.save')}
                         </Button>
                     </div>
+                </div>
+            </section>
+
+            {/* Blocked Extensions */}
+            <section>
+                <div className="flex items-center gap-2 mb-2">
+                    <Shield className="w-5 h-5 text-primary-600" />
+                    <h2 className="text-xl font-bold text-dark-900 dark:text-white">
+                        {t('admin.blockedExtensions.title', 'Blocked Extensions')}
+                    </h2>
+                </div>
+                <p className="text-sm text-dark-500 dark:text-dark-400 mb-3">
+                    {t('admin.blockedExtensions.description', 'Block file extensions for uploads and archive extraction. One per line or comma-separated.')}
+                </p>
+                <textarea
+                    value={blockedExtensions}
+                    onChange={(e) => setBlockedExtensions(e.target.value)}
+                    rows={6}
+                    placeholder=".exe\n.ps1\n.php"
+                    className="w-full px-3 py-2 rounded-xl border border-dark-300 dark:border-dark-600 bg-transparent text-dark-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono text-sm"
+                />
+                <div className="flex items-center justify-between mt-2">
+                    <span className="text-xs text-dark-500 dark:text-dark-400">
+                        {blockedExtensionsDefault
+                            ? t('admin.blockedExtensions.defaultList', 'Using default list')
+                            : t('admin.blockedExtensions.customList', 'Custom list active')}
+                    </span>
+                    <Button onClick={saveBlockedExtensions} loading={savingBlockedExtensions} variant="secondary" icon={<Save className="w-4 h-4" />}>
+                        {t('admin.blockedExtensions.save', 'Save Extensions')}
+                    </Button>
                 </div>
             </section>
         </div>

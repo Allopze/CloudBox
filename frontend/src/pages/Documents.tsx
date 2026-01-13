@@ -365,7 +365,7 @@ export default function Documents() {
           items={documents}
           viewMode={viewMode}
           scrollElementId="main-content"
-          estimateListItemHeight={60}
+          estimateListItemHeight={85}
           renderItem={(doc, _index, style) => {
             if (viewMode === 'list') {
               return (

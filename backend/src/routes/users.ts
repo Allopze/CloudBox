@@ -71,8 +71,12 @@ router.patch('/me', authenticate, validate(updateProfileSchema), async (req: Req
     const userId = req.user!.userId;
 
     if (email) {
+      const normalizedEmail = email.trim().toLowerCase();
       const existingUser = await prisma.user.findFirst({
-        where: { email, NOT: { id: userId } },
+        where: {
+          email: { equals: normalizedEmail, mode: 'insensitive' },
+          NOT: { id: userId },
+        },
       });
 
       if (existingUser) {
@@ -85,7 +89,7 @@ router.patch('/me', authenticate, validate(updateProfileSchema), async (req: Req
       where: { id: userId },
       data: {
         ...(name && { name }),
-        ...(email && { email, emailVerified: false }),
+        ...(email && { email: email.trim().toLowerCase(), emailVerified: false }),
       },
       select: {
         id: true,

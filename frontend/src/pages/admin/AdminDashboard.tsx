@@ -13,6 +13,7 @@ import LegalSection from '../../components/admin/sections/LegalSection';
 import ActivitySection from '../../components/admin/sections/ActivitySection';
 import StorageRequestsSection from '../../components/admin/sections/StorageRequestsSection';
 import QueuesSection from '../../components/admin/sections/QueuesSection';
+import WopiSection from '../../components/admin/sections/WopiSection';
 import { toast } from '../../components/ui/Toast';
 
 export default function AdminDashboard() {
@@ -60,6 +61,8 @@ export default function AdminDashboard() {
         return <UsersSection />;
       case 'settings':
         return <SettingsSection />;
+      case 'wopi':
+        return <WopiSection />;
       case 'branding':
         return <BrandingSection />;
       case 'email':

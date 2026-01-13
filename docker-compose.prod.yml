@@ -17,9 +17,21 @@ services:
   init:
     image: alpine:latest
     container_name: cloudbox-init
+    environment:
+      CLOUDBOX_UID: "${CLOUDBOX_UID:-1001}"
+      CLOUDBOX_GID: "${CLOUDBOX_GID:-1001}"
+      POSTGRES_UID: "${POSTGRES_UID:-70}"
+      POSTGRES_GID: "${POSTGRES_GID:-70}"
+      REDIS_UID: "${REDIS_UID:-999}"
+      REDIS_GID: "${REDIS_GID:-999}"
     command: >
       sh -c "mkdir -p /data/postgres /data/redis /data/cloudbox /data/glitchtip-postgres &&
-             chmod -R 777 /data &&
+             chown -R $$POSTGRES_UID:$$POSTGRES_GID /data/postgres /data/glitchtip-postgres &&
+             chmod 700 /data/postgres /data/glitchtip-postgres &&
+             chown -R $$REDIS_UID:$$REDIS_GID /data/redis &&
+             chmod 700 /data/redis &&
+             chown -R $$CLOUDBOX_UID:$$CLOUDBOX_GID /data/cloudbox &&
+             chmod 750 /data/cloudbox &&
              echo 'Data directories created successfully'"
     volumes:
       - ./data:/data
@@ -148,6 +160,9 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
+      JWT_SECRET: "${JWT_SECRET:?JWT_SECRET is required}"
+      JWT_REFRESH_SECRET: "${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET is required}"
+      ENCRYPTION_KEY: "${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}"
       STORAGE_PATH: /app/data
       MIDI_SOUNDFONT_PATH: ${MIDI_SOUNDFONT_PATH:-/app/assets/soundfonts/FluidR3_GM.sf2}
       MIDI_FLUIDSYNTH_PATH: ${MIDI_FLUIDSYNTH_PATH:-/usr/bin/fluidsynth}
@@ -156,6 +171,8 @@ services:
     volumes:
       - ./data/cloudbox:/app/data
     command: [ "node", "dist/workers/queueWorker.js" ]
+    networks:
+      - cloudbox-internal
 
   # Frontend (Caddy)
   frontend:
@@ -194,7 +211,7 @@ services:
     restart: always
     environment:
       POSTGRES_USER: glitchtip
-      POSTGRES_PASSWORD: ${GLITCHTIP_DB_PASSWORD:-glitchtip_secret}
+      POSTGRES_PASSWORD: ${GLITCHTIP_DB_PASSWORD:?GLITCHTIP_DB_PASSWORD is required}
       POSTGRES_DB: glitchtip
     volumes:
       - ./data/glitchtip-postgres:/var/lib/postgresql/data
@@ -217,9 +234,9 @@ services:
       redis:
         condition: service_healthy
     environment:
-      DATABASE_URL: "postgres://glitchtip:${GLITCHTIP_DB_PASSWORD:-glitchtip_secret}@glitchtip-postgres:5432/glitchtip"
+      DATABASE_URL: "postgres://glitchtip:${GLITCHTIP_DB_PASSWORD:?GLITCHTIP_DB_PASSWORD is required}@glitchtip-postgres:5432/glitchtip"
       REDIS_URL: "redis://:${REDIS_PASSWORD:-}@redis:6379/1"
-      SECRET_KEY: ${GLITCHTIP_SECRET_KEY:-change-me-in-production}
+      SECRET_KEY: ${GLITCHTIP_SECRET_KEY:?GLITCHTIP_SECRET_KEY is required}
       PORT: 8000
       EMAIL_URL: ${GLITCHTIP_EMAIL_URL:-consolemail://}
       GLITCHTIP_DOMAIN: ${GLITCHTIP_DOMAIN:-http://localhost:8000}
@@ -249,9 +266,9 @@ services:
       redis:
         condition: service_healthy
     environment:
-      DATABASE_URL: "postgres://glitchtip:${GLITCHTIP_DB_PASSWORD:-glitchtip_secret}@glitchtip-postgres:5432/glitchtip"
+      DATABASE_URL: "postgres://glitchtip:${GLITCHTIP_DB_PASSWORD:?GLITCHTIP_DB_PASSWORD is required}@glitchtip-postgres:5432/glitchtip"
       REDIS_URL: "redis://:${REDIS_PASSWORD:-}@redis:6379/1"
-      SECRET_KEY: ${GLITCHTIP_SECRET_KEY:-change-me-in-production}
+      SECRET_KEY: ${GLITCHTIP_SECRET_KEY:?GLITCHTIP_SECRET_KEY is required}
     networks:
       - cloudbox-internal
 

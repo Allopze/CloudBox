@@ -141,10 +141,6 @@ function shouldPersist(action: AuditAction): boolean {
  * Get client IP address from request
  */
 export function getClientIP(req: Request): string {
-  const forwarded = req.headers['x-forwarded-for'];
-  if (forwarded) {
-    return (typeof forwarded === 'string' ? forwarded : forwarded[0]).split(',')[0].trim();
-  }
   return req.ip || req.socket.remoteAddress || 'unknown';
 }
 
@@ -241,8 +237,13 @@ export function suspiciousActivityDetector(req: Request, res: Response, next: Ne
       success: false,
     });
 
-    // For severe threats, block the request
-    if (warnings.some(w => w.includes('SQL injection') || w.includes('XSS'))) {
+    const shouldBlock = warnings.some(w =>
+      w.startsWith('Path traversal attempt detected') ||
+      w.startsWith('XSS attempt detected in path')
+    );
+
+    // Only block for high-confidence path-based attacks to avoid false positives.
+    if (shouldBlock) {
       res.status(403).json({ error: 'Request blocked for security reasons' });
       return;
     }

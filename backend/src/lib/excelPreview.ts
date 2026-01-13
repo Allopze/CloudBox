@@ -6,15 +6,56 @@ export interface ExcelHtmlPreview {
   currentSheet: number;
 }
 
+const sanitizeHex = (value: string): string | null => {
+  const trimmed = value.trim();
+  if (!/^[0-9a-fA-F]{6,8}$/.test(trimmed)) return null;
+  return trimmed.length === 8 ? trimmed.substring(2) : trimmed;
+};
+
 const argbToHex = (argb: string | undefined): string | null => {
   if (!argb) return null;
-  if (argb.length === 8) {
-    return `#${argb.substring(2)}`;
+  const hex = sanitizeHex(argb);
+  return hex ? `#${hex}` : null;
+};
+
+const sanitizeCssValue = (value: string): string | null => {
+  const cleaned = value.replace(/[^a-zA-Z0-9 ,_-]/g, '').trim();
+  return cleaned.length > 0 ? cleaned : null;
+};
+
+const normalizeHorizontalAlignment = (value?: string): string | null => {
+  if (!value) return null;
+  switch (value) {
+    case 'left':
+    case 'center':
+    case 'right':
+    case 'justify':
+    case 'fill':
+      return value;
+    case 'centerContinuous':
+    case 'distributed':
+      return 'center';
+    case 'general':
+      return 'left';
+    default:
+      return null;
   }
-  if (argb.length === 6) {
-    return `#${argb}`;
+};
+
+const normalizeVerticalAlignment = (value?: string): string | null => {
+  if (!value) return null;
+  switch (value) {
+    case 'top':
+    case 'middle':
+    case 'bottom':
+      return value;
+    case 'center':
+    case 'distributed':
+    case 'justify':
+      return 'middle';
+    default:
+      return null;
   }
-  return null;
 };
 
 const getCellBgColor = (cell: ExcelJS.Cell): string | null => {
@@ -54,7 +95,7 @@ const getFontColor = (cell: ExcelJS.Cell): string | null => {
 
 const getBorderStyle = (border: Partial<ExcelJS.Border> | undefined): string => {
   if (!border || !border.style) return 'none';
-  const color = border.color?.argb ? argbToHex(border.color.argb) : '#000000';
+  const color = (border.color?.argb ? argbToHex(border.color.argb) : null) || '#000000';
   switch (border.style) {
     case 'thin': return `1px solid ${color}`;
     case 'medium': return `2px solid ${color}`;
@@ -136,20 +177,29 @@ export async function buildExcelHtmlPreview(inputPath: string, sheetIndex: numbe
         if (font.italic) styles.push('font-style: italic');
         if (font.underline) styles.push('text-decoration: underline');
         if (font.strike) styles.push('text-decoration: line-through');
-        if (font.size) styles.push(`font-size: ${font.size}pt`);
-        if (font.name) styles.push(`font-family: ${font.name}, sans-serif`);
+        if (typeof font.size === 'number') {
+          const clampedSize = Math.min(Math.max(font.size, 6), 72);
+          styles.push(`font-size: ${clampedSize}pt`);
+        }
+        if (font.name) {
+          const safeFont = sanitizeCssValue(font.name);
+          if (safeFont) {
+            styles.push(`font-family: ${safeFont}, sans-serif`);
+          }
+        }
         const fontColor = getFontColor(cell);
         if (fontColor) styles.push(`color: ${fontColor}`);
       }
 
       const alignment = cell.alignment;
       if (alignment) {
-        if (alignment.horizontal) {
-          styles.push(`text-align: ${alignment.horizontal}`);
+        const horizontal = normalizeHorizontalAlignment(alignment.horizontal as string | undefined);
+        if (horizontal) {
+          styles.push(`text-align: ${horizontal}`);
         }
-        if (alignment.vertical) {
-          const vAlign = alignment.vertical === 'middle' ? 'middle' : alignment.vertical;
-          styles.push(`vertical-align: ${vAlign}`);
+        const vertical = normalizeVerticalAlignment(alignment.vertical as string | undefined);
+        if (vertical) {
+          styles.push(`vertical-align: ${vertical}`);
         }
         if (alignment.wrapText) {
           styles.push('white-space: pre-wrap');
@@ -195,7 +245,7 @@ export async function buildExcelHtmlPreview(inputPath: string, sheetIndex: numbe
         .replace(/>/g, '&gt;')
         .replace(/\n/g, '<br>');
 
-      const spanAttrs = [];
+      const spanAttrs: string[] = [];
       if (rowSpan > 1) spanAttrs.push(`rowspan="${rowSpan}"`);
       if (colSpan > 1) spanAttrs.push(`colspan="${colSpan}"`);
 

@@ -102,11 +102,13 @@ export default function StorageRequestsSection() {
     return (
         <section className="space-y-4">
             <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <HardDrive className="w-5 h-5 text-primary-600" />
-                    <h2 className="text-xl font-bold text-dark-900 dark:text-white">
+                <div>
+                    <h2 className="text-2xl font-bold text-dark-900 dark:text-white">
                         {t('admin.storageRequests.title', 'Solicitudes de Almacenamiento')}
                     </h2>
+                    <p className="text-dark-500 dark:text-dark-400 mt-1">
+                        {t('admin.storageRequests.description', 'Gestiona las solicitudes de ampliación de cuota.')}
+                    </p>
                 </div>
 
                 {/* Filter tabs */}
@@ -116,8 +118,8 @@ export default function StorageRequestsSection() {
                             key={f}
                             onClick={() => setFilter(f)}
                             className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${filter === f
-                                    ? 'bg-white dark:bg-dark-700 text-dark-900 dark:text-white shadow-sm'
-                                    : 'text-dark-500 hover:text-dark-700 dark:text-dark-400'
+                                ? 'bg-white dark:bg-dark-700 text-dark-900 dark:text-white shadow-sm'
+                                : 'text-dark-500 hover:text-dark-700 dark:text-dark-400'
                                 }`}
                         >
                             {f === 'all' ? 'Todas' : f === 'PENDING' ? 'Pendientes' : f === 'APPROVED' ? 'Aprobadas' : 'Rechazadas'}

@@ -4,7 +4,7 @@ import { api } from '../../../lib/api';
 import Button from '../../ui/Button';
 import Input from '../../ui/Input';
 import { toast } from '../../ui/Toast';
-import { Mail, Save, Server, Code, Eye, Plus, Edit, RotateCcw, FileText, Trash2, Send } from 'lucide-react';
+import { Save, Code, Eye, Plus, Edit, RotateCcw, FileText, Trash2, Send } from 'lucide-react';
 
 interface SmtpConfig {
     host: string;
@@ -324,12 +324,15 @@ export default function EmailSection() {
 
     return (
         <div className="space-y-8">
+            {/* Main Title */}
+            <div>
+                <h2 className="text-2xl font-bold text-dark-900 dark:text-white">{t('admin.email.title', 'Correo Electrónico')}</h2>
+                <p className="text-dark-500 dark:text-dark-400 mt-1">{t('admin.email.description', 'Configura el servidor SMTP y las plantillas de correo.')}</p>
+            </div>
+
             {/* SMTP Configuration */}
             <section>
-                <div className="flex items-center gap-2 mb-2">
-                    <Server className="w-5 h-5 text-primary-600" />
-                    <h2 className="text-xl font-bold text-dark-900 dark:text-white">{t('admin.smtp.title')}</h2>
-                </div>
+                <h3 className="text-lg font-semibold text-dark-900 dark:text-white mb-4">{t('admin.smtp.title')}</h3>
                 <div className="py-2">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                         <Input label={t('admin.smtp.host')} value={smtpConfig.host} onChange={(e) => setSmtpConfig({ ...smtpConfig, host: e.target.value })} />
@@ -377,10 +380,7 @@ export default function EmailSection() {
 
             {/* Email Templates */}
             <section>
-                <div className="flex items-center gap-2 mb-2">
-                    <Mail className="w-5 h-5 text-primary-600" />
-                    <h2 className="text-xl font-bold text-dark-900 dark:text-white">{t('admin.templates.title')}</h2>
-                </div>
+                <h3 className="text-lg font-semibold text-dark-900 dark:text-white mb-4">{t('admin.templates.title')}</h3>
                 <div className="flex flex-col lg:flex-row h-[700px] border border-dark-100 dark:border-dark-700 rounded-2xl overflow-hidden bg-white/50 dark:bg-dark-900/50">
                     {/* Sidebar List */}
                     <div className="w-full lg:w-64 border-b lg:border-b-0 lg:border-r border-dark-100 dark:border-dark-700 bg-dark-50/50 dark:bg-dark-900/50 p-2 overflow-y-auto">

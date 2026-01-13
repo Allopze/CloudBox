@@ -17,7 +17,7 @@ import {
 import { getStoragePath, fileExists, ensureUserDir, getUserFilePath } from '../lib/storage.js';
 import { getArchiveUncompressedSize } from '../lib/storageAccounting.js';
 import { config } from '../config/index.js';
-import { sanitizeFilename } from '../lib/security.js';
+import { sanitizeFilename, isDangerousExtension, getBlockedExtensions } from '../lib/security.js';
 import path from 'path';
 import fs from 'fs/promises';
 
@@ -261,6 +261,7 @@ router.post('/decompress', authenticate, validate(decompressSchema), async (req:
   try {
     const { fileId, targetFolderId } = req.body;
     const userId = req.user!.userId;
+    const blockedExtensions = await getBlockedExtensions();
 
     const file = await prisma.file.findFirst({
       where: { id: fileId, userId, isTrash: false },
@@ -365,9 +366,10 @@ router.post('/decompress', authenticate, validate(decompressSchema), async (req:
             const entryPath = path.join(dirPath, entry.name);
 
             if (entry.isDirectory()) {
+              const safeFolderName = sanitizeFilename(entry.name);
               const folder = await prisma.folder.create({
                 data: {
-                  name: entry.name,
+                  name: safeFolderName,
                   parentId: parentFolderId,
                   userId,
                 },
@@ -383,8 +385,13 @@ router.post('/decompress', authenticate, validate(decompressSchema), async (req:
                 throw new Error('Storage quota exceeded during extraction');
               }
 
+              const safeFileName = sanitizeFilename(entry.name);
+              if (isDangerousExtension(safeFileName, blockedExtensions)) {
+                throw new Error(`File type not allowed: ${safeFileName}`);
+              }
+
               const newFileId = uuidv4();
-              const ext = path.extname(entry.name);
+              const ext = path.extname(safeFileName);
               const newFilePath = getUserFilePath(userId, newFileId, ext);
 
               await ensureUserDir(userId);
@@ -396,8 +403,8 @@ router.post('/decompress', authenticate, validate(decompressSchema), async (req:
               await prisma.file.create({
                 data: {
                   id: newFileId,
-                  name: entry.name,
-                  originalName: entry.name,
+                  name: safeFileName,
+                  originalName: safeFileName,
                   mimeType,
                   size: BigInt(stats.size),
                   path: newFilePath,

@@ -178,6 +178,7 @@ async function recordLoginAttempt(
 router.post('/register', validate(registerSchema), async (req: Request, res: Response) => {
   try {
     const { email, password, name } = req.body;
+    const normalizedEmail = email.trim().toLowerCase();
 
     // H-04: Check if registration is allowed (always allow first user registration as admin)
     const userCount = await prisma.user.count();
@@ -194,7 +195,9 @@ router.post('/register', validate(registerSchema), async (req: Request, res: Res
       }
     }
 
-    const existingUser = await prisma.user.findUnique({ where: { email } });
+    const existingUser = await prisma.user.findFirst({
+      where: { email: { equals: normalizedEmail, mode: 'insensitive' } },
+    });
     if (existingUser) {
       res.status(400).json({ error: 'Email already registered', code: 'EMAIL_EXISTS' });
       return;
@@ -208,7 +211,7 @@ router.post('/register', validate(registerSchema), async (req: Request, res: Res
 
     const user = await prisma.user.create({
       data: {
-        email,
+        email: normalizedEmail,
         password: hashedPassword,
         name,
         role,
@@ -220,7 +223,7 @@ router.post('/register', validate(registerSchema), async (req: Request, res: Res
 
     // Send verification email with plaintext token (user clicks link)
     const verifyUrl = `${config.frontendUrl}/verify-email/${verifyToken}`;
-    await sendWelcomeEmail(email, name, verifyUrl).catch(console.error);
+    await sendWelcomeEmail(normalizedEmail, name, verifyUrl).catch(console.error);
 
     const accessToken = generateAccessToken({
       userId: user.id,
@@ -271,11 +274,12 @@ router.post('/register', validate(registerSchema), async (req: Request, res: Res
 router.post('/login', validate(loginSchema), async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
+    const normalizedEmail = email.trim().toLowerCase();
     const ipAddress = getClientIP(req);
     const userAgent = req.headers['user-agent'];
 
     // Check for lockout
-    const lockoutStatus = await checkLockout(email, ipAddress);
+    const lockoutStatus = await checkLockout(normalizedEmail, ipAddress);
     if (lockoutStatus.isLocked) {
       const retryAfter = lockoutStatus.lockoutEnd
         ? Math.max(0, lockoutStatus.lockoutEnd.getTime() - Date.now())
@@ -286,7 +290,7 @@ router.post('/login', validate(loginSchema), async (req: Request, res: Response)
         action: 'LOGIN_FAILED',
         ipAddress,
         userAgent,
-        details: { email, reason: 'lockout', minutesRemaining },
+        details: { email: normalizedEmail, reason: 'lockout', minutesRemaining },
         success: false,
       });
 
@@ -299,7 +303,9 @@ router.post('/login', validate(loginSchema), async (req: Request, res: Response)
       return;
     }
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findFirst({
+      where: { email: { equals: normalizedEmail, mode: 'insensitive' } },
+    });
 
     // Maintenance mode: only allow admins to log in so they can manage the system.
     // Note: This runs on the auth route itself because the global maintenance middleware
@@ -317,13 +323,13 @@ router.post('/login', validate(loginSchema), async (req: Request, res: Response)
     }
 
     if (!user) {
-      await recordLoginAttempt(email, ipAddress, false, userAgent);
+      await recordLoginAttempt(normalizedEmail, ipAddress, false, userAgent);
 
       await auditLog({
         action: 'LOGIN_FAILED',
         ipAddress,
         userAgent,
-        details: { email, reason: 'user_not_found' },
+        details: { email: normalizedEmail, reason: 'user_not_found' },
         success: false,
       });
 
@@ -338,14 +344,14 @@ router.post('/login', validate(loginSchema), async (req: Request, res: Response)
     if (!user.password) {
       // User exists but registered with Google OAuth
       // Security: Use generic error message to prevent user enumeration
-      await recordLoginAttempt(email, ipAddress, false, userAgent);
+      await recordLoginAttempt(normalizedEmail, ipAddress, false, userAgent);
 
       await auditLog({
         action: 'LOGIN_FAILED',
         userId: user.id,
         ipAddress,
         userAgent,
-        details: { email, reason: 'oauth_account_password_login' },
+        details: { email: normalizedEmail, reason: 'oauth_account_password_login' },
         success: false,
       });
 
@@ -359,15 +365,15 @@ router.post('/login', validate(loginSchema), async (req: Request, res: Response)
 
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) {
-      await recordLoginAttempt(email, ipAddress, false, userAgent);
-      const newLockoutStatus = await checkLockout(email, ipAddress);
+      await recordLoginAttempt(normalizedEmail, ipAddress, false, userAgent);
+      const newLockoutStatus = await checkLockout(normalizedEmail, ipAddress);
 
       await auditLog({
         action: 'LOGIN_FAILED',
         userId: user.id,
         ipAddress,
         userAgent,
-        details: { email, reason: 'invalid_password' },
+        details: { email: normalizedEmail, reason: 'invalid_password' },
         success: false,
       });
 
@@ -380,7 +386,7 @@ router.post('/login', validate(loginSchema), async (req: Request, res: Response)
     }
 
     // Successful password verification - record it
-    await recordLoginAttempt(email, ipAddress, true, userAgent);
+    await recordLoginAttempt(normalizedEmail, ipAddress, true, userAgent);
 
     // Check if 2FA is enabled - require second factor
     if (user.twoFactorEnabled) {
@@ -393,7 +399,7 @@ router.post('/login', validate(loginSchema), async (req: Request, res: Response)
         userId: user.id,
         ipAddress,
         userAgent,
-        details: { email },
+        details: { email: normalizedEmail },
         success: true,
       });
 
@@ -410,7 +416,7 @@ router.post('/login', validate(loginSchema), async (req: Request, res: Response)
       userId: user.id,
       ipAddress,
       userAgent,
-      details: { email },
+      details: { email: normalizedEmail },
       success: true,
     });
 
@@ -480,15 +486,17 @@ router.post('/google', validate(googleAuthSchema), async (req: Request, res: Res
       return;
     }
 
+    const normalizedEmail = payload.email.trim().toLowerCase();
+
     let user = await prisma.user.findUnique({
-      where: { email: payload.email },
+      where: { email: normalizedEmail },
     });
 
     if (!user) {
       user = await prisma.user.create({
         data: {
-          email: payload.email,
-          name: payload.name || payload.email.split('@')[0],
+          email: normalizedEmail,
+          name: payload.name || normalizedEmail.split('@')[0],
           googleId: payload.sub,
           emailVerified: true,
           storageQuota: config.storage.defaultQuota,
@@ -557,7 +565,8 @@ router.post('/refresh', async (req: Request, res: Response) => {
     const refreshToken = req.cookies.refreshToken || req.body.refreshToken;
 
     if (!refreshToken) {
-      res.status(400).json({ error: 'Refresh token required' });
+      // Treat missing refresh token as unauthenticated (expected on first load).
+      res.status(401).json({ error: 'Refresh token missing' });
       return;
     }
 
@@ -732,8 +741,11 @@ router.post('/logout', authenticate, async (req: Request, res: Response) => {
 router.post('/forgot-password', validate(forgotPasswordSchema), async (req: Request, res: Response) => {
   try {
     const { email } = req.body;
+    const normalizedEmail = email.trim().toLowerCase();
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findFirst({
+      where: { email: { equals: normalizedEmail, mode: 'insensitive' } },
+    });
     if (!user) {
       // Return success even if user doesn't exist for security
       res.json({ message: 'If an account exists, a reset email has been sent' });
@@ -750,7 +762,7 @@ router.post('/forgot-password', validate(forgotPasswordSchema), async (req: Requ
     });
 
     const resetUrl = `${config.frontendUrl}/reset-password/${resetToken}`;
-    await sendResetPasswordEmail(email, user.name, resetUrl);
+    await sendResetPasswordEmail(normalizedEmail, user.name, resetUrl);
 
     res.json({ message: 'If an account exists, a reset email has been sent' });
   } catch (error) {

@@ -133,6 +133,7 @@ model File {
   transcodingJob TranscodingJob?
   fileTags       FileTag[]
   versions       FileVersion[]
+  wopiLock       WopiLock?
 
   @@index([userId])
   @@index([folderId])
@@ -425,4 +426,20 @@ model FileVersion {
   @@index([fileId])
   @@index([createdAt])
   @@map("file_versions")
+}
+
+model WopiLock {
+  id        String   @id @default(uuid()) @db.Uuid
+  fileId    String   @unique @db.Uuid
+  lockId    String   // WOPI lock identifier from client
+  userId    String   @db.Uuid
+  expiresAt DateTime @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  file      File     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([fileId])
+  @@index([expiresAt])
+  @@map("wopi_locks")
 }

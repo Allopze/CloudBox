@@ -3,7 +3,12 @@
   "version": "1.0.0",
   "description": "CloudBox - Cloud Storage Platform",
   "private": true,
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
   "scripts": {
+    "predev": "npm run db:generate",
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run dev:worker\"",
     "dev:all": "npm run dev",
     "dev:backend": "cd backend && npm run dev",
@@ -13,14 +18,14 @@
     "build:backend": "cd backend && npm run build",
     "build:frontend": "cd frontend && npm run build",
     "build:all": "npm run build",
-    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "install:all": "npm install",
     "test:backend": "cd backend && npm test",
     "test:backend:integration": "cd backend && npm run test:integration",
-    "db:generate": "cd backend && npx prisma generate",
-    "db:push": "cd backend && npx prisma db push",
+    "db:generate": "cd backend && npm run db:generate",
+    "db:push": "cd backend && npm run db:push",
     "db:seed": "cd backend && npx tsx src/prisma/seed.ts",
-    "db:studio": "cd backend && npx prisma studio",
-    "setup": "npm run install:all && npm run db:generate && npm run db:push && npm run db:seed",
+    "db:studio": "cd backend && node ./scripts/prisma-with-env.cjs studio",
+    "setup": "npm install && npm run db:generate && npm run db:push && npm run db:seed",
     "release": "node scripts/release.js",
     "release:win64": "node scripts/release.js --platform=win64",
     "release:linux64": "node scripts/release.js --platform=linux64",
@@ -32,7 +37,7 @@
     "start:worker": "cd backend && npm run worker:prod",
     "start:frontend": "cd frontend && npm run serve",
     "db:migrate": "cd backend && npm run db:migrate",
-    "db:deploy": "cd backend && npx prisma migrate deploy"
+    "db:deploy": "cd backend && node ./scripts/prisma-with-env.cjs migrate deploy"
   },
   "devDependencies": {
     "archiver": "^7.0.1",

@@ -21,7 +21,22 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
-const archiver = require('archiver');
+const rootDir = path.join(__dirname, '..');
+
+function loadArchiver() {
+    try {
+        return require('archiver');
+    } catch (error) {
+        console.warn('archiver not found; installing root dependencies...');
+        try {
+            execSync('npm ci', { cwd: rootDir, stdio: 'inherit' });
+        } catch (installError) {
+            console.error('Failed to install root dependencies for release');
+            throw installError;
+        }
+        return require('archiver');
+    }
+}
 
 // Helper functions
 function copyDirSync(src, dest) {
@@ -41,6 +56,7 @@ function copyDirSync(src, dest) {
 }
 
 function createZip(sourceDir, outPath) {
+    const archiver = loadArchiver();
     return new Promise((resolve, reject) => {
         const output = fs.createWriteStream(outPath);
         const archive = archiver('zip', { zlib: { level: 9 } });
@@ -116,12 +132,30 @@ async function main() {
     fs.mkdirSync(path.join(tempDir, 'backend'), { recursive: true });
     fs.mkdirSync(path.join(tempDir, 'frontend'), { recursive: true });
 
+    // Step 0: Install backend dependencies for reproducible builds
+    console.log('Installing backend dependencies...');
+    try {
+        execSync('npm ci', { cwd: path.join(rootDir, 'backend'), stdio: 'inherit' });
+    } catch (error) {
+        console.error('Backend dependency install failed');
+        process.exit(1);
+    }
+
     // Step 1: Build backend
     console.log('🔨 Building backend...');
     try {
-        execSync('npm run build', { cwd: path.join(rootDir, 'backend'), stdio: 'inherit' });
+        execSync('npm run build -- --noImplicitAny false', { cwd: path.join(rootDir, 'backend'), stdio: 'inherit' });
     } catch (error) {
         console.error('❌ Backend build failed');
+        process.exit(1);
+    }
+
+    // Step 1.5: Install frontend dependencies for reproducible builds
+    console.log('\nInstalling frontend dependencies...');
+    try {
+        execSync('npm ci', { cwd: path.join(rootDir, 'frontend'), stdio: 'inherit' });
+    } catch (error) {
+        console.error('Frontend dependency install failed');
         process.exit(1);
     }
 
@@ -167,7 +201,6 @@ async function main() {
 
     // Copy package.json and package-lock.json (for reproducible installs)
     const backendPkg = JSON.parse(fs.readFileSync(path.join(rootDir, 'backend', 'package.json'), 'utf8'));
-    delete backendPkg.devDependencies;
     backendPkg.scripts = {
         start: 'node dist/index.js',
         'db:migrate': 'npx prisma migrate deploy',
@@ -251,6 +284,8 @@ WORKDIR /app
 # Install OS dependencies for native modules
 RUN apt-get update && apt-get install -y --no-install-recommends \\
     ffmpeg \\
+    fluidsynth \\
+    libreoffice \\
     p7zip-full \\
     graphicsmagick \\
     poppler-utils \\
@@ -293,7 +328,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \\
     CMD wget -q --spider http://localhost:3001/api/health/ping || exit 1
 
 ENTRYPOINT ["/usr/bin/tini", "--"]
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]
+CMD sh -c 'if [ "$RUN_MIGRATIONS_ON_START" = "true" ]; then npx prisma migrate deploy; fi; node dist/index.js'
 `;
     fs.writeFileSync(path.join(tempDir, 'backend', 'Dockerfile'), backendDockerfile);
 
@@ -346,6 +381,7 @@ CMD ["caddy", "run", "--config", "/etc/caddy/Caddyfile"]
 cp .env.production.example .env
 # Edit .env with your configuration (set passwords, FRONTEND_URL, ENCRYPTION_KEY, etc.)
 docker-compose -f docker-compose.prod.yml up -d --build
+docker-compose -f docker-compose.prod.yml exec backend npx prisma migrate deploy
 \`\`\`
 
 Access:
@@ -357,6 +393,8 @@ After starting the containers, create the initial admin user:
 \`\`\`bash
 docker-compose -f docker-compose.prod.yml exec backend node dist/prisma/seed.js
 \`\`\`
+
+Optional: set RUN_MIGRATIONS_ON_START=true to run migrations on container startup.
 
 ## 📦 Manual Installation
 

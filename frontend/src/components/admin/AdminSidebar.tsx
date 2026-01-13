@@ -10,7 +10,9 @@ import {
     FileText,
     Activity,
     ArrowLeft,
-    Layers
+    Layers,
+    FilePen,
+    HardDrive
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '../../lib/utils';
@@ -21,6 +23,8 @@ export type AdminSection =
     | 'overview'
     | 'users'
     | 'settings'
+    | 'wopi'
+    | 'storage-requests'
     | 'queues'
     | 'email'
     | 'branding'
@@ -40,6 +44,8 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     Activity,
     ArrowLeft,
     Layers,
+    FilePen,
+    HardDrive,
 };
 
 interface AdminSidebarProps {

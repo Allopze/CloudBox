@@ -3,9 +3,9 @@ import bcrypt from 'bcryptjs';
 import rateLimit from 'express-rate-limit';
 import prisma from '../lib/prisma.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
-import { uploadBranding, uploadLandingAsset } from '../middleware/upload.js';
+import { uploadBranding } from '../middleware/upload.js';
 import { validate } from '../middleware/validate.js';
-import { adminUserSchema, smtpConfigSchema, smtpSettingsSchema, smtpTestSchema, emailTemplateSchema, paginationSchema, PAGINATION_LIMITS, PaginationQuery, landingSettingsSchema, landingConfigSchema } from '../schemas/index.js';
+import { adminUserSchema, smtpConfigSchema, smtpSettingsSchema, smtpTestSchema, emailTemplateSchema, paginationSchema, PAGINATION_LIMITS, PaginationQuery, blockedExtensionsSchema } from '../schemas/index.js';
 import { resetTransporter, testSmtpConnection, sendEmail, EmailError } from '../lib/email.js';
 import { getBrandingPath, deleteFile, fileExists, copyFile, getStoragePath } from '../lib/storage.js';
 import { encryptSecret } from '../lib/encryption.js';
@@ -16,12 +16,20 @@ import os from 'os';
 import fs from 'fs/promises';
 import path from 'path';
 import { config } from '../config/index.js';
-import { getDefaultLandingConfig, LANDING_SETTINGS_KEY, LandingAssetType } from '../lib/landing.js';
 import crypto from 'crypto';
+import { getBlockedExtensions, normalizeExtensionsInput, setBlockedExtensionsCache } from '../lib/security.js';
 
 const router = Router();
 
-// Security: Rate limiter for public endpoints (landing, branding, assets)
+type CreatedTemplate = {
+  id: string;
+  name: string;
+  subject: string;
+  body: string;
+  isDefault: boolean;
+};
+
+// Security: Rate limiter for public endpoints (branding, assets)
 const publicEndpointLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
   max: 60, // 60 requests per minute per IP
@@ -133,6 +141,7 @@ router.patch('/users/:id', authenticate, requireAdmin, validate(adminUserSchema)
   try {
     const { id } = req.params;
     const { name, email, password, role, storageQuota, maxFileSize } = req.body;
+    const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : undefined;
 
     const user = await prisma.user.findUnique({ where: { id } });
     if (!user) {
@@ -140,8 +149,10 @@ router.patch('/users/:id', authenticate, requireAdmin, validate(adminUserSchema)
       return;
     }
 
-    if (email && email !== user.email) {
-      const existing = await prisma.user.findUnique({ where: { email } });
+    if (normalizedEmail && normalizedEmail !== user.email) {
+      const existing = await prisma.user.findFirst({
+        where: { email: { equals: normalizedEmail, mode: 'insensitive' } },
+      });
       if (existing) {
         res.status(400).json({ error: 'Email already in use' });
         return;
@@ -158,7 +169,7 @@ router.patch('/users/:id', authenticate, requireAdmin, validate(adminUserSchema)
       where: { id },
       data: {
         ...(name && { name }),
-        ...(email && { email }),
+        ...(normalizedEmail && { email: normalizedEmail }),
         ...(hashedPassword && { password: hashedPassword }),
         ...(role && { role }),
         ...(storageQuota && { storageQuota: BigInt(storageQuota) }),
@@ -210,7 +221,10 @@ router.post('/users', authenticate, requireAdmin, async (req: Request, res: Resp
       return;
     }
 
-    const existing = await prisma.user.findUnique({ where: { email } });
+    const normalizedEmail = email.trim().toLowerCase();
+    const existing = await prisma.user.findFirst({
+      where: { email: { equals: normalizedEmail, mode: 'insensitive' } },
+    });
     if (existing) {
       res.status(400).json({ error: 'Email already in use' });
       return;
@@ -220,7 +234,7 @@ router.post('/users', authenticate, requireAdmin, async (req: Request, res: Resp
 
     const user = await prisma.user.create({
       data: {
-        email,
+        email: normalizedEmail,
         password: hashedPassword,
         name,
         role: role || 'USER',
@@ -543,113 +557,6 @@ router.delete('/branding/:type', authenticate, requireAdmin, async (req: Request
   }
 });
 
-// ========== Landing Assets ==========
-
-// Upload landing assets (Admin)
-router.post('/landing/assets/:type', authenticate, requireAdmin, uploadLandingAsset.single('file'), async (req: Request, res: Response) => {
-  try {
-    const { type } = req.params as { type: LandingAssetType };
-
-    if (!['hero', 'feature'].includes(type)) {
-      res.status(400).json({ error: 'Invalid landing asset type' });
-      return;
-    }
-
-    if (!req.file) {
-      res.status(400).json({ error: 'No file uploaded' });
-      return;
-    }
-
-    const outputWebpPath = getStoragePath('landing', `${type}.webp`);
-    const outputSvgPath = getStoragePath('landing', `${type}.svg`);
-
-    const fileExt = path.extname(req.file.originalname).toLowerCase();
-    const mimeType = req.file.mimetype;
-    const isSvg = fileExt === '.svg' || mimeType === 'image/svg+xml';
-
-    // Replace existing assets
-    await deleteFile(outputWebpPath);
-    await deleteFile(outputSvgPath);
-
-    if (isSvg) {
-      await copyFile(req.file.path, outputSvgPath);
-    } else {
-      // Normalize/optimize to WebP
-      await sharp(req.file.path)
-        .resize(2400, 2400, { fit: 'inside', withoutEnlargement: true })
-        .webp({ quality: 90 })
-        .toFile(outputWebpPath);
-    }
-
-    await deleteFile(req.file.path);
-
-    res.json({ path: `/api/admin/landing/assets/${type}` });
-  } catch (error) {
-    console.error('Upload landing asset error:', error);
-    if (req.file) {
-      await deleteFile(req.file.path);
-    }
-    res.status(500).json({ error: 'Failed to upload landing asset' });
-  }
-});
-
-// Get landing asset (Public)
-router.get('/landing/assets/:type', publicEndpointLimiter, async (req: Request, res: Response) => {
-  try {
-    const { type } = req.params as { type: LandingAssetType };
-
-    if (!['hero', 'feature'].includes(type)) {
-      res.status(400).json({ error: 'Invalid landing asset type' });
-      return;
-    }
-
-    const webpPath = getStoragePath('landing', `${type}.webp`);
-    const svgPath = getStoragePath('landing', `${type}.svg`);
-
-    if (await fileExists(svgPath)) {
-      res.setHeader('Content-Type', 'image/svg+xml');
-      res.setHeader('Cache-Control', 'public, max-age=86400'); // 24 hours
-      res.sendFile(svgPath);
-      return;
-    }
-
-    if (await fileExists(webpPath)) {
-      res.setHeader('Content-Type', 'image/webp');
-      res.setHeader('Cache-Control', 'public, max-age=86400'); // 24 hours
-      res.sendFile(webpPath);
-      return;
-    }
-
-    res.status(404).json({ error: 'Landing asset not found' });
-  } catch (error) {
-    console.error('Get landing asset error:', error);
-    res.status(500).json({ error: 'Failed to get landing asset' });
-  }
-});
-
-// Delete landing asset (Admin)
-router.delete('/landing/assets/:type', authenticate, requireAdmin, async (req: Request, res: Response) => {
-  try {
-    const { type } = req.params as { type: LandingAssetType };
-
-    if (!['hero', 'feature'].includes(type)) {
-      res.status(400).json({ error: 'Invalid landing asset type' });
-      return;
-    }
-
-    const webpPath = getStoragePath('landing', `${type}.webp`);
-    const svgPath = getStoragePath('landing', `${type}.svg`);
-
-    await deleteFile(webpPath);
-    await deleteFile(svgPath);
-
-    res.json({ message: 'Landing asset deleted successfully' });
-  } catch (error) {
-    console.error('Delete landing asset error:', error);
-    res.status(500).json({ error: 'Failed to delete landing asset' });
-  }
-});
-
 // ========== SMTP Configuration ==========
 
 // Get SMTP config
@@ -818,6 +725,54 @@ router.put('/settings/limits', authenticate, requireAdmin, async (req: Request, 
   }
 });
 
+// ========== Blocked Extensions Configuration ==========
+
+router.get('/settings/blocked-extensions', authenticate, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const setting = await prisma.settings.findUnique({
+      where: { key: 'blocked_extensions' },
+    });
+
+    const extensions = Array.from(await getBlockedExtensions());
+
+    res.json({
+      extensions,
+      isDefault: !setting,
+    });
+  } catch (error) {
+    console.error('Get blocked extensions error:', error);
+    res.status(500).json({ error: 'Failed to get blocked extensions' });
+  }
+});
+
+router.put('/settings/blocked-extensions', authenticate, requireAdmin, validate(blockedExtensionsSchema), async (req: Request, res: Response) => {
+  try {
+    const { extensions } = req.body as { extensions: string[] };
+    const { normalized, invalid } = normalizeExtensionsInput(extensions);
+
+    if (invalid.length > 0) {
+      res.status(400).json({ error: `Invalid extensions: ${invalid.join(', ')}` });
+      return;
+    }
+
+    await prisma.settings.upsert({
+      where: { key: 'blocked_extensions' },
+      update: { value: JSON.stringify(normalized) },
+      create: { key: 'blocked_extensions', value: JSON.stringify(normalized) },
+    });
+
+    setBlockedExtensionsCache(normalized);
+
+    res.json({
+      message: 'Blocked extensions saved successfully',
+      extensions: normalized,
+    });
+  } catch (error) {
+    console.error('Save blocked extensions error:', error);
+    res.status(500).json({ error: 'Failed to save blocked extensions' });
+  }
+});
+
 // ========== CORS Configuration ==========
 
 // Get allowed origins
@@ -876,6 +831,169 @@ router.put('/settings/cors', authenticate, requireAdmin, async (req: Request, re
   } catch (error) {
     console.error('Save CORS settings error:', error);
     res.status(500).json({ error: 'Failed to save CORS settings' });
+  }
+});
+
+// ========== WOPI Configuration ==========
+
+// WOPI settings keys
+const WOPI_SETTING_KEYS = [
+  'wopi_enabled',
+  'wopi_edit_enabled',
+  'wopi_public_url',
+  'wopi_discovery_url',
+  'wopi_allowed_iframe_origins',
+  'wopi_token_ttl_seconds',
+  'wopi_lock_ttl_seconds',
+  'wopi_lock_provider',
+  'wopi_max_file_size',
+];
+
+// Get WOPI settings
+router.get('/settings/wopi', authenticate, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const settings = await prisma.settings.findMany({
+      where: { key: { in: WOPI_SETTING_KEYS } },
+    });
+
+    const settingsMap: Record<string, string> = {};
+    settings.forEach((s: { key: string; value: string }) => {
+      settingsMap[s.key] = s.value;
+    });
+
+    res.json({
+      enabled: settingsMap['wopi_enabled'] === 'true',
+      editEnabled: settingsMap['wopi_edit_enabled'] === 'true',
+      publicUrl: settingsMap['wopi_public_url'] || config.wopi.publicUrl,
+      discoveryUrl: settingsMap['wopi_discovery_url'] || '',
+      allowedIframeOrigins: settingsMap['wopi_allowed_iframe_origins'] || '',
+      tokenTtlSeconds: parseInt(settingsMap['wopi_token_ttl_seconds'] || '900'),
+      lockTtlSeconds: parseInt(settingsMap['wopi_lock_ttl_seconds'] || '1800'),
+      lockProvider: settingsMap['wopi_lock_provider'] || 'db',
+      maxFileSize: parseInt(settingsMap['wopi_max_file_size'] || '104857600'),
+    });
+  } catch (error) {
+    console.error('Get WOPI settings error:', error);
+    res.status(500).json({ error: 'Failed to get WOPI settings' });
+  }
+});
+
+// Save WOPI settings
+router.put('/settings/wopi', authenticate, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const {
+      enabled,
+      editEnabled,
+      publicUrl,
+      discoveryUrl,
+      allowedIframeOrigins,
+      tokenTtlSeconds,
+      lockTtlSeconds,
+      lockProvider,
+      maxFileSize,
+    } = req.body;
+
+    // Validate
+    if (publicUrl && typeof publicUrl === 'string' && publicUrl.trim()) {
+      try {
+        new URL(publicUrl);
+      } catch {
+        res.status(400).json({ error: 'Invalid public URL format' });
+        return;
+      }
+    }
+
+    if (discoveryUrl && typeof discoveryUrl === 'string' && discoveryUrl.trim()) {
+      try {
+        new URL(discoveryUrl);
+      } catch {
+        res.status(400).json({ error: 'Invalid discovery URL format' });
+        return;
+      }
+    }
+
+    if (lockProvider && !['db', 'redis'].includes(lockProvider)) {
+      res.status(400).json({ error: 'Lock provider must be "db" or "redis"' });
+      return;
+    }
+
+    const settings = [
+      { key: 'wopi_enabled', value: String(enabled === true) },
+      { key: 'wopi_edit_enabled', value: String(editEnabled === true) },
+      { key: 'wopi_public_url', value: publicUrl || '' },
+      { key: 'wopi_discovery_url', value: discoveryUrl || '' },
+      { key: 'wopi_allowed_iframe_origins', value: allowedIframeOrigins || '' },
+      { key: 'wopi_token_ttl_seconds', value: String(parseInt(tokenTtlSeconds) || 900) },
+      { key: 'wopi_lock_ttl_seconds', value: String(parseInt(lockTtlSeconds) || 1800) },
+      { key: 'wopi_lock_provider', value: lockProvider || 'db' },
+      { key: 'wopi_max_file_size', value: String(parseInt(maxFileSize) || 104857600) },
+    ];
+
+    for (const setting of settings) {
+      await prisma.settings.upsert({
+        where: { key: setting.key },
+        update: { value: setting.value },
+        create: setting,
+      });
+    }
+
+    res.json({ message: 'WOPI settings saved successfully' });
+  } catch (error) {
+    console.error('Save WOPI settings error:', error);
+    res.status(500).json({ error: 'Failed to save WOPI settings' });
+  }
+});
+
+// Test WOPI discovery connection
+router.post('/settings/wopi/test-discovery', authenticate, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { discoveryUrl } = req.body;
+
+    if (!discoveryUrl) {
+      res.status(400).json({ error: 'Discovery URL is required' });
+      return;
+    }
+
+    // Validate URL
+    let url: URL;
+    try {
+      url = new URL(discoveryUrl);
+    } catch {
+      res.status(400).json({ error: 'Invalid discovery URL format' });
+      return;
+    }
+
+    // Fetch discovery XML
+    const response = await fetch(url.toString(), {
+      headers: { 'Accept': 'application/xml, text/xml' },
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!response.ok) {
+      res.status(400).json({ error: `Discovery endpoint returned ${response.status}` });
+      return;
+    }
+
+    const xml = await response.text();
+
+    // Parse to find supported extensions
+    const extensionMatches = xml.matchAll(/ext="([^"]+)"/g);
+    const extensions = new Set<string>();
+    for (const match of extensionMatches) {
+      extensions.add(match[1].toLowerCase());
+    }
+
+    res.json({
+      success: true,
+      extensions: Array.from(extensions).sort(),
+    });
+  } catch (error: any) {
+    console.error('Test WOPI discovery error:', error);
+    if (error.name === 'TimeoutError') {
+      res.status(400).json({ error: 'Discovery request timed out' });
+    } else {
+      res.status(400).json({ error: error.message || 'Failed to connect to discovery endpoint' });
+    }
   }
 });
 
@@ -1279,7 +1397,7 @@ router.post('/email-templates/initialize', authenticate, requireAdmin, async (re
       }
     ];
 
-    const created = [];
+    const created: CreatedTemplate[] = [];
     for (const tpl of defaultTemplates) {
       const existing = await prisma.emailTemplate.findUnique({ where: { name: tpl.name } });
       if (!existing) {
@@ -1970,7 +2088,7 @@ router.get('/settings/branding', publicEndpointLimiter, async (req: Request, res
 // Save branding settings
 router.put('/settings/branding', authenticate, requireAdmin, async (req: Request, res: Response) => {
   try {
-    const { primaryColor, logoUrl, logoLightUrl, logoDarkUrl, faviconUrl, customCss } = req.body;
+    const { primaryColor, logoUrl, logoLightUrl, logoDarkUrl, faviconUrl, customCss, siteName } = req.body;
 
     const settings = [
       { key: 'branding_primary_color', value: primaryColor || '#FF3B3B' },
@@ -1979,6 +2097,7 @@ router.put('/settings/branding', authenticate, requireAdmin, async (req: Request
       { key: 'branding_logo_dark_url', value: logoDarkUrl || '' },
       { key: 'branding_favicon_url', value: faviconUrl || '' },
       { key: 'branding_custom_css', value: customCss || '' },
+      { key: 'site_name', value: siteName || 'CloudBox' },
     ];
 
     for (const setting of settings) {
@@ -1993,59 +2112,6 @@ router.put('/settings/branding', authenticate, requireAdmin, async (req: Request
   } catch (error) {
     console.error('Save branding settings error:', error);
     res.status(500).json({ error: 'Failed to save branding settings' });
-  }
-});
-
-// Get landing settings (Public)
-router.get('/settings/landing', publicEndpointLimiter, async (req: Request, res: Response) => {
-  try {
-    const setting = await prisma.settings.findUnique({
-      where: { key: LANDING_SETTINGS_KEY },
-      select: { value: true },
-    });
-
-    if (!setting?.value) {
-      res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
-      res.json(getDefaultLandingConfig());
-      return;
-    }
-
-    try {
-      const parsed = JSON.parse(setting.value);
-      const validated = landingConfigSchema.safeParse(parsed);
-      if (validated.success) {
-        // Security: Add cache headers for public endpoint
-        res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
-        res.json(validated.data);
-        return;
-      }
-
-      console.warn('Invalid landing config stored, falling back to default');
-      res.json(getDefaultLandingConfig());
-    } catch {
-      res.json(getDefaultLandingConfig());
-    }
-  } catch (error) {
-    console.error('Get landing settings error:', error);
-    res.status(500).json({ error: 'Failed to get landing settings' });
-  }
-});
-
-// Save landing settings (Admin)
-router.put('/settings/landing', authenticate, requireAdmin, validate(landingSettingsSchema), async (req: Request, res: Response) => {
-  try {
-    const landingConfig = req.body;
-
-    await prisma.settings.upsert({
-      where: { key: LANDING_SETTINGS_KEY },
-      update: { value: JSON.stringify(landingConfig) },
-      create: { key: LANDING_SETTINGS_KEY, value: JSON.stringify(landingConfig) },
-    });
-
-    res.json({ message: 'Landing settings saved successfully' });
-  } catch (error) {
-    console.error('Save landing settings error:', error);
-    res.status(500).json({ error: 'Failed to save landing settings' });
   }
 });
 

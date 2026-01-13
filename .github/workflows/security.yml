@@ -1,0 +1,104 @@
+name: Security Checks
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  secret-detection:
+    name: Detect Hardcoded Secrets
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        with:
+          fail: true
+
+      - name: Check for default secrets in docker-compose
+        run: |
+          echo "Checking for hardcoded default secrets..."
+          
+          ERRORS=0
+          
+          # Check for dev/test secrets in docker-compose files
+          for file in docker-compose*.yml docker-compose*.yaml; do
+            if [ -f "$file" ]; then
+              echo "Scanning $file..."
+              
+              # Check for common insecure secret patterns
+              if grep -iE "(dev-|test-|secret123|password123|changeme)" "$file" | grep -v "^#"; then
+                echo "::error file=$file::Found potential default/dev secret in $file"
+                ERRORS=$((ERRORS + 1))
+              fi
+              
+              # Check for short secrets (less than 32 chars in env vars)
+              if grep -E "(JWT_SECRET|INTERNAL_SECRET|SECRET_KEY)=.{1,31}$" "$file" | grep -v "^#"; then
+                echo "::warning file=$file::Found potentially short secret in $file"
+              fi
+            fi
+          done
+          
+          # Check .env.example for insecure defaults
+          if [ -f ".env.example" ]; then
+            echo "Scanning .env.example..."
+            if grep -iE "(dev-|test-|secret123|password123)" ".env.example" | grep -v "^#"; then
+              echo "::warning file=.env.example::Default secrets in .env.example (acceptable for example files)"
+            fi
+          fi
+          
+          if [ $ERRORS -gt 0 ]; then
+            echo ""
+            echo "::error::Found $ERRORS file(s) with potential hardcoded secrets!"
+            echo "Please use environment variables or Docker secrets for sensitive values."
+            exit 1
+          fi
+          
+          echo "✅ No hardcoded default secrets detected in production configs"
+
+      - name: Check for secrets in code
+        run: |
+          echo "Scanning for potential secrets in source code..."
+          
+          # Common patterns that might indicate hardcoded secrets
+          PATTERNS="(password|secret|api_key|apikey|auth_token|access_token)\s*[:=]\s*['\"][^'\"]{8,}['\"]"
+          
+          # Exclude test files, examples, and node_modules
+          EXCLUDES="--exclude-dir=node_modules --exclude-dir=.git --exclude-dir=dist --exclude=*.test.* --exclude=*.spec.* --exclude=*.example*"
+          
+          if grep -rE "$PATTERNS" $EXCLUDES --include="*.ts" --include="*.js" --include="*.tsx" --include="*.jsx" . 2>/dev/null | grep -v "process.env" | head -20; then
+            echo "::warning::Found potential hardcoded secrets. Please review the above matches."
+          fi
+          
+          echo "✅ Secret scan complete"
+
+  dependency-audit:
+    name: Audit Dependencies
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Run security audit
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
+      - name: Check for known vulnerabilities
+        run: |
+          echo "Checking package-lock.json for known vulnerabilities..."
+          npx audit-ci --high
+        continue-on-error: true

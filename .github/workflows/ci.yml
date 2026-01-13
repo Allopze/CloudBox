@@ -208,7 +208,7 @@ jobs:
         run: |
           set -e
           for i in {1..30}; do
-            if curl -fsS http://localhost:3001/api/health/ping >/dev/null && curl -fsS http://localhost:8080/health >/dev/null; then
+            if curl -fsS http://localhost:3001/api/health/ping >/dev/null && curl -fsS http://localhost:5000/health >/dev/null; then
               exit 0
             fi
             sleep 5
@@ -220,7 +220,7 @@ jobs:
         continue-on-error: true
         run: |
           docker run --network host -t owasp/zap2docker-stable zap-baseline.py \
-            -t http://localhost:8080 \
+            -t http://localhost:5000 \
             -r zap-frontend.html \
             -J zap-frontend.json
 

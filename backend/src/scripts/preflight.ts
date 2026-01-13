@@ -1,11 +1,8 @@
-import dotenv from 'dotenv';
 import { access } from 'fs/promises';
 import { spawn } from 'child_process';
 import path from 'path';
 import prisma from '../lib/prisma.js';
 import { config } from '../config/index.js';
-
-dotenv.config();
 
 type CheckResult = {
   name: string;
@@ -21,10 +18,40 @@ const add = (name: string, ok: boolean, message: string, optional = false) => {
 };
 
 const isBlank = (value?: string | null) => !value || value.trim() === '';
+const normalizeSecret = (value?: string | null) => (value ?? '').trim();
+
+const isWeakSecret = (value: string, minLength: number, disallowed: Set<string>) => {
+  if (isBlank(value)) return true;
+  if (value.length < minLength) return true;
+  if (disallowed.has(value)) return true;
+  return false;
+};
+
+const insecureJwtSecrets = new Set([
+  'default-secret',
+  'dev-secret-change-in-production',
+  'dev-jwt-secret-change-in-production',
+  'your-super-secret-jwt-key-minimum-32-characters',
+]);
+
+const insecureRefreshSecrets = new Set([
+  'default-refresh-secret',
+  'dev-refresh-secret-change-in-production',
+  'your-super-secret-refresh-key-minimum-32-characters',
+]);
+
+const insecureEncryptionKeys = new Set([
+  'your-unique-encryption-key-minimum-32-characters',
+  'change-me-in-production',
+]);
+
+const checkSecret = (label: string, value: string | undefined, minLength: number, disallowed: Set<string>) => {
+  const normalized = normalizeSecret(value);
+  const ok = !isWeakSecret(normalized, minLength, disallowed);
+  add(label, ok, ok ? `${label} is set` : `${label} is missing or weak (min ${minLength} chars)`);
+};
 
 const checkEnv = () => {
-  const jwtSecret = process.env.JWT_SECRET || '';
-  const jwtRefreshSecret = process.env.JWT_REFRESH_SECRET || '';
   const dbUrl = process.env.DATABASE_URL || '';
 
   add(
@@ -34,17 +61,9 @@ const checkEnv = () => {
     true
   );
 
-  add(
-    'JWT_SECRET',
-    !isBlank(jwtSecret) && !['default-secret', 'dev-secret-change-in-production'].includes(jwtSecret),
-    isBlank(jwtSecret) ? 'JWT_SECRET is missing' : 'JWT_SECRET is set'
-  );
-
-  add(
-    'JWT_REFRESH_SECRET',
-    !isBlank(jwtRefreshSecret) && !['default-refresh-secret', 'dev-refresh-secret-change-in-production'].includes(jwtRefreshSecret),
-    isBlank(jwtRefreshSecret) ? 'JWT_REFRESH_SECRET is missing' : 'JWT_REFRESH_SECRET is set'
-  );
+  checkSecret('JWT_SECRET', process.env.JWT_SECRET, 32, insecureJwtSecrets);
+  checkSecret('JWT_REFRESH_SECRET', process.env.JWT_REFRESH_SECRET, 32, insecureRefreshSecrets);
+  checkSecret('ENCRYPTION_KEY', process.env.ENCRYPTION_KEY, 32, insecureEncryptionKeys);
 
   add(
     'DATABASE_URL',
@@ -70,6 +89,16 @@ const checkEnv = () => {
     !isBlank(process.env.STORAGE_PATH),
     isBlank(process.env.STORAGE_PATH) ? 'STORAGE_PATH is missing (will default to ../data)' : `STORAGE_PATH=${process.env.STORAGE_PATH}`,
     isBlank(process.env.STORAGE_PATH)
+  );
+
+  const storagePath = process.env.STORAGE_PATH || '';
+  add(
+    'STORAGE_PATH absolute',
+    storagePath ? path.isAbsolute(storagePath) : false,
+    storagePath
+      ? (path.isAbsolute(storagePath) ? 'STORAGE_PATH is absolute' : 'STORAGE_PATH is relative; use an absolute path in production')
+      : 'STORAGE_PATH not set; default ../data is relative',
+    true
   );
 
   add(

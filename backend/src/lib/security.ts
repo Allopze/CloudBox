@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import Redis from 'ioredis';
 import type { Redis as RedisType } from 'ioredis';
 import logger from './logger.js';
+import prisma from './prisma.js';
 
 // Redis configuration for distributed rate limiting
 const RATE_LIMIT_REDIS_CONFIG = {
@@ -196,7 +197,7 @@ export function validateMimeType(mimeType: string, filename: string): boolean {
 /**
  * List of dangerous file extensions that should be blocked
  */
-const DANGEROUS_EXTENSIONS = [
+const DEFAULT_DANGEROUS_EXTENSIONS = [
   // Windows executables / shortcuts
   '.dll', '.bat', '.cmd', '.com', '.msi', '.scr', '.pif',
   '.scf', '.lnk', '.inf', '.reg', '.hta', '.cpl', '.msc',
@@ -218,12 +219,120 @@ const DANGEROUS_EXTENSIONS = [
   '.jar',
 ];
 
+const DEFAULT_DANGEROUS_EXTENSIONS_SET = new Set(DEFAULT_DANGEROUS_EXTENSIONS);
+const BLOCKED_EXTENSIONS_SETTING_KEY = 'blocked_extensions';
+const BLOCKED_EXTENSIONS_CACHE_TTL_MS = 60 * 1000; // 1 minute
+const EXTENSION_PATTERN = /^\.[a-z0-9][a-z0-9.+_-]*$/;
+
+let blockedExtensionsCache: { value: Set<string>; expiresAt: number } | null = null;
+
+const normalizeExtension = (value: string): string | null => {
+  if (!value) return null;
+  const trimmed = value.trim().toLowerCase();
+  if (!trimmed) return null;
+  const normalized = trimmed.startsWith('.') ? trimmed : `.${trimmed}`;
+  if (!EXTENSION_PATTERN.test(normalized)) return null;
+  return normalized;
+};
+
+const parseExtensionsSetting = (rawValue: string): string[] | null => {
+  if (rawValue === null || rawValue === undefined) {
+    return [];
+  }
+
+  const trimmed = String(rawValue).trim();
+  if (!trimmed) return [];
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (Array.isArray(parsed)) {
+      const normalized = parsed
+        .map((value) => normalizeExtension(String(value)))
+        .filter((value): value is string => Boolean(value));
+      return normalized;
+    }
+  } catch {
+    // Fall back to delimiter parsing
+  }
+
+  const parts = trimmed.split(/[\s,]+/).filter(Boolean);
+  const normalized = parts
+    .map((value) => normalizeExtension(value))
+    .filter((value): value is string => Boolean(value));
+  return normalized;
+};
+
+export const normalizeExtensionsInput = (extensions: string[]): { normalized: string[]; invalid: string[] } => {
+  const normalized: string[] = [];
+  const invalid: string[] = [];
+  const seen = new Set<string>();
+
+  for (const value of extensions) {
+    const result = normalizeExtension(value);
+    if (!result) {
+      if (value && value.trim()) {
+        invalid.push(value);
+      }
+      continue;
+    }
+    if (seen.has(result)) continue;
+    seen.add(result);
+    normalized.push(result);
+  }
+
+  return { normalized, invalid };
+};
+
+export const getBlockedExtensions = async (): Promise<Set<string>> => {
+  const now = Date.now();
+  if (blockedExtensionsCache && blockedExtensionsCache.expiresAt > now) {
+    return blockedExtensionsCache.value;
+  }
+
+  try {
+    const setting = await prisma.settings.findUnique({
+      where: { key: BLOCKED_EXTENSIONS_SETTING_KEY },
+    });
+
+    if (!setting) {
+      const value = new Set(DEFAULT_DANGEROUS_EXTENSIONS_SET);
+      blockedExtensionsCache = { value, expiresAt: now + BLOCKED_EXTENSIONS_CACHE_TTL_MS };
+      return value;
+    }
+
+    const parsed = parseExtensionsSetting(setting.value);
+    if (parsed === null) {
+      const value = new Set(DEFAULT_DANGEROUS_EXTENSIONS_SET);
+      blockedExtensionsCache = { value, expiresAt: now + BLOCKED_EXTENSIONS_CACHE_TTL_MS };
+      return value;
+    }
+
+    const value = new Set(parsed);
+    blockedExtensionsCache = { value, expiresAt: now + BLOCKED_EXTENSIONS_CACHE_TTL_MS };
+    return value;
+  } catch (error) {
+    logger.warn('Failed to load blocked extensions from settings', {
+      error: error instanceof Error ? error.message : 'Unknown',
+    });
+    const value = new Set(DEFAULT_DANGEROUS_EXTENSIONS_SET);
+    blockedExtensionsCache = { value, expiresAt: now + BLOCKED_EXTENSIONS_CACHE_TTL_MS };
+    return value;
+  }
+};
+
+export const setBlockedExtensionsCache = (extensions: string[]): void => {
+  blockedExtensionsCache = {
+    value: new Set(extensions),
+    expiresAt: Date.now() + BLOCKED_EXTENSIONS_CACHE_TTL_MS,
+  };
+};
+
 /**
  * Check if file extension is potentially dangerous
  */
-export function isDangerousExtension(filename: string): boolean {
+export function isDangerousExtension(filename: string, blockedExtensions: Set<string> = DEFAULT_DANGEROUS_EXTENSIONS_SET): boolean {
   const ext = path.extname(filename).toLowerCase();
-  return DANGEROUS_EXTENSIONS.includes(ext);
+  return blockedExtensions.has(ext);
 }
 
 /**

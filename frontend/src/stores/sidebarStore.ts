@@ -42,6 +42,7 @@ export const defaultAdminNavItems: AdminNavItem[] = [
   { id: 'overview', icon: 'LayoutDashboard', labelKey: 'sidebar.admin.overview' },
   { id: 'users', icon: 'Users', labelKey: 'sidebar.admin.users' },
   { id: 'settings', icon: 'Settings', labelKey: 'sidebar.admin.settings' },
+  { id: 'wopi', icon: 'FilePen', labelKey: 'sidebar.admin.wopi' },
   { id: 'storage-requests', icon: 'HardDrive', labelKey: 'sidebar.admin.storageRequests' },
   { id: 'queues', icon: 'Layers', labelKey: 'sidebar.admin.queues' },
   { id: 'email', icon: 'Mail', labelKey: 'sidebar.admin.email' },
@@ -68,16 +69,28 @@ export const useSidebarStore = create<SidebarState>()(
         }),
     }),
     {
-      name: 'sidebar-storage-v6',
-      migrate: (_persistedState: unknown) => {
-        // Always reset to defaults to use new labelKey format
+      name: 'sidebar-storage-v9',
+      version: 9,
+      migrate: () => {
+        // Always reset to defaults on version change to pick up new icons
         return {
           navItems: defaultNavItems,
           bottomNavItems: defaultBottomNavItems,
           adminNavItems: defaultAdminNavItems,
         };
       },
-      version: 6,
+      // Merge function: always use defaults for adminNavItems to pick up icon changes
+      merge: (persistedState, currentState) => {
+        const stored = persistedState as Partial<SidebarState> | undefined;
+        return {
+          ...currentState,
+          // Preserve user's nav order if stored, but update icons from defaults
+          navItems: stored?.navItems || currentState.navItems,
+          bottomNavItems: stored?.bottomNavItems || currentState.bottomNavItems,
+          // ALWAYS use defaults for admin items to get latest icons
+          adminNavItems: defaultAdminNavItems,
+        };
+      },
     }
   )
 );

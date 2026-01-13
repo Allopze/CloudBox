@@ -75,6 +75,8 @@ const fallbackLimiter = pLimit(FALLBACK_CONCURRENCY);
 
 let conversionQueue: Queue<ConversionJobData> | null = null;
 let isRedisAvailable = false;
+let conversionEnabled = false;
+const requireRedis = process.env.REQUIRE_REDIS_CONVERSION === 'true' || config.nodeEnv === 'production';
 
 /**
  * Check if Redis is available
@@ -171,14 +173,23 @@ export async function initDocumentConversionQueue(): Promise<void> {
         logger.warn('LibreOffice not found, document conversion will be disabled', {
             expectedPath: SOFFICE_PATH,
         });
+        conversionEnabled = false;
         return;
     }
 
     logger.info('LibreOffice detected for document conversion');
+    conversionEnabled = true;
 
     isRedisAvailable = await checkRedisConnection();
 
     if (!isRedisAvailable) {
+        if (requireRedis) {
+            logger.error('Document conversion disabled: Redis required in production', {
+                hint: 'Set REDIS_HOST and REDIS_PORT or disable conversion endpoints.',
+            });
+            conversionEnabled = false;
+            return;
+        }
         logger.info('Document conversion queue running in fallback mode (no Redis)', {
             concurrencyLimit: FALLBACK_CONCURRENCY,
         });
@@ -324,6 +335,10 @@ export async function addConversionJob(
     inputPath: string,
     userId: string
 ): Promise<string | null> {
+    if (!conversionEnabled) {
+        logger.warn('Document conversion unavailable', { fileId, reason: 'disabled' });
+        return null;
+    }
     // Generate output path
     const outputPath = getStoragePath('files', userId, `${fileId}_preview.pdf`);
 

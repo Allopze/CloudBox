@@ -35,9 +35,11 @@ import {
 import { generateThumbnail } from '../lib/thumbnail.js';
 import { thumbnailQueue } from '../lib/thumbnailQueue.js';
 import { config } from '../config/index.js';
-import { sanitizeFilename, validateMimeType, isDangerousExtension, checkUserRateLimitDistributed } from '../lib/security.js';
+import { sanitizeFilename, validateMimeType, isDangerousExtension, checkUserRateLimitDistributed, getBlockedExtensions } from '../lib/security.js';
 import { auditLog } from '../lib/audit.js';
 import { addFileAccessToken, getFileAccessTokens, setFileAccessCookie } from '../lib/fileAccessCookies.js';
+
+type FileResponse = { size: string } & Record<string, unknown>;
 import logger from '../lib/logger.js';
 import { buildExcelHtmlPreview } from '../lib/excelPreview.js';
 import * as cache from '../lib/cache.js';
@@ -244,6 +246,7 @@ router.post('/upload', authenticate, uploadFile.array('files', UPLOAD_LIMITS.MAX
     const folderId = req.body.folderId || null;
     const files = req.files as Express.Multer.File[];
     const globalMaxFileSize = await getGlobalUploadMaxFileSize();
+    const blockedExtensions = await getBlockedExtensions();
 
     if (!files || files.length === 0) {
       res.status(400).json({ error: 'No files uploaded', code: UPLOAD_ERROR_CODES.INVALID_CHUNK });
@@ -324,7 +327,7 @@ router.post('/upload', authenticate, uploadFile.array('files', UPLOAD_LIMITS.MAX
 
       await ensureUserDir(userId);
 
-      const resultFiles = [];
+      const resultFiles: FileResponse[] = [];
 
       for (const file of files) {
         // Sanitize filename and validate MIME type
@@ -333,7 +336,7 @@ router.post('/upload', authenticate, uploadFile.array('files', UPLOAD_LIMITS.MAX
         const ext = path.extname(originalName);
 
         // Check for dangerous extensions
-        if (isDangerousExtension(originalName)) {
+        if (isDangerousExtension(originalName, blockedExtensions)) {
           await auditLog({
             action: 'SUSPICIOUS_ACTIVITY',
             userId,
@@ -479,6 +482,7 @@ router.post('/upload-with-folders', authenticate, uploadFile.array('files', UPLO
     const paths = req.body.paths; // Array of relative paths like "folder/subfolder/file.txt"
     const files = req.files as Express.Multer.File[];
     const globalMaxFileSize = await getGlobalUploadMaxFileSize();
+    const blockedExtensions = await getBlockedExtensions();
 
     if (!files || files.length === 0) {
       res.status(400).json({ error: 'No files uploaded', code: UPLOAD_ERROR_CODES.INVALID_CHUNK });
@@ -564,7 +568,7 @@ router.post('/upload-with-folders', authenticate, uploadFile.array('files', UPLO
       // Cache for created folders: path -> folderId
       const folderCache = new Map<string, string>();
 
-      const resultFiles = [];
+      const resultFiles: FileResponse[] = [];
       let accumulatedSize = 0;
 
       for (let i = 0; i < files.length; i++) {
@@ -579,7 +583,7 @@ router.post('/upload-with-folders', authenticate, uploadFile.array('files', UPLO
         const folderPath = pathParts.join('/');
 
         // Check for dangerous extensions
-        if (isDangerousExtension(fileName)) {
+        if (isDangerousExtension(fileName, blockedExtensions)) {
           await auditLog({
             action: 'SUSPICIOUS_ACTIVITY',
             userId,
@@ -740,6 +744,7 @@ router.post('/upload/validate', authenticate, async (req: Request, res: Response
 
     const remainingQuota = Number(user.storageQuota) - Number(user.storageUsed) - Number(user.tempStorage || 0);
     const maxFileSize = Math.min(Number(user.maxFileSize), await getGlobalUploadMaxFileSize());
+    const blockedExtensions = await getBlockedExtensions();
 
     const validationResults: Array<{
       name: string;
@@ -754,7 +759,7 @@ router.post('/upload/validate', authenticate, async (req: Request, res: Response
       const sanitizedName = sanitizeFilename(file.name);
 
       // Check dangerous extensions
-      if (isDangerousExtension(sanitizedName)) {
+      if (isDangerousExtension(sanitizedName, blockedExtensions)) {
         validationResults.push({
           name: file.name,
           valid: false,
@@ -844,9 +849,10 @@ router.post('/upload/init', authenticate, validate(uploadInitSchema), async (req
     const rawNameFromPath = relativeParts.length > 0 ? relativeParts[relativeParts.length - 1] : decodedFilename;
     const sanitizedFilename = sanitizeFilename(rawNameFromPath);
     const folderPath = relativeParts.length > 1 ? relativeParts.slice(0, -1).join('/') : '';
+    const blockedExtensions = await getBlockedExtensions();
 
     // Validate filename
-    if (isDangerousExtension(sanitizedFilename)) {
+    if (isDangerousExtension(sanitizedFilename, blockedExtensions)) {
       await auditLog({
         action: 'SUSPICIOUS_ACTIVITY',
         userId,
@@ -965,6 +971,7 @@ router.post('/upload/chunk', authenticate, uploadChunk.single('chunk'), validate
     const { uploadId, chunkIndex, totalChunks, filename: rawFilename, mimeType, totalSize } = req.body;
     const filename = decodeFilename(rawFilename);
     const userId = req.user!.userId;
+    const blockedExtensions = await getBlockedExtensions();
 
     // Validate uploadId is a valid UUID
     if (!isValidUUID(uploadId)) {
@@ -1069,7 +1076,7 @@ router.post('/upload/chunk', authenticate, uploadChunk.single('chunk'), validate
     }
 
     // Validate filename and MIME type
-    if (isDangerousExtension(session.filename)) {
+    if (isDangerousExtension(session.filename, blockedExtensions)) {
       await deleteFile(req.file.path);
       await cleanupChunks(uploadId, userId);
       logger.warn('Dangerous extension in chunk upload', { filename: session.filename, userId });
@@ -1388,8 +1395,12 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
       sortOrder = 'desc',
     } = req.query;
 
-    const pageNum = parseInt(page as string);
-    const limitNum = parseInt(limit as string);
+    const pageNumRaw = parseInt(page as string, 10);
+    const limitNumRaw = parseInt(limit as string, 10);
+    const pageNum = Number.isFinite(pageNumRaw) && pageNumRaw > 0 ? pageNumRaw : 1;
+    const limitNum = Number.isFinite(limitNumRaw)
+      ? Math.min(Math.max(limitNumRaw, 1), 100)
+      : 50;
     const folderIdStr = folderId === 'null' || folderId === '' ? null : (folderId as string) || null;
 
     // Performance: Use separate cache for favorites queries
@@ -1569,9 +1580,10 @@ router.patch('/:id/rename', authenticate, validate(renameFileSchema), async (req
     const { id } = req.params;
     const { name } = req.body;
     const userId = req.user!.userId;
+    const blockedExtensions = await getBlockedExtensions();
 
     const sanitizedName = sanitizeFilename(name);
-    if (isDangerousExtension(sanitizedName)) {
+    if (isDangerousExtension(sanitizedName, blockedExtensions)) {
       res.status(400).json({ error: 'File type not allowed' });
       return;
     }
@@ -2035,6 +2047,16 @@ router.get('/:id/excel-html', authOptional, async (req: Request, res: Response) 
 
     const file = result.file;
 
+    // ExcelJS preview only supports .xlsx (OOXML). Treat legacy .xls as unsupported.
+    if (file.name.toLowerCase().endsWith('.xls') && !file.name.toLowerCase().endsWith('.xlsx')) {
+      res.status(400).json({
+        error: 'Unsupported spreadsheet format',
+        code: 'UNSUPPORTED_SPREADSHEET_FORMAT',
+        details: { extension: '.xls' },
+      });
+      return;
+    }
+
     // Check if it's an Excel file
     const isExcel = file.mimeType.includes('spreadsheet') ||
       file.mimeType.includes('excel') ||
@@ -2069,8 +2091,25 @@ router.get('/:id/excel-html', authOptional, async (req: Request, res: Response) 
       fileName: file.name
     });
   } catch (error) {
-    logger.error('Excel to HTML error', {}, error instanceof Error ? error : undefined);
-    res.status(500).json({ error: 'Failed to convert Excel file' });
+    logger.error(
+      'Excel to HTML error',
+      {
+        fileId: req.params.id,
+        sheet: req.query.sheet,
+      },
+      error instanceof Error ? error : undefined
+    );
+
+    const isProd = process.env.NODE_ENV === 'production';
+    res.status(500).json({
+      error: 'Failed to convert Excel file',
+      code: 'EXCEL_PREVIEW_FAILED',
+      details: isProd
+        ? undefined
+        : {
+          message: error instanceof Error ? error.message : String(error),
+        },
+    });
   }
 });
 
@@ -2247,6 +2286,7 @@ router.post('/create-empty', authenticate, async (req: Request, res: Response) =
   try {
     const { name, folderId, content } = req.body;
     const userId = req.user!.userId;
+    const blockedExtensions = await getBlockedExtensions();
 
     if (!name) {
       res.status(400).json({ error: 'File name is required' });
@@ -2268,7 +2308,7 @@ router.post('/create-empty', authenticate, async (req: Request, res: Response) =
     }
 
     const sanitizedName = sanitizeFilename(name);
-    if (isDangerousExtension(sanitizedName)) {
+    if (isDangerousExtension(sanitizedName, blockedExtensions)) {
       res.status(400).json({ error: 'File type not allowed' });
       return;
     }
@@ -2337,6 +2377,12 @@ router.post('/create-empty', authenticate, async (req: Request, res: Response) =
 
         return created;
       });
+
+      // Ensure file listings reflect the new file immediately (list endpoint is cached).
+      await Promise.all([
+        cache.invalidateAfterFileChange(userId, fileId),
+        cache.invalidateFolders(userId),
+      ]);
 
       res.status(201).json({ ...dbFile, size: String(fileSize) });
     } catch (dbError) {
@@ -2689,13 +2735,12 @@ router.get('/search', authenticate, async (req: Request, res: Response) => {
     }
 
     // Tag filter
-    let fileIds: string[] | undefined;
     if (tagId) {
       const fileTags = await prisma.fileTag.findMany({
         where: { tagId: tagId as string },
         select: { fileId: true },
       });
-      fileIds = fileTags.map(ft => ft.fileId);
+      const fileIds = fileTags.map(ft => ft.fileId);
       if (fileIds.length === 0) {
         // No files with this tag
         res.json({

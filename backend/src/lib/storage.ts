@@ -7,7 +7,6 @@ const STORAGE_DIRS = {
   thumbnails: 'thumbnails',
   avatars: 'avatars',
   branding: 'branding',
-  landing: 'landing',
   chunks: 'chunks',
   temp: 'temp',
   versions: 'versions',

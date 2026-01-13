@@ -5,7 +5,7 @@ import { useAuthStore } from '../../stores/authStore';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import TwoFactorInput from '../../components/auth/TwoFactorInput';
-import { Mail, Lock, Eye, EyeOff, AlertCircle, Clock, Info } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, AlertCircle, Clock, Info, X } from 'lucide-react';
 import { toast } from '../../components/ui/Toast';
 
 // Email validation regex
@@ -19,7 +19,7 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
-  const [, setErrorCode] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [remainingAttempts, setRemainingAttempts] = useState<number | null>(null);
   const [rememberMe, setRememberMe] = useState(() => {
     return localStorage.getItem('rememberEmail') !== null;
@@ -126,13 +126,44 @@ export default function Login() {
       toast(t('auth.welcomeBack'), 'success');
       navigate('/');
     } catch (err: any) {
-      const errorData = err.response?.data;
-      const code = errorData?.code || null;
+      // Some axios/network errors are normalized by our api interceptor.
+      // Prefer `err.response` when available; otherwise treat as network.
+      if (!err?.response) {
+        const errorMessage = t('auth.connectionError');
+        setError(errorMessage);
+        setErrorCode('NETWORK_ERROR');
+        setRemainingAttempts(null);
+        toast(errorMessage, 'error');
+        return;
+      }
+
+      const status: number | undefined = err.response?.status;
+      const rawData = err.response?.data;
+      const errorData =
+        typeof rawData === 'string'
+          ? (() => {
+              try {
+                return JSON.parse(rawData);
+              } catch {
+                return { message: rawData };
+              }
+            })()
+          : rawData;
+
+      let code: string | null = errorData?.code || null;
       const attempts = errorData?.remainingAttempts ?? null;
       const retryAfter = errorData?.retryAfter ?? null;
 
+      // Fallback when backend/proxy returns only a status without `code`.
+      if (!code) {
+        if (status === 401) code = 'INVALID_CREDENTIALS';
+        else if (status === 429) code = 'TOO_MANY_ATTEMPTS';
+        else if (status === 423) code = 'ACCOUNT_LOCKED';
+      }
+
       // Set specific error messages based on error code
       let errorMessage = '';
+
       switch (code) {
         case 'INVALID_CREDENTIALS':
           errorMessage = t('auth.errors.INVALID_CREDENTIALS');
@@ -156,7 +187,10 @@ export default function Login() {
           errorMessage = t('maintenance.title') + '. ' + t('maintenance.subtitle');
           break;
         default:
-          errorMessage = errorData?.error || errorData?.message || t('auth.loginFailed');
+          errorMessage =
+            errorData?.error ||
+            errorData?.message ||
+            (status && status >= 500 ? t('forgotPassword.errors.serverError') : t('auth.loginFailed'));
       }
 
       setError(errorMessage);
@@ -167,11 +201,6 @@ export default function Login() {
       if (code === 'TOO_MANY_ATTEMPTS' && retryAfter) {
         setLockoutTime(retryAfter);
         setCountdown(Math.ceil(retryAfter / 1000));
-      }
-
-      // Only show toast for network errors or unexpected errors
-      if (!err.response) {
-        toast(t('auth.connectionError'), 'error');
       }
     }
   };
@@ -301,17 +330,54 @@ export default function Login() {
                   <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" aria-hidden="true" />
                 </div>
                 <div className="flex-1 pt-1">
-                  <p className="text-sm font-medium text-red-800 dark:text-red-200">
-                    {error}
-                  </p>
+                  <p className="text-sm font-semibold text-red-800 dark:text-red-200">{t('auth.loginFailed')}</p>
+
+                  {error !== t('auth.loginFailed') && (
+                    <p className="text-sm text-red-800/90 dark:text-red-200/90 mt-1">
+                      {error}
+                    </p>
+                  )}
 
                   {/* Show remaining attempts warning */}
                   {remainingAttempts !== null && remainingAttempts > 0 && remainingAttempts <= 3 && (
-                    <p className="text-xs text-red-600 dark:text-red-400 mt-2 font-medium">
-                      ⚠️ {t('auth.remainingAttempts', { count: remainingAttempts })}
-                    </p>
+                    <p className="text-xs text-red-600 dark:text-red-400 mt-2 font-medium">{t('auth.remainingAttempts', { count: remainingAttempts })}</p>
                   )}
+
+                  <div className="mt-3 flex items-center gap-3">
+                    {errorCode === 'NETWORK_ERROR' && (
+                      <button
+                        type="submit"
+                        className="text-sm font-medium text-red-700 dark:text-red-300 hover:text-red-800 dark:hover:text-red-200 underline underline-offset-2"
+                      >
+                        {t('common.refresh', 'Reintentar')}
+                      </button>
+                    )}
+
+                    {errorCode === 'INVALID_CREDENTIALS' && (
+                      <Link
+                        to="/forgot-password"
+                        className="text-sm font-medium text-red-700 dark:text-red-300 hover:text-red-800 dark:hover:text-red-200 underline underline-offset-2"
+                      >
+                        {t('auth.forgotPassword')}
+                      </Link>
+                    )}
+                  </div>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError('');
+                    setErrorCode(null);
+                    setRemainingAttempts(null);
+                    setLockoutTime(null);
+                    setCountdown(0);
+                  }}
+                  className="ml-2 -mt-1 p-1 rounded-lg text-red-500 hover:text-red-700 dark:text-red-300 dark:hover:text-red-200 hover:bg-red-100/70 dark:hover:bg-red-800/20 transition-colors"
+                  aria-label={t('common.close', 'Cerrar')}
+                >
+                  <X className="w-4 h-4" aria-hidden="true" />
+                </button>
               </div>
             </div>
           )}

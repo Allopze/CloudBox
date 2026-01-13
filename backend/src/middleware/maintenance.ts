@@ -41,8 +41,6 @@ const isExemptPath = (path: string): boolean => {
         '/api/status',       // Status checks
         '/api/admin/settings/branding', // Branding for login page (public)
         '/api/admin/branding',    // Branding assets (logos, favicon)
-        '/api/admin/settings/landing', // Landing page settings
-        '/api/admin/landing/assets', // Landing page assets
         '/api/share',        // Public shares (optional: block these too? validation plan says exempt public)
         '/api/2fa/verify',   // 2FA verification
     ];
