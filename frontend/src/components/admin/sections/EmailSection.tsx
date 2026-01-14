@@ -282,10 +282,10 @@ export default function EmailSection() {
     const initializeTemplates = async () => {
         try {
             await api.post('/admin/email-templates/initialize');
-            toast(t('admin.templates.initialized', 'Plantillas inicializadas correctamente'), 'success');
+            toast(t('admin.templates.initialized'), 'success');
             loadData();
         } catch (error) {
-            toast(t('admin.templates.initError', 'Error al inicializar plantillas'), 'error');
+            toast(t('admin.templates.initError'), 'error');
         }
     };
 
@@ -299,14 +299,17 @@ export default function EmailSection() {
         }
     };
 
+    const previewName = t('admin.templates.previewName');
+    const previewEmail = t('admin.templates.previewEmail');
+
     // Helper to get preview HTML
     const getPreviewHtml = () => {
         if (!editingTemplate) return '';
         // Basic replacement for preview
         let html = editingTemplate.body;
         // Replace system variables with mock data
-        html = html.replace(/\{\{name\}\}/g, 'Usuario Prueba')
-            .replace(/\{\{email\}\}/g, 'usuario@ejemplo.com')
+        html = html.replace(/\{\{name\}\}/g, previewName)
+            .replace(/\{\{email\}\}/g, previewEmail)
             .replace(/\{\{action_url\}\}/g, '#')
             .replace(/\{\{site_ul\}\}/g, window.location.origin);
         // Replace custom variables
@@ -326,8 +329,8 @@ export default function EmailSection() {
         <div className="space-y-8">
             {/* Main Title */}
             <div>
-                <h2 className="text-2xl font-bold text-dark-900 dark:text-white">{t('admin.email.title', 'Correo Electrónico')}</h2>
-                <p className="text-dark-500 dark:text-dark-400 mt-1">{t('admin.email.description', 'Configura el servidor SMTP y las plantillas de correo.')}</p>
+                <h2 className="text-2xl font-bold text-dark-900 dark:text-white">{t('admin.email.title')}</h2>
+                <p className="text-dark-500 dark:text-dark-400 mt-1">{t('admin.email.description')}</p>
             </div>
 
             {/* SMTP Configuration */}
@@ -400,7 +403,7 @@ export default function EmailSection() {
                         ) : (
                             <div className="p-4 text-center">
                                 <p className="text-sm text-dark-400 italic mb-4">
-                                    {t('admin.templates.noTemplates', 'No se encontraron plantillas')}
+                                    {t('admin.templates.noTemplates')}
                                 </p>
                                 <Button
                                     variant="secondary"
@@ -408,7 +411,7 @@ export default function EmailSection() {
                                     onClick={initializeTemplates}
                                     icon={<RotateCcw className="w-4 h-4" />}
                                 >
-                                    {t('admin.templates.restoreDefaults', 'Restaurar por Defecto')}
+                                    {t('admin.templates.restoreDefaults')}
                                 </Button>
                             </div>
                         )}
@@ -423,7 +426,7 @@ export default function EmailSection() {
                                         <h3 className="text-lg font-bold text-dark-900 dark:text-white">{getTemplateDisplayName(editingTemplate.name)}</h3>
                                         {editingTemplate.isDefault && (
                                             <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                                                Using Default
+                                                {t('admin.templates.usingDefault')}
                                             </span>
                                         )}
                                     </div>
@@ -432,13 +435,13 @@ export default function EmailSection() {
                                             onClick={() => setShowPreview(false)}
                                             className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${!showPreview ? 'bg-white dark:bg-dark-700 text-dark-900 dark:text-white shadow-sm' : 'text-dark-500'}`}
                                         >
-                                            <Code className="w-4 h-4" /> Editor
+                                            <Code className="w-4 h-4" /> {t('admin.templates.editor')}
                                         </button>
                                         <button
                                             onClick={() => setShowPreview(true)}
                                             className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${showPreview ? 'bg-white dark:bg-dark-700 text-dark-900 dark:text-white shadow-sm' : 'text-dark-500'}`}
                                         >
-                                            <Eye className="w-4 h-4" /> Preview
+                                            <Eye className="w-4 h-4" /> {t('admin.templates.preview')}
                                         </button>
                                     </div>
                                 </div>
@@ -449,12 +452,14 @@ export default function EmailSection() {
                                         onClick={() => setShowVariablesPanel(!showVariablesPanel)}
                                         className="w-full flex items-center justify-between px-4 py-2 bg-dark-50 dark:bg-dark-900 hover:bg-dark-100 transition-colors"
                                     >
-                                        <span className="text-sm font-medium text-dark-700 dark:text-dark-300">Variables Disponibles ({templateVariables.system.length + templateVariables.custom.length})</span>
+                                        <span className="text-sm font-medium text-dark-700 dark:text-dark-300">
+                                            {t('admin.templates.availableVariables', { count: templateVariables.system.length + templateVariables.custom.length })}
+                                        </span>
                                     </button>
                                     {showVariablesPanel && (
                                         <div className="p-4 bg-white dark:bg-dark-800 border-t border-dark-200 dark:border-dark-700">
                                             <div className="mb-4">
-                                                <p className="text-xs font-bold text-dark-500 uppercase mb-2">Sistema</p>
+                                                <p className="text-xs font-bold text-dark-500 uppercase mb-2">{t('admin.templates.systemVariables')}</p>
                                                 <div className="flex flex-wrap gap-2">
                                                     {templateVariables.system.map(v => (
                                                         <button key={v.name} onClick={() => insertVariable(v.name)} className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-300 transition-colors">
@@ -465,8 +470,8 @@ export default function EmailSection() {
                                             </div>
                                             <div>
                                                 <div className="flex items-center justify-between mb-2">
-                                                    <p className="text-xs font-bold text-dark-500 uppercase">Personalizadas</p>
-                                                    <button onClick={() => setShowAddVariableModal(true)} className="text-xs text-primary-600 flex items-center gap-1 font-medium"><Plus className="w-3 h-3" /> Nueva Variable</button>
+                                                    <p className="text-xs font-bold text-dark-500 uppercase">{t('admin.templates.customVariables')}</p>
+                                                    <button onClick={() => setShowAddVariableModal(true)} className="text-xs text-primary-600 flex items-center gap-1 font-medium"><Plus className="w-3 h-3" /> {t('admin.templates.newVariable')}</button>
                                                 </div>
                                                 <div className="flex flex-wrap gap-2">
                                                     {templateVariables.custom.map(v => (
@@ -500,13 +505,13 @@ export default function EmailSection() {
                                     </>
                                 ) : (
                                     <div className="border border-dark-200 dark:border-dark-700 rounded-xl overflow-hidden">
-                                        <div className="bg-dark-50 dark:bg-dark-900 p-3 border-b border-dark-200 dark:border-dark-700 text-sm">
-                                            <span className="text-dark-500">Subject:</span> <span className="font-medium text-dark-900 dark:text-white">{editingTemplate.subject}</span>
+                                    <div className="bg-dark-50 dark:bg-dark-900 p-3 border-b border-dark-200 dark:border-dark-700 text-sm">
+                                            <span className="text-dark-500">{t('admin.templates.subject')}:</span> <span className="font-medium text-dark-900 dark:text-white">{editingTemplate.subject}</span>
                                         </div>
                                         <iframe
                                             srcDoc={getPreviewHtml()}
                                             className="w-full h-[400px] bg-white"
-                                            title="Email Preview"
+                                            title={t('admin.templates.previewTitle')}
                                         />
                                     </div>
                                 )}
@@ -514,7 +519,7 @@ export default function EmailSection() {
                                 <div className="flex justify-between pt-4 border-t border-dark-100 dark:border-dark-700">
                                     <div className="flex gap-2">
                                         <Button variant="secondary" onClick={resetTemplate} icon={<RotateCcw className="w-4 h-4" />}>{t('admin.templates.reset')}</Button>
-                                        <Button variant="secondary" onClick={sendTestTemplateEmail} loading={sendingTestEmail} icon={<Send className="w-4 h-4" />}>Test</Button>
+                                        <Button variant="secondary" onClick={sendTestTemplateEmail} loading={sendingTestEmail} icon={<Send className="w-4 h-4" />}>{t('admin.templates.sendTest')}</Button>
                                     </div>
                                     <Button onClick={saveTemplate} loading={savingTemplate} icon={<Save className="w-4 h-4" />}>
                                         {t('admin.templates.save')}
@@ -524,7 +529,7 @@ export default function EmailSection() {
                         ) : (
                             <div className="flex flex-col items-center justify-center h-full text-dark-400">
                                 <FileText className="w-12 h-12 mb-4 opacity-20" />
-                                <p>Select a template to edit</p>
+                                <p>{t('admin.templates.selectTemplate')}</p>
                             </div>
                         )}
                     </div>
@@ -535,15 +540,15 @@ export default function EmailSection() {
             {showAddVariableModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setShowAddVariableModal(false)}>
                     <div className="bg-white dark:bg-dark-800 rounded-xl shadow-2xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
-                        <h3 className="text-lg font-bold mb-4 text-dark-900 dark:text-white">Nueva Variable</h3>
+                        <h3 className="text-lg font-bold mb-4 text-dark-900 dark:text-white">{t('admin.templates.newVariable')}</h3>
                         <div className="space-y-4">
-                            <Input label="Nombre (sin espacios)" value={newVariableName} onChange={e => setNewVariableName(e.target.value)} placeholder="mi_variable" />
-                            <Input label="Valor por defecto" value={newVariableValue} onChange={e => setNewVariableValue(e.target.value)} />
-                            <Input label="Descripción" value={newVariableDescription} onChange={e => setNewVariableDescription(e.target.value)} />
+                            <Input label={t('admin.templates.variableName')} value={newVariableName} onChange={e => setNewVariableName(e.target.value)} placeholder={t('admin.templates.variableNamePlaceholder')} />
+                            <Input label={t('admin.templates.defaultValue')} value={newVariableValue} onChange={e => setNewVariableValue(e.target.value)} />
+                            <Input label={t('admin.templates.description')} value={newVariableDescription} onChange={e => setNewVariableDescription(e.target.value)} />
                         </div>
                         <div className="flex justify-end gap-3 mt-6">
-                            <Button variant="ghost" onClick={() => setShowAddVariableModal(false)}>Cancelar</Button>
-                            <Button onClick={addVariable} loading={savingVariable}>Crear</Button>
+                            <Button variant="ghost" onClick={() => setShowAddVariableModal(false)}>{t('common.cancel')}</Button>
+                            <Button onClick={addVariable} loading={savingVariable}>{t('common.create')}</Button>
                         </div>
                     </div>
                 </div>
@@ -553,14 +558,14 @@ export default function EmailSection() {
             {editingVariable && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setEditingVariable(null)}>
                     <div className="bg-white dark:bg-dark-800 rounded-xl shadow-2xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
-                        <h3 className="text-lg font-bold mb-4 text-dark-900 dark:text-white">Editar Variable: {editingVariable.name}</h3>
+                        <h3 className="text-lg font-bold mb-4 text-dark-900 dark:text-white">{t('admin.templates.editVariable', { name: editingVariable.name })}</h3>
                         <div className="space-y-4">
-                            <Input label="Valor por defecto" value={editingVariable.defaultValue} onChange={e => setEditingVariable({ ...editingVariable, defaultValue: e.target.value })} />
-                            <Input label="Descripción" value={editingVariable.description || ''} onChange={e => setEditingVariable({ ...editingVariable, description: e.target.value })} />
+                            <Input label={t('admin.templates.defaultValue')} value={editingVariable.defaultValue} onChange={e => setEditingVariable({ ...editingVariable, defaultValue: e.target.value })} />
+                            <Input label={t('admin.templates.description')} value={editingVariable.description || ''} onChange={e => setEditingVariable({ ...editingVariable, description: e.target.value })} />
                         </div>
                         <div className="flex justify-end gap-3 mt-6">
-                            <Button variant="ghost" onClick={() => setEditingVariable(null)}>Cancelar</Button>
-                            <Button onClick={updateVariable} loading={savingVariable}>Guardar</Button>
+                            <Button variant="ghost" onClick={() => setEditingVariable(null)}>{t('common.cancel')}</Button>
+                            <Button onClick={updateVariable} loading={savingVariable}>{t('common.save')}</Button>
                         </div>
                     </div>
                 </div>

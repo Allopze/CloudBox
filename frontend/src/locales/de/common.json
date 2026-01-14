@@ -151,7 +151,21 @@
     "logout": "Abmelden",
     "size": "Größe",
     "modified": "Geändert",
-    "created": "Erstellt"
+    "created": "Erstellt",
+    "errorShort": "Fehler",
+    "unknown": "Unbekannt",
+    "units": {
+      "mb": "MB",
+      "gb": "GB",
+      "tb": "TB"
+    },
+    "dismiss": "Schlie?en",
+    "toggleTheme": "Design umschalten",
+    "logoAlt": "CloudBox-Logo",
+    "faviconAlt": "CloudBox-Favicon",
+    "navigationDrawer": "Navigationsmen?",
+    "loadingAnimation": "Orange-beiger Hamster, der in einem Metallrad l?uft",
+    "appName": "CloudBox"
   },
   "files": {
     "loading": "Laden...",
@@ -586,7 +600,8 @@
         "recoveryCodesCopied": "Wiederherstellungscodes kopiert",
         "downloadRecoveryCodes": "Wiederherstellungscodes herunterladen",
         "recoveryCodesWarning": "Diese Codes werden nur einmal angezeigt. Speichern Sie sie jetzt!",
-        "finish": "Einrichtung abschließen"
+        "finish": "Einrichtung abschließen",
+        "qrAlt": "2FA-QR-Code"
       },
       "disable": {
         "title": "Zwei-Faktor-Authentifizierung deaktivieren",
@@ -672,7 +687,8 @@
     "resetToDefault": "Zurücksetzen",
     "saved": "Ordnerfarbe gespeichert",
     "saveError": "Fehler beim Speichern der Farbe",
-    "reset": "Farbe zurückgesetzt"
+    "reset": "Farbe zurückgesetzt",
+    "hexPlaceholder": "FF5733"
   },
   "modals": {
     "upload": {
@@ -908,7 +924,9 @@
         "viewLogs": "Aktuelle Logs anzeigen",
         "maintenanceEnabled": "Wartungsmodus aktiviert",
         "maintenanceDisabled": "Wartungsmodus deaktiviert",
-        "notImplemented": "Funktion noch nicht implementiert"
+        "notImplemented": "Funktion noch nicht implementiert",
+        "enableMaintenance": "Wartungsmodus aktivieren",
+        "disableMaintenance": "Wartungsmodus deaktivieren"
       },
       "security": {
         "title": "Sicherheit und Zugriff",
@@ -935,11 +953,12 @@
       "defaultQuota": "Standard-Quota",
       "maxFileSize": "Max. Dateigröße",
       "allowedTypes": "Erlaubte Typen",
-      "save": "Allgemein speichern"
+      "save": "Allgemein speichern",
+      "allowedOriginsPlaceholder": "https://example.com\nhttps://app.example.com"
     },
     "email": {
-      "title": "E-Mail (SMTP)",
-      "description": "E-Mail-Server-Konfiguration",
+      "title": "E-Mail",
+      "description": "Konfigurieren Sie den SMTP-Server und die E-Mail-Vorlagen.",
       "host": "SMTP-Host",
       "port": "Anschluss",
       "user": "Benutzer",
@@ -951,13 +970,13 @@
     },
     "templates": {
       "title": "E-Mail-Vorlagen",
-      "description": "System-E-Mails anpassen",
+      "description": "Beschreibung",
       "new": "Neu",
       "system": "Systemvorlagen",
       "custom": "Angepasst",
       "customized": "Angepasst",
       "notCustomized": "Nicht angepasst",
-      "editor": "Bearbeiter",
+      "editor": "Editor",
       "preview": "Vorschau",
       "subject": "Betreff",
       "htmlContent": "HTML-Inhalt",
@@ -969,10 +988,10 @@
       "resetPassword": "Passwort zurücksetzen",
       "selectToEdit": "Wählen Sie eine Vorlage zum Bearbeiten",
       "newVariable": "Neue Variable",
-      "editVariable": "Variable bearbeiten",
+      "editVariable": "Variable bearbeiten: {{name}}",
       "templateNamePlaceholder": "z.B. Zahlungsbenachrichtigung",
       "templateNameHint": "Wird in eindeutigen Bezeichner umgewandelt (z.B. zahlungsbenachrichtigung)",
-      "variableNamePlaceholder": "meineVariable",
+      "variableNamePlaceholder": "meine_variable",
       "variableNameHint": "Nur Buchstaben, Zahlen und Unterstriche. Wird als {{example}} verwendet",
       "variableValuePlaceholder": "Wert für die E-Mail",
       "variableDescPlaceholder": "Wofür diese Variable verwendet wird",
@@ -991,7 +1010,18 @@
       "templateDeleted": "Vorlage gelöscht",
       "templateSaved": "Vorlage gespeichert",
       "templateReset": "Vorlage zurückgesetzt",
-      "testSent": "Test-E-Mail gesendet"
+      "testSent": "Test-E-Mail gesendet",
+      "usingDefault": "Standardvorlage verwenden",
+      "previewTitle": "E-Mail-Vorschau",
+      "availableVariables": "Verf?gbare Variablen ({{count}})",
+      "systemVariables": "System",
+      "customVariables": "Benutzerdefiniert",
+      "variableName": "Name (keine Leerzeichen)",
+      "defaultValue": "Standardwert",
+      "sendTest": "Test senden",
+      "selectTemplate": "Vorlage zum Bearbeiten ausw?hlen",
+      "previewName": "Testbenutzer",
+      "previewEmail": "benutzer@beispiel.de"
     },
     "branding": {
       "title": "Markendesign",
@@ -1002,7 +1032,13 @@
       "favicon": "Webseitensymbol",
       "save": "Branding speichern",
       "uploaded": "Datei hochgeladen",
-      "saved": "Branding gespeichert"
+      "saved": "Branding gespeichert",
+      "uploadImage": "Bild hochladen",
+      "lightBackground": "Auf hellem Hintergrund sichtbar",
+      "darkBackground": "Auf dunklem Hintergrund sichtbar",
+      "tabIcon": "Browser-Tab-Symbol",
+      "siteNamePlaceholder": "CloudBox",
+      "customCssPlaceholder": "/* Benutzerdefiniertes CSS hier */"
     },
     "legal": {
       "title": "Rechtliche Seiten",
@@ -1014,13 +1050,16 @@
       "content": "Inhalt (HTML)",
       "contentHint": "HTML für die Formatierung verwenden. Erlaubte Tags: h2, h3, p, ul, ol, li, strong, em, a",
       "preview": "Vorschau",
-      "viewPublic": "Öffentliche Seite anzeigen",
+      "viewPublic": "?ffentliche Seite anzeigen",
       "reset": "Zurücksetzen",
       "save": "Speichern",
       "saved": "Seite gespeichert",
       "saveError": "Fehler beim Speichern der Seite",
       "resetSuccess": "Seite zurückgesetzt",
-      "selectToEdit": "Wählen Sie eine Seite zum Bearbeiten"
+      "selectToEdit": "Wählen Sie eine Seite zum Bearbeiten",
+      "contentLabel": "Inhalt (Markdown)",
+      "privacyPlaceholder": "# Datenschutzerkl?rung...",
+      "termsPlaceholder": "# Nutzungsbedingungen..."
     },
     "users": {
       "title": "Benutzerverwaltung",
@@ -1153,6 +1192,87 @@
         "code": "Code",
         "default": "Andere Dateien"
       }
+    },
+    "sectionNotFound": "Abschnitt nicht gefunden",
+    "sidebar": {
+      "footerTitle": "CloudBox-Admin",
+      "footerVersion": "v1.0.0 - Build 2024"
+    },
+    "storageRequests": {
+      "title": "Speicheranfragen",
+      "noRequests": "Keine Anfragen",
+      "approved": "Anfrage genehmigt",
+      "rejected": "Anfrage abgelehnt",
+      "approveError": "Genehmigung fehlgeschlagen",
+      "rejectError": "Ablehnung fehlgeschlagen",
+      "status": {
+        "pending": "Ausstehend",
+        "approved": "Genehmigt",
+        "rejected": "Abgelehnt"
+      },
+      "filters": {
+        "all": "Alle",
+        "pending": "Ausstehend",
+        "approved": "Genehmigt",
+        "rejected": "Abgelehnt"
+      },
+      "labels": {
+        "currentQuota": "Aktuelles Kontingent",
+        "requestedQuota": "Angefragt",
+        "response": "Antwort"
+      },
+      "responsePlaceholder": "Antwort (optional)",
+      "actions": {
+        "approve": "Genehmigen",
+        "reject": "Ablehnen"
+      },
+      "description": "Anfragen zur Kontingenterh?hung verwalten."
+    },
+    "smtp": {
+      "title": "SMTP-Konfiguration",
+      "host": "SMTP-Server",
+      "port": "Port",
+      "user": "Benutzer",
+      "pass": "Passwort",
+      "from": "Absender (From)",
+      "secure": "SSL/TLS verwenden",
+      "test": "Test senden",
+      "save": "SMTP speichern",
+      "testSuccess": "Test-E-Mail gesendet",
+      "saved": "SMTP-Konfiguration gespeichert",
+      "saveError": "SMTP-Konfiguration konnte nicht gespeichert werden",
+      "testError": "Test-E-Mail konnte nicht gesendet werden"
+    },
+    "wopi": {
+      "lockProviderOptions": {
+        "db": "Datenbank (PostgreSQL)",
+        "redis": "Redis (f?r Produktion empfohlen)"
+      },
+      "publicUrlPlaceholder": "https://cloudbox.example.com",
+      "discoveryUrlPlaceholder": "https://collabora.example.com/hosting/discovery",
+      "allowedOriginsPlaceholder": "https://collabora.example.com,https://onlyoffice.example.com"
+    },
+    "activity": {
+      "descriptionColumn": "Beschreibung",
+      "ipAddress": "IP-Adresse",
+      "loading": "Wird geladen...",
+      "types": {
+        "login": "Anmeldung",
+        "logout": "Abmeldung",
+        "upload": "Hochladen",
+        "download": "Herunterladen",
+        "delete": "L?schen",
+        "createUser": "Benutzer erstellen",
+        "updateUser": "Benutzer aktualisieren",
+        "updateSettings": "Einstellungen aktualisieren"
+      }
+    },
+    "metrics": {
+      "ram": "RAM",
+      "swap": "Swap"
+    },
+    "blockedExtensions": {
+      "placeholder": ".exe\n.ps1\n.php"
     }
   },
   "gallery": {
@@ -1185,7 +1305,11 @@
     "unsupportedDocument": "Dokumenttyp wird für die Vorschau nicht unterstützt.",
     "loading": "Dokument wird geladen...",
     "loadError": "Fehler beim Laden des PDFs.",
-    "closeEsc": "Schließen (Esc)"
+    "closeEsc": "Schließen (Esc)",
+    "seekBackLabel": "Zur?ck {{seconds}} Sekunden",
+    "seekForwardLabel": "Vorw?rts {{seconds}} Sekunden",
+    "seekBackShortcut": "-{{seconds}}s ({{shortcut}})",
+    "seekForwardShortcut": "+{{seconds}}s ({{shortcut}})"
   },
   "mediaViewer": {
     "back": "Zurück",

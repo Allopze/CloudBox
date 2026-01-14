@@ -154,14 +154,14 @@ export default function AdminSidebar({ activeSection, onSelectSection }: AdminSi
                         <div className="p-2 rounded-full bg-dark-100 dark:bg-dark-700 group-hover:bg-primary-50 dark:group-hover:bg-primary-900/20 transition-colors">
                             <ArrowLeft className="w-4 h-4" />
                         </div>
-                        <span className="font-semibold text-sm">{t('admin.backToFiles', 'Volver a Archivos')}</span>
+                        <span className="font-semibold text-sm">{t('admin.backToFiles')}</span>
                     </button>
 
                     <h1 className="text-xl font-bold text-dark-900 dark:text-white px-2">
-                        {t('admin.title', 'Administración')}
+                        {t('admin.title')}
                     </h1>
                     <p className="text-xs text-dark-500 px-2 mt-1">
-                        {t('admin.subtitle', 'Panel de Control')}
+                        {t('admin.subtitle')}
                     </p>
                 </div>
 
@@ -213,8 +213,8 @@ export default function AdminSidebar({ activeSection, onSelectSection }: AdminSi
 
                 <div className="p-4 border-t border-dark-100 dark:border-dark-700">
                     <div className="bg-dark-50 dark:bg-dark-700/50 rounded-xl p-4">
-                        <p className="text-xs font-medium text-dark-900 dark:text-white mb-1">CloudBox Admin</p>
-                        <p className="text-[10px] text-dark-400">v1.0.0 • Build 2024</p>
+                        <p className="text-xs font-medium text-dark-900 dark:text-white mb-1">{t('admin.sidebar.footerTitle')}</p>
+                        <p className="text-[10px] text-dark-400">{t('admin.sidebar.footerVersion')}</p>
                     </div>
                 </div>
             </aside>

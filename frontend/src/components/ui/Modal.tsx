@@ -1,4 +1,5 @@
 import { ReactNode, useEffect, useRef, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -20,6 +21,7 @@ export default function Modal({
   size = 'md',
   showCloseButton = true,
 }: ModalProps) {
+  const { t } = useTranslation();
   const modalRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
   const titleId = useRef(`modal-title-${Math.random().toString(36).substring(7)}`);
@@ -145,7 +147,7 @@ export default function Modal({
               <button
                 onClick={onClose}
                 className="p-2.5 -m-2 text-dark-500 hover:text-dark-900 dark:hover:text-white rounded-xl hover:bg-dark-100 dark:hover:bg-dark-700 transition-colors"
-                aria-label="Close modal"
+                aria-label={t('common.close')}
               >
                 <X className="w-6 h-6" />
               </button>

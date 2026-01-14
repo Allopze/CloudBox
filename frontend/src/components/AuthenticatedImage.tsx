@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api } from '../lib/api';
 import { cn } from '../lib/utils';
 
@@ -21,6 +22,7 @@ export default function AuthenticatedImage({
   alt,
   ...props 
 }: AuthenticatedImageProps) {
+  const { t } = useTranslation();
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -78,7 +80,7 @@ export default function AuthenticatedImage({
         className={cn('flex items-center justify-center bg-gray-100 dark:bg-gray-800 text-gray-400', props.className)}
         style={{ width: props.width, height: props.height }}
       >
-        <span className="text-xs">Error</span>
+        <span className="text-xs">{t('common.errorShort')}</span>
       </div>
     );
   }

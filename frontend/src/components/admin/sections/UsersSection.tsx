@@ -43,17 +43,19 @@ export default function UsersSection() {
     const [customQuotaUnit, setCustomQuotaUnit] = useState<'GB' | 'TB'>('GB');
 
     // Predefined quota options in bytes
+    const gbLabel = t('common.units.gb');
+    const tbLabel = t('common.units.tb');
     const quotaOptions = [
-        { value: '1073741824', label: '1 GB' },
-        { value: '5368709120', label: '5 GB' },
-        { value: '10737418240', label: '10 GB' },
-        { value: '21474836480', label: '20 GB' },
-        { value: '32212254720', label: '30 GB' },
-        { value: '53687091200', label: '50 GB' },
-        { value: '107374182400', label: '100 GB' },
-        { value: '214748364800', label: '200 GB' },
-        { value: '536870912000', label: '500 GB' },
-        { value: '1099511627776', label: '1 TB' },
+        { value: '1073741824', label: `1 ${gbLabel}` },
+        { value: '5368709120', label: `5 ${gbLabel}` },
+        { value: '10737418240', label: `10 ${gbLabel}` },
+        { value: '21474836480', label: `20 ${gbLabel}` },
+        { value: '32212254720', label: `30 ${gbLabel}` },
+        { value: '53687091200', label: `50 ${gbLabel}` },
+        { value: '107374182400', label: `100 ${gbLabel}` },
+        { value: '214748364800', label: `200 ${gbLabel}` },
+        { value: '536870912000', label: `500 ${gbLabel}` },
+        { value: '1099511627776', label: `1 ${tbLabel}` },
         { value: 'custom', label: t('admin.users.custom') },
     ];
 
@@ -225,10 +227,10 @@ export default function UsersSection() {
             <div className="flex items-center justify-between mb-6">
                 <div>
                     <h2 className="text-2xl font-bold text-dark-900 dark:text-white">
-                        {t('admin.users.title', 'Usuarios')}
+                        {t('admin.users.title')}
                     </h2>
                     <p className="text-dark-500 dark:text-dark-400 mt-1">
-                        {t('admin.users.description', 'Gestiona los usuarios y sus permisos')}
+                        {t('admin.users.description')}
                     </p>
                 </div>
                 <Button onClick={openCreateModal} icon={<UserPlus className="w-4 h-4" />}>
@@ -239,7 +241,7 @@ export default function UsersSection() {
             {/* Search */}
             <div className="mb-6">
                 <Input
-                    placeholder={t('admin.users.search', 'Buscar usuarios...')}
+                    placeholder={t('admin.users.search')}
                     value={userSearch}
                     onChange={(e) => setUserSearch(e.target.value)}
                     icon={<Search className="w-5 h-5" />}
@@ -389,10 +391,10 @@ export default function UsersSection() {
                         </select>
                         {formStorageQuota === 'custom' && (
                             <div className="flex gap-2">
-                                <input type="number" value={customQuotaValue} onChange={(e) => setCustomQuotaValue(e.target.value)} className="input flex-1" placeholder="Cantidad" />
+                                <input type="number" value={customQuotaValue} onChange={(e) => setCustomQuotaValue(e.target.value)} className="input flex-1" placeholder={t('admin.users.amount')} />
                                 <select value={customQuotaUnit} onChange={(e) => setCustomQuotaUnit(e.target.value as any)} className="input w-24">
-                                    <option value="GB">GB</option>
-                                    <option value="TB">TB</option>
+                                    <option value="GB">{t('common.units.gb')}</option>
+                                    <option value="TB">{t('common.units.tb')}</option>
                                 </select>
                             </div>
                         )}
@@ -432,8 +434,8 @@ export default function UsersSection() {
                             <div className="flex gap-2">
                                 <input type="number" value={customQuotaValue} onChange={(e) => setCustomQuotaValue(e.target.value)} className="input flex-1" />
                                 <select value={customQuotaUnit} onChange={(e) => setCustomQuotaUnit(e.target.value as any)} className="input w-24">
-                                    <option value="GB">GB</option>
-                                    <option value="TB">TB</option>
+                                    <option value="GB">{t('common.units.gb')}</option>
+                                    <option value="TB">{t('common.units.tb')}</option>
                                 </select>
                             </div>
                         )}

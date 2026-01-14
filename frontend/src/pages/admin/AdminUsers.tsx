@@ -79,17 +79,19 @@ export default function AdminUsers() {
   const [saving, setSaving] = useState(false);
 
   // Predefined quota options in bytes
+  const gbLabel = t('common.units.gb');
+  const tbLabel = t('common.units.tb');
   const quotaOptions = [
-    { value: '1073741824', label: '1 GB' },
-    { value: '5368709120', label: '5 GB' },
-    { value: '10737418240', label: '10 GB' },
-    { value: '21474836480', label: '20 GB' },
-    { value: '32212254720', label: '30 GB' },
-    { value: '53687091200', label: '50 GB' },
-    { value: '107374182400', label: '100 GB' },
-    { value: '214748364800', label: '200 GB' },
-    { value: '536870912000', label: '500 GB' },
-    { value: '1099511627776', label: '1 TB' },
+    { value: '1073741824', label: `1 ${gbLabel}` },
+    { value: '5368709120', label: `5 ${gbLabel}` },
+    { value: '10737418240', label: `10 ${gbLabel}` },
+    { value: '21474836480', label: `20 ${gbLabel}` },
+    { value: '32212254720', label: `30 ${gbLabel}` },
+    { value: '53687091200', label: `50 ${gbLabel}` },
+    { value: '107374182400', label: `100 ${gbLabel}` },
+    { value: '214748364800', label: `200 ${gbLabel}` },
+    { value: '536870912000', label: `500 ${gbLabel}` },
+    { value: '1099511627776', label: `1 ${tbLabel}` },
     { value: 'custom', label: t('admin.users.custom') },
   ];
 
@@ -691,8 +693,8 @@ export default function AdminUsers() {
                   onChange={(e) => setCustomQuotaUnit(e.target.value as 'GB' | 'TB')}
                   className="input w-20"
                 >
-                  <option value="GB">GB</option>
-                  <option value="TB">TB</option>
+                  <option value="GB">{t('common.units.gb')}</option>
+                  <option value="TB">{t('common.units.tb')}</option>
                 </select>
               </div>
             )}
@@ -777,8 +779,8 @@ export default function AdminUsers() {
                   onChange={(e) => setCustomQuotaUnit(e.target.value as 'GB' | 'TB')}
                   className="input w-20"
                 >
-                  <option value="GB">GB</option>
-                  <option value="TB">TB</option>
+                  <option value="GB">{t('common.units.gb')}</option>
+                  <option value="TB">{t('common.units.tb')}</option>
                 </select>
               </div>
             )}

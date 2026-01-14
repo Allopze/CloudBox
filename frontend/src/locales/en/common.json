@@ -157,6 +157,12 @@
     "save": "Save",
     "noMoreItems": "No more items",
     "close": "Close",
+    "dismiss": "Dismiss",
+    "toggleTheme": "Toggle theme",
+    "logoAlt": "CloudBox logo",
+    "faviconAlt": "CloudBox favicon",
+    "navigationDrawer": "Navigation drawer",
+    "loadingAnimation": "Orange and tan hamster running in a metal wheel",
     "download": "Download",
     "upload": "Upload",
     "share": "Share",
@@ -181,6 +187,7 @@
     "remove": "Remove",
     "sending": "Sending...",
     "error": "An error occurred. Please try again.",
+    "errorShort": "Error",
     "success": "Success",
     "warning": "Warning",
     "logout": "Log out",
@@ -196,7 +203,14 @@
     "noResults": "No results",
     "required": "Required",
     "optional": "Optional",
-    "moreOptions": "More options"
+    "unknown": "Unknown",
+    "units": {
+      "mb": "MB",
+      "gb": "GB",
+      "tb": "TB"
+    },
+    "moreOptions": "More options",
+    "appName": "CloudBox"
   },
   "files": {
     "loading": "Loading...",
@@ -649,6 +663,7 @@
         "description": "Add an extra layer of security to your account.",
         "step1": "Scan QR Code",
         "step1Description": "Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)",
+        "qrAlt": "2FA QR code",
         "step2": "Enter Code",
         "step2Description": "Enter the 6-digit code from your authenticator app to verify",
         "step3": "Save Recovery Codes",
@@ -772,7 +787,8 @@
     "resetToDefault": "Reset",
     "saved": "Folder customized",
     "saveError": "Error saving",
-    "reset": "Reset complete"
+    "reset": "Reset complete",
+    "hexPlaceholder": "FF5733"
   },
   "dragPreview": {
     "itemsCount": "{{count}} items",
@@ -974,7 +990,21 @@
     "conversionQueued": "Document is being prepared...",
     "convertingDocument": "Converting document to PDF...",
     "conversionTimeout": "Document conversion took too long. Try downloading the file.",
-    "closeEsc": "Close (Esc)"
+    "closeEsc": "Close (Esc)",
+    "imageError": "Failed to load image.",
+    "shortcutClose": "Close viewer",
+    "shortcutNavigate": "Previous / next",
+    "shortcutZoom": "Zoom in/out",
+    "shortcutReset": "Reset view",
+    "shortcutRotate": "Rotate",
+    "shortcutDetails": "Toggle details",
+    "shortcutHelp": "Toggle shortcuts",
+    "shortcutSlideshow": "Play/Pause slideshow",
+    "shortcuts": "Shortcuts",
+    "seekBackLabel": "Back {{seconds}} seconds",
+    "seekForwardLabel": "Forward {{seconds}} seconds",
+    "seekBackShortcut": "-{{seconds}}s ({{shortcut}})",
+    "seekForwardShortcut": "+{{seconds}}s ({{shortcut}})"
   },
   "errorLoadingSpreadsheet": "Error loading spreadsheet.",
   "mediaViewer": {
@@ -1005,7 +1035,10 @@
     "exif": "EXIF Data",
     "activity": "Activity",
     "copyLink": "Copy link",
-    "linkCopied": "Link copied"
+    "linkCopied": "Link copied",
+    "actions": "Quick actions",
+    "thumbSizeDecrease": "Smaller thumbnails",
+    "thumbSizeIncrease": "Larger thumbnails"
   },
   "publicShare": {
     "passwordProtected": "Password protected",
@@ -1381,7 +1414,9 @@
         "viewLogs": "View recent logs",
         "maintenanceEnabled": "Maintenance mode enabled",
         "maintenanceDisabled": "Maintenance mode disabled",
-        "notImplemented": "Feature not implemented yet"
+        "notImplemented": "Feature not implemented yet",
+        "enableMaintenance": "Enable maintenance mode",
+        "disableMaintenance": "Disable maintenance mode"
       },
       "security": {
         "title": "Security and Access",
@@ -1393,9 +1428,23 @@
     "loadError": "Failed to load data",
     "saveError": "Failed to save data",
     "deleteError": "Failed to delete",
+    "sectionNotFound": "Section not found",
+    "sidebar": {
+      "footerTitle": "CloudBox Admin",
+      "footerVersion": "v1.0.0 - Build 2024"
+    },
     "branding": {
       "siteName": "Browser tab title",
-      "siteNameHint": "This text appears next to the favicon in the browser tab."
+      "siteNameHint": "This text appears next to the favicon in the browser tab.",
+      "siteNamePlaceholder": "CloudBox",
+      "customCssPlaceholder": "/* Custom CSS here */",
+      "uploadImage": "Upload image",
+      "lightBackground": "Visible on light background",
+      "darkBackground": "Visible on dark background",
+      "tabIcon": "Browser tab icon",
+      "title": "Personalización",
+      "description": "Personaliza la apariencia de tu instancia de CloudBox.",
+      "customCssHint": "Añade estilos CSS globales que se inyectarán en la aplicación."
     },
     "storageRequests": {
       "title": "Storage Requests",
@@ -1403,11 +1452,42 @@
       "approved": "Request approved",
       "rejected": "Request rejected",
       "approveError": "Failed to approve",
-      "rejectError": "Failed to reject"
+      "rejectError": "Failed to reject",
+      "status": {
+        "pending": "Pending",
+        "approved": "Approved",
+        "rejected": "Rejected"
+      },
+      "filters": {
+        "all": "All",
+        "pending": "Pending",
+        "approved": "Approved",
+        "rejected": "Rejected"
+      },
+      "labels": {
+        "currentQuota": "Current quota",
+        "requestedQuota": "Requested",
+        "response": "Response"
+      },
+      "responsePlaceholder": "Response (optional)",
+      "actions": {
+        "approve": "Approve",
+        "reject": "Reject"
+      },
+      "description": "Manage storage increase requests."
+    },
+    "general": {
+      "allowedOriginsPlaceholder": "https://example.com\nhttps://app.example.com",
+      "title": "Configuración General",
+      "description": "Ajustes generales de la plataforma.",
+      "allowedOrigins": "Orígenes CORS Permitidos",
+      "allowedOriginsDesc": "Dominios adicionales permitidos para acceder a la API (uno por línea). Ej: https://app.ejemplo.com",
+      "saveCors": "Guardar Orígenes"
     },
     "blockedExtensions": {
       "title": "Blocked Extensions",
       "description": "Block file extensions for uploads and archive extraction. One per line or comma-separated.",
+      "placeholder": ".exe\n.ps1\n.php",
       "save": "Save Extensions",
       "saved": "Blocked extensions saved",
       "saveError": "Failed to save blocked extensions",
@@ -1441,14 +1521,126 @@
         "archive": "Archives",
         "code": "Code",
         "default": "Other files"
-      }
+      },
+      "pageTitle": "File Type Icons",
+      "pageDescription": "Customize icons displayed for different file types",
+      "uploadShort": "Subir"
+    },
+    "smtp": {
+      "title": "SMTP Configuration",
+      "host": "SMTP server",
+      "port": "Port",
+      "user": "User",
+      "pass": "Password",
+      "from": "Sender (From)",
+      "secure": "Use SSL/TLS",
+      "test": "Send test",
+      "save": "Save SMTP",
+      "testSuccess": "Test email sent successfully",
+      "saved": "SMTP configuration saved",
+      "saveError": "Failed to save SMTP configuration",
+      "testError": "Failed to send test email"
+    },
+    "email": {
+      "title": "Email",
+      "description": "Configure the SMTP server and email templates."
+    },
+    "templates": {
+      "title": "Email Templates",
+      "saved": "Template saved",
+      "saveError": "Failed to save template",
+      "resetSuccess": "Template reset",
+      "resetError": "Failed to reset template",
+      "variableInserted": "Variable inserted",
+      "variableAdded": "Variable added",
+      "initialized": "Templates initialized",
+      "initError": "Failed to initialize templates",
+      "welcome": "Welcome",
+      "resetPassword": "Reset password",
+      "verifyEmail": "Verify email",
+      "storageWarning": "Storage warning",
+      "noTemplates": "No templates found",
+      "restoreDefaults": "Restore defaults",
+      "subject": "Subject",
+      "htmlContent": "HTML content",
+      "reset": "Reset",
+      "save": "Save",
+      "usingDefault": "Using default",
+      "editor": "Editor",
+      "preview": "Preview",
+      "previewTitle": "Email preview",
+      "availableVariables": "Available variables ({{count}})",
+      "systemVariables": "System",
+      "customVariables": "Custom",
+      "newVariable": "New variable",
+      "variableName": "Name (no spaces)",
+      "variableNamePlaceholder": "my_variable",
+      "defaultValue": "Default value",
+      "description": "Description",
+      "editVariable": "Edit variable: {{name}}",
+      "sendTest": "Send test",
+      "selectTemplate": "Select a template to edit",
+      "previewName": "Test User",
+      "previewEmail": "user@example.com"
+    },
+    "wopi": {
+      "lockProviderOptions": {
+        "db": "Database (PostgreSQL)",
+        "redis": "Redis (recommended for production)"
+      },
+      "publicUrlPlaceholder": "https://cloudbox.example.com",
+      "discoveryUrlPlaceholder": "https://collabora.example.com/hosting/discovery",
+      "allowedOriginsPlaceholder": "https://collabora.example.com,https://onlyoffice.example.com",
+      "saved": "Configuración WOPI guardada",
+      "saveError": "Error al guardar",
+      "noDiscoveryUrl": "Ingresa una URL de discovery",
+      "discoverySuccess": "Discovery válido",
+      "discoveryError": "Error en discovery",
+      "title": "Integración Office (WOPI)",
+      "description": "Configura la integración con editores de Office externos como Collabora Online, OnlyOffice o LibreOffice Online.",
+      "enableIntegration": "Habilitar Integración WOPI",
+      "enableDesc": "Permite a los usuarios abrir archivos de Office en un editor externo.",
+      "enableEdit": "Habilitar Modo Edición",
+      "enableEditDesc": "Permite editar documentos además de solo verlos.",
+      "discoveryTitle": "Cliente WOPI",
+      "publicUrl": "URL Pública de CloudBox",
+      "publicUrlDesc": "URL donde el cliente WOPI puede acceder a CloudBox.",
+      "discoveryUrl": "URL de Discovery",
+      "testDiscovery": "Probar",
+      "discoveryUrlDesc": "URL del endpoint /hosting/discovery del cliente WOPI.",
+      "supportedFormats": "Formatos soportados:",
+      "discoveryFailed": "No se pudo conectar al cliente WOPI. Verifica la URL y que el servicio esté activo.",
+      "allowedOrigins": "Orígenes de Iframe Permitidos",
+      "allowedOriginsDesc": "Orígenes permitidos para cargar el editor en iframe (separados por coma).",
+      "advancedTitle": "Configuración Avanzada",
+      "tokenTtl": "TTL de Token (segundos)",
+      "tokenTtlDesc": "Tiempo de vida del token de acceso. Default: 900 (15 min)",
+      "lockTtl": "TTL de Lock (segundos)",
+      "lockTtlDesc": "Tiempo de vida del bloqueo de edición. Default: 1800 (30 min)",
+      "lockProvider": "Proveedor de Locks",
+      "lockProviderDesc": "Redis es recomendado para múltiples instancias.",
+      "maxFileSize": "Tamaño Máximo de Archivo (MB)",
+      "maxFileSizeDesc": "Tamaño máximo de archivo para operaciones WOPI. Default: 100 MB",
+      "save": "Guardar Configuración"
+    },
+    "legal": {
+      "contentLabel": "Content (Markdown)",
+      "viewPublic": "View public page",
+      "privacyPlaceholder": "# Privacy Policy...",
+      "termsPlaceholder": "# Terms and Conditions...",
+      "title": "Paginas Legales",
+      "description": "Edita el contenido de las paginas de Privacidad y Terminos."
     },
     "metrics": {
       "title": "Server Metrics",
       "description": "Real-time system status",
       "cpu": "CPU",
       "memory": "Memory",
+      "ram": "RAM",
+      "swap": "Swap",
       "disk": "Disk",
+      "free": "Free",
+      "used": "Used",
       "temperature": "Temperature",
       "network": "Network",
       "uptime": "Uptime",
@@ -1465,8 +1657,66 @@
       "allTypes": "All types",
       "user": "User",
       "action": "Action",
+      "descriptionColumn": "Description",
+      "ipAddress": "IP Address",
       "date": "Date",
-      "noLogs": "No activity logs"
+      "loading": "Loading...",
+      "noLogs": "No activity logs",
+      "types": {
+        "login": "Login",
+        "logout": "Logout",
+        "upload": "Upload",
+        "download": "Download",
+        "delete": "Delete",
+        "createUser": "Create user",
+        "updateUser": "Update user",
+        "updateSettings": "Update settings"
+      }
+    },
+    "backToDashboard": "Back to Dashboard",
+    "queues": {
+      "retrySuccess": "Se reintentaron {{count}} jobs",
+      "clearSuccess": "Se limpiaron {{count}} jobs atascados",
+      "cleanupSuccess": "Limpieza completada: {{failed}} fallidos, {{old}} antiguos",
+      "cancelSuccess": "Se cancelaron {{count}} jobs pendientes",
+      "fetchError": "Error al obtener estadísticas",
+      "retryError": "Error al reintentar jobs",
+      "clearError": "Error al limpiar jobs",
+      "cleanupError": "Error en limpieza",
+      "cancelError": "Error al cancelar jobs pendientes",
+      "title": "Colas de Procesamiento",
+      "subtitle": "Gestiona las colas de transcodificación y thumbnails",
+      "refresh": "Actualizar",
+      "redisConnected": "Redis conectado",
+      "redisDisconnected": "Redis no disponible - modo fallback",
+      "redisConnectedDesc": "Las colas Bull están funcionando normalmente",
+      "redisDisconnectedDesc": "Los jobs se procesan localmente sin persistencia",
+      "bullStats": "Cola Bull (Redis)",
+      "waiting": "En espera",
+      "active": "Activos",
+      "completed": "Completados",
+      "failed": "Fallidos",
+      "delayed": "Retrasados",
+      "paused": "Pausados",
+      "dbStats": "Jobs en Base de Datos",
+      "pending": "Pendientes",
+      "processing": "Procesando",
+      "cancelled": "Cancelados",
+      "actions": "Acciones",
+      "retryFailed": "Reintentar fallidos",
+      "clearStalled": "Limpiar atascados",
+      "cleanup": "Limpiar antiguos",
+      "cancelPending": "Cancelar pendientes"
+    },
+    "corsSaved": "Orígenes permitidos guardados",
+    "corsError": "Error al guardar CORS",
+    "limits": {
+      "title": "Límites de Subida"
+    },
+    "users": {
+      "title": "Usuarios",
+      "description": "Gestiona los usuarios y sus permisos",
+      "search": "Buscar usuarios..."
     }
   },
   "versions": {
@@ -1509,5 +1759,14 @@
     "passwordTooShort": "Password must be at least 4 characters",
     "currentPasswordRequired": "Current password is required",
     "protectError": "Error protecting folder"
+  },
+  "favorite": "true",
+  "verificationLock": {
+    "title": "Verificación Requerida",
+    "description": "Tu periodo de gracia de 7 días ha expirado. Por favor, verifica tu correo electrónico para continuar usando CloudBox.",
+    "sentSuccess": "¡Correo enviado!",
+    "checkInbox": "Revisa tu bandeja de entrada y spam.",
+    "resendEmail": "Reenviar Email de Verificación",
+    "helpContext": "Si ya verificaste tu cuenta, intenta recargar la página."
   }
 }

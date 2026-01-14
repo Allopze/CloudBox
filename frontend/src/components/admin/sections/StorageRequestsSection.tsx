@@ -41,37 +41,37 @@ export default function StorageRequestsSection() {
             setRequests(response.data);
         } catch (error) {
             console.error('Failed to load storage requests:', error);
-            toast(t('admin.loadError', 'Error al cargar solicitudes'), 'error');
+            toast(t('admin.loadError'), 'error');
         } finally {
             setLoading(false);
         }
     };
 
     const handleApprove = async (id: string) => {
-        setProcessingId(id);
-        try {
-            await api.post(`/admin/storage-requests/${id}/approve`, {
-                adminResponse: responseText[id] || 'Solicitud aprobada'
+            setProcessingId(id);
+            try {
+                await api.post(`/admin/storage-requests/${id}/approve`, {
+                adminResponse: responseText[id] || t('admin.storageRequests.approved')
             });
-            toast(t('admin.storageRequests.approved', 'Solicitud aprobada'), 'success');
+            toast(t('admin.storageRequests.approved'), 'success');
             loadRequests();
         } catch (error) {
-            toast(t('admin.storageRequests.approveError', 'Error al aprobar'), 'error');
+            toast(t('admin.storageRequests.approveError'), 'error');
         } finally {
             setProcessingId(null);
         }
     };
 
     const handleReject = async (id: string) => {
-        setProcessingId(id);
-        try {
-            await api.post(`/admin/storage-requests/${id}/reject`, {
-                adminResponse: responseText[id] || 'Solicitud rechazada'
+            setProcessingId(id);
+            try {
+                await api.post(`/admin/storage-requests/${id}/reject`, {
+                adminResponse: responseText[id] || t('admin.storageRequests.rejected')
             });
-            toast(t('admin.storageRequests.rejected', 'Solicitud rechazada'), 'success');
+            toast(t('admin.storageRequests.rejected'), 'success');
             loadRequests();
         } catch (error) {
-            toast(t('admin.storageRequests.rejectError', 'Error al rechazar'), 'error');
+            toast(t('admin.storageRequests.rejectError'), 'error');
         } finally {
             setProcessingId(null);
         }
@@ -81,11 +81,11 @@ export default function StorageRequestsSection() {
         const base = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium';
         switch (status) {
             case 'PENDING':
-                return <span className={`${base} bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400`}><Clock className="w-3 h-3" /> Pendiente</span>;
+                return <span className={`${base} bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400`}><Clock className="w-3 h-3" /> {t('admin.storageRequests.status.pending')}</span>;
             case 'APPROVED':
-                return <span className={`${base} bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400`}><Check className="w-3 h-3" /> Aprobada</span>;
+                return <span className={`${base} bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400`}><Check className="w-3 h-3" /> {t('admin.storageRequests.status.approved')}</span>;
             case 'REJECTED':
-                return <span className={`${base} bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400`}><X className="w-3 h-3" /> Rechazada</span>;
+                return <span className={`${base} bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400`}><X className="w-3 h-3" /> {t('admin.storageRequests.status.rejected')}</span>;
             default:
                 return <span className={`${base} bg-dark-100 text-dark-600`}>{status}</span>;
         }
@@ -104,10 +104,10 @@ export default function StorageRequestsSection() {
             <div className="flex items-center justify-between">
                 <div>
                     <h2 className="text-2xl font-bold text-dark-900 dark:text-white">
-                        {t('admin.storageRequests.title', 'Solicitudes de Almacenamiento')}
+                        {t('admin.storageRequests.title')}
                     </h2>
                     <p className="text-dark-500 dark:text-dark-400 mt-1">
-                        {t('admin.storageRequests.description', 'Gestiona las solicitudes de ampliación de cuota.')}
+                        {t('admin.storageRequests.description')}
                     </p>
                 </div>
 
@@ -122,7 +122,13 @@ export default function StorageRequestsSection() {
                                 : 'text-dark-500 hover:text-dark-700 dark:text-dark-400'
                                 }`}
                         >
-                            {f === 'all' ? 'Todas' : f === 'PENDING' ? 'Pendientes' : f === 'APPROVED' ? 'Aprobadas' : 'Rechazadas'}
+                            {f === 'all'
+                                ? t('admin.storageRequests.filters.all')
+                                : f === 'PENDING'
+                                    ? t('admin.storageRequests.filters.pending')
+                                    : f === 'APPROVED'
+                                        ? t('admin.storageRequests.filters.approved')
+                                        : t('admin.storageRequests.filters.rejected')}
                         </button>
                     ))}
                 </div>
@@ -132,7 +138,7 @@ export default function StorageRequestsSection() {
                 <div className="text-center py-12 bg-dark-50 dark:bg-dark-900/40 rounded-2xl border border-dark-100 dark:border-dark-800">
                     <HardDrive className="w-12 h-12 mx-auto text-dark-300 dark:text-dark-600 mb-3" />
                     <p className="text-dark-500 dark:text-dark-400">
-                        {t('admin.storageRequests.noRequests', 'No hay solicitudes')}
+                        {t('admin.storageRequests.noRequests')}
                     </p>
                 </div>
             ) : (
@@ -157,15 +163,15 @@ export default function StorageRequestsSection() {
                                         {getStatusBadge(request.status)}
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-4 text-sm mb-3">
+                                        <div className="grid grid-cols-2 gap-4 text-sm mb-3">
                                         <div>
-                                            <span className="text-dark-500">Cuota actual:</span>
+                                            <span className="text-dark-500">{t('admin.storageRequests.labels.currentQuota')}:</span>
                                             <span className="ml-2 font-medium text-dark-700 dark:text-dark-300">
                                                 {formatBytes(parseInt(request.currentQuota))}
                                             </span>
                                         </div>
                                         <div>
-                                            <span className="text-dark-500">Solicitada:</span>
+                                            <span className="text-dark-500">{t('admin.storageRequests.labels.requestedQuota')}:</span>
                                             <span className="ml-2 font-medium text-primary-600">
                                                 {formatBytes(parseInt(request.requestedQuota))}
                                             </span>
@@ -179,7 +185,7 @@ export default function StorageRequestsSection() {
 
                                     {request.adminResponse && (
                                         <div className="mt-2 p-2 bg-dark-100 dark:bg-dark-800 rounded-lg text-sm">
-                                            <span className="text-dark-500">Respuesta:</span>
+                                            <span className="text-dark-500">{t('admin.storageRequests.labels.response')}:</span>
                                             <span className="ml-2 text-dark-700 dark:text-dark-300">{request.adminResponse}</span>
                                         </div>
                                     )}
@@ -189,7 +195,7 @@ export default function StorageRequestsSection() {
                                     <div className="flex flex-col gap-2">
                                         <input
                                             type="text"
-                                            placeholder="Respuesta (opcional)"
+                                            placeholder={t('admin.storageRequests.responsePlaceholder')}
                                             value={responseText[request.id] || ''}
                                             onChange={(e) => setResponseText({ ...responseText, [request.id]: e.target.value })}
                                             className="px-3 py-1.5 text-sm rounded-lg border border-dark-200 dark:border-dark-600 bg-white dark:bg-dark-800 focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -202,7 +208,7 @@ export default function StorageRequestsSection() {
                                                 loading={processingId === request.id}
                                                 icon={<Check className="w-4 h-4" />}
                                             >
-                                                Aprobar
+                                                {t('admin.storageRequests.actions.approve')}
                                             </Button>
                                             <Button
                                                 size="sm"
@@ -211,7 +217,7 @@ export default function StorageRequestsSection() {
                                                 loading={processingId === request.id}
                                                 icon={<X className="w-4 h-4" />}
                                             >
-                                                Rechazar
+                                                {t('admin.storageRequests.actions.reject')}
                                             </Button>
                                         </div>
                                     </div>

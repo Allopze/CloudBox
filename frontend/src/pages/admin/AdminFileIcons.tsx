@@ -22,7 +22,7 @@ export default function AdminFileIcons() {
                     className="inline-flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 mb-4"
                 >
                     <ArrowLeft className="w-4 h-4" />
-                    {t('admin.backToDashboard', 'Back to Dashboard')}
+                    {t('admin.backToDashboard')}
                 </Link>
 
                 <div className="flex items-center gap-3">
@@ -31,10 +31,10 @@ export default function AdminFileIcons() {
                     </div>
                     <div>
                         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                            {t('admin.fileIcons.pageTitle', 'File Type Icons')}
+                            {t('admin.fileIcons.pageTitle')}
                         </h1>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                            {t('admin.fileIcons.pageDescription', 'Customize icons displayed for different file types')}
+                            {t('admin.fileIcons.pageDescription')}
                         </p>
                     </div>
                 </div>

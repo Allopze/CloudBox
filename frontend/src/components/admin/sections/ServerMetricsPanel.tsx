@@ -126,26 +126,63 @@ function CircularGauge({ value, label, color = 'primary' }: { value: number; lab
 }
 
 // Progress bar component for memory/disk
-function ProgressBar({ value, label, used, total }: { value: number; label: string; used: number; total: number }) {
-    // Determine color based on value threshold
-    let colorClass = 'bg-primary-500';
-    if (value > 90) colorClass = 'bg-red-500';
-    else if (value > 70) colorClass = 'bg-yellow-500';
-    else if (value > 50) colorClass = 'bg-green-500';
+function ProgressBar({
+    value,
+    label,
+    used,
+    total,
+    available,
+}: {
+    value: number;
+    label: string;
+    used: number;
+    total: number;
+    available?: number;
+}) {
+    const { t } = useTranslation();
+    const usedPercent = Number.isFinite(value) ? Math.min(Math.max(value, 0), 100) : 0;
+    const freePercent = Math.min(Math.max(100 - usedPercent, 0), 100);
+    const freeBytes = Math.max(available ?? (total - used), 0);
+
+    let tone: 'green' | 'yellow' | 'red' = 'green';
+    if (freePercent <= 10) tone = 'red';
+    else if (freePercent <= 25) tone = 'yellow';
+
+    const toneClasses = {
+        green: 'bg-green-500',
+        yellow: 'bg-yellow-500',
+        red: 'bg-red-500',
+    } as const;
+
+    const toneTextClasses = {
+        green: 'text-green-600 dark:text-green-400',
+        yellow: 'text-yellow-600 dark:text-yellow-400',
+        red: 'text-red-600 dark:text-red-400',
+    } as const;
 
     return (
-        <div className="space-y-1">
+        <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
                 <span className="font-medium text-dark-700 dark:text-dark-300">{label}</span>
-                <span className="text-dark-500">{formatBytes(used)} / {formatBytes(total)}</span>
+                <span className="text-dark-500 dark:text-dark-400">
+                    {t('admin.metrics.used')}: {formatBytes(used)} / {formatBytes(total)}
+                </span>
             </div>
             <div className="h-3 bg-dark-200 dark:bg-dark-700 rounded-full overflow-hidden">
                 <div
-                    className={`h-full ${colorClass} transition-all duration-500 rounded-full`}
-                    style={{ width: `${Math.min(value, 100)}%` }}
+                    className={`h-full ${toneClasses[tone]} transition-all duration-500 rounded-full`}
+                    style={{ width: `${usedPercent}%` }}
                 />
             </div>
-            <div className="text-right text-xs text-dark-500">{value}%</div>
+            <div className="flex items-center justify-between text-xs">
+                <span className={`flex items-center gap-2 ${toneTextClasses[tone]}`}>
+                    <span className={`inline-block h-2 w-2 rounded-full ${toneClasses[tone]}`} />
+                    {t('admin.metrics.free')}: {formatBytes(freeBytes)} ({Math.round(freePercent)}%)
+                </span>
+                <span className="text-dark-500 dark:text-dark-400">
+                    {t('admin.metrics.used')}: {Math.round(usedPercent)}%
+                </span>
+            </div>
         </div>
     );
 }
@@ -205,12 +242,12 @@ export default function ServerMetricsPanel() {
                 <div className="flex items-center gap-2 mb-4">
                     <Activity className="w-5 h-5 text-primary-600 animate-pulse" />
                     <h3 className="text-lg font-semibold text-dark-900 dark:text-white">
-                        {t('admin.metrics.title', 'Métricas del Servidor')}
+                        {t('admin.metrics.title')}
                     </h3>
                 </div>
                 <div className="flex items-center justify-center py-12">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-                    <span className="ml-3 text-dark-500">{t('admin.metrics.refreshing', 'Cargando...')}</span>
+                    <span className="ml-3 text-dark-500">{t('admin.metrics.refreshing')}</span>
                 </div>
             </div>
         );
@@ -222,14 +259,14 @@ export default function ServerMetricsPanel() {
                 <div className="flex items-center gap-2 mb-4">
                     <Activity className="w-5 h-5 text-red-500" />
                     <h3 className="text-lg font-semibold text-dark-900 dark:text-white">
-                        {t('admin.metrics.title', 'Métricas del Servidor')}
+                        {t('admin.metrics.title')}
                     </h3>
                 </div>
                 <div className="text-center py-8">
                     <p className="text-red-500 mb-4">{error}</p>
                     <Button variant="secondary" onClick={fetchMetrics}>
                         <RefreshCw className="w-4 h-4 mr-2" />
-                        {t('common.retry', 'Reintentar')}
+                        {t('common.retry')}
                     </Button>
                 </div>
             </div>
@@ -245,13 +282,13 @@ export default function ServerMetricsPanel() {
                 <div className="flex items-center gap-2">
                     <Activity className="w-5 h-5 text-primary-600" />
                     <h3 className="text-lg font-semibold text-dark-900 dark:text-white">
-                        {t('admin.metrics.title', 'Métricas del Servidor')}
+                        {t('admin.metrics.title')}
                     </h3>
                 </div>
                 <div className="flex items-center gap-3">
                     {lastUpdate && (
                         <span className="text-xs text-dark-500">
-                            {t('admin.metrics.lastUpdate', 'Última actualización')}: {lastUpdate.toLocaleTimeString()}
+                            {t('admin.metrics.lastUpdate')}: {lastUpdate.toLocaleTimeString()}
                         </span>
                     )}
                     <Button
@@ -272,7 +309,7 @@ export default function ServerMetricsPanel() {
                     <div className="flex items-center gap-2 mb-3">
                         <Cpu className="w-4 h-4 text-primary-600" />
                         <span className="font-medium text-dark-700 dark:text-dark-300">
-                            {t('admin.metrics.cpu', 'CPU')}
+                            {t('admin.metrics.cpu')}
                         </span>
                     </div>
                     <CircularGauge value={metrics.cpu.usage} label={`${metrics.cpu.cores} cores`} />
@@ -283,20 +320,21 @@ export default function ServerMetricsPanel() {
                     <div className="flex items-center gap-2 mb-3">
                         <MemoryStick className="w-4 h-4 text-blue-500" />
                         <span className="font-medium text-dark-700 dark:text-dark-300">
-                            {t('admin.metrics.memory', 'Memoria')}
+                            {t('admin.metrics.memory')}
                         </span>
                     </div>
                     <ProgressBar
                         value={metrics.memory.percentage}
-                        label="RAM"
+                        label={t('admin.metrics.ram')}
                         used={metrics.memory.used}
                         total={metrics.memory.total}
+                        available={metrics.memory.available}
                     />
                     {metrics.memory.swap.total > 0 && (
                         <div className="mt-3">
                             <ProgressBar
                                 value={metrics.memory.swap.percentage}
-                                label="Swap"
+                                label={t('admin.metrics.swap')}
                                 used={metrics.memory.swap.used}
                                 total={metrics.memory.swap.total}
                             />
@@ -309,7 +347,7 @@ export default function ServerMetricsPanel() {
                     <div className="flex items-center gap-2 mb-3">
                         <Thermometer className="w-4 h-4 text-orange-500" />
                         <span className="font-medium text-dark-700 dark:text-dark-300">
-                            {t('admin.metrics.temperature', 'Temperatura')}
+                            {t('admin.metrics.temperature')}
                         </span>
                     </div>
                     {metrics.temperature.main !== null ? (
@@ -325,7 +363,7 @@ export default function ServerMetricsPanel() {
                         </div>
                     ) : (
                         <div className="text-center text-dark-400 py-4">
-                            {t('admin.metrics.noData', 'N/A')}
+                            {t('admin.metrics.noData')}
                         </div>
                     )}
                 </div>
@@ -335,7 +373,7 @@ export default function ServerMetricsPanel() {
                     <div className="flex items-center gap-2 mb-3">
                         <Clock className="w-4 h-4 text-green-500" />
                         <span className="font-medium text-dark-700 dark:text-dark-300">
-                            {t('admin.metrics.uptime', 'Tiempo activo')}
+                            {t('admin.metrics.uptime')}
                         </span>
                     </div>
                     <div className="text-center">
@@ -360,7 +398,7 @@ export default function ServerMetricsPanel() {
                     <div className="flex items-center gap-2 mb-4">
                         <HardDrive className="w-4 h-4 text-purple-500" />
                         <span className="font-medium text-dark-700 dark:text-dark-300">
-                            {t('admin.metrics.disk', 'Disco')}
+                            {t('admin.metrics.disk')}
                         </span>
                     </div>
                     <div className="space-y-4">
@@ -371,6 +409,7 @@ export default function ServerMetricsPanel() {
                                 label={disk.mount}
                                 used={disk.used}
                                 total={disk.size}
+                                available={disk.available}
                             />
                         ))}
                     </div>
@@ -381,7 +420,7 @@ export default function ServerMetricsPanel() {
                     <div className="flex items-center gap-2 mb-4">
                         <Activity className="w-4 h-4 text-cyan-500" />
                         <span className="font-medium text-dark-700 dark:text-dark-300">
-                            {t('admin.metrics.network', 'Red')}
+                            {t('admin.metrics.network')}
                         </span>
                     </div>
                     {metrics.network.length > 0 ? (
@@ -404,7 +443,7 @@ export default function ServerMetricsPanel() {
                         </div>
                     ) : (
                         <div className="text-center text-dark-400 py-4">
-                            {t('admin.metrics.noData', 'N/A')}
+                            {t('admin.metrics.noData')}
                         </div>
                     )}
                 </div>

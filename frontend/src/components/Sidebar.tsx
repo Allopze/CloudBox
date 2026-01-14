@@ -612,7 +612,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps) {
         {((isDark ? branding.logoDarkUrl : branding.logoLightUrl) || branding.logoUrl) ? (
           <img
             src={(isDark ? branding.logoDarkUrl : branding.logoLightUrl) || branding.logoUrl}
-            alt="Logo"
+            alt={t('common.logoAlt')}
             className="h-12 object-contain"
           />
         ) : (

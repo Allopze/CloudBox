@@ -118,7 +118,7 @@ export default function DetailsPanel({
                         <div className="flex items-center gap-2 mb-3">
                             <Tag className="w-4 h-4 text-dark-500" />
                             <h3 className="text-sm font-medium text-dark-700 dark:text-dark-300">
-                                {t('mediaViewer.actions', 'Quick actions')}
+                                {t('mediaViewer.actions')}
                             </h3>
                         </div>
                         <div className="grid grid-cols-2 gap-2">

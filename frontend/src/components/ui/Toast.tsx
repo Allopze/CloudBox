@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { CheckCircle, XCircle, AlertCircle, Info, X } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { useTranslation } from 'react-i18next';
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
 
@@ -82,6 +83,7 @@ const actionStyles = {
 
 function ToastItem({ toast }: { toast: Toast }) {
   const { removeToast } = useToastStore();
+  const { t } = useTranslation();
   const Icon = icons[toast.type];
 
   const handleAction = () => {
@@ -112,7 +114,7 @@ function ToastItem({ toast }: { toast: Toast }) {
       <button
         onClick={() => removeToast(toast.id)}
         className="p-1 -m-1 rounded hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-        aria-label="Dismiss"
+        aria-label={t('common.dismiss')}
       >
         <X className="w-4 h-4" />
       </button>

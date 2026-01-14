@@ -69,7 +69,7 @@ export default function FileIconsAdmin() {
             setIcons(res.data);
         } catch (error) {
             console.error('Failed to load icons:', error);
-            toast(t('admin.fileIcons.loadError', 'Failed to load icons'), 'error');
+            toast(t('admin.fileIcons.loadError'), 'error');
         } finally {
             setLoading(false);
         }
@@ -89,7 +89,7 @@ export default function FileIconsAdmin() {
         if (!file || !selectedCategory) return;
 
         if (file.type !== 'image/svg+xml') {
-            toast(t('admin.fileIcons.svgOnly', 'Only SVG files are allowed'), 'error');
+            toast(t('admin.fileIcons.svgOnly'), 'error');
             return;
         }
 
@@ -98,12 +98,12 @@ export default function FileIconsAdmin() {
         try {
             const text = await file.text();
             await api.put(`/file-icons/admin/${selectedCategory}`, { svg: text });
-            toast(t('admin.fileIcons.uploadSuccess', 'Icon updated successfully'), 'success');
+            toast(t('admin.fileIcons.uploadSuccess'), 'success');
             await fetchIcons();
             await loadIcons(); // Refresh global icon store
         } catch (error) {
             console.error('Failed to upload icon:', error);
-            toast(t('admin.fileIcons.uploadError', 'Failed to upload icon'), 'error');
+            toast(t('admin.fileIcons.uploadError'), 'error');
         } finally {
             setUploading(null);
             setSelectedCategory(null);
@@ -114,18 +114,18 @@ export default function FileIconsAdmin() {
     };
 
     const handleReset = async (category: FileIconCategory) => {
-        if (!confirm(t('admin.fileIcons.confirmReset', 'Reset this icon to default?'))) {
+        if (!confirm(t('admin.fileIcons.confirmReset'))) {
             return;
         }
 
         try {
             await api.delete(`/file-icons/admin/${category}`);
-            toast(t('admin.fileIcons.resetSuccess', 'Icon reset to default'), 'success');
+            toast(t('admin.fileIcons.resetSuccess'), 'success');
             await fetchIcons();
             await loadIcons();
         } catch (error) {
             console.error('Failed to reset icon:', error);
-            toast(t('admin.fileIcons.resetError', 'Failed to reset icon'), 'error');
+            toast(t('admin.fileIcons.resetError'), 'error');
         }
     };
 
@@ -178,8 +178,8 @@ export default function FileIconsAdmin() {
                                 )} />
                                 <span className="text-[10px] font-bold text-dark-500 dark:text-dark-400 tracking-wider">
                                     {iconInfo.hasCustomIcon
-                                        ? t('admin.fileIcons.customIcon', 'Personalizado')
-                                        : t('admin.fileIcons.defaultIcon', 'Por defecto')}
+                                        ? t('admin.fileIcons.customIcon')
+                                        : t('admin.fileIcons.defaultIcon')}
                                 </span>
                             </div>
                         </div>
@@ -188,7 +188,7 @@ export default function FileIconsAdmin() {
                             <button
                                 onClick={() => handleUploadClick(iconInfo.category)}
                                 disabled={uploading === iconInfo.category}
-                                title={t('admin.fileIcons.upload', 'Subir SVG')}
+                                title={t('admin.fileIcons.upload')}
                                 className={cn(
                                     'flex-1 h-9 flex items-center justify-center gap-2 px-3 rounded-lg text-xs font-bold transition-all',
                                     'bg-dark-50 dark:bg-dark-800 text-dark-900 dark:text-white hover:bg-dark-100 dark:hover:bg-dark-700',
@@ -197,14 +197,14 @@ export default function FileIconsAdmin() {
                             >
                                 <Upload className="w-3.5 h-3.5" />
                                 <span className="truncate">
-                                    {uploading === iconInfo.category ? t('common.uploading', '...') : t('admin.fileIcons.uploadShort', 'Subir')}
+                                    {uploading === iconInfo.category ? t('common.uploading') : t('admin.fileIcons.uploadShort')}
                                 </span>
                             </button>
 
                             {iconInfo.hasCustomIcon && (
                                 <button
                                     onClick={() => handleReset(iconInfo.category)}
-                                    title={t('admin.fileIcons.reset', 'Restablecer')}
+                                    title={t('admin.fileIcons.reset')}
                                     className="h-9 w-9 flex items-center justify-center rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors border border-red-200/50 dark:border-red-900/50"
                                 >
                                     <RotateCcw className="w-3.5 h-3.5" />

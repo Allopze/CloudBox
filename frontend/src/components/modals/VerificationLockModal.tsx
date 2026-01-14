@@ -43,11 +43,11 @@ export default function VerificationLockModal() {
                     </div>
 
                     <h2 className="text-2xl font-bold text-dark-900 dark:text-white mb-2">
-                        {t('verificationLock.title', 'Verificación Requerida')}
+                        {t('verificationLock.title')}
                     </h2>
 
                     <p className="text-dark-600 dark:text-dark-400 mb-6">
-                        {t('verificationLock.description', 'Tu periodo de gracia de 7 días ha expirado. Por favor, verifica tu correo electrónico para continuar usando CloudBox.')}
+                        {t('verificationLock.description')}
                     </p>
 
                     <div className="space-y-3">
@@ -55,10 +55,10 @@ export default function VerificationLockModal() {
                             <div className="rounded-xl bg-green-50 dark:bg-green-900/20 p-4 border border-green-100 dark:border-green-900/30">
                                 <div className="flex items-center justify-center text-green-700 dark:text-green-400 font-medium mb-1">
                                     <CheckCircle className="w-5 h-5 mr-2" />
-                                    {t('verificationLock.sentSuccess', '¡Correo enviado!')}
+                                    {t('verificationLock.sentSuccess')}
                                 </div>
                                 <p className="text-sm text-green-600 dark:text-green-500/80">
-                                    {t('verificationLock.checkInbox', 'Revisa tu bandeja de entrada y spam.')}
+                                    {t('verificationLock.checkInbox')}
                                 </p>
                             </div>
                         ) : (
@@ -70,12 +70,12 @@ export default function VerificationLockModal() {
                                 {status === 'sending' ? (
                                     <>
                                         <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                                        {t('common.sending', 'Enviando...')}
+                                        {t('common.sending')}
                                     </>
                                 ) : (
                                     <>
                                         <Mail className="w-5 h-5 mr-2" />
-                                        {t('verificationLock.resendEmail', 'Reenviar Email de Verificación')}
+                                        {t('verificationLock.resendEmail')}
                                     </>
                                 )}
                             </button>
@@ -83,7 +83,7 @@ export default function VerificationLockModal() {
 
                         {status === 'error' && (
                             <p className="text-sm text-red-600 dark:text-red-400 animate-pulse">
-                                {t('common.error', 'Ocurrió un error. Inténtalo de nuevo.')}
+                                {t('common.error')}
                             </p>
                         )}
 
@@ -92,14 +92,14 @@ export default function VerificationLockModal() {
                             className="w-full flex items-center justify-center px-4 py-3 bg-transparent hover:bg-dark-100 dark:hover:bg-dark-700 text-dark-600 dark:text-dark-400 font-medium rounded-xl transition-colors"
                         >
                             <LogOut className="w-5 h-5 mr-2" />
-                            {t('common.logout', 'Cerrar Sesión')}
+                            {t('common.logout')}
                         </button>
                     </div>
                 </div>
 
                 <div className="px-6 py-4 bg-dark-50 dark:bg-dark-800/80 border-t border-dark-100 dark:border-dark-700 text-center">
                     <p className="text-xs text-dark-500 dark:text-dark-500">
-                        {t('verificationLock.helpContext', 'Si ya verificaste tu cuenta, intenta recargar la página.')}
+                        {t('verificationLock.helpContext')}
                     </p>
                 </div>
             </div>

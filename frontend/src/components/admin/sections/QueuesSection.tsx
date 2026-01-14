@@ -39,7 +39,7 @@ export default function QueuesSection() {
             setStats(res.data);
         } catch (err) {
             console.error('Failed to fetch queue stats', err);
-            toast(t('admin.queues.fetchError', 'Error al obtener estadísticas'), 'error');
+            toast(t('admin.queues.fetchError'), 'error');
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -62,11 +62,11 @@ export default function QueuesSection() {
         try {
             setRetrying(true);
             const res = await api.post('/admin/queues/retry-failed');
-            toast(t('admin.queues.retrySuccess', 'Se reintentaron {{count}} jobs', { count: res.data.count }), 'success');
+            toast(t('admin.queues.retrySuccess', { count: res.data.count }), 'success');
             fetchStats(false);
         } catch (err) {
             console.error('Retry failed', err);
-            toast(t('admin.queues.retryError', 'Error al reintentar jobs'), 'error');
+            toast(t('admin.queues.retryError'), 'error');
         } finally {
             setRetrying(false);
         }
@@ -76,11 +76,11 @@ export default function QueuesSection() {
         try {
             setClearing(true);
             const res = await api.post('/admin/queues/clear-stalled');
-            toast(t('admin.queues.clearSuccess', 'Se limpiaron {{count}} jobs atascados', { count: res.data.count }), 'success');
+            toast(t('admin.queues.clearSuccess', { count: res.data.count }), 'success');
             fetchStats(false);
         } catch (err) {
             console.error('Clear failed', err);
-            toast(t('admin.queues.clearError', 'Error al limpiar jobs'), 'error');
+            toast(t('admin.queues.clearError'), 'error');
         } finally {
             setClearing(false);
         }
@@ -90,14 +90,14 @@ export default function QueuesSection() {
         try {
             setCleaning(true);
             const res = await api.post('/admin/queues/cleanup');
-            toast(t('admin.queues.cleanupSuccess', 'Limpieza completada: {{failed}} fallidos, {{old}} antiguos', {
+            toast(t('admin.queues.cleanupSuccess', {
                 failed: res.data.failedCount,
                 old: res.data.oldCount,
             }), 'success');
             fetchStats(false);
         } catch (err) {
             console.error('Cleanup failed', err);
-            toast(t('admin.queues.cleanupError', 'Error en limpieza'), 'error');
+            toast(t('admin.queues.cleanupError'), 'error');
         } finally {
             setCleaning(false);
         }
@@ -107,11 +107,11 @@ export default function QueuesSection() {
         try {
             setCancelling(true);
             const res = await api.post('/admin/queues/cancel-pending');
-            toast(t('admin.queues.cancelSuccess', 'Se cancelaron {{count}} jobs pendientes', { count: res.data.count }), 'success');
+            toast(t('admin.queues.cancelSuccess', { count: res.data.count }), 'success');
             fetchStats(false);
         } catch (err) {
             console.error('Cancel pending failed', err);
-            toast(t('admin.queues.cancelError', 'Error al cancelar jobs pendientes'), 'error');
+            toast(t('admin.queues.cancelError'), 'error');
         } finally {
             setCancelling(false);
         }
@@ -131,15 +131,15 @@ export default function QueuesSection() {
             <div className="flex items-start justify-between">
                 <div>
                     <h2 className="text-2xl font-bold text-dark-900 dark:text-white">
-                        {t('admin.queues.title', 'Colas de Procesamiento')}
+                        {t('admin.queues.title')}
                     </h2>
                     <p className="text-dark-500 dark:text-dark-400 mt-1">
-                        {t('admin.queues.subtitle', 'Gestiona las colas de transcodificación y thumbnails')}
+                        {t('admin.queues.subtitle')}
                     </p>
                 </div>
                 <Button variant="outline" size="sm" onClick={handleRefresh} loading={refreshing}>
                     <RefreshCw className="w-4 h-4 mr-2" />
-                    {t('admin.queues.refresh', 'Actualizar')}
+                    {t('admin.queues.refresh')}
                 </Button>
             </div>
 
@@ -153,14 +153,14 @@ export default function QueuesSection() {
                     <div>
                         <p className={`font-medium ${stats?.isRedisAvailable ? 'text-green-700 dark:text-green-400' : 'text-yellow-700 dark:text-yellow-400'}`}>
                             {stats?.isRedisAvailable
-                                ? t('admin.queues.redisConnected', 'Redis conectado')
-                                : t('admin.queues.redisDisconnected', 'Redis no disponible - modo fallback')
+                                ? t('admin.queues.redisConnected')
+                                : t('admin.queues.redisDisconnected')
                             }
                         </p>
                         <p className="text-sm text-dark-500">
                             {stats?.isRedisAvailable
-                                ? t('admin.queues.redisConnectedDesc', 'Las colas Bull están funcionando normalmente')
-                                : t('admin.queues.redisDisconnectedDesc', 'Los jobs se procesan localmente sin persistencia')
+                                ? t('admin.queues.redisConnectedDesc')
+                                : t('admin.queues.redisDisconnectedDesc')
                             }
                         </p>
                     </div>
@@ -170,41 +170,41 @@ export default function QueuesSection() {
             {/* Bull Queue Stats */}
             {stats?.isRedisAvailable && (
                 <div className="p-6 bg-dark-50/50 dark:bg-dark-900/40 rounded-[1.5rem] border border-dark-100 dark:border-dark-800">
-                    <h3 className="text-lg font-semibold mb-4">{t('admin.queues.bullStats', 'Cola Bull (Redis)')}</h3>
+                    <h3 className="text-lg font-semibold mb-4">{t('admin.queues.bullStats')}</h3>
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                         <StatCard
                             icon={Clock}
-                            label={t('admin.queues.waiting', 'En espera')}
+                            label={t('admin.queues.waiting')}
                             value={stats.waiting}
                             color="blue"
                         />
                         <StatCard
                             icon={Play}
-                            label={t('admin.queues.active', 'Activos')}
+                            label={t('admin.queues.active')}
                             value={stats.active}
                             color="green"
                         />
                         <StatCard
                             icon={CheckCircle}
-                            label={t('admin.queues.completed', 'Completados')}
+                            label={t('admin.queues.completed')}
                             value={stats.completed}
                             color="emerald"
                         />
                         <StatCard
                             icon={XCircle}
-                            label={t('admin.queues.failed', 'Fallidos')}
+                            label={t('admin.queues.failed')}
                             value={stats.failed}
                             color="red"
                         />
                         <StatCard
                             icon={Pause}
-                            label={t('admin.queues.delayed', 'Retrasados')}
+                            label={t('admin.queues.delayed')}
                             value={stats.delayed}
                             color="yellow"
                         />
                         <StatCard
                             icon={AlertCircle}
-                            label={t('admin.queues.paused', 'Pausados')}
+                            label={t('admin.queues.paused')}
                             value={stats.paused}
                             color="gray"
                         />
@@ -214,35 +214,35 @@ export default function QueuesSection() {
 
             {/* Database Stats */}
             <div className="p-6 bg-dark-50/50 dark:bg-dark-900/40 rounded-[1.5rem] border border-dark-100 dark:border-dark-800">
-                <h3 className="text-lg font-semibold mb-4">{t('admin.queues.dbStats', 'Jobs en Base de Datos')}</h3>
+                <h3 className="text-lg font-semibold mb-4">{t('admin.queues.dbStats')}</h3>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                     <StatCard
                         icon={Clock}
-                        label={t('admin.queues.pending', 'Pendientes')}
+                        label={t('admin.queues.pending')}
                         value={stats?.dbStats.pending || 0}
                         color="blue"
                     />
                     <StatCard
                         icon={Play}
-                        label={t('admin.queues.processing', 'Procesando')}
+                        label={t('admin.queues.processing')}
                         value={stats?.dbStats.processing || 0}
                         color="green"
                     />
                     <StatCard
                         icon={CheckCircle}
-                        label={t('admin.queues.completed', 'Completados')}
+                        label={t('admin.queues.completed')}
                         value={stats?.dbStats.completed || 0}
                         color="emerald"
                     />
                     <StatCard
                         icon={XCircle}
-                        label={t('admin.queues.failed', 'Fallidos')}
+                        label={t('admin.queues.failed')}
                         value={stats?.dbStats.failed || 0}
                         color="red"
                     />
                     <StatCard
                         icon={Trash2}
-                        label={t('admin.queues.cancelled', 'Cancelados')}
+                        label={t('admin.queues.cancelled')}
                         value={stats?.dbStats.cancelled || 0}
                         color="gray"
                     />
@@ -251,7 +251,7 @@ export default function QueuesSection() {
 
             {/* Actions */}
             <div className="p-6 bg-dark-50/50 dark:bg-dark-900/40 rounded-[1.5rem] border border-dark-100 dark:border-dark-800">
-                <h3 className="text-lg font-semibold mb-4">{t('admin.queues.actions', 'Acciones')}</h3>
+                <h3 className="text-lg font-semibold mb-4">{t('admin.queues.actions')}</h3>
                 <div className="flex flex-wrap gap-3">
                     <Button
                         variant="outline"
@@ -260,7 +260,7 @@ export default function QueuesSection() {
                         disabled={(stats?.failed || 0) + (stats?.dbStats.failed || 0) === 0}
                     >
                         <Play className="w-4 h-4 mr-2" />
-                        {t('admin.queues.retryFailed', 'Reintentar fallidos')}
+                        {t('admin.queues.retryFailed')}
                         {((stats?.failed || 0) + (stats?.dbStats.failed || 0)) > 0 && (
                             <span className="ml-2 px-2 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-full text-xs">
                                 {(stats?.failed || 0) + (stats?.dbStats.failed || 0)}
@@ -274,7 +274,7 @@ export default function QueuesSection() {
                         loading={clearing}
                     >
                         <AlertCircle className="w-4 h-4 mr-2" />
-                        {t('admin.queues.clearStalled', 'Limpiar atascados')}
+                        {t('admin.queues.clearStalled')}
                     </Button>
 
                     <Button
@@ -283,7 +283,7 @@ export default function QueuesSection() {
                         loading={cleaning}
                     >
                         <Trash2 className="w-4 h-4 mr-2" />
-                        {t('admin.queues.cleanup', 'Limpiar antiguos')}
+                        {t('admin.queues.cleanup')}
                     </Button>
 
                     <Button
@@ -293,7 +293,7 @@ export default function QueuesSection() {
                         disabled={(stats?.dbStats.pending || 0) === 0}
                     >
                         <Ban className="w-4 h-4 mr-2" />
-                        {t('admin.queues.cancelPending', 'Cancelar pendientes')}
+                        {t('admin.queues.cancelPending')}
                         {(stats?.dbStats.pending || 0) > 0 && (
                             <span className="ml-2 px-2 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-full text-xs">
                                 {stats?.dbStats.pending}

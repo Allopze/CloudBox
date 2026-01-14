@@ -349,7 +349,7 @@ export default function Login() {
                         type="submit"
                         className="text-sm font-medium text-red-700 dark:text-red-300 hover:text-red-800 dark:hover:text-red-200 underline underline-offset-2"
                       >
-                        {t('common.refresh', 'Reintentar')}
+                        {t('common.refresh')}
                       </button>
                     )}
 
@@ -374,7 +374,7 @@ export default function Login() {
                     setCountdown(0);
                   }}
                   className="ml-2 -mt-1 p-1 rounded-lg text-red-500 hover:text-red-700 dark:text-red-300 dark:hover:text-red-200 hover:bg-red-100/70 dark:hover:bg-red-800/20 transition-colors"
-                  aria-label={t('common.close', 'Cerrar')}
+                  aria-label={t('common.close')}
                 >
                   <X className="w-4 h-4" aria-hidden="true" />
                 </button>

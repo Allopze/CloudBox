@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback, ReactNode, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence, useReducedMotion, useDragControls, PanInfo } from 'framer-motion';
 import { ChevronLeft } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -30,6 +31,7 @@ export default function MobileDrawer({
     side = 'left',
     className,
 }: MobileDrawerProps) {
+    const { t } = useTranslation();
     const drawerRef = useRef<HTMLDivElement>(null);
     const previousActiveElement = useRef<HTMLElement | null>(null);
     const onCloseRef = useRef(onClose);
@@ -174,7 +176,7 @@ export default function MobileDrawer({
                         ref={drawerRef}
                         role="dialog"
                         aria-modal="true"
-                        aria-label={title || 'Navigation drawer'}
+                        aria-label={title || t('common.navigationDrawer')}
                         tabIndex={-1}
                         className={cn(
                             'fixed top-0 z-50 h-full w-72 max-w-[80vw]',
@@ -206,7 +208,7 @@ export default function MobileDrawer({
                             onClick={onClose}
                             onPointerDown={(e) => dragControls.start(e)}
                             className="absolute top-1/2 -right-6 -translate-y-1/2 flex items-center justify-center w-6 h-24 bg-dark-100 dark:bg-dark-800 rounded-r-2xl cursor-grab active:cursor-grabbing touch-none z-10 border-y border-r border-dark-200 dark:border-dark-700"
-                            aria-label="Close drawer"
+                            aria-label={t('common.close')}
                         >
                             <ChevronLeft className="w-5 h-5 text-dark-400 dark:text-dark-500" />
                         </button>

@@ -152,7 +152,7 @@ export default function DocumentViewer({
                         ? response.data.details.message
                         : null;
 
-                const fallback = t('errorLoadingSpreadsheet', 'Error loading spreadsheet.');
+                const fallback = t('errorLoadingSpreadsheet');
                 const combined = [serverMessage || fallback, debugMessage].filter(Boolean).join(' ');
 
                 setLoadError(combined);
@@ -169,7 +169,7 @@ export default function DocumentViewer({
             }
             setIsLoading(false);
         } catch (error) {
-            setLoadError(t('errorLoadingSpreadsheet', 'Error loading spreadsheet.'));
+            setLoadError(t('errorLoadingSpreadsheet'));
             setIsLoading(false);
         }
     }, [file, t, shareId]);
@@ -264,7 +264,7 @@ export default function DocumentViewer({
                 } else if (documentType === 'office') {
                     if (shareId) {
                         setConversionFailed(true);
-                        setConversionMessage(t('documentViewer.officePreviewNotSupported', 'Preview is not available for this file type. Please download the file to view it.'));
+                        setConversionMessage(t('documentViewer.officePreviewNotSupported'));
                         setIsLoading(false);
                     } else {
                         // For office documents, try to get PDF preview
@@ -275,7 +275,7 @@ export default function DocumentViewer({
                 }
             } catch (error) {
                 console.error('Error loading document:', error);
-                setLoadError(t('documentViewer.loadError', 'Failed to load document'));
+                setLoadError(t('documentViewer.loadError'));
                 setIsLoading(false);
             }
         };
@@ -284,7 +284,7 @@ export default function DocumentViewer({
         const loadOfficePdfPreview = async () => {
             try {
                 setIsConverting(true);
-                setConversionMessage(t('gallery.convertingDocument', 'Converting document to PDF...'));
+                setConversionMessage(t('gallery.convertingDocument'));
 
                 const fetchPdfPreview = async () => {
                     revokeBlobUrl();
@@ -309,9 +309,9 @@ export default function DocumentViewer({
                     // Conversion in progress - start polling
                     const status = response.data?.status;
                     if (status === 'queued') {
-                        setConversionMessage(t('gallery.conversionQueued', 'Document is being prepared...'));
+                        setConversionMessage(t('gallery.conversionQueued'));
                     } else {
-                        setConversionMessage(t('gallery.convertingDocument', 'Converting document to PDF...'));
+                        setConversionMessage(t('gallery.convertingDocument'));
                     }
                     startConversionPolling(fetchPdfPreview);
                 } else if (response.status === 404 || response.status === 503) {
@@ -345,7 +345,7 @@ export default function DocumentViewer({
                     if (conversionPollingRef.current) {
                         clearInterval(conversionPollingRef.current);
                     }
-                    setConversionMessage(t('gallery.conversionTimeout', 'Conversion took too long. Please download the file.'));
+                    setConversionMessage(t('gallery.conversionTimeout'));
                     setConversionFailed(true);
                     setIsConverting(false);
                     setIsLoading(false);
@@ -370,13 +370,13 @@ export default function DocumentViewer({
                         if (conversionPollingRef.current) {
                             clearInterval(conversionPollingRef.current);
                         }
-                        setConversionMessage(t('gallery.conversionFailed', 'Failed to convert document.'));
+                        setConversionMessage(t('gallery.conversionFailed'));
                         setConversionFailed(true);
                         setIsConverting(false);
                         setIsLoading(false);
                     } else {
                         // Still processing
-                        setConversionMessage(t('gallery.convertingDocument', 'Converting document to PDF...'));
+                        setConversionMessage(t('gallery.convertingDocument'));
                     }
                 } catch (error) {
                     console.error('Error polling conversion status:', error);
@@ -450,7 +450,7 @@ export default function DocumentViewer({
 
     const onDocumentLoadError = useCallback((error: Error) => {
         console.error('PDF load error:', error);
-        setLoadError(t('documentViewer.pdfError', 'Failed to load PDF'));
+        setLoadError(t('documentViewer.pdfError'));
         setIsLoading(false);
     }, [t]);
 
@@ -500,7 +500,7 @@ export default function DocumentViewer({
                         <button
                             onClick={onClose}
                             className="p-1.5 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
-                            title={t('common.back', 'Back')}
+                            title={t('common.back')}
                         >
                             <ChevronLeft size={20} />
                         </button>
@@ -541,7 +541,7 @@ export default function DocumentViewer({
                                     "p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg transition-colors",
                                     isSearchOpen ? "text-primary-600" : "text-gray-600 dark:text-gray-400"
                                 )}
-                                title={t('documentViewer.search', 'Search (Ctrl+F)')}
+                                title={t('documentViewer.search')}
                             >
                                 <Search size={18} />
                             </button>
@@ -550,8 +550,8 @@ export default function DocumentViewer({
                             <button
                                 onClick={(e) => { e.stopPropagation(); if (file) onShare(file); }}
                                 className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg transition-colors text-gray-600 dark:text-gray-400"
-                                title={t('common.share', 'Share')}
-                                aria-label={t('common.share', 'Share')}
+                                title={t('common.share')}
+                                aria-label={t('common.share')}
                             >
                                 <Share2 size={18} />
                             </button>
@@ -560,8 +560,8 @@ export default function DocumentViewer({
                             <button
                                 onClick={(e) => { e.stopPropagation(); if (file) onDownload(file); }}
                                 className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg transition-colors text-gray-600 dark:text-gray-400"
-                                title={t('common.download', 'Download')}
-                                aria-label={t('common.download', 'Download')}
+                                title={t('common.download')}
+                                aria-label={t('common.download')}
                             >
                                 <Download size={18} />
                             </button>
@@ -573,7 +573,7 @@ export default function DocumentViewer({
                                 "p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg transition-colors",
                                 isRightPanelOpen ? "text-primary-600 bg-primary-50 dark:bg-primary-900/20" : "text-gray-600 dark:text-gray-400"
                             )}
-                            title={t('documentViewer.details', 'Details')}
+                            title={t('documentViewer.details')}
                         >
                             <Info size={18} />
                         </button>
@@ -600,7 +600,7 @@ export default function DocumentViewer({
                                     "flex-1 py-3 text-xs font-medium flex items-center justify-center gap-2 border-b-2 transition-all",
                                     activeLeftTab === 'thumbnails' ? "border-primary-600 text-primary-600" : "border-transparent text-gray-400 hover:text-gray-600"
                                 )}
-                                title={t('documentViewer.thumbnails', 'Thumbnails')}
+                                title={t('documentViewer.thumbnails')}
                             >
                                 <Layers size={14} />
                             </button>
@@ -610,7 +610,7 @@ export default function DocumentViewer({
                                     "flex-1 py-3 text-xs font-medium flex items-center justify-center gap-2 border-b-2 transition-all",
                                     activeLeftTab === 'bookmarks' ? "border-primary-600 text-primary-600" : "border-transparent text-gray-400 hover:text-gray-600"
                                 )}
-                                title={t('documentViewer.bookmarks', 'Bookmarks')}
+                                title={t('documentViewer.bookmarks')}
                             >
                                 <Bookmark size={14} />
                             </button>
@@ -665,7 +665,7 @@ export default function DocumentViewer({
                             {activeLeftTab === 'bookmarks' && (
                                 <div className="flex flex-col items-center justify-center h-full text-gray-400 text-sm py-8">
                                     <Bookmark size={24} className="mb-2 opacity-50" />
-                                    <span>{t('documentViewer.noBookmarks', 'No bookmarks')}</span>
+                                    <span>{t('documentViewer.noBookmarks')}</span>
                                 </div>
                             )}
                         </div>
@@ -706,13 +706,13 @@ export default function DocumentViewer({
                                 <input
                                     autoFocus
                                     type="text"
-                                    placeholder={t('documentViewer.searchPlaceholder', 'Search in document...')}
+                                    placeholder={t('documentViewer.searchPlaceholder')}
                                     className="flex-1 text-sm bg-transparent border-none focus:ring-0 placeholder:text-gray-400"
                                 />
                                 <button
                                     onClick={(e) => { e.stopPropagation(); setSearchOpen(false); }}
                                     className="p-1.5 hover:bg-gray-100 dark:hover:bg-dark-700 rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                                    title={t('common.close', 'Close')}
+                                    title={t('common.close')}
                                 >
                                     <X size={16} />
                                 </button>
@@ -725,7 +725,7 @@ export default function DocumentViewer({
                         <div className="flex-1 flex items-center justify-center">
                             <div className="flex flex-col items-center gap-4">
                                 <Loader2 className="w-10 h-10 animate-spin text-primary-600" />
-                                <span className="text-sm text-gray-500">{t('documentViewer.loading', 'Loading document...')}</span>
+                                <span className="text-sm text-gray-500">{t('documentViewer.loading')}</span>
                             </div>
                         </div>
                     )}
@@ -741,7 +741,7 @@ export default function DocumentViewer({
                                         onClick={() => onDownload(file)}
                                         className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
                                     >
-                                        {t('common.download', 'Download')}
+                                        {t('common.download')}
                                     </button>
                                 )}
                             </div>
@@ -807,7 +807,7 @@ export default function DocumentViewer({
                                                     : "bg-white dark:bg-dark-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-dark-700 hover:bg-gray-50 dark:hover:bg-dark-700"
                                             )}
                                         >
-                                            {sheet || `${t('documents.sheet', 'Sheet')} ${index + 1}`}
+                                            {sheet || `${t('documents.sheet')} ${index + 1}`}
                                         </button>
                                     ))}
                                 </div>
@@ -834,7 +834,7 @@ export default function DocumentViewer({
                                                 {file.name}
                                             </h3>
                                             <p className="text-sm text-gray-500 dark:text-gray-400">
-                                                {conversionMessage || t('gallery.convertingDocument', 'Converting document to PDF...')}
+                                                {conversionMessage || t('gallery.convertingDocument')}
                                             </p>
                                         </div>
                                     </div>
@@ -878,7 +878,7 @@ export default function DocumentViewer({
                                                 {file.name}
                                             </h3>
                                             <p className="text-sm text-gray-500 dark:text-gray-400">
-                                                {conversionMessage || t('documentViewer.officePreviewNotSupported', 'Preview is not available for this file type. Please download the file to view it.')}
+                                                {conversionMessage || t('documentViewer.officePreviewNotSupported')}
                                             </p>
                                         </div>
                                         {onDownload && (
@@ -887,7 +887,7 @@ export default function DocumentViewer({
                                                 className="flex items-center gap-2 px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
                                             >
                                                 <Download size={18} />
-                                                {t('common.download', 'Download')}
+                                                {t('common.download')}
                                             </button>
                                         )}
                                     </div>
@@ -902,7 +902,7 @@ export default function DocumentViewer({
                             "fixed bottom-24 bg-white/90 dark:bg-dark-800/90 backdrop-blur-sm border border-gray-200 dark:border-dark-600 text-[11px] font-semibold text-gray-600 dark:text-gray-300 px-3 py-1.5 rounded-full shadow-lg transition-opacity duration-500 z-50",
                             showBottomBar ? "opacity-100" : "opacity-0"
                         )}>
-                            {t('documentViewer.pageOf', 'Page {{current}} of {{total}}', { current: currentPage, total: numPages })}
+                            {t('documentViewer.pageOf', { current: currentPage, total: numPages })}
                         </div>
                     )}
                 </div>
@@ -918,7 +918,7 @@ export default function DocumentViewer({
                     >
                         <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-dark-700">
                             <h3 className="text-sm font-semibold flex items-center gap-2 text-gray-700 dark:text-gray-200">
-                                <Info size={16} className="text-gray-400" /> {t('documentViewer.details', 'Details')}
+                                <Info size={16} className="text-gray-400" /> {t('documentViewer.details')}
                             </h3>
                             <button onClick={() => setRightPanelOpen(false)} className="p-1 hover:bg-gray-100 dark:hover:bg-dark-700 rounded transition-colors text-gray-400">
                                 <X size={18} />
@@ -939,22 +939,22 @@ export default function DocumentViewer({
                                 </div>
                                 <div className="grid grid-cols-2 gap-4 pt-2">
                                     <div>
-                                        <h4 className="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-1">{t('common.size', 'Size')}</h4>
+                                        <h4 className="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-1">{t('common.size')}</h4>
                                         <p className="text-xs text-gray-700 dark:text-gray-300">{formatBytes(file.size)}</p>
                                     </div>
                                     {documentType === 'pdf' && numPages > 0 && (
                                         <div>
-                                            <h4 className="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-1">{t('documentViewer.pages', 'Pages')}</h4>
+                                            <h4 className="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-1">{t('documentViewer.pages')}</h4>
                                             <p className="text-xs text-gray-700 dark:text-gray-300">{numPages}</p>
                                         </div>
                                     )}
                                 </div>
                                 <div>
-                                    <h4 className="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-1">{t('common.modified', 'Modified')}</h4>
+                                    <h4 className="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-1">{t('common.modified')}</h4>
                                     <p className="text-xs text-gray-700 dark:text-gray-300">{formatDateTime(file.updatedAt)}</p>
                                 </div>
                                 <div>
-                                    <h4 className="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-1">{t('common.created', 'Created')}</h4>
+                                    <h4 className="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-1">{t('common.created')}</h4>
                                     <p className="text-xs text-gray-700 dark:text-gray-300">{formatDateTime(file.createdAt)}</p>
                                 </div>
                             </section>
@@ -977,7 +977,7 @@ export default function DocumentViewer({
                             <button
                                 onClick={() => setZoom(prev => Math.max(prev - 10, 25))}
                                 className="p-1.5 hover:bg-white dark:hover:bg-dark-600 hover:shadow-sm rounded-lg text-gray-600 dark:text-gray-300 transition-all"
-                                title={t('gallery.zoomOut', 'Zoom out')}
+                                title={t('gallery.zoomOut')}
                             >
                                 <Minus size={14} />
                             </button>
@@ -987,7 +987,7 @@ export default function DocumentViewer({
                             <button
                                 onClick={() => setZoom(prev => Math.min(prev + 10, 300))}
                                 className="p-1.5 hover:bg-white dark:hover:bg-dark-600 hover:shadow-sm rounded-lg text-gray-600 dark:text-gray-300 transition-all"
-                                title={t('gallery.zoomIn', 'Zoom in')}
+                                title={t('gallery.zoomIn')}
                             >
                                 <Plus size={14} />
                             </button>
@@ -1014,7 +1014,7 @@ export default function DocumentViewer({
                                 "p-2 rounded-xl transition-all",
                                 isFocusMode ? "bg-primary-600 text-white" : "hover:bg-gray-100 dark:hover:bg-dark-700 text-gray-600 dark:text-gray-300"
                             )}
-                            title={isFocusMode ? t('documentViewer.exitFocusMode', 'Exit focus mode') : t('documentViewer.focusMode', 'Focus mode')}
+                            title={isFocusMode ? t('documentViewer.exitFocusMode') : t('documentViewer.focusMode')}
                         >
                             {isFocusMode ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
                         </button>
@@ -1028,7 +1028,7 @@ export default function DocumentViewer({
                     onClick={toggleFocusMode}
                     className="fixed top-6 right-6 z-[60] bg-white/50 dark:bg-dark-800/50 hover:bg-white dark:hover:bg-dark-800 border border-gray-200 dark:border-dark-600 text-gray-900 dark:text-gray-100 px-4 py-2 rounded-full shadow-xl text-xs font-bold transition-all flex items-center gap-2 backdrop-blur-md"
                 >
-                    <X size={14} /> {t('documentViewer.exitFocus', 'Exit focus')}
+                    <X size={14} /> {t('documentViewer.exitFocus')}
                 </button>
             )}
 
@@ -1047,7 +1047,7 @@ export default function DocumentViewer({
                                 }}
                                 className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-primary-50 dark:hover:bg-primary-900/20 hover:text-primary-600 transition-colors"
                             >
-                                <Copy size={14} /> {t('common.copy', 'Copy')}
+                                <Copy size={14} /> {t('common.copy')}
                             </button>
                         </>
                     ) : (
@@ -1060,7 +1060,7 @@ export default function DocumentViewer({
                                     }}
                                     className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-primary-50 dark:hover:bg-primary-900/20 hover:text-primary-600 transition-colors"
                                 >
-                                    <Download size={14} /> {t('common.download', 'Download')}
+                                    <Download size={14} /> {t('common.download')}
                                 </button>
                             )}
                             {onShare && file && (
@@ -1071,7 +1071,7 @@ export default function DocumentViewer({
                                     }}
                                     className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-primary-50 dark:hover:bg-primary-900/20 hover:text-primary-600 transition-colors"
                                 >
-                                    <Share2 size={14} /> {t('common.share', 'Share')}
+                                    <Share2 size={14} /> {t('common.share')}
                                 </button>
                             )}
                         </>

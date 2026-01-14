@@ -61,9 +61,9 @@ export default function WopiSection() {
         setSaving(true);
         try {
             await api.put('/admin/settings/wopi', settings);
-            toast(t('admin.wopi.saved', 'Configuración WOPI guardada'), 'success');
+            toast(t('admin.wopi.saved'), 'success');
         } catch (error: any) {
-            toast(error.response?.data?.error || t('admin.wopi.saveError', 'Error al guardar'), 'error');
+            toast(error.response?.data?.error || t('admin.wopi.saveError'), 'error');
         } finally {
             setSaving(false);
         }
@@ -71,7 +71,7 @@ export default function WopiSection() {
 
     const testDiscovery = async () => {
         if (!settings.discoveryUrl) {
-            toast(t('admin.wopi.noDiscoveryUrl', 'Ingresa una URL de discovery'), 'error');
+            toast(t('admin.wopi.noDiscoveryUrl'), 'error');
             return;
         }
 
@@ -84,11 +84,11 @@ export default function WopiSection() {
             });
             setDiscoveryStatus('success');
             setSupportedExtensions(response.data.extensions || []);
-            toast(t('admin.wopi.discoverySuccess', 'Discovery válido'), 'success');
+            toast(t('admin.wopi.discoverySuccess'), 'success');
         } catch (error: any) {
             setDiscoveryStatus('error');
             setSupportedExtensions([]);
-            toast(error.response?.data?.error || t('admin.wopi.discoveryError', 'Error en discovery'), 'error');
+            toast(error.response?.data?.error || t('admin.wopi.discoveryError'), 'error');
         } finally {
             setTestingDiscovery(false);
         }
@@ -111,10 +111,10 @@ export default function WopiSection() {
             {/* Header */}
             <div>
                 <h2 className="text-2xl font-bold text-dark-900 dark:text-white">
-                    {t('admin.wopi.title', 'Integración Office (WOPI)')}
+                    {t('admin.wopi.title')}
                 </h2>
                 <p className="text-dark-500 dark:text-dark-400 mt-1">
-                    {t('admin.wopi.description', 'Configura la integración con editores de Office externos como Collabora Online, OnlyOffice o LibreOffice Online.')}
+                    {t('admin.wopi.description')}
                 </p>
             </div>
 
@@ -134,10 +134,10 @@ export default function WopiSection() {
                         </div>
                         <div>
                             <p className="font-semibold text-dark-900 dark:text-white">
-                                {t('admin.wopi.enableIntegration', 'Habilitar Integración WOPI')}
+                                {t('admin.wopi.enableIntegration')}
                             </p>
                             <p className="text-sm text-dark-500">
-                                {t('admin.wopi.enableDesc', 'Permite a los usuarios abrir archivos de Office en un editor externo.')}
+                                {t('admin.wopi.enableDesc')}
                             </p>
                         </div>
                     </div>
@@ -160,10 +160,10 @@ export default function WopiSection() {
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="font-medium text-dark-900 dark:text-white">
-                                    {t('admin.wopi.enableEdit', 'Habilitar Modo Edición')}
+                                    {t('admin.wopi.enableEdit')}
                                 </p>
                                 <p className="text-sm text-dark-500">
-                                    {t('admin.wopi.enableEditDesc', 'Permite editar documentos además de solo verlos.')}
+                                    {t('admin.wopi.enableEditDesc')}
                                 </p>
                             </div>
                             <button
@@ -190,34 +190,34 @@ export default function WopiSection() {
                         <div className="flex items-center gap-2 mb-4">
                             <Globe className="w-5 h-5 text-primary-600" />
                             <h3 className="text-lg font-semibold text-dark-900 dark:text-white">
-                                {t('admin.wopi.discoveryTitle', 'Cliente WOPI')}
+                                {t('admin.wopi.discoveryTitle')}
                             </h3>
                         </div>
 
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">
-                                    {t('admin.wopi.publicUrl', 'URL Pública de CloudBox')}
+                                    {t('admin.wopi.publicUrl')}
                                 </label>
                                 <Input
                                     value={settings.publicUrl}
                                     onChange={(e) => handleChange('publicUrl', e.target.value)}
-                                    placeholder="https://cloudbox.example.com"
+                                    placeholder={t('admin.wopi.publicUrlPlaceholder')}
                                 />
                                 <p className="text-xs text-dark-500 mt-1">
-                                    {t('admin.wopi.publicUrlDesc', 'URL donde el cliente WOPI puede acceder a CloudBox.')}
+                                    {t('admin.wopi.publicUrlDesc')}
                                 </p>
                             </div>
 
                             <div>
                                 <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">
-                                    {t('admin.wopi.discoveryUrl', 'URL de Discovery')}
+                                    {t('admin.wopi.discoveryUrl')}
                                 </label>
                                 <div className="flex gap-2">
                                     <Input
                                         value={settings.discoveryUrl}
                                         onChange={(e) => handleChange('discoveryUrl', e.target.value)}
-                                        placeholder="https://collabora.example.com/hosting/discovery"
+                                        placeholder={t('admin.wopi.discoveryUrlPlaceholder')}
                                         className="flex-1"
                                     />
                                     <Button
@@ -226,17 +226,17 @@ export default function WopiSection() {
                                         variant="secondary"
                                         icon={<RefreshCw className="w-4 h-4" />}
                                     >
-                                        {t('admin.wopi.testDiscovery', 'Probar')}
+                                        {t('admin.wopi.testDiscovery')}
                                     </Button>
                                 </div>
                                 <p className="text-xs text-dark-500 mt-1">
-                                    {t('admin.wopi.discoveryUrlDesc', 'URL del endpoint /hosting/discovery del cliente WOPI.')}
+                                    {t('admin.wopi.discoveryUrlDesc')}
                                 </p>
 
                                 {discoveryStatus === 'success' && supportedExtensions.length > 0 && (
                                     <div className="mt-2 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
                                         <p className="text-sm font-medium text-green-800 dark:text-green-300 mb-1">
-                                            {t('admin.wopi.supportedFormats', 'Formatos soportados:')}
+                                            {t('admin.wopi.supportedFormats')}
                                         </p>
                                         <div className="flex flex-wrap gap-1">
                                             {supportedExtensions.slice(0, 15).map(ext => (
@@ -256,7 +256,7 @@ export default function WopiSection() {
                                 {discoveryStatus === 'error' && (
                                     <div className="mt-2 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
                                         <p className="text-sm text-red-800 dark:text-red-300">
-                                            {t('admin.wopi.discoveryFailed', 'No se pudo conectar al cliente WOPI. Verifica la URL y que el servicio esté activo.')}
+                                            {t('admin.wopi.discoveryFailed')}
                                         </p>
                                     </div>
                                 )}
@@ -265,15 +265,15 @@ export default function WopiSection() {
                             <div>
                                 <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">
                                     <Shield className="w-4 h-4 inline mr-1" />
-                                    {t('admin.wopi.allowedOrigins', 'Orígenes de Iframe Permitidos')}
+                                    {t('admin.wopi.allowedOrigins')}
                                 </label>
                                 <Input
                                     value={settings.allowedIframeOrigins}
                                     onChange={(e) => handleChange('allowedIframeOrigins', e.target.value)}
-                                    placeholder="https://collabora.example.com,https://onlyoffice.example.com"
+                                    placeholder={t('admin.wopi.allowedOriginsPlaceholder')}
                                 />
                                 <p className="text-xs text-dark-500 mt-1">
-                                    {t('admin.wopi.allowedOriginsDesc', 'Orígenes permitidos para cargar el editor en iframe (separados por coma).')}
+                                    {t('admin.wopi.allowedOriginsDesc')}
                                 </p>
                             </div>
                         </div>
@@ -284,14 +284,14 @@ export default function WopiSection() {
                         <div className="flex items-center gap-2 mb-4">
                             <Clock className="w-5 h-5 text-primary-600" />
                             <h3 className="text-lg font-semibold text-dark-900 dark:text-white">
-                                {t('admin.wopi.advancedTitle', 'Configuración Avanzada')}
+                                {t('admin.wopi.advancedTitle')}
                             </h3>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
                                 <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">
-                                    {t('admin.wopi.tokenTtl', 'TTL de Token (segundos)')}
+                                    {t('admin.wopi.tokenTtl')}
                                 </label>
                                 <Input
                                     type="number"
@@ -301,13 +301,13 @@ export default function WopiSection() {
                                     max={86400}
                                 />
                                 <p className="text-xs text-dark-500 mt-1">
-                                    {t('admin.wopi.tokenTtlDesc', 'Tiempo de vida del token de acceso. Default: 900 (15 min)')}
+                                    {t('admin.wopi.tokenTtlDesc')}
                                 </p>
                             </div>
 
                             <div>
                                 <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">
-                                    {t('admin.wopi.lockTtl', 'TTL de Lock (segundos)')}
+                                    {t('admin.wopi.lockTtl')}
                                 </label>
                                 <Input
                                     type="number"
@@ -317,30 +317,30 @@ export default function WopiSection() {
                                     max={86400}
                                 />
                                 <p className="text-xs text-dark-500 mt-1">
-                                    {t('admin.wopi.lockTtlDesc', 'Tiempo de vida del bloqueo de edición. Default: 1800 (30 min)')}
+                                    {t('admin.wopi.lockTtlDesc')}
                                 </p>
                             </div>
 
                             <div>
                                 <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">
-                                    {t('admin.wopi.lockProvider', 'Proveedor de Locks')}
+                                    {t('admin.wopi.lockProvider')}
                                 </label>
                                 <select
                                     value={settings.lockProvider}
                                     onChange={(e) => handleChange('lockProvider', e.target.value)}
                                     className="w-full px-3 py-2 rounded-xl border border-dark-300 dark:border-dark-600 bg-white dark:bg-dark-800 text-dark-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
                                 >
-                                    <option value="db">Base de Datos (PostgreSQL)</option>
-                                    <option value="redis">Redis (Recomendado para producción)</option>
+                                    <option value="db">{t('admin.wopi.lockProviderOptions.db')}</option>
+                                    <option value="redis">{t('admin.wopi.lockProviderOptions.redis')}</option>
                                 </select>
                                 <p className="text-xs text-dark-500 mt-1">
-                                    {t('admin.wopi.lockProviderDesc', 'Redis es recomendado para múltiples instancias.')}
+                                    {t('admin.wopi.lockProviderDesc')}
                                 </p>
                             </div>
 
                             <div>
                                 <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">
-                                    {t('admin.wopi.maxFileSize', 'Tamaño Máximo de Archivo (MB)')}
+                                    {t('admin.wopi.maxFileSize')}
                                 </label>
                                 <Input
                                     type="number"
@@ -350,7 +350,7 @@ export default function WopiSection() {
                                     max={1024}
                                 />
                                 <p className="text-xs text-dark-500 mt-1">
-                                    {t('admin.wopi.maxFileSizeDesc', 'Tamaño máximo de archivo para operaciones WOPI. Default: 100 MB')}
+                                    {t('admin.wopi.maxFileSizeDesc')}
                                 </p>
                             </div>
                         </div>
@@ -361,7 +361,7 @@ export default function WopiSection() {
             {/* Save Button */}
             <div className="flex justify-end pt-4 border-t border-dark-100 dark:border-dark-700">
                 <Button onClick={saveSettings} loading={saving} icon={<Save className="w-4 h-4" />}>
-                    {t('admin.wopi.save', 'Guardar Configuración')}
+                    {t('admin.wopi.save')}
                 </Button>
             </div>
         </div>

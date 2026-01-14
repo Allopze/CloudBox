@@ -278,14 +278,14 @@ export default function VideoPlayer({
                         <button
                             onClick={() => skip(-10)}
                             className="p-2 text-white hover:bg-white/10 rounded-lg transition-colors"
-                            aria-label="-10s"
+                            aria-label={t('gallery.seekBackLabel', { seconds: 10 })}
                         >
                             <SkipBack className="w-5 h-5" />
                         </button>
                         <button
                             onClick={() => skip(10)}
                             className="p-2 text-white hover:bg-white/10 rounded-lg transition-colors"
-                            aria-label="+10s"
+                            aria-label={t('gallery.seekForwardLabel', { seconds: 10 })}
                         >
                             <SkipForward className="w-5 h-5" />
                         </button>

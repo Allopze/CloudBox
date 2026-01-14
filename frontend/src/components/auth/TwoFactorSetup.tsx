@@ -209,7 +209,7 @@ export default function TwoFactorSetup({ isOpen, onClose, onSuccess }: TwoFactor
                                 <div className="bg-white p-4 rounded-xl">
                                     <img
                                         src={setupData.qrCodeUrl}
-                                        alt="2FA QR Code"
+                                        alt={t('auth.twoFactor.setup.qrAlt')}
                                         className="w-48 h-48"
                                     />
                                 </div>

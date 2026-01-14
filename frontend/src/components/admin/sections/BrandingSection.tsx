@@ -93,8 +93,8 @@ export default function BrandingSection() {
     return (
         <div className="space-y-6">
             <div>
-                <h2 className="text-2xl font-bold text-dark-900 dark:text-white">{t('admin.branding.title', 'Personalización')}</h2>
-                <p className="text-dark-500 dark:text-dark-400 mt-1">{t('admin.branding.description', 'Personaliza la apariencia de tu instancia de CloudBox.')}</p>
+                <h2 className="text-2xl font-bold text-dark-900 dark:text-white">{t('admin.branding.title')}</h2>
+                <p className="text-dark-500 dark:text-dark-400 mt-1">{t('admin.branding.description')}</p>
             </div>
 
             <div className="">
@@ -120,13 +120,13 @@ export default function BrandingSection() {
                 {/* Browser Tab Title */}
                 <div className="mb-6">
                     <Input
-                        label={t('admin.branding.siteName', 'Titulo de la pestana')}
+                        label={t('admin.branding.siteName')}
                         value={brandingSettings.siteName || ''}
                         onChange={(e) => setBrandingSettings({ ...brandingSettings, siteName: e.target.value })}
-                        placeholder="CloudBox"
+                        placeholder={t('admin.branding.siteNamePlaceholder')}
                     />
                     <p className="text-xs text-dark-500 mt-1">
-                        {t('admin.branding.siteNameHint', 'Este texto aparece en la pestaña del navegador.')}
+                        {t('admin.branding.siteNameHint')}
                     </p>
                 </div>
 
@@ -150,12 +150,12 @@ export default function BrandingSection() {
                             >
                                 {brandingSettings.logoLightUrl ? (
                                     <div className="relative w-full h-full flex items-center justify-center p-4">
-                                        <img src={brandingSettings.logoLightUrl} alt="Logo" className="max-h-full max-w-full object-contain" />
+                                        <img src={brandingSettings.logoLightUrl} alt={t('common.logoAlt')} className="max-h-full max-w-full object-contain" />
                                     </div>
                                 ) : (
                                     <div className="flex flex-col items-center text-dark-400">
                                         <Upload className="w-8 h-8 mb-2" />
-                                        <span className="text-xs">Subir imagen</span>
+                                        <span className="text-xs">{t('admin.branding.uploadImage')}</span>
                                     </div>
                                 )}
                             </label>
@@ -169,7 +169,7 @@ export default function BrandingSection() {
                                 </button>
                             )}
                         </div>
-                        <p className="text-xs text-dark-400">Visible en fondo claro</p>
+                        <p className="text-xs text-dark-400">{t('admin.branding.lightBackground')}</p>
                     </div>
 
                     {/* Logo Dark */}
@@ -190,12 +190,12 @@ export default function BrandingSection() {
                             >
                                 {brandingSettings.logoDarkUrl ? (
                                     <div className="relative w-full h-full flex items-center justify-center p-4">
-                                        <img src={brandingSettings.logoDarkUrl} alt="Logo" className="max-h-full max-w-full object-contain" />
+                                        <img src={brandingSettings.logoDarkUrl} alt={t('common.logoAlt')} className="max-h-full max-w-full object-contain" />
                                     </div>
                                 ) : (
                                     <div className="flex flex-col items-center text-dark-400">
                                         <Upload className="w-8 h-8 mb-2" />
-                                        <span className="text-xs">Subir imagen</span>
+                                        <span className="text-xs">{t('admin.branding.uploadImage')}</span>
                                     </div>
                                 )}
                             </label>
@@ -209,7 +209,7 @@ export default function BrandingSection() {
                                 </button>
                             )}
                         </div>
-                        <p className="text-xs text-dark-400">Visible en fondo oscuro</p>
+                        <p className="text-xs text-dark-400">{t('admin.branding.darkBackground')}</p>
                     </div>
 
                     {/* Favicon */}
@@ -230,12 +230,12 @@ export default function BrandingSection() {
                             >
                                 {brandingSettings.faviconUrl ? (
                                     <div className="relative w-full h-full flex items-center justify-center p-4">
-                                        <img src={brandingSettings.faviconUrl} alt="Favicon" className="w-8 h-8 object-contain" />
+                                        <img src={brandingSettings.faviconUrl} alt={t('common.faviconAlt')} className="w-8 h-8 object-contain" />
                                     </div>
                                 ) : (
                                     <div className="flex flex-col items-center text-dark-400">
                                         <Upload className="w-8 h-8 mb-2" />
-                                        <span className="text-xs">Subir imagen</span>
+                                        <span className="text-xs">{t('admin.branding.uploadImage')}</span>
                                     </div>
                                 )}
                             </label>
@@ -249,7 +249,7 @@ export default function BrandingSection() {
                                 </button>
                             )}
                         </div>
-                        <p className="text-xs text-dark-400">Icono de la pestaña</p>
+                        <p className="text-xs text-dark-400">{t('admin.branding.tabIcon')}</p>
                     </div>
                 </div>
 
@@ -260,9 +260,9 @@ export default function BrandingSection() {
                         value={brandingSettings.customCss}
                         onChange={(e) => setBrandingSettings({ ...brandingSettings, customCss: e.target.value })}
                         className="w-full h-32 px-4 py-3 bg-dark-50 dark:bg-dark-900 border border-dark-200 dark:border-dark-700 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
-                        placeholder="/* CSS personalizado aquí */"
+                        placeholder={t('admin.branding.customCssPlaceholder')}
                     />
-                    <p className="text-xs text-dark-500 mt-1">{t('admin.branding.customCssHint', 'Añade estilos CSS globales que se inyectarán en la aplicación.')}</p>
+                    <p className="text-xs text-dark-500 mt-1">{t('admin.branding.customCssHint')}</p>
                 </div>
 
                 <div className="flex justify-end pt-4 border-t border-dark-100 dark:border-dark-700">

@@ -151,7 +151,21 @@
     "logout": "Sair",
     "size": "Tamanho",
     "modified": "Modificado",
-    "created": "Criado"
+    "created": "Criado",
+    "errorShort": "Erro",
+    "unknown": "Desconhecido",
+    "units": {
+      "mb": "MB",
+      "gb": "GB",
+      "tb": "TB"
+    },
+    "dismiss": "Fechar",
+    "toggleTheme": "Alternar tema",
+    "logoAlt": "Logotipo CloudBox",
+    "faviconAlt": "Favicon CloudBox",
+    "navigationDrawer": "Painel de navega??o",
+    "loadingAnimation": "Hamster laranja e bege correndo em uma roda met?lica",
+    "appName": "CloudBox"
   },
   "files": {
     "loading": "Carregando...",
@@ -586,7 +600,8 @@
         "recoveryCodesCopied": "Códigos de recuperação copiados",
         "downloadRecoveryCodes": "Baixar códigos de recuperação",
         "recoveryCodesWarning": "Estes códigos serão mostrados apenas uma vez. Salve-os agora!",
-        "finish": "Concluir configuração"
+        "finish": "Concluir configuração",
+        "qrAlt": "C?digo QR de 2FA"
       },
       "disable": {
         "title": "Desativar Autenticação de Dois Fatores",
@@ -672,7 +687,8 @@
     "resetToDefault": "Restaurar",
     "saved": "Cor da pasta salva",
     "saveError": "Erro ao salvar cor",
-    "reset": "Cor restaurada"
+    "reset": "Cor restaurada",
+    "hexPlaceholder": "FF5733"
   },
   "modals": {
     "upload": {
@@ -908,7 +924,9 @@
         "viewLogs": "Ver logs recentes",
         "maintenanceEnabled": "Modo de manutenção ativado",
         "maintenanceDisabled": "Modo de manutenção desativado",
-        "notImplemented": "Funcionalidade ainda não implementada"
+        "notImplemented": "Funcionalidade ainda não implementada",
+        "enableMaintenance": "Ativar modo de manuten??o",
+        "disableMaintenance": "Desativar modo de manuten??o"
       },
       "security": {
         "title": "Segurança e acesso",
@@ -935,11 +953,12 @@
       "defaultQuota": "Cota padrão",
       "maxFileSize": "Tamanho máx. arquivo",
       "allowedTypes": "Tipos permitidos",
-      "save": "Salvar Geral"
+      "save": "Salvar Geral",
+      "allowedOriginsPlaceholder": "https://example.com\nhttps://app.example.com"
     },
     "email": {
-      "title": "Email (SMTP)",
-      "description": "Configuração do servidor de email",
+      "title": "E-mail",
+      "description": "Configure o servidor SMTP e os modelos de e-mail.",
       "host": "Host SMTP",
       "port": "Porta",
       "user": "Usuário",
@@ -951,14 +970,14 @@
     },
     "templates": {
       "title": "Modelos de Email",
-      "description": "Personalize os emails enviados pelo sistema",
+      "description": "Descri??o",
       "new": "Novo",
       "system": "Modelos do Sistema",
       "custom": "Personalizados",
       "customized": "Personalizado",
       "notCustomized": "Não personalizado",
-      "editor": "Editor de código",
-      "preview": "Pré-visualização",
+      "editor": "Editor",
+      "preview": "Pr?via",
       "subject": "Assunto",
       "htmlContent": "Conteúdo HTML",
       "testEmail": "email@exemplo.com",
@@ -968,11 +987,11 @@
       "welcome": "Boas-vindas",
       "resetPassword": "Redefinir Senha",
       "selectToEdit": "Selecione um modelo para editar",
-      "newVariable": "Nova Variável",
-      "editVariable": "Editar Variável",
+      "newVariable": "Nova vari?vel",
+      "editVariable": "Editar vari?vel: {{name}}",
       "templateNamePlaceholder": "Ex: Notificação de pagamento",
       "templateNameHint": "Será convertido em identificador único (ex: notificacao_de_pagamento)",
-      "variableNamePlaceholder": "minhaVariavel",
+      "variableNamePlaceholder": "minha_variavel",
       "variableNameHint": "Apenas letras, números e underscores. Será usado como {{example}}",
       "variableValuePlaceholder": "Valor a usar no email",
       "variableDescPlaceholder": "Para que serve esta variável",
@@ -991,7 +1010,18 @@
       "templateDeleted": "Modelo excluído",
       "templateSaved": "Modelo salvo",
       "templateReset": "Modelo redefinido",
-      "testSent": "Email de teste enviado"
+      "testSent": "Email de teste enviado",
+      "usingDefault": "Usando modelo padr?o",
+      "previewTitle": "Pr?via do e-mail",
+      "availableVariables": "Vari?veis dispon?veis ({{count}})",
+      "systemVariables": "Sistema",
+      "customVariables": "Personalizadas",
+      "variableName": "Nome (sem espa?os)",
+      "defaultValue": "Valor padr?o",
+      "sendTest": "Enviar teste",
+      "selectTemplate": "Selecione um modelo para editar",
+      "previewName": "Usu?rio de teste",
+      "previewEmail": "usuario@exemplo.com"
     },
     "branding": {
       "title": "Identidade visual",
@@ -1002,7 +1032,13 @@
       "favicon": "Ícone do site",
       "save": "Salvar Branding",
       "uploaded": "Arquivo enviado",
-      "saved": "Branding salvo"
+      "saved": "Branding salvo",
+      "uploadImage": "Enviar imagem",
+      "lightBackground": "Vis?vel em fundo claro",
+      "darkBackground": "Vis?vel em fundo escuro",
+      "tabIcon": "?cone da aba do navegador",
+      "siteNamePlaceholder": "CloudBox",
+      "customCssPlaceholder": "/* CSS personalizado aqui */"
     },
     "legal": {
       "title": "Páginas Legais",
@@ -1014,13 +1050,16 @@
       "content": "Conteúdo (HTML)",
       "contentHint": "Use HTML para formatar o conteúdo. Tags permitidas: h2, h3, p, ul, ol, li, strong, em, a",
       "preview": "Pré-visualização",
-      "viewPublic": "Ver página pública",
+      "viewPublic": "Ver p?gina p?blica",
       "reset": "Redefinir",
       "save": "Salvar",
       "saved": "Página salva",
       "saveError": "Erro ao salvar página",
       "resetSuccess": "Página redefinida",
-      "selectToEdit": "Selecione uma página para editar"
+      "selectToEdit": "Selecione uma página para editar",
+      "contentLabel": "Conte?do (Markdown)",
+      "privacyPlaceholder": "# Pol?tica de Privacidade...",
+      "termsPlaceholder": "# Termos e Condi??es..."
     },
     "users": {
       "title": "Gestão de Usuários",
@@ -1153,6 +1192,87 @@
         "code": "Código",
         "default": "Outros arquivos"
       }
+    },
+    "sectionNotFound": "Se??o n?o encontrada",
+    "sidebar": {
+      "footerTitle": "Admin CloudBox",
+      "footerVersion": "v1.0.0 - Build 2024"
+    },
+    "storageRequests": {
+      "title": "Solicita??es de armazenamento",
+      "noRequests": "Sem solicita??es",
+      "approved": "Solicita??o aprovada",
+      "rejected": "Solicita??o rejeitada",
+      "approveError": "Falha ao aprovar",
+      "rejectError": "Falha ao rejeitar",
+      "status": {
+        "pending": "Pendente",
+        "approved": "Aprovada",
+        "rejected": "Rejeitada"
+      },
+      "filters": {
+        "all": "Todas",
+        "pending": "Pendentes",
+        "approved": "Aprovadas",
+        "rejected": "Rejeitadas"
+      },
+      "labels": {
+        "currentQuota": "Cota atual",
+        "requestedQuota": "Solicitada",
+        "response": "Resposta"
+      },
+      "responsePlaceholder": "Resposta (opcional)",
+      "actions": {
+        "approve": "Aprovar",
+        "reject": "Rejeitar"
+      },
+      "description": "Gerencie solicita??es de aumento de cota."
+    },
+    "smtp": {
+      "title": "Configura??o SMTP",
+      "host": "Servidor SMTP",
+      "port": "Porta",
+      "user": "Usu?rio",
+      "pass": "Senha",
+      "from": "Remetente (From)",
+      "secure": "Usar SSL/TLS",
+      "test": "Enviar teste",
+      "save": "Salvar SMTP",
+      "testSuccess": "E-mail de teste enviado",
+      "saved": "Configura??o SMTP salva",
+      "saveError": "Falha ao salvar a configura??o SMTP",
+      "testError": "Falha ao enviar e-mail de teste"
+    },
+    "wopi": {
+      "lockProviderOptions": {
+        "db": "Banco de dados (PostgreSQL)",
+        "redis": "Redis (recomendado para produ??o)"
+      },
+      "publicUrlPlaceholder": "https://cloudbox.example.com",
+      "discoveryUrlPlaceholder": "https://collabora.example.com/hosting/discovery",
+      "allowedOriginsPlaceholder": "https://collabora.example.com,https://onlyoffice.example.com"
+    },
+    "activity": {
+      "descriptionColumn": "Descri??o",
+      "ipAddress": "Endere?o IP",
+      "loading": "Carregando...",
+      "types": {
+        "login": "Login",
+        "logout": "Logout",
+        "upload": "Upload",
+        "download": "Download",
+        "delete": "Exclus?o",
+        "createUser": "Criar usu?rio",
+        "updateUser": "Atualizar usu?rio",
+        "updateSettings": "Atualizar configura??es"
+      }
+    },
+    "metrics": {
+      "ram": "RAM",
+      "swap": "Swap"
+    },
+    "blockedExtensions": {
+      "placeholder": ".exe\n.ps1\n.php"
     }
   },
   "gallery": {
@@ -1185,7 +1305,11 @@
     "unsupportedDocument": "Tipo de documento não suportado para visualização.",
     "loading": "Carregando documento...",
     "loadError": "Erro ao carregar o PDF.",
-    "closeEsc": "Fechar (Esc)"
+    "closeEsc": "Fechar (Esc)",
+    "seekBackLabel": "Voltar {{seconds}} segundos",
+    "seekForwardLabel": "Avan?ar {{seconds}} segundos",
+    "seekBackShortcut": "-{{seconds}}s ({{shortcut}})",
+    "seekForwardShortcut": "+{{seconds}}s ({{shortcut}})"
   },
   "mediaViewer": {
     "back": "Voltar",

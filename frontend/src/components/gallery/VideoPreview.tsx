@@ -414,14 +414,14 @@ export default function VideoPreview({
             <button
               onClick={() => skip(-10)}
               className="p-2 text-white hover:bg-white/10 rounded-lg transition-colors"
-              title="-10s (J)"
+              title={t('gallery.seekBackShortcut', { seconds: 10, shortcut: 'J' })}
             >
               <SkipBack className="w-5 h-5" />
             </button>
             <button
               onClick={() => skip(10)}
               className="p-2 text-white hover:bg-white/10 rounded-lg transition-colors"
-              title="+10s (L)"
+              title={t('gallery.seekForwardShortcut', { seconds: 10, shortcut: 'L' })}
             >
               <SkipForward className="w-5 h-5" />
             </button>

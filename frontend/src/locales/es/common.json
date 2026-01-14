@@ -46,6 +46,11 @@
     "deletingItems": "Eliminando {{count}} elemento(s)",
     "itemsMovedToTrash": "{{count}} elemento(s) movido(s) a papelera",
     "deleteError": "Error al eliminar elementos",
+    "sectionNotFound": "Seccion no encontrada",
+    "sidebar": {
+      "footerTitle": "CloudBox Admin",
+      "footerVersion": "v1.0.0 - Build 2024"
+    },
     "uploadProgress": "{{percent}}% · {{speed}}/s",
     "lightMode": "Modo claro",
     "darkMode": "Modo oscuro",
@@ -157,6 +162,12 @@
     "save": "Guardar",
     "noMoreItems": "No hay más elementos",
     "close": "Cerrar",
+    "dismiss": "Descartar",
+    "toggleTheme": "Cambiar tema",
+    "logoAlt": "Logo de CloudBox",
+    "faviconAlt": "Favicon de CloudBox",
+    "navigationDrawer": "Panel de navegaci?n",
+    "loadingAnimation": "H?mster naranja y beige corriendo en una rueda met?lica",
     "download": "Descargar",
     "upload": "Subir",
     "share": "Compartir",
@@ -181,6 +192,7 @@
     "remove": "Quitar",
     "sending": "Enviando...",
     "error": "Ocurrió un error. Inténtalo de nuevo.",
+    "errorShort": "Error",
     "success": "Éxito",
     "warning": "Advertencia",
     "logout": "Cerrar sesión",
@@ -196,7 +208,14 @@
     "noResults": "Sin resultados",
     "required": "Requerido",
     "optional": "Opcional",
-    "moreOptions": "Más opciones"
+    "unknown": "Desconocido",
+    "units": {
+      "mb": "MB",
+      "gb": "GB",
+      "tb": "TB"
+    },
+    "moreOptions": "Más opciones",
+    "appName": "CloudBox"
   },
   "files": {
     "loading": "Cargando...",
@@ -650,6 +669,7 @@
         "description": "Añade una capa extra de seguridad a tu cuenta.",
         "step1": "Escanear código QR",
         "step1Description": "Escanea este código QR con tu aplicación de autenticación (Google Authenticator, Authy, etc.)",
+        "qrAlt": "C?digo QR de 2FA",
         "step2": "Introducir código",
         "step2Description": "Introduce el código de 6 dígitos de tu aplicación para verificar",
         "step3": "Guardar códigos de recuperación",
@@ -749,7 +769,11 @@
     "conversionFailed": "Error al convertir el documento",
     "conversionQueued": "El documento se está preparando...",
     "convertingDocument": "Convirtiendo documento a PDF...",
-    "conversionTimeout": "La conversión del documento tardó demasiado. Intenta descargar el archivo."
+    "conversionTimeout": "La conversión del documento tardó demasiado. Intenta descargar el archivo.",
+    "seekBackLabel": "Retroceder {{seconds}} segundos",
+    "seekForwardLabel": "Avanzar {{seconds}} segundos",
+    "seekBackShortcut": "-{{seconds}}s ({{shortcut}})",
+    "seekForwardShortcut": "+{{seconds}}s ({{shortcut}})"
   },
   "errorLoadingSpreadsheet": "Error al cargar la hoja de cálculo",
   "mediaViewer": {
@@ -858,7 +882,8 @@
     "resetToDefault": "Restablecer",
     "saved": "Carpeta personalizada",
     "saveError": "Error al guardar",
-    "reset": "Restablecido"
+    "reset": "Restablecido",
+    "hexPlaceholder": "FF5733"
   },
   "dragPreview": {
     "itemsCount": "{{count}} elementos",
@@ -1218,6 +1243,7 @@
     "sortBy": "Ordenar por",
     "name": "Nombre",
     "date": "Fecha",
+    "loading": "Cargando actividad...",
     "newest": "Más recientes",
     "oldest": "Más antiguos",
     "largest": "Más grandes",
@@ -1397,7 +1423,9 @@
         "viewLogs": "Ver logs recientes",
         "maintenanceEnabled": "Modo mantenimiento activado",
         "maintenanceDisabled": "Modo mantenimiento desactivado",
-        "notImplemented": "Función no implementada aún"
+        "notImplemented": "Función no implementada aún",
+        "enableMaintenance": "Activar modo mantenimiento",
+        "disableMaintenance": "Desactivar modo mantenimiento"
       },
       "security": {
         "title": "Seguridad y acceso",
@@ -1441,11 +1469,16 @@
       "title": "Configuración General",
       "siteName": "Nombre del Sitio",
       "siteDescription": "Descripción del Sitio",
+      "allowedOriginsPlaceholder": "https://ejemplo.com\nhttps://app.ejemplo.com",
       "allowRegistration": "Permitir Registro",
       "allowRegistrationDesc": "Permitir que nuevos usuarios se registren libremente",
       "defaultQuota": "Cuota por Defecto",
       "maxFileSize": "Tamaño Máx. Archivo",
-      "save": "Guardar Cambios"
+      "save": "Guardar Cambios",
+      "description": "Ajustes generales de la plataforma.",
+      "allowedOrigins": "Orígenes CORS Permitidos",
+      "allowedOriginsDesc": "Dominios adicionales permitidos para acceder a la API (uno por línea). Ej: https://app.ejemplo.com",
+      "saveCors": "Guardar Orígenes"
     },
     "limits": {
       "title": "Límites de Subida",
@@ -1463,7 +1496,13 @@
       "favicon": "Favicon",
       "siteName": "Titulo de la pestana",
       "siteNameHint": "Este texto aparece en la pestana del navegador.",
+      "siteNamePlaceholder": "CloudBox",
+      "uploadImage": "Subir imagen",
+      "lightBackground": "Visible en fondo claro",
+      "darkBackground": "Visible en fondo oscuro",
+      "tabIcon": "Icono de la pesta?a",
       "customCss": "CSS Personalizado",
+      "customCssPlaceholder": "/* CSS personalizado aqu? */",
       "customCssHint": "Añade estilos CSS globales que se inyectarán en la aplicación.",
       "save": "Guardar Marca",
       "uploadSuccess": "Imagen subida correctamente",
@@ -1472,6 +1511,36 @@
       "saveError": "Error al guardar configuración",
       "deleteSuccess": "Imagen eliminada",
       "deleteError": "Error al eliminar imagen"
+    },
+    "storageRequests": {
+      "title": "Solicitudes de almacenamiento",
+      "noRequests": "No hay solicitudes",
+      "approved": "Solicitud aprobada",
+      "rejected": "Solicitud rechazada",
+      "approveError": "Error al aprobar",
+      "rejectError": "Error al rechazar",
+      "status": {
+        "pending": "Pendiente",
+        "approved": "Aprobada",
+        "rejected": "Rechazada"
+      },
+      "filters": {
+        "all": "Todas",
+        "pending": "Pendientes",
+        "approved": "Aprobadas",
+        "rejected": "Rechazadas"
+      },
+      "labels": {
+        "currentQuota": "Cuota actual",
+        "requestedQuota": "Solicitada",
+        "response": "Respuesta"
+      },
+      "responsePlaceholder": "Respuesta (opcional)",
+      "actions": {
+        "approve": "Aprobar",
+        "reject": "Rechazar"
+      },
+      "description": "Gestiona las solicitudes de ampliaci?n de cuota."
     },
     "fileIcons": {
       "title": "Iconos de Archivos",
@@ -1500,22 +1569,29 @@
         "archive": "Archivos comprimidos",
         "code": "Código",
         "default": "Otros archivos"
-      }
+      },
+      "pageTitle": "File Type Icons",
+      "pageDescription": "Customize icons displayed for different file types",
+      "uploadShort": "Subir"
     },
     "smtp": {
-      "title": "Configuración SMTP",
+      "title": "Configuraci?n SMTP",
       "host": "Servidor SMTP",
       "port": "Puerto",
       "user": "Usuario",
-      "pass": "Contraseña",
+      "pass": "Contrase?a",
       "from": "Remitente (From)",
       "secure": "Usar SSL/TLS",
       "test": "Enviar prueba",
       "save": "Guardar SMTP",
       "testSuccess": "Correo de prueba enviado correctamente",
-      "saved": "Configuración SMTP guardada",
-      "saveError": "Error al guardar configuración SMTP",
+      "saved": "Configuraci?n SMTP guardada",
+      "saveError": "Error al guardar configuraci?n SMTP",
       "testError": "Error al enviar email de prueba"
+    },
+    "email": {
+      "title": "Correo electr?nico",
+      "description": "Configura el servidor SMTP y las plantillas de correo."
     },
     "templates": {
       "title": "Plantillas de Email",
@@ -1536,14 +1612,83 @@
       "subject": "Asunto",
       "htmlContent": "Contenido HTML",
       "reset": "Restablecer",
-      "save": "Guardar"
+      "save": "Guardar",
+      "usingDefault": "Usando plantilla por defecto",
+      "editor": "Editor",
+      "preview": "Vista previa",
+      "previewTitle": "Vista previa del email",
+      "availableVariables": "Variables disponibles ({{count}})",
+      "systemVariables": "Sistema",
+      "customVariables": "Personalizadas",
+      "newVariable": "Nueva variable",
+      "variableName": "Nombre (sin espacios)",
+      "variableNamePlaceholder": "mi_variable",
+      "defaultValue": "Valor por defecto",
+      "description": "Descripci?n",
+      "editVariable": "Editar variable: {{name}}",
+      "sendTest": "Enviar prueba",
+      "selectTemplate": "Selecciona una plantilla para editar",
+      "previewName": "Usuario de prueba",
+      "previewEmail": "usuario@ejemplo.com"
+    },
+    "wopi": {
+      "lockProviderOptions": {
+        "db": "Base de datos (PostgreSQL)",
+        "redis": "Redis (recomendado para producci?n)"
+      },
+      "publicUrlPlaceholder": "https://cloudbox.example.com",
+      "discoveryUrlPlaceholder": "https://collabora.example.com/hosting/discovery",
+      "allowedOriginsPlaceholder": "https://collabora.example.com,https://onlyoffice.example.com",
+      "saved": "Configuración WOPI guardada",
+      "saveError": "Error al guardar",
+      "noDiscoveryUrl": "Ingresa una URL de discovery",
+      "discoverySuccess": "Discovery válido",
+      "discoveryError": "Error en discovery",
+      "title": "Integración Office (WOPI)",
+      "description": "Configura la integración con editores de Office externos como Collabora Online, OnlyOffice o LibreOffice Online.",
+      "enableIntegration": "Habilitar Integración WOPI",
+      "enableDesc": "Permite a los usuarios abrir archivos de Office en un editor externo.",
+      "enableEdit": "Habilitar Modo Edición",
+      "enableEditDesc": "Permite editar documentos además de solo verlos.",
+      "discoveryTitle": "Cliente WOPI",
+      "publicUrl": "URL Pública de CloudBox",
+      "publicUrlDesc": "URL donde el cliente WOPI puede acceder a CloudBox.",
+      "discoveryUrl": "URL de Discovery",
+      "testDiscovery": "Probar",
+      "discoveryUrlDesc": "URL del endpoint /hosting/discovery del cliente WOPI.",
+      "supportedFormats": "Formatos soportados:",
+      "discoveryFailed": "No se pudo conectar al cliente WOPI. Verifica la URL y que el servicio esté activo.",
+      "allowedOrigins": "Orígenes de Iframe Permitidos",
+      "allowedOriginsDesc": "Orígenes permitidos para cargar el editor en iframe (separados por coma).",
+      "advancedTitle": "Configuración Avanzada",
+      "tokenTtl": "TTL de Token (segundos)",
+      "tokenTtlDesc": "Tiempo de vida del token de acceso. Default: 900 (15 min)",
+      "lockTtl": "TTL de Lock (segundos)",
+      "lockTtlDesc": "Tiempo de vida del bloqueo de edición. Default: 1800 (30 min)",
+      "lockProvider": "Proveedor de Locks",
+      "lockProviderDesc": "Redis es recomendado para múltiples instancias.",
+      "maxFileSize": "Tamaño Máximo de Archivo (MB)",
+      "maxFileSizeDesc": "Tamaño máximo de archivo para operaciones WOPI. Default: 100 MB",
+      "save": "Guardar Configuración"
+    },
+    "legal": {
+      "contentLabel": "Contenido (Markdown)",
+      "viewPublic": "Ver p?gina p?blica",
+      "privacyPlaceholder": "# Pol?tica de Privacidad...",
+      "termsPlaceholder": "# T?rminos y Condiciones...",
+      "title": "Paginas Legales",
+      "description": "Edita el contenido de las paginas de Privacidad y Terminos."
     },
     "metrics": {
       "title": "Métricas del Servidor",
       "description": "Estado del sistema en tiempo real",
       "cpu": "CPU",
       "memory": "Memoria",
+      "ram": "RAM",
+      "swap": "Swap",
       "disk": "Disco",
+      "free": "Libre",
+      "used": "Ocupado",
       "temperature": "Temperatura",
       "network": "Red",
       "uptime": "Tiempo activo",
@@ -1560,13 +1705,26 @@
       "allTypes": "Todos los tipos",
       "user": "Usuario",
       "action": "Acción",
-      "descriptionColumn": "Descripción",
+      "descriptionColumn": "Descripci?n",
+      "ipAddress": "Direcci?n IP",
       "date": "Fecha",
-      "noLogs": "No se encontraron registros de actividad."
+      "noLogs": "No se encontraron registros de actividad.",
+      "types": {
+        "login": "Inicio de sesi?n",
+        "logout": "Cierre de sesi?n",
+        "upload": "Subida",
+        "download": "Descarga",
+        "delete": "Eliminaci?n",
+        "createUser": "Crear usuario",
+        "updateUser": "Actualizar usuario",
+        "updateSettings": "Actualizar ajustes"
+      },
+      "loading": "Cargando..."
     },
     "blockedExtensions": {
       "title": "Extensiones Bloqueadas",
       "description": "Bloquea extensiones de archivo para subidas y extracciИn de archivos comprimidos. Una por lИnea o separadas por comas.",
+      "placeholder": ".exe\n.ps1\n.php",
       "save": "Guardar Extensiones",
       "saved": "Extensiones bloqueadas guardadas",
       "saveError": "Error al guardar extensiones bloqueadas",
@@ -1580,7 +1738,49 @@
     "confirmDelete": "¿Estás seguro?",
     "loadError": "Error al cargar datos",
     "saveError": "Error al guardar datos",
-    "deleteError": "Error al eliminar"
+    "deleteError": "Error al eliminar",
+    "sectionNotFound": "Secci?n no encontrada",
+    "backToDashboard": "Back to Dashboard",
+    "queues": {
+      "retrySuccess": "Se reintentaron {{count}} jobs",
+      "clearSuccess": "Se limpiaron {{count}} jobs atascados",
+      "cleanupSuccess": "Limpieza completada: {{failed}} fallidos, {{old}} antiguos",
+      "cancelSuccess": "Se cancelaron {{count}} jobs pendientes",
+      "fetchError": "Error al obtener estadísticas",
+      "retryError": "Error al reintentar jobs",
+      "clearError": "Error al limpiar jobs",
+      "cleanupError": "Error en limpieza",
+      "cancelError": "Error al cancelar jobs pendientes",
+      "title": "Colas de Procesamiento",
+      "subtitle": "Gestiona las colas de transcodificación y thumbnails",
+      "refresh": "Actualizar",
+      "redisConnected": "Redis conectado",
+      "redisDisconnected": "Redis no disponible - modo fallback",
+      "redisConnectedDesc": "Las colas Bull están funcionando normalmente",
+      "redisDisconnectedDesc": "Los jobs se procesan localmente sin persistencia",
+      "bullStats": "Cola Bull (Redis)",
+      "waiting": "En espera",
+      "active": "Activos",
+      "completed": "Completados",
+      "failed": "Fallidos",
+      "delayed": "Retrasados",
+      "paused": "Pausados",
+      "dbStats": "Jobs en Base de Datos",
+      "pending": "Pendientes",
+      "processing": "Procesando",
+      "cancelled": "Cancelados",
+      "actions": "Acciones",
+      "retryFailed": "Reintentar fallidos",
+      "clearStalled": "Limpiar atascados",
+      "cleanup": "Limpiar antiguos",
+      "cancelPending": "Cancelar pendientes"
+    },
+    "corsSaved": "Orígenes permitidos guardados",
+    "corsError": "Error al guardar CORS",
+    "sidebar": {
+      "footerTitle": "Admin de CloudBox",
+      "footerVersion": "v1.0.0 - Build 2024"
+    }
   },
   "versions": {
     "title": "Historial de versiones",
@@ -1622,5 +1822,14 @@
     "passwordTooShort": "La contraseña debe tener al menos 4 caracteres",
     "currentPasswordRequired": "Se requiere la contraseña actual",
     "protectError": "Error al proteger la carpeta"
+  },
+  "favorite": "true",
+  "verificationLock": {
+    "title": "Verificación Requerida",
+    "description": "Tu periodo de gracia de 7 días ha expirado. Por favor, verifica tu correo electrónico para continuar usando CloudBox.",
+    "sentSuccess": "¡Correo enviado!",
+    "checkInbox": "Revisa tu bandeja de entrada y spam.",
+    "resendEmail": "Reenviar Email de Verificación",
+    "helpContext": "Si ya verificaste tu cuenta, intenta recargar la página."
   }
 }

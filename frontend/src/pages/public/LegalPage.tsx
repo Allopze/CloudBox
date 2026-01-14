@@ -123,13 +123,13 @@ export default function LegalPage() {
         return items;
     }, [displayContent]);
 
-    const displayTitle = isPrivacy ? t('legal.privacyPolicy', 'Política de Privacidad') : t('legal.termsOfService', 'Términos y Condiciones');
+    const displayTitle = isPrivacy ? t('legal.privacyPolicy') : t('legal.termsOfService');
     const subtitle = isPrivacy
-        ? t('legal.privacySubtitle', 'Tu confianza es nuestro activo más valioso. Así es como protegemos tus datos.')
-        : t('legal.termsSubtitle', 'Las reglas del juego claras para todos. Por favor lee atentamente.');
+        ? t('legal.privacySubtitle')
+        : t('legal.termsSubtitle');
 
     if (isLoading) {
-        return <div className="flex h-96 items-center justify-center text-dark-500">{t('common.loading', 'Loading...')}</div>;
+        return <div className="flex h-96 items-center justify-center text-dark-500">{t('common.loading')}</div>;
     }
 
     return (
@@ -139,7 +139,7 @@ export default function LegalPage() {
                 <div className="sticky top-24 space-y-8">
                     <div>
                         <h3 className="text-xs font-bold text-dark-400 uppercase tracking-wider mb-4">
-                            {t('legal.tableOfContents', 'Índice de Contenidos')}
+                            {t('legal.tableOfContents')}
                         </h3>
                         <nav className="space-y-1 border-l border-dark-200 dark:border-dark-700">
                             {toc.length > 0 ? toc.map((item, index) => (
@@ -162,21 +162,21 @@ export default function LegalPage() {
                                     {item.text}
                                 </a>
                             )) : (
-                                <p className="pl-4 py-2 text-sm text-dark-400 italic">{t('legal.noToc', 'No sections found')}</p>
+                                <p className="pl-4 py-2 text-sm text-dark-400 italic">{t('legal.noToc')}</p>
                             )}
                         </nav>
                     </div>
 
                     <div className="pt-8 border-t border-dark-200 dark:border-dark-700">
                         <h4 className="text-sm font-semibold text-dark-900 dark:text-white mb-2">
-                            {t('legal.questions', '¿Dudas sobre tus datos?')}
+                            {t('legal.questions')}
                         </h4>
                         <a
                             href="#"
                             className="flex items-center gap-2 text-primary-600 font-medium hover:text-primary-700 transition-colors"
                         >
                             <Shield className="w-4 h-4" />
-                            {t('legal.privacyCenter', 'Centro de Privacidad')}
+                            {t('legal.privacyCenter')}
                         </a>
                     </div>
                 </div>
@@ -192,9 +192,9 @@ export default function LegalPage() {
                     {/* Page Header */}
                     <div className="mb-12">
                         <div className="flex items-center gap-2 text-xs font-bold tracking-wider text-primary-600 uppercase mb-4">
-                            <span>{t('legal.legal', 'LEGAL')}</span>
+                            <span>{t('legal.legal')}</span>
                             <span>•</span>
-                            <span>{t('legal.updated', 'Actualizado')}: {lastUpdated}</span>
+                            <span>{t('legal.updated')}: {lastUpdated}</span>
                         </div>
                         <h1 className="text-4xl md:text-5xl font-bold text-dark-900 dark:text-white mb-6 tracking-tight">
                             {displayTitle}
@@ -211,7 +211,7 @@ export default function LegalPage() {
                                 <FileText className="w-5 h-5" />
                             </div>
                             <h3 className="text-lg font-bold text-dark-900 dark:text-white">
-                                {t('legal.quickSummary', 'Resumen Rápido (TL;DR)')}
+                                {t('legal.quickSummary')}
                             </h3>
                         </div>
 
@@ -220,30 +220,30 @@ export default function LegalPage() {
                                 <>
                                     <div className="flex gap-3">
                                         <Check className="w-5 h-5 text-primary-600 shrink-0" />
-                                        <p className="text-sm text-dark-600 dark:text-dark-300">{t('legal.privacyPoint1', 'Solo recopilamos lo esencial para que la app funcione.')}</p>
+                                        <p className="text-sm text-dark-600 dark:text-dark-300">{t('legal.privacyPoint1')}</p>
                                     </div>
                                     <div className="flex gap-3">
                                         <Check className="w-5 h-5 text-primary-600 shrink-0" />
-                                        <p className="text-sm text-dark-600 dark:text-dark-300">{t('legal.privacyPoint2', 'Nunca vendemos tus datos personales a terceros.')}</p>
+                                        <p className="text-sm text-dark-600 dark:text-dark-300">{t('legal.privacyPoint2')}</p>
                                     </div>
                                     <div className="flex gap-3">
                                         <Check className="w-5 h-5 text-primary-600 shrink-0" />
-                                        <p className="text-sm text-dark-600 dark:text-dark-300">{t('legal.privacyPoint3', 'Tus archivos están encriptados de extremo a extremo.')}</p>
+                                        <p className="text-sm text-dark-600 dark:text-dark-300">{t('legal.privacyPoint3')}</p>
                                     </div>
                                     <div className="flex gap-3">
                                         <Check className="w-5 h-5 text-primary-600 shrink-0" />
-                                        <p className="text-sm text-dark-600 dark:text-dark-300">{t('legal.privacyPoint4', 'Puedes solicitar la eliminación de tu cuenta en cualquier momento.')}</p>
+                                        <p className="text-sm text-dark-600 dark:text-dark-300">{t('legal.privacyPoint4')}</p>
                                     </div>
                                 </>
                             ) : (
                                 <>
                                     <div className="flex gap-3">
                                         <Check className="w-5 h-5 text-primary-600 shrink-0" />
-                                        <p className="text-sm text-dark-600 dark:text-dark-300">{t('legal.termsPoint1', 'Uso responsable de la plataforma.')}</p>
+                                        <p className="text-sm text-dark-600 dark:text-dark-300">{t('legal.termsPoint1')}</p>
                                     </div>
                                     <div className="flex gap-3">
                                         <Check className="w-5 h-5 text-primary-600 shrink-0" />
-                                        <p className="text-sm text-dark-600 dark:text-dark-300">{t('legal.termsPoint2', 'Respeto a los derechos de autor.')}</p>
+                                        <p className="text-sm text-dark-600 dark:text-dark-300">{t('legal.termsPoint2')}</p>
                                     </div>
                                 </>
                             )}

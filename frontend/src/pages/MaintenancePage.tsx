@@ -28,7 +28,7 @@ const MaintenancePage = () => {
                     {branding.logoUrl ? (
                         <img
                             src={branding.logoUrl}
-                            alt="Logo"
+                            alt={t('common.logoAlt')}
                             className="h-16 w-auto"
                         />
                     ) : (
@@ -39,16 +39,16 @@ const MaintenancePage = () => {
                 </div>
 
                 <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-4xl mb-4">
-                    {t('maintenance.title', 'Estamos en mantenimiento')}
+                    {t('maintenance.title')}
                 </h1>
 
                 <p className="text-lg text-slate-600 dark:text-slate-400 mb-8">
-                    {t('maintenance.subtitle', 'Volveremos pronto. Gracias por tu paciencia.')}
+                    {t('maintenance.subtitle')}
                 </p>
 
                 <div className="flex items-center justify-center gap-2 text-sm text-slate-500 animate-pulse">
                     <div className="h-2 w-2 bg-primary rounded-full"></div>
-                    {t('maintenance.checking', 'Comprobando estado...')}
+                    {t('maintenance.checking')}
                 </div>
 
                 <div className="mt-10 flex flex-col items-center gap-3">
@@ -57,14 +57,14 @@ const MaintenancePage = () => {
                         icon={<LogIn className="h-4 w-4" />}
                         onClick={() => navigate('/login')}
                     >
-                        {t('maintenance.adminLogin', 'Acceso administrador')}
+                        {t('maintenance.adminLogin')}
                     </Button>
 
                     <button
                         onClick={() => checkStatus()}
                         className="text-primary hover:underline text-sm font-medium"
                     >
-                        {t('common.refresh', 'Actualizar ahora')}
+                        {t('common.refresh')}
                     </button>
                 </div>
             </div>

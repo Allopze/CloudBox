@@ -21,7 +21,7 @@ export default function SkipLink() {
         transition-all duration-200
       "
         >
-            {t('accessibility.skipToMainContent', 'Skip to main content')}
+            {t('accessibility.skipToMainContent')}
         </a>
     );
 }

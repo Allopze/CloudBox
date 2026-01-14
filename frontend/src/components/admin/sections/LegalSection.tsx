@@ -106,18 +106,18 @@ export default function LegalSection() {
         <div className="space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <h2 className="text-2xl font-bold text-dark-900 dark:text-white">{t('admin.legal.title', 'Paginas Legales')}</h2>
-                    <p className="text-dark-500 dark:text-dark-400 mt-1">{t('admin.legal.description', 'Edita el contenido de las paginas de Privacidad y Terminos.')}</p>
+                    <h2 className="text-2xl font-bold text-dark-900 dark:text-white">{t('admin.legal.title')}</h2>
+                    <p className="text-dark-500 dark:text-dark-400 mt-1">{t('admin.legal.description')}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    <span className="text-sm text-dark-500 dark:text-dark-400">{t('language.label', 'Language')}</span>
+                    <span className="text-sm text-dark-500 dark:text-dark-400">{t('language.label')}</span>
                     <select
                         value={activeLocale}
                         onChange={(e) => setActiveLocale(e.target.value as LegalLocale)}
                         className="input h-9 py-1.5 px-3 w-32"
                     >
-                        <option value="es">{t('language.es', 'Spanish')}</option>
-                        <option value="en">{t('language.en', 'English')}</option>
+                        <option value="es">{t('language.es')}</option>
+                        <option value="en">{t('language.en')}</option>
                     </select>
                 </div>
             </div>
@@ -150,8 +150,8 @@ export default function LegalSection() {
                     {activeTab === 'privacy' ? (
                         <div className="space-y-4">
                             <div className="flex justify-between items-center mb-2">
-                                <label className="text-sm font-medium text-dark-700 dark:text-dark-300">Contenido (Markdown)</label>
-                                <a href="/privacy" target="_blank" rel="noreferrer" className="text-xs text-primary-600 hover:underline">{t('admin.legal.viewPublic', 'Ver página pública')}</a>
+                                <label className="text-sm font-medium text-dark-700 dark:text-dark-300">{t('admin.legal.contentLabel')}</label>
+                                <a href="/privacy" target="_blank" rel="noreferrer" className="text-xs text-primary-600 hover:underline">{t('admin.legal.viewPublic')}</a>
                             </div>
                             <textarea
                                 value={legalSettingsByLocale[activeLocale].privacyPolicy}
@@ -163,14 +163,14 @@ export default function LegalSection() {
                                     },
                                 }))}
                                 className="w-full h-[500px] px-4 py-3 bg-dark-50 dark:bg-dark-900 border border-dark-200 dark:border-dark-700 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none leading-relaxed"
-                                placeholder="# Política de Privacidad..."
+                                placeholder={t('admin.legal.privacyPlaceholder')}
                             />
                         </div>
                     ) : (
                         <div className="space-y-4">
                             <div className="flex justify-between items-center mb-2">
-                                <label className="text-sm font-medium text-dark-700 dark:text-dark-300">Contenido (Markdown)</label>
-                                <a href="/terms" target="_blank" rel="noreferrer" className="text-xs text-primary-600 hover:underline">{t('admin.legal.viewPublic', 'Ver página pública')}</a>
+                                <label className="text-sm font-medium text-dark-700 dark:text-dark-300">{t('admin.legal.contentLabel')}</label>
+                                <a href="/terms" target="_blank" rel="noreferrer" className="text-xs text-primary-600 hover:underline">{t('admin.legal.viewPublic')}</a>
                             </div>
                             <textarea
                                 value={legalSettingsByLocale[activeLocale].termsOfService}
@@ -182,7 +182,7 @@ export default function LegalSection() {
                                     },
                                 }))}
                                 className="w-full h-[500px] px-4 py-3 bg-dark-50 dark:bg-dark-900 border border-dark-200 dark:border-dark-700 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none leading-relaxed"
-                                placeholder="# Términos y Condiciones..."
+                                placeholder={t('admin.legal.termsPlaceholder')}
                             />
                         </div>
                     )}
@@ -197,7 +197,6 @@ export default function LegalSection() {
         </div>
     );
 }
-
 
 
 

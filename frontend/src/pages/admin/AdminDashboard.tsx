@@ -71,8 +71,8 @@ export default function AdminDashboard() {
         return (
           <div className="space-y-6">
             <div>
-              <h2 className="text-2xl font-bold text-dark-900 dark:text-white">{t('admin.fileIcons.title', 'Iconos de Archivo')}</h2>
-              <p className="text-dark-500 dark:text-dark-400 mt-1">{t('admin.fileIcons.description', 'Gestiona los iconos personalizados para cada tipo de archivo.')}</p>
+              <h2 className="text-2xl font-bold text-dark-900 dark:text-white">{t('admin.fileIcons.title')}</h2>
+              <p className="text-dark-500 dark:text-dark-400 mt-1">{t('admin.fileIcons.description')}</p>
             </div>
             <FileIconsAdmin />
           </div>
@@ -86,7 +86,7 @@ export default function AdminDashboard() {
       case 'queues':
         return <QueuesSection />;
       default:
-        return <div>Section not found</div>;
+        return <div>{t('admin.sectionNotFound')}</div>;
     }
   };
 

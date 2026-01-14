@@ -16,6 +16,9 @@ export default function LegalLayout() {
     const location = useLocation();
     const { isDark, toggleTheme } = useThemeStore();
     const { branding } = useBrandingStore();
+    const fallbackName = t('common.appName');
+    const brandName = (branding.siteName || fallbackName).trim() || fallbackName;
+    const brandInitial = brandName.charAt(0).toUpperCase() || fallbackName.charAt(0).toUpperCase();
 
     const isPrivacy = location.pathname === '/privacy';
 
@@ -31,7 +34,7 @@ export default function LegalLayout() {
                             {((isDark ? branding.logoDarkUrl : branding.logoLightUrl) || branding.logoUrl) ? (
                                 <img
                                     src={(isDark ? branding.logoDarkUrl : branding.logoLightUrl) || branding.logoUrl}
-                                    alt="Logo"
+                                    alt={t('common.logoAlt')}
                                     className="h-10 w-auto"
                                 />
                             ) : (
@@ -39,17 +42,17 @@ export default function LegalLayout() {
                                     {/* Light Mode */}
                                     <div className="dark:hidden flex items-center gap-2">
                                         <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center shadow-md shadow-primary-600/20">
-                                            <span className="text-white text-lg font-bold">C</span>
+                                            <span className="text-white text-lg font-bold">{brandInitial}</span>
                                         </div>
-                                        <span className="text-dark-900 font-bold tracking-tight text-2xl">CloudBox</span>
+                                        <span className="text-dark-900 font-bold tracking-tight text-2xl">{brandName}</span>
                                     </div>
 
                                     {/* Dark Mode */}
                                     <div className="hidden dark:flex items-center gap-2">
                                         <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-md">
-                                            <span className="text-primary-600 text-lg font-bold">C</span>
+                                            <span className="text-primary-600 text-lg font-bold">{brandInitial}</span>
                                         </div>
-                                        <span className="text-white font-bold tracking-tight text-2xl">CloudBox</span>
+                                        <span className="text-white font-bold tracking-tight text-2xl">{brandName}</span>
                                     </div>
                                 </>
                             )}
@@ -65,7 +68,7 @@ export default function LegalLayout() {
                                 !isPrivacy ? "text-primary-600" : "text-dark-600 dark:text-dark-400"
                             )}
                         >
-                            {t('legal.termsOfService', 'Términos y Condiciones')}
+                            {t('legal.termsOfService')}
                         </Link>
                         <Link
                             to="/privacy"
@@ -74,7 +77,7 @@ export default function LegalLayout() {
                                 isPrivacy ? "text-primary-600" : "text-dark-600 dark:text-dark-400"
                             )}
                         >
-                            {t('legal.privacyPolicy', 'Política de Privacidad')}
+                            {t('legal.privacyPolicy')}
                         </Link>
                     </nav>
 
@@ -83,7 +86,7 @@ export default function LegalLayout() {
                         <Link to="/">
                             {/* Keep the Back button as it's specific to Legal page */}
                             <Button variant="ghost" className="hidden sm:flex items-center gap-2 text-sm font-medium">
-                                <span>{t('legal.backToApp', 'Volver a la App')}</span>
+                                <span>{t('legal.backToApp')}</span>
                             </Button>
                             {/* Mobile only icon */}
                             <Button variant="ghost" className="sm:hidden px-2">
@@ -95,7 +98,7 @@ export default function LegalLayout() {
                         <button
                             onClick={toggleTheme}
                             className="w-10 h-10 rounded-full flex items-center justify-center cursor-pointer hover:bg-dark-200/50 dark:hover:bg-white/10 transition-colors text-dark-500 dark:text-dark-400"
-                            aria-label="Toggle theme"
+                            aria-label={t('common.toggleTheme')}
                         >
                             {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
                         </button>

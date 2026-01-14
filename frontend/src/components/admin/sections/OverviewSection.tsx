@@ -49,42 +49,42 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
     const visibleAlerts = showAllAlerts ? alerts : alerts.slice(0, listLimit);
     const visibleTopFiles = showAllTopFiles ? topLargeFiles : topLargeFiles.slice(0, listLimit);
     const visibleFailIps = showAllFailIps ? topFailIps : topFailIps.slice(0, listLimit);
-    const notAvailableLabel = t('admin.overview.notAvailable', 'N/A');
+    const notAvailableLabel = t('admin.overview.notAvailable');
 
     const getStatusMeta = (rawStatus?: string | null) => {
         const status = (rawStatus ?? '').toString().trim();
         const normalized = status.toUpperCase();
 
         if (!normalized) {
-            return { tone: 'neutral' as const, label: t('admin.overview.health.statusUnknown', 'Unknown') };
+            return { tone: 'neutral' as const, label: t('admin.overview.health.statusUnknown') };
         }
 
         if (normalized === 'OK' || normalized === 'HEALTHY') {
-            return { tone: 'ok' as const, label: t('admin.overview.health.statusOk', 'OK') };
+            return { tone: 'ok' as const, label: t('admin.overview.health.statusOk') };
         }
 
         if (normalized === 'CONFIGURED') {
-            return { tone: 'ok' as const, label: t('admin.overview.health.statusConfigured', 'Configured') };
+            return { tone: 'ok' as const, label: t('admin.overview.health.statusConfigured') };
         }
 
         if (normalized === 'DEGRADED') {
-            return { tone: 'alert' as const, label: t('admin.overview.health.statusDegraded', 'Degraded') };
+            return { tone: 'alert' as const, label: t('admin.overview.health.statusDegraded') };
         }
 
         if (normalized === 'ALERT' || normalized === 'STUCK' || normalized === 'ATASCADA' || normalized === 'ALERTA') {
-            return { tone: 'alert' as const, label: t('admin.overview.health.statusAlert', 'Alert') };
+            return { tone: 'alert' as const, label: t('admin.overview.health.statusAlert') };
         }
 
         if (normalized === 'NOT_CONFIGURED' || normalized === 'NO_CONFIGURADO') {
-            return { tone: 'neutral' as const, label: t('admin.overview.health.statusNotConfigured', 'Not configured') };
+            return { tone: 'neutral' as const, label: t('admin.overview.health.statusNotConfigured') };
         }
 
         if (normalized === 'DOWN' || normalized === 'CAÍDO' || normalized === 'CAIDO') {
-            return { tone: 'critical' as const, label: t('admin.overview.health.statusDown', 'Down') };
+            return { tone: 'critical' as const, label: t('admin.overview.health.statusDown') };
         }
 
         if (normalized === 'CRITICAL' || normalized === 'FAILED' || normalized === 'CRÍTICO' || normalized === 'CRITICO') {
-            return { tone: 'critical' as const, label: t('admin.overview.health.statusCritical', 'Critical') };
+            return { tone: 'critical' as const, label: t('admin.overview.health.statusCritical') };
         }
 
         return { tone: 'neutral' as const, label: status };
@@ -113,7 +113,7 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
             setLoadingExport(true);
             const res = await api.get('/admin/summary/export', { responseType: 'blob' });
             if (res.status === 202) {
-                toast(t('admin.overview.exportNotReady', 'El diagnóstico aún no está listo. Inténtalo de nuevo en unos segundos.'), 'warning');
+                toast(t('admin.overview.exportNotReady'), 'warning');
                 return;
             }
             const blob = new Blob([res.data], { type: 'application/json' });
@@ -125,10 +125,10 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
             a.click();
             a.remove();
             URL.revokeObjectURL(url);
-            toast(t('admin.overview.exportSuccess', 'Diagnóstico exportado correctamente'), 'success');
+            toast(t('admin.overview.exportSuccess'), 'success');
         } catch (err) {
             console.error('Export failed', err);
-            toast(t('admin.overview.exportError', 'Error al exportar diagnóstico'), 'error');
+            toast(t('admin.overview.exportError'), 'error');
         } finally {
             setLoadingExport(false);
         }
@@ -137,22 +137,22 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
     // Quick Actions handlers
     const handleTestSmtp = async () => {
         if (!testEmail) {
-            toast(t('admin.overview.emailRequired', 'Ingresa un email de prueba'), 'warning');
+            toast(t('admin.overview.emailRequired'), 'warning');
             return;
         }
         try {
             setLoadingSmtp(true);
             const res = await api.post('/admin/summary/actions/test-smtp', { email: testEmail });
             if (res.data.success) {
-                toast(t('admin.overview.smtpSuccess', 'Email de prueba enviado correctamente'), 'success');
+                toast(t('admin.overview.smtpSuccess'), 'success');
                 setShowSmtpModal(false);
                 setTestEmail('');
             } else {
-                toast(res.data.message || t('admin.overview.smtpError', 'Error al enviar email'), 'error');
+                toast(res.data.message || t('admin.overview.smtpError'), 'error');
             }
         } catch (err: any) {
             console.error('SMTP test failed', err);
-            toast(err.response?.data?.message || t('admin.overview.smtpError', 'Error al probar SMTP'), 'error');
+            toast(err.response?.data?.message || t('admin.overview.smtpError'), 'error');
         } finally {
             setLoadingSmtp(false);
         }
@@ -163,13 +163,13 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
             setLoadingReindex(true);
             const res = await api.post('/admin/summary/actions/reindex');
             if (res.data.success) {
-                toast(t('admin.overview.reindexSuccess', '{{count}} archivos reindexados', { count: res.data.count }), 'success');
+                toast(t('admin.overview.reindexSuccess', { count: res.data.count }), 'success');
             } else {
-                toast(res.data.message || t('admin.overview.reindexError', 'Error al reindexar'), 'error');
+                toast(res.data.message || t('admin.overview.reindexError'), 'error');
             }
         } catch (err: any) {
             console.error('Reindex failed', err);
-            toast(err.response?.data?.message || t('admin.overview.reindexError', 'Error al reindexar archivos'), 'error');
+            toast(err.response?.data?.message || t('admin.overview.reindexError'), 'error');
         } finally {
             setLoadingReindex(false);
         }
@@ -180,17 +180,17 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
             setLoadingThumbnails(true);
             const res = await api.post('/admin/summary/actions/regenerate-thumbnails');
             if (res.data.success) {
-                toast(t('admin.overview.thumbnailsSuccess', '{{images}} imágenes, {{videos}} videos, {{documents}} documentos en cola', {
+                toast(t('admin.overview.thumbnailsSuccess', {
                     images: res.data.images ?? 0,
                     videos: res.data.videos ?? 0,
                     documents: res.data.documents ?? 0,
                 }), 'success');
             } else {
-                toast(res.data.message || t('admin.overview.thumbnailsError', 'Error al regenerar thumbnails'), 'error');
+                toast(res.data.message || t('admin.overview.thumbnailsError'), 'error');
             }
         } catch (err: any) {
             console.error('Regenerate thumbnails failed', err);
-            toast(err.response?.data?.message || t('admin.overview.thumbnailsError', 'Error al regenerar thumbnails'), 'error');
+            toast(err.response?.data?.message || t('admin.overview.thumbnailsError'), 'error');
         } finally {
             setLoadingThumbnails(false);
         }
@@ -204,11 +204,11 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
                 setMaintenanceMode(res.data.maintenance);
                 toast(res.data.message, 'success');
             } else {
-                toast(res.data.message || t('admin.overview.maintenanceError', 'Error al cambiar modo mantenimiento'), 'error');
+                toast(res.data.message || t('admin.overview.maintenanceError'), 'error');
             }
         } catch (err: any) {
             console.error('Toggle maintenance failed', err);
-            toast(err.response?.data?.message || t('admin.overview.maintenanceError', 'Error al cambiar modo mantenimiento'), 'error');
+            toast(err.response?.data?.message || t('admin.overview.maintenanceError'), 'error');
         } finally {
             setLoadingMaintenance(false);
         }
@@ -221,11 +221,11 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
             if (res.data.success) {
                 toast(res.data.message, 'success');
             } else {
-                toast(res.data.message || t('admin.overview.retryJobsError', 'Error al reintentar jobs'), 'error');
+                toast(res.data.message || t('admin.overview.retryJobsError'), 'error');
             }
         } catch (err: any) {
             console.error('Retry jobs failed', err);
-            toast(err.response?.data?.message || t('admin.overview.retryJobsError', 'Error al reintentar jobs'), 'error');
+            toast(err.response?.data?.message || t('admin.overview.retryJobsError'), 'error');
         } finally {
             setLoadingRetryJobs(false);
         }
@@ -237,22 +237,22 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
             {showSmtpModal && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
                     <div className="bg-white dark:bg-dark-900 rounded-2xl p-6 w-full max-w-md shadow-xl">
-                        <h3 className="text-lg font-semibold mb-4">{t('admin.overview.testSmtpTitle', 'Probar configuración SMTP')}</h3>
-                        <p className="text-sm text-dark-500 mb-4">{t('admin.overview.testSmtpDesc', 'Ingresa un email para recibir un mensaje de prueba')}</p>
+                        <h3 className="text-lg font-semibold mb-4">{t('admin.overview.testSmtpTitle')}</h3>
+                        <p className="text-sm text-dark-500 mb-4">{t('admin.overview.testSmtpDesc')}</p>
                         <input
                             type="email"
                             value={testEmail}
                             onChange={(e) => setTestEmail(e.target.value)}
-                            placeholder={t('admin.overview.testEmailPlaceholder', 'email@ejemplo.com')}
+                            placeholder={t('admin.overview.testEmailPlaceholder')}
                             className="w-full px-4 py-2 rounded-xl border border-dark-200 dark:border-dark-700 bg-white dark:bg-dark-800 mb-4"
                         />
                         <div className="flex gap-3 justify-end">
                             <Button variant="ghost" onClick={() => setShowSmtpModal(false)}>
-                                {t('common.cancel', 'Cancelar')}
+                                {t('common.cancel')}
                             </Button>
                             <Button onClick={handleTestSmtp} loading={loadingSmtp}>
                                 <Mail className="w-4 h-4 mr-2" />
-                                {t('admin.overview.sendTest', 'Enviar prueba')}
+                                {t('admin.overview.sendTest')}
                             </Button>
                         </div>
                     </div>
@@ -261,33 +261,33 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
 
             <div className="flex items-start justify-between">
                 <div>
-                    <h2 className="text-2xl font-bold text-dark-900 dark:text-white">{t('admin.overview.title', 'Resumen')}</h2>
-                    <p className="text-dark-500 dark:text-dark-400 mt-1">{t('admin.overview.subtitle', 'Estado actual del sistema y métricas clave.')}</p>
+                    <h2 className="text-2xl font-bold text-dark-900 dark:text-white">{t('admin.overview.title')}</h2>
+                    <p className="text-dark-500 dark:text-dark-400 mt-1">{t('admin.overview.subtitle')}</p>
                     {lastUpdated && (
-                        <p className="text-sm text-dark-500 mt-2">{t('admin.overview.lastUpdated', 'Actualizado')}: {new Date(lastUpdated).toLocaleString()}</p>
+                        <p className="text-sm text-dark-500 mt-2">{t('admin.overview.lastUpdated')}: {new Date(lastUpdated).toLocaleString()}</p>
                     )}
                 </div>
                 <div className="flex gap-3">
                     <Button variant="outline" size="sm" onClick={handleRefresh} loading={refreshing}>
                         <RefreshCw className="w-4 h-4 mr-2" />
-                        {t('admin.overview.refresh', 'Actualizar')}
+                        {t('admin.overview.refresh')}
                     </Button>
                     <Button variant="ghost" size="sm" onClick={handleExport} loading={loadingExport}>
-                        {t('admin.overview.export', 'Exportar diagnóstico')}
+                        {t('admin.overview.export')}
                     </Button>
                 </div>
             </div>
 
             {/* Row 1: Health */}
             <div className="p-6 bg-dark-50/50 dark:bg-dark-900/40 rounded-[1.5rem] border border-dark-100 dark:border-dark-800">
-                <h3 className="text-lg font-semibold mb-4">{t('admin.overview.health.title', 'Salud del sistema')}</h3>
+                <h3 className="text-lg font-semibold mb-4">{t('admin.overview.health.title')}</h3>
                 <div className="space-y-3">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-md bg-blue-50 flex items-center justify-center text-blue-600"><ServerCog className="w-4 h-4" /></div>
                             <div>
-                                <p className="text-sm font-medium text-dark-700">{t('admin.overview.health.api', 'API CloudBox')}</p>
-                                <p className="text-sm text-dark-500">{t('admin.overview.health.apiStatus', 'Estado del endpoint')}</p>
+                                <p className="text-sm font-medium text-dark-700">{t('admin.overview.health.api')}</p>
+                                <p className="text-sm text-dark-500">{t('admin.overview.health.apiStatus')}</p>
                             </div>
                         </div>
                         <StatusBadge tone={apiStatus.tone} label={apiStatus.label} />
@@ -297,9 +297,9 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
                         <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-md bg-indigo-50 flex items-center justify-center text-indigo-600"><HardDrive className="w-4 h-4" /></div>
                             <div>
-                                <p className="text-sm font-medium text-dark-700">{t('admin.overview.health.database', 'Base de datos')}</p>
+                                <p className="text-sm font-medium text-dark-700">{t('admin.overview.health.database')}</p>
                                 <p className="text-sm text-dark-500">
-                                    {t('admin.overview.health.latency', 'Latencia')}: {summary?.health?.db?.latencyMs != null ? `${summary.health.db.latencyMs}ms` : notAvailableLabel}
+                                    {t('admin.overview.health.latency')}: {summary?.health?.db?.latencyMs != null ? `${summary.health.db.latencyMs}ms` : notAvailableLabel}
                                 </p>
                             </div>
                         </div>
@@ -310,9 +310,9 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
                         <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-md bg-purple-50 flex items-center justify-center text-purple-600"><HardDrive className="w-4 h-4" /></div>
                             <div>
-                                <p className="text-sm font-medium text-dark-700">{t('admin.overview.health.storage', 'Almacenamiento')}</p>
+                                <p className="text-sm font-medium text-dark-700">{t('admin.overview.health.storage')}</p>
                                 <p className="text-sm text-dark-500">
-                                    {t('admin.overview.health.storageUsage', 'Usado / Total')}: {summary?.health?.storage ? `${formatBytes(Number(summary.health.storage.usedBytes || 0))} / ${summary.health.storage.totalQuota ? formatBytes(Number(summary.health.storage.totalQuota)) : notAvailableLabel}` : notAvailableLabel}
+                                    {t('admin.overview.health.storageUsage')}: {summary?.health?.storage ? `${formatBytes(Number(summary.health.storage.usedBytes || 0))} / ${summary.health.storage.totalQuota ? formatBytes(Number(summary.health.storage.totalQuota)) : notAvailableLabel}` : notAvailableLabel}
                                 </p>
                             </div>
                         </div>
@@ -323,9 +323,9 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
                         <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-md bg-yellow-50 flex items-center justify-center text-yellow-600"><AlertCircle className="w-4 h-4" /></div>
                             <div>
-                                <p className="text-sm font-medium text-dark-700">{t('admin.overview.health.jobs', 'Cola de jobs')}</p>
+                                <p className="text-sm font-medium text-dark-700">{t('admin.overview.health.jobs')}</p>
                                 <p className="text-sm text-dark-500">
-                                    {t('admin.overview.health.pending', 'Pendientes')}: {summary?.health?.jobs?.details?.transcoding?.waiting ?? notAvailableLabel}
+                                    {t('admin.overview.health.pending')}: {summary?.health?.jobs?.details?.transcoding?.waiting ?? notAvailableLabel}
                                 </p>
                             </div>
                         </div>
@@ -336,7 +336,7 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
                         <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-md bg-gray-50 flex items-center justify-center text-gray-600"><Mail className="w-4 h-4" /></div>
                             <div>
-                                <p className="text-sm font-medium text-dark-700">{t('admin.overview.health.smtp', 'SMTP')}</p>
+                                <p className="text-sm font-medium text-dark-700">{t('admin.overview.health.smtp')}</p>
                                 <p className="text-sm text-dark-500">{summary?.health?.smtp?.status ? smtpStatus.label : notAvailableLabel}</p>
                             </div>
                         </div>
@@ -347,10 +347,10 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
                         <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-md bg-gray-50 flex items-center justify-center text-gray-600"><ServerCog className="w-4 h-4" /></div>
                             <div>
-                                <p className="text-sm font-medium text-dark-700">{t('admin.overview.health.version', 'Versión desplegada')}</p>
+                                <p className="text-sm font-medium text-dark-700">{t('admin.overview.health.version')}</p>
                                 <p className="text-sm text-dark-500">
                                     {summary?.health?.version?.version || notAvailableLabel}
-                                    {summary?.health?.version?.migrationsPending ? ` (${t('admin.overview.health.migrationsPending', 'migraciones pendientes')})` : ''}
+                                    {summary?.health?.version?.migrationsPending ? ` (${t('admin.overview.health.migrationsPending')})` : ''}
                                 </p>
                             </div>
                         </div>
@@ -362,25 +362,25 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
             {/* Row 2: Metrics tiles */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div className="flex flex-col p-6 bg-dark-50/50 dark:bg-dark-900/40 rounded-[1.5rem] border border-dark-100 dark:border-dark-800">
-                    <p className="text-sm font-medium text-dark-500">{t('admin.overview.metrics.totalUsers', 'Usuarios totales')}</p>
+                    <p className="text-sm font-medium text-dark-500">{t('admin.overview.metrics.totalUsers')}</p>
                     <p className="text-3xl font-bold text-dark-900 dark:text-white mt-2">{summary?.metrics?.users?.total ?? notAvailableLabel}</p>
-                    <p className="text-sm text-dark-500 mt-1">{t('admin.overview.metrics.activeUsers24h', 'Activos 24h')}: {summary?.metrics?.users?.active24 ?? notAvailableLabel}</p>
+                    <p className="text-sm text-dark-500 mt-1">{t('admin.overview.metrics.activeUsers24h')}: {summary?.metrics?.users?.active24 ?? notAvailableLabel}</p>
                 </div>
 
                 <div className="flex flex-col p-6 bg-dark-50/50 dark:bg-dark-900/40 rounded-[1.5rem] border border-dark-100 dark:border-dark-800">
-                    <p className="text-sm font-medium text-dark-500">{t('admin.overview.metrics.newUsers', 'Nuevos')}</p>
-                    <p className="text-3xl font-bold text-dark-900 dark:text-white mt-2">{t('admin.overview.metrics.today', 'Hoy')}: {summary?.metrics?.users?.newToday ?? notAvailableLabel}</p>
-                    <p className="text-sm text-dark-500 mt-1">{t('admin.overview.metrics.week', 'Semana')}: {summary?.metrics?.users?.newWeek ?? notAvailableLabel}</p>
+                    <p className="text-sm font-medium text-dark-500">{t('admin.overview.metrics.newUsers')}</p>
+                    <p className="text-3xl font-bold text-dark-900 dark:text-white mt-2">{t('admin.overview.metrics.today')}: {summary?.metrics?.users?.newToday ?? notAvailableLabel}</p>
+                    <p className="text-sm text-dark-500 mt-1">{t('admin.overview.metrics.week')}: {summary?.metrics?.users?.newWeek ?? notAvailableLabel}</p>
                 </div>
 
                 <div className="flex flex-col p-6 bg-dark-50/50 dark:bg-dark-900/40 rounded-[1.5rem] border border-dark-100 dark:border-dark-800">
-                    <p className="text-sm font-medium text-dark-500">{t('admin.overview.metrics.uploads', 'Subidas (24h)')}</p>
+                    <p className="text-sm font-medium text-dark-500">{t('admin.overview.metrics.uploads')}</p>
                     <p className="text-3xl font-bold text-dark-900 dark:text-white mt-2">{summary?.metrics?.uploads?.count24h ?? notAvailableLabel}</p>
                     <p className="text-sm text-dark-500 mt-1">{summary?.metrics?.uploads?.bytes24h != null ? formatBytes(Number(summary.metrics.uploads.bytes24h)) : notAvailableLabel}</p>
                 </div>
 
                 <div className="flex flex-col p-6 bg-dark-50/50 dark:bg-dark-900/40 rounded-[1.5rem] border border-dark-100 dark:border-dark-800">
-                    <p className="text-sm font-medium text-dark-500">{t('admin.overview.metrics.downloads', 'Descargas (24h)')}</p>
+                    <p className="text-sm font-medium text-dark-500">{t('admin.overview.metrics.downloads')}</p>
                     <p className="text-3xl font-bold text-dark-900 dark:text-white mt-2">{summary?.metrics?.downloads?.count24h ?? notAvailableLabel}</p>
                 </div>
             </div>
@@ -388,7 +388,7 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
             {/* Row 3: Capacity and Top files */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="col-span-2 p-6 bg-dark-50/50 dark:bg-dark-900/40 rounded-[1.5rem] border border-dark-100 dark:border-dark-800">
-                    <h4 className="font-semibold mb-3">{t('admin.overview.capacity.diskUsage', 'Uso de disco (últimos 7 días)')}</h4>
+                    <h4 className="font-semibold mb-3">{t('admin.overview.capacity.diskUsage')}</h4>
                     {summary?.capacity?.storageSeries?.length ? (
                         <div className="space-y-2">
                             {(() => {
@@ -411,16 +411,16 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
                                 });
                             })()}
                         </div>
-                    ) : <div className="text-sm text-dark-500">{t('admin.overview.capacity.noData', 'No hay datos')}</div>}
+                    ) : <div className="text-sm text-dark-500">{t('admin.overview.capacity.noData')}</div>}
                     {summary?.capacity?.projectionDays != null && (
                         <p className="text-sm text-dark-500 mt-3">
-                            {t('admin.overview.capacity.projection', 'Proyección')}: ~{summary?.capacity?.projectionDays} {t('admin.overview.capacity.daysRemaining', 'días restantes (estimado)')}
+                            {t('admin.overview.capacity.projection')}: ~{summary?.capacity?.projectionDays} {t('admin.overview.capacity.daysRemaining')}
                         </p>
                     )}
                 </div>
 
                 <div className="p-6 bg-dark-50/50 dark:bg-dark-900/40 rounded-[1.5rem] border border-dark-100 dark:border-dark-800">
-                    <h4 className="font-semibold mb-3">{t('admin.overview.capacity.topFiles', 'Top 10 archivos grandes')}</h4>
+                    <h4 className="font-semibold mb-3">{t('admin.overview.capacity.topFiles')}</h4>
                     {topLargeFiles.length ? (
                         <>
                             <div className="space-y-2">
@@ -432,7 +432,7 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
                                         </div>
                                         <div className="text-sm text-right">
                                             <div>{formatBytes(Number(f.size))}</div>
-                                            <a className="text-xs text-primary-600" href={`/files/${f.id}`}>{t('admin.overview.capacity.viewInExplorer', 'Ver en explorador')}</a>
+                                            <a className="text-xs text-primary-600" href={`/files/${f.id}`}>{t('admin.overview.capacity.viewInExplorer')}</a>
                                         </div>
                                     </div>
                                 ))}
@@ -444,18 +444,18 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
                                     className="w-full mt-3"
                                     onClick={() => setShowAllTopFiles((prev) => !prev)}
                                 >
-                                    {showAllTopFiles ? t('admin.overview.showLess', 'Mostrar menos') : t('admin.overview.showAll', 'Mostrar todo')}
+                                    {showAllTopFiles ? t('admin.overview.showLess') : t('admin.overview.showAll')}
                                 </Button>
                             )}
                         </>
-                    ) : <div className="text-sm text-dark-500">{t('admin.overview.capacity.noData', 'No hay datos')}</div>}
+                    ) : <div className="text-sm text-dark-500">{t('admin.overview.capacity.noData')}</div>}
                 </div>
             </div>
 
             {/* Row 4: Alerts and Actions */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="p-6 bg-dark-50/50 dark:bg-dark-900/40 rounded-[1.5rem] border border-dark-100 dark:border-dark-800">
-                    <h4 className="font-semibold mb-3">{t('admin.overview.alerts.title', 'Alertas')}</h4>
+                    <h4 className="font-semibold mb-3">{t('admin.overview.alerts.title')}</h4>
                     {alerts.length ? (
                         <>
                             <div className="space-y-2">
@@ -476,39 +476,39 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
                                     className="w-full mt-3"
                                     onClick={() => setShowAllAlerts((prev) => !prev)}
                                 >
-                                    {showAllAlerts ? t('admin.overview.showLess', 'Mostrar menos') : t('admin.overview.showAll', 'Mostrar todo')}
+                                    {showAllAlerts ? t('admin.overview.showLess') : t('admin.overview.showAll')}
                                 </Button>
                             )}
                         </>
-                    ) : <div className="text-sm text-dark-500">{t('admin.overview.alerts.noAlerts', 'Sin alertas')}</div>}
+                    ) : <div className="text-sm text-dark-500">{t('admin.overview.alerts.noAlerts')}</div>}
                 </div>
 
                 <div className="p-6 bg-dark-50/50 dark:bg-dark-900/40 rounded-[1.5rem] border border-dark-100 dark:border-dark-800">
-                    <h4 className="font-semibold mb-3">{t('admin.overview.actions.title', 'Acciones rápidas')}</h4>
+                    <h4 className="font-semibold mb-3">{t('admin.overview.actions.title')}</h4>
                     <div className="flex flex-col gap-2">
                         <Button onClick={() => setShowSmtpModal(true)} loading={loadingSmtp}>
                             <Mail className="w-4 h-4 mr-2" />
-                            {t('admin.overview.actions.testSmtp', 'Probar SMTP')}
+                            {t('admin.overview.actions.testSmtp')}
                         </Button>
                         <Button variant="outline" onClick={handleReindex} loading={loadingReindex}>
                             <FileSearch className="w-4 h-4 mr-2" />
-                            {t('admin.overview.actions.forceReindex', 'Forzar reindex')}
+                            {t('admin.overview.actions.forceReindex')}
                         </Button>
                         <Button variant="outline" onClick={handleRegenerateThumbnails} loading={loadingThumbnails}>
                             <Image className="w-4 h-4 mr-2" />
-                            {t('admin.overview.actions.regenerateThumbnails', 'Regenerar thumbnails')}
+                            {t('admin.overview.actions.regenerateThumbnails')}
                         </Button>
                         <Button variant="ghost" onClick={handleToggleMaintenance} loading={loadingMaintenance}>
                             <Wrench className="w-4 h-4 mr-2" />
                             {maintenanceMode
-                                ? t('admin.overview.actions.toggleMaintenance', 'Desactivar modo mantenimiento')
-                                : t('admin.overview.actions.toggleMaintenance', 'Activar modo mantenimiento')
+                                ? t('admin.overview.actions.disableMaintenance')
+                                : t('admin.overview.actions.enableMaintenance')
                             }
                         </Button>
                         {summary?.health?.jobs?.details?.transcoding?.failed > 0 && (
                             <Button variant="ghost" onClick={handleRetryJobs} loading={loadingRetryJobs}>
                                 <Activity className="w-4 h-4 mr-2" />
-                                {t('admin.overview.alerts.retryJobs', 'Reintentar {{count}} jobs fallidos', {
+                                {t('admin.overview.alerts.retryJobs', {
                                     count: summary.health.jobs.details.transcoding.failed,
                                 })}
                             </Button>
@@ -519,18 +519,18 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
 
             {/* Security compact */}
             <div className="p-6 bg-dark-50/50 dark:bg-dark-900/40 rounded-[1.5rem] border border-dark-100 dark:border-dark-800">
-                <h4 className="font-semibold mb-3">{t('admin.overview.security.title', 'Seguridad y acceso')}</h4>
+                <h4 className="font-semibold mb-3">{t('admin.overview.security.title')}</h4>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                        <p className="text-sm text-dark-500">{t('admin.overview.security.logins24h', 'Inicios (24h)')}</p>
+                        <p className="text-sm text-dark-500">{t('admin.overview.security.logins24h')}</p>
                         <p className="text-xl font-bold">{summary?.security?.logins?.success ?? 0}</p>
                     </div>
                     <div>
-                        <p className="text-sm text-dark-500">{t('admin.overview.security.failed24h', 'Fallidos (24h)')}</p>
+                        <p className="text-sm text-dark-500">{t('admin.overview.security.failed24h')}</p>
                         <p className="text-xl font-bold text-red-600">{summary?.security?.logins?.failed ?? 0}</p>
                     </div>
                     <div>
-                        <p className="text-sm text-dark-500">{t('admin.overview.security.topFailIps', 'IPs con más fallos')}</p>
+                        <p className="text-sm text-dark-500">{t('admin.overview.security.topFailIps')}</p>
                         {topFailIps.length ? (
                             <>
                                 <div className="text-sm space-y-1">
@@ -543,11 +543,11 @@ export default function OverviewSection({ summary }: OverviewSectionProps) {
                                         className="w-full mt-2"
                                         onClick={() => setShowAllFailIps((prev) => !prev)}
                                     >
-                                        {showAllFailIps ? t('admin.overview.showLess', 'Mostrar menos') : t('admin.overview.showAll', 'Mostrar todo')}
+                                        {showAllFailIps ? t('admin.overview.showLess') : t('admin.overview.showAll')}
                                     </Button>
                                 )}
                             </>
-                        ) : <div className="text-sm text-dark-500">{t('admin.overview.capacity.noData', 'No hay datos')}</div>}
+                        ) : <div className="text-sm text-dark-500">{t('admin.overview.capacity.noData')}</div>}
                     </div>
                 </div>
             </div>

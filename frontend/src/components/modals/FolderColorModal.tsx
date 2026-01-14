@@ -329,7 +329,7 @@ export default function FolderColorModal({
                                                     type="text"
                                                     value={customColor.replace('#', '')}
                                                     onChange={(e) => handleCustomColorChange(e.target.value)}
-                                                    placeholder="FF5733"
+                                                    placeholder={t('folderColor.hexPlaceholder')}
                                                     maxLength={6}
                                                     className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-dark-200 dark:border-dark-600 bg-white dark:bg-dark-700 text-dark-900 dark:text-white font-mono focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
                                                 />

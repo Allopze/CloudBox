@@ -151,7 +151,21 @@
     "logout": "Disconnetti",
     "size": "Dimensione",
     "modified": "Modificato",
-    "created": "Creato"
+    "created": "Creato",
+    "errorShort": "Errore",
+    "unknown": "Sconosciuto",
+    "units": {
+      "mb": "MB",
+      "gb": "GB",
+      "tb": "TB"
+    },
+    "dismiss": "Chiudi",
+    "toggleTheme": "Cambia tema",
+    "logoAlt": "Logo CloudBox",
+    "faviconAlt": "Favicon CloudBox",
+    "navigationDrawer": "Pannello di navigazione",
+    "loadingAnimation": "Criceto arancione e beige che corre in una ruota metallica",
+    "appName": "CloudBox"
   },
   "files": {
     "loading": "Caricamento...",
@@ -586,7 +600,8 @@
         "recoveryCodesCopied": "Codici di recupero copiati",
         "downloadRecoveryCodes": "Scarica codici di recupero",
         "recoveryCodesWarning": "Questi codici saranno mostrati solo una volta. Salvali ora!",
-        "finish": "Completa configurazione"
+        "finish": "Completa configurazione",
+        "qrAlt": "Codice QR 2FA"
       },
       "disable": {
         "title": "Disattiva autenticazione a due fattori",
@@ -672,7 +687,8 @@
     "resetToDefault": "Ripristina",
     "saved": "Colore cartella salvato",
     "saveError": "Errore nel salvataggio del colore",
-    "reset": "Colore ripristinato"
+    "reset": "Colore ripristinato",
+    "hexPlaceholder": "FF5733"
   },
   "modals": {
     "upload": {
@@ -908,7 +924,9 @@
         "viewLogs": "Vedi log recenti",
         "maintenanceEnabled": "Modalità manutenzione attivata",
         "maintenanceDisabled": "Modalità manutenzione disattivata",
-        "notImplemented": "Funzionalità non ancora implementata"
+        "notImplemented": "Funzionalità non ancora implementata",
+        "enableMaintenance": "Attiva modalit? manutenzione",
+        "disableMaintenance": "Disattiva modalit? manutenzione"
       },
       "security": {
         "title": "Sicurezza e accesso",
@@ -935,11 +953,12 @@
       "defaultQuota": "Quota predefinita",
       "maxFileSize": "Dim. max file",
       "allowedTypes": "Tipi consentiti",
-      "save": "Salva Generale"
+      "save": "Salva Generale",
+      "allowedOriginsPlaceholder": "https://example.com\nhttps://app.example.com"
     },
     "email": {
-      "title": "Email (SMTP)",
-      "description": "Configurazione del server di posta",
+      "title": "Email",
+      "description": "Configura il server SMTP e i modelli email.",
       "host": "Host SMTP",
       "port": "Porta",
       "user": "Utente",
@@ -951,13 +970,13 @@
     },
     "templates": {
       "title": "Modelli Email",
-      "description": "Personalizza le email inviate dal sistema",
+      "description": "Descrizione",
       "new": "Nuovo",
       "system": "Modelli di Sistema",
       "custom": "Personalizzati",
       "customized": "Personalizzato",
       "notCustomized": "Non personalizzato",
-      "editor": "Editor di codice",
+      "editor": "Editor",
       "preview": "Anteprima",
       "subject": "Oggetto",
       "htmlContent": "Contenuto HTML",
@@ -968,11 +987,11 @@
       "welcome": "Benvenuto",
       "resetPassword": "Reimposta Password",
       "selectToEdit": "Seleziona un modello per modificarlo",
-      "newVariable": "Nuova Variabile",
-      "editVariable": "Modifica Variabile",
+      "newVariable": "Nuova variabile",
+      "editVariable": "Modifica variabile: {{name}}",
       "templateNamePlaceholder": "Es: Notifica di pagamento",
       "templateNameHint": "Verrà convertito in identificatore univoco (es: notifica_di_pagamento)",
-      "variableNamePlaceholder": "miaVariabile",
+      "variableNamePlaceholder": "mia_variabile",
       "variableNameHint": "Solo lettere, numeri e underscore. Verrà usato come {{example}}",
       "variableValuePlaceholder": "Valore da usare nell'email",
       "variableDescPlaceholder": "A cosa serve questa variabile",
@@ -991,7 +1010,18 @@
       "templateDeleted": "Modello eliminato",
       "templateSaved": "Modello salvato",
       "templateReset": "Modello ripristinato",
-      "testSent": "Email di test inviata"
+      "testSent": "Email di test inviata",
+      "usingDefault": "Usa modello predefinito",
+      "previewTitle": "Anteprima email",
+      "availableVariables": "Variabili disponibili ({{count}})",
+      "systemVariables": "Sistema",
+      "customVariables": "Personalizzate",
+      "variableName": "Nome (senza spazi)",
+      "defaultValue": "Valore predefinito",
+      "sendTest": "Invia test",
+      "selectTemplate": "Seleziona un modello da modificare",
+      "previewName": "Utente di prova",
+      "previewEmail": "utente@esempio.com"
     },
     "branding": {
       "title": "Branding",
@@ -1002,7 +1032,13 @@
       "favicon": "Favicon",
       "save": "Salva Branding",
       "uploaded": "File caricato",
-      "saved": "Branding salvato"
+      "saved": "Branding salvato",
+      "uploadImage": "Carica immagine",
+      "lightBackground": "Visibile su sfondo chiaro",
+      "darkBackground": "Visibile su sfondo scuro",
+      "tabIcon": "Icona della scheda del browser",
+      "siteNamePlaceholder": "CloudBox",
+      "customCssPlaceholder": "/* CSS personalizzato qui */"
     },
     "legal": {
       "title": "Pagine Legali",
@@ -1014,13 +1050,16 @@
       "content": "Contenuto (HTML)",
       "contentHint": "Usa HTML per formattare il contenuto. Tag consentiti: h2, h3, p, ul, ol, li, strong, em, a",
       "preview": "Anteprima",
-      "viewPublic": "Visualizza pagina pubblica",
+      "viewPublic": "Vedi pagina pubblica",
       "reset": "Ripristina",
       "save": "Salva",
       "saved": "Pagina salvata",
       "saveError": "Errore nel salvataggio della pagina",
       "resetSuccess": "Pagina ripristinata",
-      "selectToEdit": "Seleziona una pagina per modificarla"
+      "selectToEdit": "Seleziona una pagina per modificarla",
+      "contentLabel": "Contenuto (Markdown)",
+      "privacyPlaceholder": "# Informativa sulla privacy...",
+      "termsPlaceholder": "# Termini e condizioni..."
     },
     "users": {
       "title": "Gestione Utenti",
@@ -1153,6 +1192,87 @@
         "code": "Codice",
         "default": "Altri file"
       }
+    },
+    "sectionNotFound": "Sezione non trovata",
+    "sidebar": {
+      "footerTitle": "Admin CloudBox",
+      "footerVersion": "v1.0.0 - Build 2024"
+    },
+    "storageRequests": {
+      "title": "Richieste di spazio",
+      "noRequests": "Nessuna richiesta",
+      "approved": "Richiesta approvata",
+      "rejected": "Richiesta rifiutata",
+      "approveError": "Impossibile approvare",
+      "rejectError": "Impossibile rifiutare",
+      "status": {
+        "pending": "In attesa",
+        "approved": "Approvata",
+        "rejected": "Rifiutata"
+      },
+      "filters": {
+        "all": "Tutte",
+        "pending": "In attesa",
+        "approved": "Approvate",
+        "rejected": "Rifiutate"
+      },
+      "labels": {
+        "currentQuota": "Quota attuale",
+        "requestedQuota": "Richiesta",
+        "response": "Risposta"
+      },
+      "responsePlaceholder": "Risposta (facoltativa)",
+      "actions": {
+        "approve": "Approva",
+        "reject": "Rifiuta"
+      },
+      "description": "Gestisci le richieste di aumento quota."
+    },
+    "smtp": {
+      "title": "Configurazione SMTP",
+      "host": "Server SMTP",
+      "port": "Porta",
+      "user": "Utente",
+      "pass": "Password",
+      "from": "Mittente (From)",
+      "secure": "Usa SSL/TLS",
+      "test": "Invia test",
+      "save": "Salva SMTP",
+      "testSuccess": "Email di test inviata",
+      "saved": "Configurazione SMTP salvata",
+      "saveError": "Errore nel salvataggio della configurazione SMTP",
+      "testError": "Errore nell'invio dell'email di test"
+    },
+    "wopi": {
+      "lockProviderOptions": {
+        "db": "Database (PostgreSQL)",
+        "redis": "Redis (consigliato per la produzione)"
+      },
+      "publicUrlPlaceholder": "https://cloudbox.example.com",
+      "discoveryUrlPlaceholder": "https://collabora.example.com/hosting/discovery",
+      "allowedOriginsPlaceholder": "https://collabora.example.com,https://onlyoffice.example.com"
+    },
+    "activity": {
+      "descriptionColumn": "Descrizione",
+      "ipAddress": "Indirizzo IP",
+      "loading": "Caricamento...",
+      "types": {
+        "login": "Accesso",
+        "logout": "Disconnessione",
+        "upload": "Caricamento",
+        "download": "Download",
+        "delete": "Eliminazione",
+        "createUser": "Crea utente",
+        "updateUser": "Aggiorna utente",
+        "updateSettings": "Aggiorna impostazioni"
+      }
+    },
+    "metrics": {
+      "ram": "RAM",
+      "swap": "Swap"
+    },
+    "blockedExtensions": {
+      "placeholder": ".exe\n.ps1\n.php"
     }
   },
   "gallery": {
@@ -1185,7 +1305,11 @@
     "unsupportedDocument": "Tipo di documento non supportato per l'anteprima.",
     "loading": "Caricamento documento...",
     "loadError": "Errore nel caricamento del PDF.",
-    "closeEsc": "Chiudi (Esc)"
+    "closeEsc": "Chiudi (Esc)",
+    "seekBackLabel": "Indietro di {{seconds}} secondi",
+    "seekForwardLabel": "Avanti di {{seconds}} secondi",
+    "seekBackShortcut": "-{{seconds}}s ({{shortcut}})",
+    "seekForwardShortcut": "+{{seconds}}s ({{shortcut}})"
   },
   "mediaViewer": {
     "back": "Indietro",

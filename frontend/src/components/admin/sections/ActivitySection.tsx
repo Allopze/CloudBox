@@ -81,8 +81,8 @@ export default function ActivitySection() {
 
             {/* Activity Logs Section */}
             <div>
-                <h2 className="text-2xl font-bold text-dark-900 dark:text-white">{t('admin.activity.title', 'Registro de Actividad')}</h2>
-                <p className="text-dark-500 dark:text-dark-400 mt-1">{t('admin.activity.description', 'Monitorea las acciones realizadas en el sistema.')}</p>
+                <h2 className="text-2xl font-bold text-dark-900 dark:text-white">{t('admin.activity.title')}</h2>
+                <p className="text-dark-500 dark:text-dark-400 mt-1">{t('admin.activity.description')}</p>
             </div>
 
             <div className="border border-dark-100 dark:border-dark-700 rounded-2xl overflow-hidden shadow-sm">
@@ -92,7 +92,7 @@ export default function ActivitySection() {
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-400" />
                         <input
                             type="text"
-                            placeholder={t('admin.activity.searchPlaceholder', 'Buscar por usuario, IP o descripción...')}
+                            placeholder={t('admin.activity.searchPlaceholder')}
                             value={activitySearch}
                             onChange={(e) => setActivitySearch(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && loadLogs()} // Search on Enter
@@ -104,15 +104,15 @@ export default function ActivitySection() {
                         onChange={(e) => { setActivityTypeFilter(e.target.value); setCurrentPage(1); }}
                         className="px-4 py-2 bg-dark-50 dark:bg-dark-900 border border-dark-200 dark:border-dark-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                     >
-                        <option value="">{t('admin.activity.allTypes', 'Todos los tipos')}</option>
-                        <option value="LOGIN">Loign</option>
-                        <option value="LOGOUT">Logout</option>
-                        <option value="UPLOAD">Upload</option>
-                        <option value="DOWNLOAD">Download</option>
-                        <option value="DELETE">Delete</option>
-                        <option value="CREATE_USER">Create User</option>
-                        <option value="UPDATE_USER">Update User</option>
-                        <option value="UPDATE_SETTINGS">Settings</option>
+                        <option value="">{t('admin.activity.allTypes')}</option>
+                        <option value="LOGIN">{t('admin.activity.types.login')}</option>
+                        <option value="LOGOUT">{t('admin.activity.types.logout')}</option>
+                        <option value="UPLOAD">{t('admin.activity.types.upload')}</option>
+                        <option value="DOWNLOAD">{t('admin.activity.types.download')}</option>
+                        <option value="DELETE">{t('admin.activity.types.delete')}</option>
+                        <option value="CREATE_USER">{t('admin.activity.types.createUser')}</option>
+                        <option value="UPDATE_USER">{t('admin.activity.types.updateUser')}</option>
+                        <option value="UPDATE_SETTINGS">{t('admin.activity.types.updateSettings')}</option>
                     </select>
                     <Button variant="secondary" onClick={loadLogs}>
                         {t('common.search')}
@@ -131,10 +131,10 @@ export default function ActivitySection() {
                                     {t('admin.activity.action')}
                                 </th>
                                 <th className="px-6 py-3 text-left text-xs font-semibold text-dark-500 uppercase tracking-wider">
-                                    {t('admin.activity.description')}
+                                    {t('admin.activity.descriptionColumn')}
                                 </th>
                                 <th className="px-6 py-3 text-left text-xs font-semibold text-dark-500 uppercase tracking-wider">
-                                    IP Address
+                                    {t('admin.activity.ipAddress')}
                                 </th>
                                 <th className="px-6 py-3 text-right text-xs font-semibold text-dark-500 uppercase tracking-wider">
                                     {t('admin.activity.date')}
@@ -146,7 +146,7 @@ export default function ActivitySection() {
                                 <tr>
                                     <td colSpan={5} className="px-6 py-12 text-center">
                                         <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mb-2"></div>
-                                        <p className="text-dark-500">Cargando actividad...</p>
+                                        <p className="text-dark-500">{t('admin.activity.loading')}</p>
                                     </td>
                                 </tr>
                             ) : activities.length === 0 ? (
@@ -164,7 +164,7 @@ export default function ActivitySection() {
                                                     {log.user?.name?.charAt(0) || '?'}
                                                 </div>
                                                 <span className="text-sm font-medium text-dark-900 dark:text-white">
-                                                    {log.user?.name || 'Unknown'}
+                                                    {log.user?.name || t('common.unknown')}
                                                 </span>
                                             </div>
                                         </td>

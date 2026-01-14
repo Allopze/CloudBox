@@ -113,8 +113,8 @@ export default function Filmstrip({
                             'disabled:opacity-40 disabled:cursor-not-allowed',
                             'transition-colors duration-150'
                         )}
-                        aria-label={t('mediaViewer.thumbSizeDecrease', 'Smaller thumbnails')}
-                        title={t('mediaViewer.thumbSizeDecrease', 'Smaller thumbnails')}
+                        aria-label={t('mediaViewer.thumbSizeDecrease')}
+                        title={t('mediaViewer.thumbSizeDecrease')}
                     >
                         <Minus className="w-3 h-3" />
                     </button>
@@ -128,8 +128,8 @@ export default function Filmstrip({
                             'disabled:opacity-40 disabled:cursor-not-allowed',
                             'transition-colors duration-150'
                         )}
-                        aria-label={t('mediaViewer.thumbSizeIncrease', 'Larger thumbnails')}
-                        title={t('mediaViewer.thumbSizeIncrease', 'Larger thumbnails')}
+                        aria-label={t('mediaViewer.thumbSizeIncrease')}
+                        title={t('mediaViewer.thumbSizeIncrease')}
                     >
                         <Plus className="w-3 h-3" />
                     </button>

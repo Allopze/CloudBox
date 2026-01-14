@@ -178,7 +178,7 @@ export default function ImageGallery({
     } catch (err) {
       console.error('Failed to get image URL', err);
       setSignedUrl(null);
-      setImageError(t('gallery.imageError', 'Failed to load image.'));
+      setImageError(t('gallery.imageError'));
     } finally {
       setLoadingSignedUrl(false);
     }
@@ -518,7 +518,7 @@ export default function ImageGallery({
 
   const handleImageError = useCallback(() => {
     setIsLoading(false);
-    setImageError(t('gallery.imageError', 'Failed to load image.'));
+    setImageError(t('gallery.imageError'));
   }, [t]);
 
   // Fetch signed URL when current image changes
@@ -564,17 +564,17 @@ export default function ImageGallery({
 
   const shortcutItems = useMemo(() => {
     const items = [
-      { keys: ['Esc'], label: t('gallery.shortcutClose', 'Close viewer') },
-      { keys: ['\u2190', '\u2192'], label: t('gallery.shortcutNavigate', 'Previous / next') },
-      { keys: ['+', '-'], label: t('gallery.shortcutZoom', 'Zoom in/out') },
-      { keys: ['0'], label: t('gallery.shortcutReset', 'Reset view') },
-      { keys: ['R'], label: t('gallery.shortcutRotate', 'Rotate') },
-      { keys: ['I'], label: t('gallery.shortcutDetails', 'Toggle details') },
-      { keys: ['?'], label: t('gallery.shortcutHelp', 'Toggle shortcuts') },
+      { keys: ['Esc'], label: t('gallery.shortcutClose') },
+      { keys: ['\u2190', '\u2192'], label: t('gallery.shortcutNavigate') },
+      { keys: ['+', '-'], label: t('gallery.shortcutZoom') },
+      { keys: ['0'], label: t('gallery.shortcutReset') },
+      { keys: ['R'], label: t('gallery.shortcutRotate') },
+      { keys: ['I'], label: t('gallery.shortcutDetails') },
+      { keys: ['?'], label: t('gallery.shortcutHelp') },
     ];
 
     if (images.length > 1) {
-      items.splice(2, 0, { keys: ['Space'], label: t('gallery.shortcutSlideshow', 'Play/Pause slideshow') });
+      items.splice(2, 0, { keys: ['Space'], label: t('gallery.shortcutSlideshow') });
     }
 
     return items;
@@ -660,8 +660,8 @@ export default function ImageGallery({
                       ? 'bg-white/20 text-white'
                       : 'text-white/80 hover:text-white hover:bg-white/10'
                   )}
-                  title={t('gallery.shortcuts', 'Shortcuts')}
-                  aria-label={t('gallery.shortcuts', 'Shortcuts')}
+                  title={t('gallery.shortcuts')}
+                  aria-label={t('gallery.shortcuts')}
                   aria-pressed={showShortcuts}
                 >
                   <Keyboard className="w-5 h-5" />
@@ -787,7 +787,7 @@ export default function ImageGallery({
               >
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-dark-900 dark:text-white">
-                    {t('gallery.shortcuts', 'Shortcuts')}
+                    {t('gallery.shortcuts')}
                   </h3>
                   <button
                     onClick={() => setShowShortcuts(false)}

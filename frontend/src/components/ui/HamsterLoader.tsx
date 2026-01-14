@@ -1,13 +1,16 @@
+import { useTranslation } from 'react-i18next';
+
 type HamsterLoaderProps = {
   className?: string;
 };
 
 export default function HamsterLoader({ className }: HamsterLoaderProps) {
+  const { t } = useTranslation();
   const classes = className ? `hamster-loader ${className}` : 'hamster-loader';
   return (
     <div className={classes}>
       <div
-        aria-label="Orange and tan hamster running in a metal wheel"
+        aria-label={t('common.loadingAnimation')}
         role="img"
         className="wheel-and-hamster"
       >

@@ -208,9 +208,9 @@ export default function SettingsSection() {
         setSavingCors(true);
         try {
             await api.put('/admin/settings/cors', { allowedOrigins });
-            toast(t('admin.corsSaved', 'Orígenes permitidos guardados'), 'success');
+            toast(t('admin.corsSaved'), 'success');
         } catch (error: any) {
-            toast(error.response?.data?.error || t('admin.corsError', 'Error al guardar CORS'), 'error');
+            toast(error.response?.data?.error || t('admin.corsError'), 'error');
         } finally {
             setSavingCors(false);
         }
@@ -224,9 +224,9 @@ export default function SettingsSection() {
             const saved = Array.isArray(response.data?.extensions) ? response.data.extensions : extensions;
             setBlockedExtensions(saved.join('\n'));
             setBlockedExtensionsDefault(false);
-            toast(t('admin.blockedExtensions.saved', 'Blocked extensions saved'), 'success');
+            toast(t('admin.blockedExtensions.saved'), 'success');
         } catch (error: any) {
-            toast(error.response?.data?.error || t('admin.blockedExtensions.saveError', 'Failed to save blocked extensions'), 'error');
+            toast(error.response?.data?.error || t('admin.blockedExtensions.saveError'), 'error');
         } finally {
             setSavingBlockedExtensions(false);
         }
@@ -242,10 +242,10 @@ export default function SettingsSection() {
             <section>
                 <div className="mb-4">
                     <h2 className="text-2xl font-bold text-dark-900 dark:text-white">
-                        {t('admin.general.title', 'Configuración General')}
+                        {t('admin.general.title')}
                     </h2>
                     <p className="text-dark-500 dark:text-dark-400 mt-1">
-                        {t('admin.general.description', 'Ajustes generales de la plataforma.')}
+                        {t('admin.general.description')}
                     </p>
                 </div>
                 <div className="py-2">
@@ -303,9 +303,9 @@ export default function SettingsSection() {
                                     onChange={(e) => handleQuotaChange(quotaValue, e.target.value)}
                                     className="px-2 bg-dark-50 dark:bg-dark-700 border-l border-dark-200 dark:border-dark-600 focus:outline-none"
                                 >
-                                    <option value="MB">MB</option>
-                                    <option value="GB">GB</option>
-                                    <option value="TB">TB</option>
+                                    <option value="MB">{t('common.units.mb')}</option>
+                                    <option value="GB">{t('common.units.gb')}</option>
+                                    <option value="TB">{t('common.units.tb')}</option>
                                 </select>
                             </div>
                         </div>
@@ -326,9 +326,9 @@ export default function SettingsSection() {
                                     onChange={(e) => handleMaxFileSizeChange(maxFileSizeValue, e.target.value)}
                                     className="px-2 bg-dark-50 dark:bg-dark-700 border-l border-dark-200 dark:border-dark-600 focus:outline-none"
                                 >
-                                    <option value="MB">MB</option>
-                                    <option value="GB">GB</option>
-                                    <option value="TB">TB</option>
+                                    <option value="MB">{t('common.units.mb')}</option>
+                                    <option value="GB">{t('common.units.gb')}</option>
+                                    <option value="TB">{t('common.units.tb')}</option>
                                 </select>
                             </div>
                         </div>
@@ -337,21 +337,21 @@ export default function SettingsSection() {
                     {/* Allowed Origins */}
                     <div className="mb-6">
                         <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">
-                            <Shield className="w-4 h-4 inline mr-1" /> {t('admin.general.allowedOrigins', 'Orígenes CORS Permitidos')}
+                            <Shield className="w-4 h-4 inline mr-1" /> {t('admin.general.allowedOrigins')}
                         </label>
                         <p className="text-xs text-dark-500 mb-2">
-                            {t('admin.general.allowedOriginsDesc', 'Dominios adicionales permitidos para acceder a la API (uno por línea). Ej: https://app.ejemplo.com')}
+                            {t('admin.general.allowedOriginsDesc')}
                         </p>
                         <textarea
                             value={allowedOrigins}
                             onChange={(e) => setAllowedOrigins(e.target.value)}
                             rows={4}
-                            placeholder="https://ejemplo.com&#10;https://app.ejemplo.com"
+                            placeholder={t('admin.general.allowedOriginsPlaceholder')}
                             className="w-full px-3 py-2 rounded-xl border border-dark-300 dark:border-dark-600 bg-transparent text-dark-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono text-sm"
                         />
                         <div className="flex justify-end mt-2">
                             <Button onClick={saveCorsSettings} loading={savingCors} variant="secondary" icon={<Save className="w-4 h-4" />}>
-                                {t('admin.general.saveCors', 'Guardar Orígenes')}
+                                {t('admin.general.saveCors')}
                             </Button>
                         </div>
                     </div>
@@ -369,7 +369,7 @@ export default function SettingsSection() {
                 <div className="flex items-center gap-2 mb-2">
                     <Upload className="w-5 h-5 text-primary-600" />
                     <h2 className="text-xl font-bold text-dark-900 dark:text-white">
-                        {t('admin.limits.title', 'Límites de Subida')}
+                        {t('admin.limits.title')}
                     </h2>
                 </div>
                 <div className="py-2">
@@ -390,9 +390,9 @@ export default function SettingsSection() {
                                     onChange={(e) => handleUploadMaxChange(uploadMaxValue, e.target.value)}
                                     className="px-2 bg-dark-50 dark:bg-dark-700 border-l border-dark-200 dark:border-dark-600 focus:outline-none"
                                 >
-                                    <option value="MB">MB</option>
-                                    <option value="GB">GB</option>
-                                    <option value="TB">TB</option>
+                                    <option value="MB">{t('common.units.mb')}</option>
+                                    <option value="GB">{t('common.units.gb')}</option>
+                                    <option value="TB">{t('common.units.tb')}</option>
                                 </select>
                             </div>
                         </div>
@@ -413,8 +413,8 @@ export default function SettingsSection() {
                                     onChange={(e) => handleChunkSizeChange(uploadChunkValue, e.target.value)}
                                     className="px-2 bg-dark-50 dark:bg-dark-700 border-l border-dark-200 dark:border-dark-600 focus:outline-none"
                                 >
-                                    <option value="MB">MB</option>
-                                    <option value="GB">GB</option>
+                                    <option value="MB">{t('common.units.mb')}</option>
+                                    <option value="GB">{t('common.units.gb')}</option>
                                 </select>
                             </div>
                         </div>
@@ -446,27 +446,27 @@ export default function SettingsSection() {
                 <div className="flex items-center gap-2 mb-2">
                     <Shield className="w-5 h-5 text-primary-600" />
                     <h2 className="text-xl font-bold text-dark-900 dark:text-white">
-                        {t('admin.blockedExtensions.title', 'Blocked Extensions')}
+                        {t('admin.blockedExtensions.title')}
                     </h2>
                 </div>
                 <p className="text-sm text-dark-500 dark:text-dark-400 mb-3">
-                    {t('admin.blockedExtensions.description', 'Block file extensions for uploads and archive extraction. One per line or comma-separated.')}
+                    {t('admin.blockedExtensions.description')}
                 </p>
                 <textarea
                     value={blockedExtensions}
                     onChange={(e) => setBlockedExtensions(e.target.value)}
                     rows={6}
-                    placeholder=".exe\n.ps1\n.php"
+                    placeholder={t('admin.blockedExtensions.placeholder')}
                     className="w-full px-3 py-2 rounded-xl border border-dark-300 dark:border-dark-600 bg-transparent text-dark-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono text-sm"
                 />
                 <div className="flex items-center justify-between mt-2">
                     <span className="text-xs text-dark-500 dark:text-dark-400">
                         {blockedExtensionsDefault
-                            ? t('admin.blockedExtensions.defaultList', 'Using default list')
-                            : t('admin.blockedExtensions.customList', 'Custom list active')}
+                            ? t('admin.blockedExtensions.defaultList')
+                            : t('admin.blockedExtensions.customList')}
                     </span>
                     <Button onClick={saveBlockedExtensions} loading={savingBlockedExtensions} variant="secondary" icon={<Save className="w-4 h-4" />}>
-                        {t('admin.blockedExtensions.save', 'Save Extensions')}
+                        {t('admin.blockedExtensions.save')}
                     </Button>
                 </div>
             </section>

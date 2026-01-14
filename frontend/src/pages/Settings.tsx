@@ -34,6 +34,8 @@ export default function Settings() {
   const { t, i18n } = useTranslation();
   const { user, updateUser, logout } = useAuthStore();
   const { isDark, toggleTheme } = useThemeStore();
+  const gbLabel = t('common.units.gb');
+  const tbLabel = t('common.units.tb');
 
   const [name, setName] = useState(user?.name || '');
   const [email, setEmail] = useState(user?.email || '');
@@ -805,14 +807,14 @@ export default function Settings() {
                 onChange={(e) => setAdminQuota(e.target.value)}
                 className="input w-full"
               >
-                <option value="1073741824">1 GB</option>
-                <option value="5368709120">5 GB</option>
-                <option value="10737418240">10 GB</option>
-                <option value="53687091200">50 GB</option>
-                <option value="107374182400">100 GB</option>
-                <option value="268435456000">250 GB</option>
-                <option value="536870912000">500 GB</option>
-                <option value="1099511627776">1 TB</option>
+                <option value="1073741824">1 {gbLabel}</option>
+                <option value="5368709120">5 {gbLabel}</option>
+                <option value="10737418240">10 {gbLabel}</option>
+                <option value="53687091200">50 {gbLabel}</option>
+                <option value="107374182400">100 {gbLabel}</option>
+                <option value="268435456000">250 {gbLabel}</option>
+                <option value="536870912000">500 {gbLabel}</option>
+                <option value="1099511627776">1 {tbLabel}</option>
               </select>
             </div>
 
@@ -858,17 +860,17 @@ export default function Settings() {
                     {t('settings.requestedQuotaLabel')}
                   </label>
                   <select
-                    value={requestedQuota}
-                    onChange={(e) => setRequestedQuota(e.target.value)}
-                    className="input w-full"
-                  >
-                    <option value="5368709120">5 GB</option>
-                    <option value="10737418240">10 GB</option>
-                    <option value="53687091200">50 GB</option>
-                    <option value="107374182400">100 GB</option>
-                    <option value="268435456000">250 GB</option>
-                  </select>
-                </div>
+                  value={requestedQuota}
+                  onChange={(e) => setRequestedQuota(e.target.value)}
+                  className="input w-full"
+                >
+                  <option value="5368709120">5 {gbLabel}</option>
+                  <option value="10737418240">10 {gbLabel}</option>
+                  <option value="53687091200">50 {gbLabel}</option>
+                  <option value="107374182400">100 {gbLabel}</option>
+                  <option value="268435456000">250 {gbLabel}</option>
+                </select>
+              </div>
 
                 <div>
                   <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">
