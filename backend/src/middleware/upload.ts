@@ -73,6 +73,16 @@ const brandingStorage = multer.diskStorage({
   },
 });
 
+const landingAssetStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, getStoragePath('temp'));
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `landing_${uuidv4()}${ext}`);
+  },
+});
+
 const imageFilter = (
   req: Express.Request,
   file: Express.Multer.File,
@@ -104,6 +114,14 @@ export const uploadAvatar = multer({
 
 export const uploadBranding = multer({
   storage: brandingStorage,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB
+  },
+  fileFilter: imageFilter,
+});
+
+export const uploadLandingAsset = multer({
+  storage: landingAssetStorage,
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB
   },
