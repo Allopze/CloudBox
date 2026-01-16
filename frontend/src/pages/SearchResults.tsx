@@ -110,7 +110,7 @@ export default function SearchResults() {
         const params = new URLSearchParams();
         if (localQuery) params.set('q', localQuery);
         if (localType) params.set('type', localType);
-        if (localFavorite) params.set('favorite');
+        if (localFavorite) params.set('favorite', 'true');
         if (localDateFrom) params.set('dateFrom', localDateFrom);
         if (localDateTo) params.set('dateTo', localDateTo);
         if (localSizeMin) params.set('sizeMin', localSizeMin);

@@ -166,8 +166,8 @@
     "toggleTheme": "Cambiar tema",
     "logoAlt": "Logo de CloudBox",
     "faviconAlt": "Favicon de CloudBox",
-    "navigationDrawer": "Panel de navegaci?n",
-    "loadingAnimation": "H?mster naranja y beige corriendo en una rueda met?lica",
+    "navigationDrawer": "Panel de navegación",
+    "loadingAnimation": "Hámster naranja y beige corriendo en una rueda metálica",
     "download": "Descargar",
     "upload": "Subir",
     "share": "Compartir",
@@ -669,7 +669,7 @@
         "description": "Añade una capa extra de seguridad a tu cuenta.",
         "step1": "Escanear código QR",
         "step1Description": "Escanea este código QR con tu aplicación de autenticación (Google Authenticator, Authy, etc.)",
-        "qrAlt": "C?digo QR de 2FA",
+        "qrAlt": "Código QR de 2FA",
         "step2": "Introducir código",
         "step2Description": "Introduce el código de 6 dígitos de tu aplicación para verificar",
         "step3": "Guardar códigos de recuperación",
@@ -1500,7 +1500,7 @@
       "uploadImage": "Subir imagen",
       "lightBackground": "Visible en fondo claro",
       "darkBackground": "Visible en fondo oscuro",
-      "tabIcon": "Icono de la pesta?a",
+      "tabIcon": "Icono de la pestaña",
       "customCss": "CSS Personalizado",
       "customCssPlaceholder": "/* CSS personalizado aqu? */",
       "customCssHint": "Añade estilos CSS globales que se inyectarán en la aplicación.",
@@ -1540,7 +1540,7 @@
         "approve": "Aprobar",
         "reject": "Rechazar"
       },
-      "description": "Gestiona las solicitudes de ampliaci?n de cuota."
+      "description": "Gestiona las solicitudes de ampliación de cuota."
     },
     "fileIcons": {
       "title": "Iconos de Archivos",
@@ -1575,22 +1575,22 @@
       "uploadShort": "Subir"
     },
     "smtp": {
-      "title": "Configuraci?n SMTP",
+      "title": "Configuración SMTP",
       "host": "Servidor SMTP",
       "port": "Puerto",
       "user": "Usuario",
-      "pass": "Contrase?a",
+      "pass": "Contraseña",
       "from": "Remitente (From)",
       "secure": "Usar SSL/TLS",
       "test": "Enviar prueba",
       "save": "Guardar SMTP",
       "testSuccess": "Correo de prueba enviado correctamente",
-      "saved": "Configuraci?n SMTP guardada",
-      "saveError": "Error al guardar configuraci?n SMTP",
+      "saved": "Configuración SMTP guardada",
+      "saveError": "Error al guardar configuración SMTP",
       "testError": "Error al enviar email de prueba"
     },
     "email": {
-      "title": "Correo electr?nico",
+      "title": "Correo electrónico",
       "description": "Configura el servidor SMTP y las plantillas de correo."
     },
     "templates": {
@@ -1624,7 +1624,7 @@
       "variableName": "Nombre (sin espacios)",
       "variableNamePlaceholder": "mi_variable",
       "defaultValue": "Valor por defecto",
-      "description": "Descripci?n",
+      "description": "Descripción",
       "editVariable": "Editar variable: {{name}}",
       "sendTest": "Enviar prueba",
       "selectTemplate": "Selecciona una plantilla para editar",
@@ -1634,7 +1634,7 @@
     "wopi": {
       "lockProviderOptions": {
         "db": "Base de datos (PostgreSQL)",
-        "redis": "Redis (recomendado para producci?n)"
+        "redis": "Redis (recomendado para producción)"
       },
       "publicUrlPlaceholder": "https://cloudbox.example.com",
       "discoveryUrlPlaceholder": "https://collabora.example.com/hosting/discovery",
@@ -1673,9 +1673,9 @@
     },
     "legal": {
       "contentLabel": "Contenido (Markdown)",
-      "viewPublic": "Ver p?gina p?blica",
-      "privacyPlaceholder": "# Pol?tica de Privacidad...",
-      "termsPlaceholder": "# T?rminos y Condiciones...",
+      "viewPublic": "Ver página pública",
+      "privacyPlaceholder": "# Política de Privacidad...",
+      "termsPlaceholder": "# Términos y Condiciones...",
       "title": "Paginas Legales",
       "description": "Edita el contenido de las paginas de Privacidad y Terminos."
     },
@@ -1705,16 +1705,16 @@
       "allTypes": "Todos los tipos",
       "user": "Usuario",
       "action": "Acción",
-      "descriptionColumn": "Descripci?n",
-      "ipAddress": "Direcci?n IP",
+      "descriptionColumn": "Descripción",
+      "ipAddress": "Dirección IP",
       "date": "Fecha",
       "noLogs": "No se encontraron registros de actividad.",
       "types": {
-        "login": "Inicio de sesi?n",
-        "logout": "Cierre de sesi?n",
+        "login": "Inicio de sesión",
+        "logout": "Cierre de sesión",
         "upload": "Subida",
         "download": "Descarga",
-        "delete": "Eliminaci?n",
+        "delete": "Eliminación",
         "createUser": "Crear usuario",
         "updateUser": "Actualizar usuario",
         "updateSettings": "Actualizar ajustes"
@@ -1723,7 +1723,7 @@
     },
     "blockedExtensions": {
       "title": "Extensiones Bloqueadas",
-      "description": "Bloquea extensiones de archivo para subidas y extracciИn de archivos comprimidos. Una por lИnea o separadas por comas.",
+      "description": "Bloquea extensiones de archivo para subidas y extracción de archivos comprimidos. Una por línea o separadas por comas.",
       "placeholder": ".exe\n.ps1\n.php",
       "save": "Guardar Extensiones",
       "saved": "Extensiones bloqueadas guardadas",
@@ -1739,7 +1739,7 @@
     "loadError": "Error al cargar datos",
     "saveError": "Error al guardar datos",
     "deleteError": "Error al eliminar",
-    "sectionNotFound": "Secci?n no encontrada",
+    "sectionNotFound": "Sección no encontrada",
     "backToDashboard": "Back to Dashboard",
     "queues": {
       "retrySuccess": "Se reintentaron {{count}} jobs",
