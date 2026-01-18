@@ -19,7 +19,7 @@ import ShareModal from '../components/modals/ShareModal';
 import RenameModal from '../components/modals/RenameModal';
 import ConfirmModal from '../components/ui/ConfirmModal';
 import ImageGallery from '../components/gallery/ImageGallery';
-import VideoPreview from '../components/gallery/VideoPreview';
+import VideoPlayerModal from '../components/gallery/VideoPlayerModal';
 import DocumentViewer from '../components/gallery/DocumentViewer';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { SkeletonGrid } from '../components/ui/Skeleton';
@@ -593,9 +593,8 @@ export default function Files() {
 
       {/* Video Preview */}
       {videoPreviewFile && (
-        <VideoPreview
+        <VideoPlayerModal
           file={videoPreviewFile}
-          isOpen={!!videoPreviewFile}
           onClose={() => setVideoPreviewFile(null)}
           onDownload={(file) => void openSignedFileUrl(file.id, 'download')}
           onShare={(file) => {

@@ -12,7 +12,7 @@ import { toast } from '../components/ui/Toast';
 import { isAudio, isImage, isVideo, isDocument } from '../lib/utils';
 import ShareModal from '../components/modals/ShareModal';
 import ImageGallery from '../components/gallery/ImageGallery';
-import VideoPreview from '../components/gallery/VideoPreview';
+import VideoPlayerModal from '../components/gallery/VideoPlayerModal';
 import DocumentViewer from '../components/gallery/DocumentViewer';
 import Button from '../components/ui/Button';
 
@@ -385,9 +385,8 @@ export default function SearchResults() {
 
             {/* Video Preview */}
             {videoPreviewFile && (
-                <VideoPreview
+                <VideoPlayerModal
                     file={videoPreviewFile}
-                    isOpen={!!videoPreviewFile}
                     onClose={() => setVideoPreviewFile(null)}
                     onDownload={(file) => void openSignedFileUrl(file.id, 'download')}
                     onShare={(file) => {

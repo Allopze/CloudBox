@@ -22,7 +22,8 @@ import {
     ChevronRight,
     Copy,
     Loader2,
-    AlertCircle
+    AlertCircle,
+    Moon,
 } from 'lucide-react';
 import { FileItem } from '../../types';
 import { cn, formatBytes, formatDateTime } from '../../lib/utils';
@@ -44,6 +45,7 @@ interface DocumentViewerProps {
 
 type LeftTabType = 'thumbnails' | 'index' | 'bookmarks';
 type DocumentType = 'pdf' | 'text' | 'spreadsheet' | 'office' | 'unknown';
+type ReadingMode = 'normal' | 'dark' | 'sepia';
 
 interface ContextMenuState {
     show: boolean;
@@ -98,6 +100,7 @@ export default function DocumentViewer({
     const [activeLeftTab, setActiveLeftTab] = useState<LeftTabType>('thumbnails');
     const [showBottomBar, setShowBottomBar] = useState(true);
     const [showContextMenu, setShowContextMenu] = useState<ContextMenuState>({ show: false, x: 0, y: 0, selection: false });
+    const [readingMode, setReadingMode] = useState<ReadingMode>('normal');
 
     // Document loading state
     const [signedUrl, setSignedUrl] = useState<string | null>(null);
@@ -484,6 +487,26 @@ export default function DocumentViewer({
     // Calculate page width based on zoom
     const pageWidth = (800 * zoom) / 100;
 
+    // Reading mode filter styles
+    const readingModeStyle = useMemo(() => {
+        switch (readingMode) {
+            case 'dark':
+                return { filter: 'invert(1) hue-rotate(180deg)' };
+            case 'sepia':
+                return { filter: 'sepia(0.4) brightness(0.95)' };
+            default:
+                return {};
+        }
+    }, [readingMode]);
+
+    const cycleReadingMode = useCallback(() => {
+        setReadingMode(current => {
+            if (current === 'normal') return 'dark';
+            if (current === 'dark') return 'sepia';
+            return 'normal';
+        });
+    }, []);
+
     return createPortal(
         <div className={cn(
             "fixed inset-0 z-50 flex flex-col bg-[#F5F5F7] dark:bg-dark-900 text-gray-900 dark:text-gray-100 font-sans overflow-hidden transition-colors duration-500",
@@ -761,8 +784,8 @@ export default function DocumentViewer({
                                 <div
                                     key={i}
                                     id={`pdf-page-${i + 1}`}
-                                    className="bg-white shadow-lg"
-                                    style={{ maxWidth: '95vw' }}
+                                    className="bg-white shadow-lg transition-all duration-300"
+                                    style={{ maxWidth: '95vw', ...readingModeStyle }}
                                 >
                                     <Page
                                         pageNumber={i + 1}
@@ -1006,6 +1029,20 @@ export default function DocumentViewer({
                             />
                             <span className="text-[10px] font-bold text-gray-400 w-8">{numPages}</span>
                         </div>
+
+                        {/* Reading Mode Toggle */}
+                        <button
+                            onClick={cycleReadingMode}
+                            className={cn(
+                                "p-2 rounded-xl transition-all",
+                                readingMode !== 'normal'
+                                    ? "bg-primary-600 text-white"
+                                    : "hover:bg-gray-100 dark:hover:bg-dark-700 text-gray-600 dark:text-gray-300"
+                            )}
+                            title={t('documentViewer.readingMode')}
+                        >
+                            <Moon size={18} />
+                        </button>
 
                         {/* Focus mode toggle */}
                         <button

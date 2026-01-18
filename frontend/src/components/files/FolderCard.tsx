@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { useLongPress } from '../../hooks/useLongPress';
 import { useTouchDevice } from '../../hooks/useTouchDevice';
 import DOMPurify from 'dompurify';
@@ -47,7 +47,7 @@ interface FolderCardProps {
   disableAnimation?: boolean;
 }
 
-export default function FolderCard({ folder, view = 'grid', onRefresh, disableAnimation }: FolderCardProps) {
+const FolderCard = memo(function FolderCard({ folder, view = 'grid', onRefresh, disableAnimation }: FolderCardProps) {
   const { t } = useTranslation();
   const reducedMotion = useReducedMotion();
   const isTouchDevice = useTouchDevice();
@@ -802,4 +802,6 @@ export default function FolderCard({ folder, view = 'grid', onRefresh, disableAn
       </AnimatePresence>
     </>
   );
-}
+});
+
+export default FolderCard;

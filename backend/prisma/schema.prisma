@@ -104,6 +104,8 @@ model Folder {
   @@index([userId])
   @@index([parentId])
   @@index([isTrash])
+  // Performance: Composite index for folder listing query
+  @@index([userId, parentId, isTrash])
   @@map("folders")
 }
 

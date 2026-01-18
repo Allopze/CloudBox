@@ -118,7 +118,24 @@ const DocumentThumbnail = memo(function DocumentThumbnail({
     let blobUrl: string | null = null; // Track blob URL for cleanup
 
     const loadPreview = async () => {
-      // PDF uses react-pdf, no need to load anything else
+      // For PDFs with cached thumbnail, load the thumbnail instead of using react-pdf
+      if (isPdf && thumbnailPath) {
+        try {
+          const response = await api.get(`/files/${fileId}/thumbnail`, {
+            responseType: 'blob',
+          });
+          if (mounted) {
+            blobUrl = URL.createObjectURL(response.data);
+            setThumbnailUrl(blobUrl);
+          }
+        } catch {
+          // No thumbnail available, will fall back to react-pdf
+        }
+        if (mounted) setLoading(false);
+        return;
+      }
+
+      // PDF without thumbnail uses react-pdf, no need to load anything else
       if (isPdf) {
         if (mounted) setLoading(false);
         return;
@@ -202,13 +219,43 @@ const DocumentThumbnail = memo(function DocumentThumbnail({
         URL.revokeObjectURL(blobUrl);
       }
     };
-  }, [fileId, fileUrl, isPdf, isDocx, isText, isSpreadsheet]);
+  }, [fileId, fileUrl, isPdf, isDocx, isText, isSpreadsheet, thumbnailPath]);
 
   // Suppress the pdfLoaded warning
   void pdfLoaded;
 
-  // PDF preview using react-pdf
+  // PDF preview - use cached thumbnail if available, otherwise fall back to react-pdf
   if (isPdf) {
+    // If we have a cached thumbnail from the backend, use it
+    if (thumbnailPath && thumbnailUrl) {
+      return (
+        <div className={`relative w-full h-full overflow-hidden ${className}`}>
+          <img
+            src={thumbnailUrl}
+            alt={fileName}
+            className="w-full h-full object-cover"
+            onError={() => setThumbnailUrl(null)}
+          />
+          {/* Extension badge */}
+          <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-white/90 text-[10px] font-bold text-red-600 shadow-sm">
+            {label}
+          </div>
+        </div>
+      );
+    }
+
+    // Loading state for PDFs with thumbnailPath but not yet loaded
+    if (thumbnailPath && loading) {
+      return (
+        <div className={`relative w-full h-full overflow-hidden ${className}`}>
+          <div className="flex items-center justify-center w-full h-full bg-gray-100 dark:bg-dark-700">
+            <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
+          </div>
+        </div>
+      );
+    }
+
+    // Fallback to react-pdf for PDFs without cached thumbnail
     return (
       <div className={`relative w-full h-full overflow-hidden ${className}`}>
         <Document

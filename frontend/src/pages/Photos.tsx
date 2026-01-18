@@ -17,7 +17,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ShareModal from '../components/modals/ShareModal';
 import RenameModal from '../components/modals/RenameModal';
 import ConfirmModal from '../components/ui/ConfirmModal';
-import VideoPreview from '../components/gallery/VideoPreview';
+import VideoPlayerModal from '../components/gallery/VideoPlayerModal';
 import ImageGallery from '../components/gallery/ImageGallery';
 import AuthenticatedImage from '../components/AuthenticatedImage';
 import VirtualizedGrid from '../components/ui/VirtualizedGrid';
@@ -1041,9 +1041,8 @@ export default function Photos() {
 
       {/* Video Preview */}
       {videoPreviewFile && (
-        <VideoPreview
+        <VideoPlayerModal
           file={videoPreviewFile}
-          isOpen={true}
           onClose={() => setVideoPreviewFile(null)}
           onDownload={(file) => {
             void openSignedFileUrl(file.id, 'download');

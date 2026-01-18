@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { useLongPress } from '../../hooks/useLongPress';
 import { useTouchDevice } from '../../hooks/useTouchDevice';
 import { useTranslation } from 'react-i18next';
@@ -99,7 +99,7 @@ function getFileExtension(fileName: string): string {
 
 
 
-export default function FileCard({ file, view = 'grid', onRefresh, onPreview, onFavoriteToggle, disableAnimation }: FileCardProps) {
+const FileCard = memo(function FileCard({ file, view = 'grid', onRefresh, onPreview, onFavoriteToggle, disableAnimation }: FileCardProps) {
   const { t } = useTranslation();
   const reducedMotion = useReducedMotion();
   const isTouchDevice = useTouchDevice();
@@ -594,4 +594,6 @@ export default function FileCard({ file, view = 'grid', onRefresh, onPreview, on
       )}
     </>
   );
-}
+});
+
+export default FileCard;

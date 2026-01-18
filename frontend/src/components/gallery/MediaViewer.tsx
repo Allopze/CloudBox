@@ -16,7 +16,7 @@ import { cn } from '../../lib/utils';
 import { getSignedFileUrl } from '../../lib/api';
 import TopBar from './MediaViewer/TopBar';
 import ImageCanvas from './MediaViewer/ImageCanvas';
-import VideoPlayer from './MediaViewer/VideoPlayer';
+import VideoPlayer from './VideoPlayer';
 import Filmstrip from './MediaViewer/Filmstrip';
 import DetailsPanel from './MediaViewer/DetailsPanel';
 
@@ -107,6 +107,19 @@ export default function MediaViewer({
             setShowControls(true);
         }
     }, [currentFile?.id]);
+
+    // Preload adjacent images for smoother navigation
+    useEffect(() => {
+        const preloadImage = (file: FileItem | null) => {
+            if (!file?.mimeType?.startsWith('image/')) return;
+            getSignedFileUrl(file.id, 'view').then(url => {
+                const img = new Image();
+                img.src = url;
+            }).catch(() => { });
+        };
+        preloadImage(prevFile);
+        preloadImage(nextFile);
+    }, [prevFile?.id, nextFile?.id]);
 
     // Auto-hide controls after inactivity
     const resetControlsTimeout = useCallback(() => {
@@ -306,12 +319,15 @@ export default function MediaViewer({
                             onZoomOut={handleZoomOut}
                             onZoomReset={handleZoomReset}
                             onRotate={handleRotate}
+                            onSwipeLeft={navigateNext}
+                            onSwipeRight={navigatePrev}
                         />
                     )}
 
                     {isVideo && signedUrl && (
                         <VideoPlayer
                             src={signedUrl}
+                            showChrome={false}
                             showControls={showControls && !focusMode}
                             initialTime={videoTime}
                             onTimeUpdate={setVideoTime}

@@ -9,7 +9,7 @@ import { Loader2, Star } from 'lucide-react';
 import { toast } from '../components/ui/Toast';
 import { cn, isImage, isVideo, isDocument } from '../lib/utils';
 import ImageGallery from '../components/gallery/ImageGallery';
-import VideoPreview from '../components/gallery/VideoPreview';
+import VideoPlayerModal from '../components/gallery/VideoPlayerModal';
 import DocumentViewer from '../components/gallery/DocumentViewer';
 import ShareModal from '../components/modals/ShareModal';
 import { motion, useReducedMotion } from 'framer-motion';
@@ -224,9 +224,8 @@ export default function Favorites() {
 
       {/* Video Preview */}
       {videoPreviewFile && (
-        <VideoPreview
+        <VideoPlayerModal
           file={videoPreviewFile}
-          isOpen={!!videoPreviewFile}
           onClose={() => setVideoPreviewFile(null)}
           onDownload={(file) => void openSignedFileUrl(file.id, 'download')}
           onShare={(file) => {

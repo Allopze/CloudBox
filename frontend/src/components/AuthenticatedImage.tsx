@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../lib/api';
 import { cn } from '../lib/utils';
@@ -15,12 +15,12 @@ interface AuthenticatedImageProps extends Omit<React.ImgHTMLAttributes<HTMLImage
  * 
  * For public/shared files, use regular img with getFileUrl instead.
  */
-export default function AuthenticatedImage({ 
-  fileId, 
+function AuthenticatedImage({
+  fileId,
   endpoint = 'view',
   fallback,
   alt,
-  ...props 
+  ...props
 }: AuthenticatedImageProps) {
   const { t } = useTranslation();
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
@@ -87,6 +87,8 @@ export default function AuthenticatedImage({
 
   return <img src={objectUrl} alt={alt} {...props} />;
 }
+
+export default memo(AuthenticatedImage);
 
 /**
  * Hook for loading authenticated file URLs

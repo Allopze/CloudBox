@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useGesture } from '@use-gesture/react';
 import {
     ZoomIn,
     ZoomOut,
@@ -24,6 +25,10 @@ interface ImageCanvasProps {
     onImageLoad?: (img: HTMLImageElement) => void;
     onImageError?: () => void;
     hudOffset?: number;
+    /** Callback when swiping left (navigate next) */
+    onSwipeLeft?: () => void;
+    /** Callback when swiping right (navigate prev) */
+    onSwipeRight?: () => void;
 }
 
 export default function ImageCanvas({
@@ -41,6 +46,8 @@ export default function ImageCanvas({
     onImageLoad,
     onImageError,
     hudOffset = 80,
+    onSwipeLeft,
+    onSwipeRight,
 }: ImageCanvasProps) {
     const { t } = useTranslation();
     const containerRef = useRef<HTMLDivElement>(null);
@@ -53,6 +60,8 @@ export default function ImageCanvas({
     const hudTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
     const lastTapRef = useRef(0);
     const lastTapPosRef = useRef({ x: 0, y: 0 });
+    const initialPinchZoomRef = useRef(zoom);
+    const isPinchingRef = useRef(false);
 
     // Flash HUD timeout (for future use if we want to show/hide controls)
     const flashHUD = useCallback(() => {
@@ -122,36 +131,87 @@ export default function ImageCanvas({
         }
     }, [isDragging, handleMouseMove, handleMouseUp]);
 
-    const handleTouchStart = (e: React.TouchEvent) => {
-        if (e.touches.length !== 1) return;
-        const touch = e.touches[0];
-        lastTapPosRef.current = { x: touch.clientX, y: touch.clientY };
+    // Touch gesture bindings using @use-gesture/react
+    const bind = useGesture(
+        {
+            // Pinch gesture for zooming
+            onPinchStart: () => {
+                initialPinchZoomRef.current = zoom;
+                isPinchingRef.current = true;
+            },
+            onPinch: ({ offset: [scale] }) => {
+                const newZoom = Math.max(0.25, Math.min(5, initialPinchZoomRef.current * scale));
+                onZoomChange(newZoom);
+                flashHUD();
+            },
+            onPinchEnd: () => {
+                isPinchingRef.current = false;
+            },
 
-        if (zoom <= 1) return;
-        setIsDragging(true);
-        setDragStart({ x: touch.clientX - position.x, y: touch.clientY - position.y });
-    };
+            // Drag gesture for panning (when zoomed) or swiping (when not zoomed)
+            onDragStart: ({ event }) => {
+                // Record position for double-tap detection
+                if (event instanceof TouchEvent && event.touches.length === 1) {
+                    const touch = event.touches[0];
+                    lastTapPosRef.current = { x: touch.clientX, y: touch.clientY };
+                }
+                if (zoom > 1) {
+                    setIsDragging(true);
+                    setDragStart({ x: position.x, y: position.y });
+                }
+            },
+            onDrag: ({ movement: [mx, my], velocity: [vx], direction: [dx], last, touches, tap }) => {
+                // Ignore multi-touch (pinch is handled separately)
+                if (touches > 1 || isPinchingRef.current) return;
 
-    const handleTouchMove = (e: React.TouchEvent) => {
-        if (!isDragging || zoom <= 1 || e.touches.length !== 1) return;
-        const touch = e.touches[0];
-        onPositionChange({
-            x: touch.clientX - dragStart.x,
-            y: touch.clientY - dragStart.y,
-        });
-        e.preventDefault();
-        flashHUD();
-    };
+                // If zoomed in, allow panning
+                if (zoom > 1) {
+                    onPositionChange({
+                        x: dragStart.x + mx,
+                        y: dragStart.y + my,
+                    });
+                    flashHUD();
+                    return;
+                }
 
-    const handleTouchEnd = () => {
-        setIsDragging(false);
-        const now = Date.now();
-        if (now - lastTapRef.current < 300) {
-            const { x, y } = lastTapPosRef.current;
-            zoomToPoint(x, y);
+                // If not zoomed, detect swipe on gesture end
+                if (last && !tap) {
+                    const absMovement = Math.abs(mx);
+                    const isSwipe = absMovement > 50 && vx > 0.3;
+
+                    if (isSwipe) {
+                        if (dx > 0) {
+                            // Swiped right = previous
+                            onSwipeRight?.();
+                        } else {
+                            // Swiped left = next
+                            onSwipeLeft?.();
+                        }
+                    }
+                }
+            },
+            onDragEnd: () => {
+                setIsDragging(false);
+                // Double-tap detection
+                const now = Date.now();
+                if (now - lastTapRef.current < 300) {
+                    const { x, y } = lastTapPosRef.current;
+                    zoomToPoint(x, y);
+                }
+                lastTapRef.current = now;
+            },
+        },
+        {
+            drag: {
+                filterTaps: true,
+                threshold: 10,
+            },
+            pinch: {
+                scaleBounds: { min: 0.25, max: 5 },
+                rubberband: true,
+            },
         }
-        lastTapRef.current = now;
-    };
+    );
 
     const getFitScale = useCallback(() => {
         const container = containerRef.current;
@@ -193,6 +253,7 @@ export default function ImageCanvas({
     return (
         <div
             ref={containerRef}
+            {...bind()}
             className={cn(
                 'relative w-full h-full flex items-center justify-center overflow-hidden',
                 'touch-none',
@@ -202,9 +263,6 @@ export default function ImageCanvas({
             onDoubleClick={handleDoubleClick}
             onWheel={handleWheel}
             onMouseDown={handleMouseDown}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
         >
             {/* Image */}
             <img
