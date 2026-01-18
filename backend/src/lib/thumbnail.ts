@@ -12,6 +12,8 @@ import logger from './logger.js';
 const execAsync = promisify(exec);
 
 const THUMBNAIL_SIZE = 300;
+const LQIP_SIZE = 10;
+const LQIP_QUALITY = 40;
 
 const isSharpUnsupportedFormatError = (error: unknown): boolean => {
   if (!(error instanceof Error)) return false;
@@ -33,6 +35,20 @@ const isFfmpegInvalidInputError = (error: unknown): boolean => {
 const isSpreadsheetFormatError = (error: unknown): boolean => {
   if (!(error instanceof Error)) return false;
   return /end of central directory|zip file/i.test(error.message);
+};
+
+export const generateLqip = async (inputPath: string): Promise<string | null> => {
+  try {
+    const buffer = await sharp(inputPath)
+      .resize(LQIP_SIZE, LQIP_SIZE, { fit: 'cover', position: 'center' })
+      .webp({ quality: LQIP_QUALITY })
+      .toBuffer();
+
+    return `data:image/webp;base64,${buffer.toString('base64')}`;
+  } catch (error) {
+    logger.debug('LQIP generation failed', { inputPath, error: error instanceof Error ? error.message : 'Unknown' });
+    return null;
+  }
 };
 
 export const generateImageThumbnail = async (inputPath: string, fileId: string): Promise<string | null> => {

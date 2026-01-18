@@ -1,6 +1,6 @@
 import Bull, { Job, Queue } from 'bull';
 import pLimit, { LimitFunction } from 'p-limit';
-import { generateThumbnail } from './thumbnail.js';
+import { generateThumbnail, generateLqip } from './thumbnail.js';
 import prisma from './prisma.js';
 import logger from './logger.js';
 
@@ -158,9 +158,10 @@ class ThumbnailQueue {
         try {
           const thumbnailPath = await generateThumbnail(job.filePath, job.fileId, job.mimeType);
           if (thumbnailPath) {
+            const lqip = await generateLqip(thumbnailPath);
             await prisma.file.update({
               where: { id: job.fileId },
-              data: { thumbnailPath },
+              data: { thumbnailPath, lqip },
             }).catch((err) => {
               // File might have been deleted, ignore error
               logger.debug('Failed to update thumbnail path (file may be deleted)', { fileId: job.fileId, error: err.message });

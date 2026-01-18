@@ -123,12 +123,24 @@ export const streamFile = async (
   req: import('express').Request,
   res: import('express').Response,
   file: { path: string; mimeType: string; name: string },
-  stat: import('fs').Stats
+  stat: import('fs').Stats,
+  fileId?: string
 ) => {
   // SECURITY H-01: Force download for potentially active content types to prevent XSS
   if (FORCE_DOWNLOAD_MIMES.some(mime => file.mimeType.toLowerCase().includes(mime.split('/')[1]))) {
     const safeFilename = encodeURIComponent(file.name).replace(/['()]/g, escape);
     res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"; filename*=UTF-8''${safeFilename}`);
+  }
+
+  const etagBase = fileId || file.path;
+  const etag = `"${etagBase}-${stat.mtimeMs}"`;
+
+  res.setHeader('Cache-Control', 'private, max-age=3600');
+  res.setHeader('ETag', etag);
+
+  if (req.headers['if-none-match'] === etag) {
+    res.status(304).end();
+    return;
   }
 
   const range = req.headers.range;

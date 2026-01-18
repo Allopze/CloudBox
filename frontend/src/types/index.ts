@@ -20,6 +20,7 @@ export interface FileItem {
   size: string;
   path: string;
   thumbnailPath: string | null;
+  lqip?: string | null;
   folderId: string | null;
   userId: string;
   isFavorite: boolean;

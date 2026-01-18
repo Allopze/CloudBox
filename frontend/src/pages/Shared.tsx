@@ -161,6 +161,7 @@ export default function Shared() {
           size: String(file.size || 0),
           path: '', // Not needed for viewing
           thumbnailPath: file.thumbnailPath || null,
+          lqip: (file as any).lqip ?? null,
           folderId: null,
           userId: share.ownerId,
           isFavorite: false,

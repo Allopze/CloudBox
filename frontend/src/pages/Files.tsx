@@ -58,6 +58,7 @@ export default function Files() {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
+  const loadAbortRef = useRef<AbortController | null>(null);
 
   const viewMode = useFileStore((state) => state.viewMode);
   const sortBy = useFileStore((state) => state.sortBy);
@@ -316,6 +317,10 @@ export default function Files() {
   });
 
   const loadData = useCallback(async (pageNum: number = 1, append: boolean = false, showLoading: boolean = true) => {
+    loadAbortRef.current?.abort();
+    const abortController = new AbortController();
+    loadAbortRef.current = abortController;
+
     if (append) {
       setLoadingMore(true);
     } else {
@@ -340,8 +345,24 @@ export default function Files() {
         params.search = searchQuery;
       }
 
-      // Folders: only fetch on first page (they're usually few)
-      const filesRes = await api.get('/files', { params });
+      const filesPromise = api.get('/files', { params, signal: abortController.signal });
+
+      const foldersPromise = append
+        ? Promise.resolve(null)
+        : api.get('/folders', {
+          params: { parentId: effectiveFolderId, ...(searchQuery && { search: searchQuery }) },
+          signal: abortController.signal,
+        });
+
+      const breadcrumbPromise = !append && folderId
+        ? api.get(`/folders/${folderId}`, { signal: abortController.signal })
+        : Promise.resolve(null);
+
+      const [filesRes, foldersRes, folderRes] = await Promise.all([
+        filesPromise,
+        foldersPromise,
+        breadcrumbPromise,
+      ]);
 
       const newFiles = filesRes.data.files || [];
       const pagination = filesRes.data.pagination;
@@ -357,28 +378,31 @@ export default function Files() {
       if (append) {
         setFiles(prev => [...prev, ...newFiles]);
       } else {
-        // Fetch folders only on initial load
-        const foldersRes = await api.get('/folders', { params: { parentId: effectiveFolderId, ...(searchQuery && { search: searchQuery }) } });
         setFiles(newFiles);
-        setFolders(foldersRes.data || []);
+        setFolders(foldersRes?.data || []);
       }
 
       // Load breadcrumbs only on first page
       if (!append && folderId) {
-        const folderRes = await api.get(`/folders/${folderId}`);
-        const crumbs = folderRes.data?.breadcrumb ?? [];
+        const crumbs = folderRes?.data?.breadcrumb ?? [];
         setBreadcrumbs(crumbs);
       } else if (!append) {
         setBreadcrumbs([]);
       }
     } catch (error) {
+      const err = error as { code?: string; name?: string };
+      if (abortController.signal.aborted || err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError') {
+        return;
+      }
       console.error('Error loading files:', error);
       toast(t('files.errorLoading'), 'error');
     } finally {
-      if (showLoading) {
-        setLoading(false);
+      if (!abortController.signal.aborted) {
+        if (showLoading) {
+          setLoading(false);
+        }
+        setLoadingMore(false);
       }
-      setLoadingMore(false);
     }
   }, [folderId, searchQuery, sortBy, sortOrder, setBreadcrumbs]);
 
@@ -420,6 +444,8 @@ export default function Files() {
     loadData();
     clearSelection();
   }, [loadData, clearSelection]);
+
+  useEffect(() => () => loadAbortRef.current?.abort(), []);
 
   // Listen for delete requests from cards (to avoid duplicate confirm modals)
   useEffect(() => {

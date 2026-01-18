@@ -52,6 +52,14 @@ export const getSignedFileUrl = async (fileId: string, action: 'view' | 'downloa
   return response.data.signedUrl;
 };
 
+export const getBatchSignedUrls = async (
+  fileIds: string[],
+  action: 'view' | 'download' | 'stream' | 'thumbnail' = 'view'
+): Promise<Array<{ fileId: string; signedUrl: string; expiresAt: string }>> => {
+  const response = await api.post('/files/batch-signed-urls', { fileIds, action });
+  return response.data.urls;
+};
+
 // Open signed URL in a new tab or trigger download.
 // For 'download' action, uses an invisible anchor to avoid leaving about:blank tabs open.
 // For 'view'/'stream', opens in new tab as before.

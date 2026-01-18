@@ -1,4 +1,4 @@
-import { useState, useEffect, memo, useMemo, useCallback } from 'react';
+import { useState, useEffect, memo, useMemo, useCallback, useRef } from 'react';
 import { FileText, FileSpreadsheet, File, Loader2 } from 'lucide-react';
 import { getFileUrl, api } from '../../lib/api';
 import { getAccessToken } from '../../lib/tokenManager';
@@ -87,6 +87,8 @@ const DocumentThumbnail = memo(function DocumentThumbnail({
   const [error, setError] = useState(false);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [pdfLoaded, setPdfLoaded] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const { icon: DocIcon, bgColor, label } = getDocumentStyle(mimeType, fileName);
   const ext = getExtension(fileName);
@@ -114,6 +116,26 @@ const DocumentThumbnail = memo(function DocumentThumbnail({
   const onPdfLoadError = useCallback(() => setError(true), []);
 
   useEffect(() => {
+    if (isVisible) return;
+    const node = containerRef.current;
+    if (!node) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '200px' }
+    );
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [isVisible]);
+
+  useEffect(() => {
+    if (!isVisible) return;
     let mounted = true;
     let blobUrl: string | null = null; // Track blob URL for cleanup
 
@@ -219,17 +241,32 @@ const DocumentThumbnail = memo(function DocumentThumbnail({
         URL.revokeObjectURL(blobUrl);
       }
     };
-  }, [fileId, fileUrl, isPdf, isDocx, isText, isSpreadsheet, thumbnailPath]);
+  }, [fileId, fileUrl, isPdf, isDocx, isText, isSpreadsheet, thumbnailPath, isVisible]);
 
   // Suppress the pdfLoaded warning
   void pdfLoaded;
+
+  if (!isVisible) {
+    return (
+      <div ref={containerRef} className={`relative w-full h-full ${bgColor} ${className}`}>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <DocIcon className="w-12 h-12 text-white/80" />
+        </div>
+        {(ext || label) && (
+          <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded text-[10px] font-bold text-white/90 bg-black/30 shadow-sm">
+            {ext || label}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   // PDF preview - use cached thumbnail if available, otherwise fall back to react-pdf
   if (isPdf) {
     // If we have a cached thumbnail from the backend, use it
     if (thumbnailPath && thumbnailUrl) {
       return (
-        <div className={`relative w-full h-full overflow-hidden ${className}`}>
+        <div ref={containerRef} className={`relative w-full h-full overflow-hidden ${className}`}>
           <img
             src={thumbnailUrl}
             alt={fileName}
@@ -247,7 +284,7 @@ const DocumentThumbnail = memo(function DocumentThumbnail({
     // Loading state for PDFs with thumbnailPath but not yet loaded
     if (thumbnailPath && loading) {
       return (
-        <div className={`relative w-full h-full overflow-hidden ${className}`}>
+        <div ref={containerRef} className={`relative w-full h-full overflow-hidden ${className}`}>
           <div className="flex items-center justify-center w-full h-full bg-gray-100 dark:bg-dark-700">
             <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
           </div>
@@ -257,7 +294,7 @@ const DocumentThumbnail = memo(function DocumentThumbnail({
 
     // Fallback to react-pdf for PDFs without cached thumbnail
     return (
-      <div className={`relative w-full h-full overflow-hidden ${className}`}>
+      <div ref={containerRef} className={`relative w-full h-full overflow-hidden ${className}`}>
         <Document
           file={pdfOptions}
           onLoadSuccess={onPdfLoadSuccess}
@@ -293,7 +330,7 @@ const DocumentThumbnail = memo(function DocumentThumbnail({
   // Text/Word preview
   if ((isText || isDocx) && previewContent && !error) {
     return (
-      <div className={`relative w-full h-full ${className}`}>
+      <div ref={containerRef} className={`relative w-full h-full ${className}`}>
         <div className="absolute inset-0 bg-white dark:bg-dark-800 p-3 overflow-hidden">
           <div className="text-[7px] leading-tight text-dark-600 dark:text-dark-300 font-mono whitespace-pre-wrap overflow-hidden h-full">
             {previewContent}
@@ -312,7 +349,7 @@ const DocumentThumbnail = memo(function DocumentThumbnail({
   // Loading state
   if (loading) {
     return (
-      <div className={`relative w-full h-full ${bgColor} ${className}`}>
+      <div ref={containerRef} className={`relative w-full h-full ${bgColor} ${className}`}>
         <div className="absolute inset-0 flex items-center justify-center">
           <Loader2 className="w-8 h-8 text-white/80 animate-spin" />
         </div>
@@ -322,7 +359,7 @@ const DocumentThumbnail = memo(function DocumentThumbnail({
 
   // Default fallback with icon (also used for spreadsheets)
   return (
-    <div className={`relative w-full h-full ${thumbnailUrl ? '' : bgColor} ${className}`}>
+    <div ref={containerRef} className={`relative w-full h-full ${thumbnailUrl ? '' : bgColor} ${className}`}>
       {thumbnailUrl ? (
         <img
           src={thumbnailUrl}

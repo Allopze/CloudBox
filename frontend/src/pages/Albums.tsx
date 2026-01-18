@@ -335,6 +335,7 @@ export default function Albums() {
                     fileId={photo.id}
                     endpoint={photo.thumbnailPath ? 'thumbnail' : 'view'}
                     alt={photo.name}
+                    placeholderSrc={photo.lqip}
                     className="w-full h-full object-cover"
                   />
                   {/* Selection indicator */}
@@ -388,6 +389,7 @@ export default function Albums() {
                       fileId={photo.id}
                       endpoint={photo.thumbnailPath ? 'thumbnail' : 'view'}
                       alt={photo.name}
+                      placeholderSrc={photo.lqip}
                       className="w-full h-full object-cover"
                     />
                   </div>
@@ -531,6 +533,7 @@ export default function Albums() {
                     fileId={infoPhoto.id}
                     endpoint={infoPhoto.thumbnailPath ? 'thumbnail' : 'view'}
                     alt={infoPhoto.name}
+                    placeholderSrc={infoPhoto.lqip}
                     className="w-full h-full object-cover"
                   />
                 </div>
@@ -582,6 +585,7 @@ export default function Albums() {
               fileId={lightboxPhoto.id}
               endpoint="view"
               alt={lightboxPhoto.name}
+              placeholderSrc={lightboxPhoto.lqip}
               className="max-w-full max-h-full object-contain"
               onClick={(e) => e.stopPropagation()}
             />
@@ -632,6 +636,7 @@ export default function Albums() {
                         fileId={file.id}
                         endpoint={file.thumbnailPath ? 'thumbnail' : 'view'}
                         alt={file.name}
+                        placeholderSrc={file.lqip}
                         className="w-full h-full object-cover"
                       />
                     ))}

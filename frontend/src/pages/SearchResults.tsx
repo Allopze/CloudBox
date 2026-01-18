@@ -7,6 +7,7 @@ import { useFileStore } from '../stores/fileStore';
 import { useMusicStore } from '../stores/musicStore';
 import FileCard from '../components/files/FileCard';
 import FolderCard from '../components/files/FolderCard';
+import VirtualizedGrid from '../components/ui/VirtualizedGrid';
 import { Search, Filter, X, Loader2, FolderOpen } from 'lucide-react';
 import { toast } from '../components/ui/Toast';
 import { isAudio, isImage, isVideo, isDocument } from '../lib/utils';
@@ -54,6 +55,8 @@ export default function SearchResults() {
     const viewMode = useFileStore((state) => state.viewMode);
     const clearSelection = useFileStore((state) => state.clearSelection);
     const { play } = useMusicStore();
+
+    const items = useMemo(() => [...folders, ...files], [folders, files]);
 
     // Get image files for gallery
     const imageFiles = files.filter(f => isImage(f.mimeType));
@@ -328,33 +331,31 @@ export default function SearchResults() {
                     <p className="text-sm">{t('search.tryDifferent')}</p>
                 </div>
             ) : (
-                <div className={viewMode === 'grid'
-                    ? 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4'
-                    : 'space-y-2'}
-                >
-                    {/* Folders first */}
-                    {folders.map((folder) => (
-                        <FolderCard
-                            key={folder.id}
-                            folder={folder}
-                            view={viewMode}
-                            onRefresh={loadData}
-                        />
-                    ))}
-                    {/* Then files */}
-                    {files.map((file) => (
-                        <FileCard
-                            key={file.id}
-                            file={file}
-                            view={viewMode}
-                            onRefresh={loadData}
-                            onPreview={handleFileClick}
-                            onFavoriteToggle={(fileId, isFavorite) => {
-                                setFiles(prev => prev.map(f => f.id === fileId ? { ...f, isFavorite } : f));
-                            }}
-                        />
-                    ))}
-                </div>
+                <VirtualizedGrid
+                    items={items}
+                    viewMode={viewMode}
+                    scrollElementId="main-content"
+                    estimateListItemHeight={85}
+                    renderItem={(item) => (
+                        'parentId' in item ? (
+                            <FolderCard
+                                folder={item as Folder}
+                                view={viewMode}
+                                onRefresh={loadData}
+                            />
+                        ) : (
+                            <FileCard
+                                file={item as FileItem}
+                                view={viewMode}
+                                onRefresh={loadData}
+                                onPreview={handleFileClick}
+                                onFavoriteToggle={(fileId, isFavorite) => {
+                                    setFiles(prev => prev.map(f => f.id === fileId ? { ...f, isFavorite } : f));
+                                }}
+                            />
+                        )
+                    )}
+                />
             )}
 
             {/* Share Modal */}

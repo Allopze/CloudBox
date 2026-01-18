@@ -377,6 +377,7 @@ const FileCard = memo(function FileCard({ file, view = 'grid', onRefresh, onPrev
                 fileId={file.id}
                 endpoint="thumbnail"
                 alt={file.name}
+                placeholderSrc={file.lqip}
                 className="w-full h-full object-cover"
               />
             ) : (

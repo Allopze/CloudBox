@@ -10,7 +10,9 @@ import './i18n';
 
 // Initialize error tracking (GlitchTip/Sentry)
 import { initSentry } from './lib/sentry';
+import { preloadUploadConfig } from './lib/chunkedUpload';
 initSentry();
+preloadUploadConfig();
 
 const queryClient = new QueryClient({
   defaultOptions: {

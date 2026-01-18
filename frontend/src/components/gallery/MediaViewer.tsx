@@ -78,6 +78,18 @@ export default function MediaViewer({
     // Preload adjacent files
     const prevFile = currentIndex > 0 ? files[currentIndex - 1] : null;
     const nextFile = currentIndex < files.length - 1 ? files[currentIndex + 1] : null;
+    const preloadTargets = useMemo(() => {
+        if (currentIndex < 0) return [] as FileItem[];
+        const targets: FileItem[] = [];
+        const offsets = [-2, -1, 1, 2];
+        for (const offset of offsets) {
+            const index = currentIndex + offset;
+            if (index >= 0 && index < files.length) {
+                targets.push(files[index]);
+            }
+        }
+        return targets;
+    }, [currentIndex, files]);
 
     // Fetch signed URL when current file changes
     useEffect(() => {
@@ -110,16 +122,16 @@ export default function MediaViewer({
 
     // Preload adjacent images for smoother navigation
     useEffect(() => {
-        const preloadImage = (file: FileItem | null) => {
+        const preloadImage = (file: FileItem) => {
             if (!file?.mimeType?.startsWith('image/')) return;
             getSignedFileUrl(file.id, 'view').then(url => {
                 const img = new Image();
                 img.src = url;
             }).catch(() => { });
         };
-        preloadImage(prevFile);
-        preloadImage(nextFile);
-    }, [prevFile?.id, nextFile?.id]);
+
+        preloadTargets.forEach(preloadImage);
+    }, [preloadTargets]);
 
     // Auto-hide controls after inactivity
     const resetControlsTimeout = useCallback(() => {

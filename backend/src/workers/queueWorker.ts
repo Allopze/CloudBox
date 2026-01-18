@@ -27,7 +27,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import prisma from '../lib/prisma.js';
 import { config } from '../config/index.js';
-import { generateThumbnail } from '../lib/thumbnail.js';
+import { generateThumbnail, generateLqip } from '../lib/thumbnail.js';
 import { getStoragePath } from '../lib/storage.js';
 import logger from '../lib/logger.js';
 
@@ -151,9 +151,10 @@ async function processThumbnailJob(job: Job<ThumbnailJob>): Promise<void> {
   try {
     const thumbnailPath = await generateThumbnail(filePath, fileId, mimeType);
     if (thumbnailPath) {
+      const lqip = await generateLqip(thumbnailPath);
       await prisma.file.update({
         where: { id: fileId },
-        data: { thumbnailPath },
+        data: { thumbnailPath, lqip },
       }).catch(() => {});
     }
     logger.debug('Worker completed thumbnail job', { jobId: job.id, fileId });

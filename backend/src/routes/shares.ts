@@ -614,7 +614,7 @@ router.get('/public/:token/files/:fileId/view', shareRateLimiter(), async (req: 
     }
 
     const stat = await fs.stat(file.path);
-    await streamFile(req, res, file, stat);
+    await streamFile(req, res, file, stat, file.id);
   } catch (error) {
     logger.error('View shared file error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to view file' });
@@ -1260,7 +1260,7 @@ router.get('/:id/files/:fileId/view', authenticate, async (req: Request, res: Re
     }
 
     const stat = await fs.stat(file.path);
-    await streamFile(req, res, file, stat);
+    await streamFile(req, res, file, stat, file.id);
   } catch (error) {
     logger.error('View private share file error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to view file' });
@@ -1511,7 +1511,15 @@ router.get('/:id/files/:fileId/thumbnail', authenticate, async (req: Request, re
       return;
     }
 
+    const etag = `"${file.id}-thumb"`;
+
+    if (req.headers['if-none-match'] === etag) {
+      res.status(304).end();
+      return;
+    }
+
     res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.setHeader('ETag', etag);
     res.sendFile(file.thumbnailPath);
   } catch (error) {
     logger.error('Thumbnail private share file error', {}, error instanceof Error ? error : undefined);

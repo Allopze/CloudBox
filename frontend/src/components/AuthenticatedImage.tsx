@@ -3,10 +3,43 @@ import { useTranslation } from 'react-i18next';
 import { api } from '../lib/api';
 import { cn } from '../lib/utils';
 
+const MAX_OBJECT_URLS = 200;
+const objectUrlCache = new Map<string, string>();
+
+const getCachedObjectUrl = (key: string): string | null => {
+  const cached = objectUrlCache.get(key) || null;
+  if (cached) {
+    objectUrlCache.delete(key);
+    objectUrlCache.set(key, cached);
+  }
+  return cached;
+};
+
+const setCachedObjectUrl = (key: string, url: string): void => {
+  const existing = objectUrlCache.get(key);
+  if (existing && existing !== url) {
+    URL.revokeObjectURL(existing);
+  }
+  objectUrlCache.delete(key);
+  objectUrlCache.set(key, url);
+
+  if (objectUrlCache.size > MAX_OBJECT_URLS) {
+    const oldestKey = objectUrlCache.keys().next().value as string | undefined;
+    if (oldestKey) {
+      const oldestUrl = objectUrlCache.get(oldestKey);
+      if (oldestUrl) {
+        URL.revokeObjectURL(oldestUrl);
+      }
+      objectUrlCache.delete(oldestKey);
+    }
+  }
+};
+
 interface AuthenticatedImageProps extends Omit<React.ImgHTMLAttributes<HTMLImageElement>, 'src'> {
   fileId: string;
   endpoint?: 'view' | 'thumbnail';
   fallback?: React.ReactNode;
+  placeholderSrc?: string | null;
 }
 
 /**
@@ -19,6 +52,7 @@ function AuthenticatedImage({
   fileId,
   endpoint = 'view',
   fallback,
+  placeholderSrc,
   alt,
   ...props
 }: AuthenticatedImageProps) {
@@ -29,12 +63,21 @@ function AuthenticatedImage({
 
   useEffect(() => {
     let isMounted = true;
-    let url: string | null = null;
+    const cacheKey = `${fileId}:${endpoint}`;
 
     const loadImage = async () => {
       try {
         setLoading(true);
         setError(false);
+
+        const cached = getCachedObjectUrl(cacheKey);
+        if (cached) {
+          if (isMounted) {
+            setObjectUrl(cached);
+            setLoading(false);
+          }
+          return;
+        }
 
         const response = await api.get(`/files/${fileId}/${endpoint}`, {
           responseType: 'blob',
@@ -42,7 +85,8 @@ function AuthenticatedImage({
 
         if (!isMounted) return;
 
-        url = URL.createObjectURL(response.data);
+        const url = URL.createObjectURL(response.data);
+        setCachedObjectUrl(cacheKey, url);
         setObjectUrl(url);
       } catch (err) {
         if (!isMounted) return;
@@ -59,13 +103,21 @@ function AuthenticatedImage({
 
     return () => {
       isMounted = false;
-      if (url) {
-        URL.revokeObjectURL(url);
-      }
     };
   }, [fileId, endpoint]);
 
   if (loading) {
+    if (placeholderSrc) {
+      return (
+        <img
+          src={placeholderSrc}
+          alt={alt}
+          {...props}
+          className={cn('blur-sm scale-105', props.className)}
+        />
+      );
+    }
+
     return fallback ? <>{fallback}</> : (
       <div
         className={cn('animate-pulse bg-gray-200 dark:bg-gray-700', props.className)}
@@ -106,20 +158,28 @@ export function useAuthenticatedUrl(fileId: string | null, endpoint: 'view' | 't
     }
 
     let isMounted = true;
-    let objectUrl: string | null = null;
+    const cacheKey = `${fileId}:${endpoint}`;
 
     const loadUrl = async () => {
       setLoading(true);
       setError(null);
 
       try {
+        const cached = getCachedObjectUrl(cacheKey);
+        if (cached) {
+          setUrl(cached);
+          setLoading(false);
+          return;
+        }
+
         const response = await api.get(`/files/${fileId}/${endpoint}`, {
           responseType: 'blob',
         });
 
         if (!isMounted) return;
 
-        objectUrl = URL.createObjectURL(response.data);
+        const objectUrl = URL.createObjectURL(response.data);
+        setCachedObjectUrl(cacheKey, objectUrl);
         setUrl(objectUrl);
       } catch (err) {
         if (!isMounted) return;
@@ -135,9 +195,6 @@ export function useAuthenticatedUrl(fileId: string | null, endpoint: 'view' | 't
 
     return () => {
       isMounted = false;
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-      }
     };
   }, [fileId, endpoint]);
 

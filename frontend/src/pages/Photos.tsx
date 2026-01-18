@@ -560,6 +560,7 @@ export default function Photos() {
                       fileId={photo.id}
                       endpoint={photo.thumbnailPath ? 'thumbnail' : 'view'}
                       alt={photo.name}
+                      placeholderSrc={photo.lqip}
                       className="w-full h-full object-cover"
                       loading="lazy"
                     />
@@ -836,6 +837,7 @@ export default function Photos() {
                   fileId={infoPhoto.id}
                   endpoint={infoPhoto.thumbnailPath ? 'thumbnail' : 'view'}
                   alt={infoPhoto.name}
+                  placeholderSrc={infoPhoto.lqip}
                   className="w-full h-full object-contain"
                 />
               </div>

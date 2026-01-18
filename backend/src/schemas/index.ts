@@ -104,6 +104,13 @@ export const moveFileSchema = z.object({
   }),
 });
 
+export const batchSignedUrlsSchema = z.object({
+  body: z.object({
+    fileIds: z.array(z.string().uuid()).min(1).max(200),
+    action: z.enum(['view', 'download', 'stream', 'thumbnail']).default('view'),
+  }),
+});
+
 export const createShareSchema = z.object({
   body: z.object({
     fileId: z.string().uuid().optional(),

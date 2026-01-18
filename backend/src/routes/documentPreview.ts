@@ -99,7 +99,7 @@ router.get('/:id/pdf-preview', authOptional, async (req: Request, res: Response)
                 path: previewPath,
                 mimeType: 'application/pdf',
                 name: file.name.replace(/\.[^.]+$/, '.pdf'),
-            }, stat);
+            }, stat, file.id);
         }
 
         // Check conversion status
@@ -113,7 +113,7 @@ router.get('/:id/pdf-preview', authOptional, async (req: Request, res: Response)
                     path: status.outputPath,
                     mimeType: 'application/pdf',
                     name: file.name.replace(/\.[^.]+$/, '.pdf'),
-                }, stat);
+                }, stat, file.id);
             }
 
             if (status.status === 'processing' || status.status === 'queued') {

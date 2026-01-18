@@ -16,6 +16,7 @@ import {
   uploadChunkSchema,
   fileIdParamSchema,
   fileAccessSchema,
+  batchSignedUrlsSchema,
   parseRangeHeader,
   UPLOAD_LIMITS,
   UPLOAD_ERROR_CODES,
@@ -32,12 +33,13 @@ import {
   streamFile,
   isValidUUID,
 } from '../lib/storage.js';
-import { generateThumbnail } from '../lib/thumbnail.js';
+import { generateThumbnail, generateLqip } from '../lib/thumbnail.js';
 import { thumbnailQueue } from '../lib/thumbnailQueue.js';
 import { config } from '../config/index.js';
 import { sanitizeFilename, validateMimeType, isDangerousExtension, checkUserRateLimitDistributed, getBlockedExtensions } from '../lib/security.js';
 import { auditLog } from '../lib/audit.js';
 import { addFileAccessToken, getFileAccessTokens, setFileAccessCookie } from '../lib/fileAccessCookies.js';
+import { generateSignedUrlToken } from '../lib/jwt.js';
 
 type FileResponse = { size: string } & Record<string, unknown>;
 import logger from '../lib/logger.js';
@@ -1336,9 +1338,10 @@ router.post('/upload/chunk', authenticate, uploadChunk.single('chunk'), validate
         generateThumbnail(filePath, fileId, normalizedMimeType)
           .then(async (thumbnailPath) => {
             if (thumbnailPath) {
+              const lqip = await generateLqip(thumbnailPath);
               await prisma.file.update({
                 where: { id: fileId },
-                data: { thumbnailPath },
+                data: { thumbnailPath, lqip },
               }).catch(() => { });
             }
           })
@@ -1945,7 +1948,7 @@ router.get('/:id/stream', authOptional, async (req: Request, res: Response) => {
       const transcodedPath = file.transcodedPath || getStoragePath('files', userId, `${id}_transcoded.mp3`);
       if (await fileExists(transcodedPath)) {
         const transcodedStat = await fs.stat(transcodedPath);
-        return streamFile(req, res, { path: transcodedPath, mimeType: 'audio/mpeg', name: file.name }, transcodedStat);
+            return streamFile(req, res, { path: transcodedPath, mimeType: 'audio/mpeg', name: file.name }, transcodedStat, id);
       }
 
       const existingStatus = await getTranscodingJobStatus(id);
@@ -1984,7 +1987,7 @@ router.get('/:id/stream', authOptional, async (req: Request, res: Response) => {
           const transcodedPath = getStoragePath('files', userId, `${id}_transcoded.mp4`);
           if (await fileExists(transcodedPath)) {
             const transcodedStat = await fs.stat(transcodedPath);
-            return streamFile(req, res, { path: transcodedPath, mimeType: 'video/mp4', name: file.name }, transcodedStat);
+            return streamFile(req, res, { path: transcodedPath, mimeType: 'video/mp4', name: file.name }, transcodedStat, id);
           }
         }
         // Return current status
@@ -2014,7 +2017,7 @@ router.get('/:id/stream', authOptional, async (req: Request, res: Response) => {
       return;
     }
 
-    return streamFile(req, res, file, stat);
+    return streamFile(req, res, file, stat, id);
   } catch (error) {
     logger.error('Stream file error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to stream file' });
@@ -2205,7 +2208,7 @@ router.get('/:id/view', authOptional, async (req: Request, res: Response) => {
       const transcodedPath = file.transcodedPath || getStoragePath('files', userId, `${id}_transcoded.mp3`);
       if (await fileExists(transcodedPath)) {
         const transcodedStat = await fs.stat(transcodedPath);
-        return streamFile(req, res, { path: transcodedPath, mimeType: 'audio/mpeg', name: file.name }, transcodedStat);
+        return streamFile(req, res, { path: transcodedPath, mimeType: 'audio/mpeg', name: file.name }, transcodedStat, id);
       }
 
       const existingStatus = await getTranscodingJobStatus(id);
@@ -2222,7 +2225,7 @@ router.get('/:id/view', authOptional, async (req: Request, res: Response) => {
       return;
     }
 
-    return streamFile(req, res, file, stat);
+    return streamFile(req, res, file, stat, id);
   } catch (error) {
     logger.error('View file error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to view file' });
@@ -2425,9 +2428,18 @@ router.post('/:id/signed-url', authenticate, async (req: Request, res: Response)
       return;
     }
 
-    // Import config for expiration
-    const { config } = await import('../config/index.js');
-    const { generateSignedUrlToken } = await import('../lib/jwt.js');
+    const cached = await cache.getSignedUrl(userId, id, action);
+    if (cached && new Date(cached.expiresAt).getTime() > Date.now()) {
+      const existingTokens = getFileAccessTokens(req);
+      const updatedTokens = addFileAccessToken(existingTokens, cached.token);
+      setFileAccessCookie(res, updatedTokens);
+
+      res.json({
+        signedUrl: cached.signedUrl,
+        expiresAt: cached.expiresAt,
+      });
+      return;
+    }
 
     const token = generateSignedUrlToken();
     const expiresAt = new Date(Date.now() + config.signedUrls.expiresIn * 1000);
@@ -2458,14 +2470,94 @@ router.post('/:id/signed-url', authenticate, async (req: Request, res: Response)
     const forwardedProto = req.get('x-forwarded-proto');
     const protocol = forwardedProto ? forwardedProto.split(',')[0].trim() : req.protocol;
     const origin = host ? `${protocol}://${host}` : config.frontendUrl.replace(/\/$/, '');
+    const signedUrl = `${origin.replace(/\/$/, '')}/api/files/${id}/${action}`;
+
+    await cache.setSignedUrl(userId, id, action, {
+      signedUrl,
+      expiresAt: expiresAt.toISOString(),
+      token,
+    });
 
     res.json({
-      signedUrl: `${origin.replace(/\/$/, '')}/api/files/${id}/${action}`,
+      signedUrl,
       expiresAt: expiresAt.toISOString(),
     });
   } catch (error) {
     logger.error('Generate signed URL error', {}, error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Failed to generate signed URL' });
+  }
+});
+
+// Batch signed URLs
+router.post('/batch-signed-urls', authenticate, validate(batchSignedUrlsSchema), async (req: Request, res: Response) => {
+  try {
+    const { fileIds, action } = req.body as { fileIds: string[]; action: 'view' | 'download' | 'stream' | 'thumbnail' };
+    const userId = req.user!.userId;
+
+    const uniqueFileIds = Array.from(new Set(fileIds));
+    const files = await prisma.file.findMany({
+      where: { id: { in: uniqueFileIds }, userId, isTrash: false },
+      select: { id: true },
+    });
+
+    const foundIds = new Set(files.map((f) => f.id));
+    const missingIds = uniqueFileIds.filter((id) => !foundIds.has(id));
+    if (missingIds.length > 0) {
+      res.status(404).json({ error: 'File not found', missingIds });
+      return;
+    }
+
+    const host = req.get('x-forwarded-host') || req.get('host');
+    const forwardedProto = req.get('x-forwarded-proto');
+    const protocol = forwardedProto ? forwardedProto.split(',')[0].trim() : req.protocol;
+    const origin = host ? `${protocol}://${host}` : config.frontendUrl.replace(/\/$/, '');
+
+    let updatedTokens = getFileAccessTokens(req);
+    const results: { fileId: string; signedUrl: string; expiresAt: string }[] = [];
+
+    for (const fileId of uniqueFileIds) {
+      const cached = await cache.getSignedUrl(userId, fileId, action);
+      if (cached && new Date(cached.expiresAt).getTime() > Date.now()) {
+        updatedTokens = addFileAccessToken(updatedTokens, cached.token);
+        results.push({ fileId, signedUrl: cached.signedUrl, expiresAt: cached.expiresAt });
+        continue;
+      }
+
+      const token = generateSignedUrlToken();
+      const expiresAt = new Date(Date.now() + config.signedUrls.expiresIn * 1000);
+
+      await prisma.signedUrl.create({
+        data: {
+          token,
+          fileId,
+          userId,
+          action,
+          expiresAt,
+        },
+      });
+
+      const signedUrl = `${origin.replace(/\/$/, '')}/api/files/${fileId}/${action}`;
+      await cache.setSignedUrl(userId, fileId, action, {
+        signedUrl,
+        expiresAt: expiresAt.toISOString(),
+        token,
+      });
+
+      updatedTokens = addFileAccessToken(updatedTokens, token);
+      results.push({ fileId, signedUrl, expiresAt: expiresAt.toISOString() });
+    }
+
+    setFileAccessCookie(res, updatedTokens);
+
+    // Clean up expired signed URLs (async, don't wait)
+    prisma.signedUrl.deleteMany({
+      where: { expiresAt: { lt: new Date() } },
+    }).catch(() => { });
+
+    res.json({ urls: results });
+  } catch (error) {
+    logger.error('Batch signed URLs error', {}, error instanceof Error ? error : undefined);
+    res.status(500).json({ error: 'Failed to generate signed URLs' });
   }
 });
 

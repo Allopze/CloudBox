@@ -173,6 +173,7 @@ export default function Filmstrip({
                                         fileId={file.id}
                                         endpoint={file.thumbnailPath ? 'thumbnail' : 'view'}
                                         alt={file.name}
+                                        placeholderSrc={file.lqip}
                                         className="w-full h-full object-cover"
                                     />
                                 ) : (

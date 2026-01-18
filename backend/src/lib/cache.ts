@@ -32,6 +32,7 @@ const CACHE_CONFIG = {
     dashboard: 60,      // 1 minute - aggregate stats
     recent: 30,         // 30 seconds - changes with activity
     adminStats: 300,    // 5 minutes - system-wide stats
+    signedUrls: 300,    // 5 minutes - short-lived signed URLs
   },
   enabled: process.env.CACHE_ENABLED !== 'false',
 };
@@ -574,6 +575,33 @@ export async function setAdminSummary(summary: any): Promise<boolean> {
  */
 export async function invalidateAdminSummary(): Promise<void> {
   await del('admin:summary');
+}
+
+// ==================== Signed URL Cache ====================
+
+export type SignedUrlCacheEntry = {
+  signedUrl: string;
+  expiresAt: string;
+  token: string;
+};
+
+export async function getSignedUrl(
+  userId: string,
+  fileId: string,
+  action: string
+): Promise<SignedUrlCacheEntry | null> {
+  const key = `signedUrl:${userId}:${fileId}:${action}`;
+  return get<SignedUrlCacheEntry>(key);
+}
+
+export async function setSignedUrl(
+  userId: string,
+  fileId: string,
+  action: string,
+  value: SignedUrlCacheEntry
+): Promise<boolean> {
+  const key = `signedUrl:${userId}:${fileId}:${action}`;
+  return set(key, value, CACHE_CONFIG.ttl.signedUrls);
 }
 
 // ==================== Bulk Invalidation ====================
