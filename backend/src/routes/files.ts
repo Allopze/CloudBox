@@ -745,7 +745,9 @@ router.post('/upload/validate', authenticate, async (req: Request, res: Response
     }
 
     const remainingQuota = Number(user.storageQuota) - Number(user.storageUsed) - Number(user.tempStorage || 0);
-    const maxFileSize = Math.min(Number(user.maxFileSize), await getGlobalUploadMaxFileSize());
+    // Use the HIGHER of user limit or global config (global can raise user limits)
+    // This matches the logic in upload handlers (L317, L551, L903)
+    const maxFileSize = Math.max(Number(user.maxFileSize), await getGlobalUploadMaxFileSize());
     const blockedExtensions = await getBlockedExtensions();
 
     const validationResults: Array<{
@@ -1948,7 +1950,7 @@ router.get('/:id/stream', authOptional, async (req: Request, res: Response) => {
       const transcodedPath = file.transcodedPath || getStoragePath('files', userId, `${id}_transcoded.mp3`);
       if (await fileExists(transcodedPath)) {
         const transcodedStat = await fs.stat(transcodedPath);
-            return streamFile(req, res, { path: transcodedPath, mimeType: 'audio/mpeg', name: file.name }, transcodedStat, id);
+        return streamFile(req, res, { path: transcodedPath, mimeType: 'audio/mpeg', name: file.name }, transcodedStat, id);
       }
 
       const existingStatus = await getTranscodingJobStatus(id);

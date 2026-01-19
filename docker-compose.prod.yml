@@ -173,6 +173,12 @@ services:
     command: [ "node", "dist/workers/queueWorker.js" ]
     networks:
       - cloudbox-internal
+    healthcheck:
+      test: [ "CMD-SHELL", "node -e \"require('ioredis').default && new (require('ioredis').default)({host:'redis',port:6379,password:process.env.REDIS_PASSWORD||undefined}).ping().then(()=>process.exit(0)).catch(()=>process.exit(1))\"" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   # Frontend (Caddy)
   frontend:
