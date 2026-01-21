@@ -12,7 +12,11 @@ interface FileExtensionIconProps extends IconProps {
     extension: string;
 }
 
-const iconModules = import.meta.glob('../../assets/icons/*.svg', { as: 'raw', eager: true });
+const iconModules = import.meta.glob('../../assets/icons/*.svg', {
+    query: '?raw',
+    import: 'default',
+    eager: true,
+});
 
 const assetIcons = Object.fromEntries(
     Object.entries(iconModules)

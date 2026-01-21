@@ -2005,7 +2005,7 @@ router.get('/server-info', authenticate, requireAdmin, async (req: Request, res:
 });
 
 // Healthcheck
-router.get('/health', async (req: Request, res: Response) => {
+router.get('/health', authenticate, requireAdmin, async (req: Request, res: Response) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
     res.json({ status: 'healthy', timestamp: new Date().toISOString() });
